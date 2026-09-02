@@ -1,0 +1,36 @@
+{
+  "statement": "A preprocessing join creates the apparent group disparity.",
+  "generated_by": "codex",
+  "parent_claims": [],
+  "lineage": [],
+  "source_context": [
+    "Initial inquiry statement; no dataset inspected yet."
+  ],
+  "scope": "Automated resume-screening recommendations for the defined audit population and period.",
+  "observable_prediction": "After independently reconstructing and validating entity joins, the registered disparity estimate materially decreases.",
+  "null_model": "Join reconstruction does not materially change the registered disparity estimate.",
+  "competing_models": [
+    "The disparity is already present in source labels.",
+    "The fitted ranking model produces group-dependent errors on valid joins."
+  ],
+  "causal_direction": "Join corruption precedes score calculation and creates group-dependent input errors.",
+  "primary_estimand": "Change in the prespecified between-group recommendation disparity after join reconstruction.",
+  "expected_effect_direction": "The absolute disparity decreases after correction.",
+  "time_window": "To be specified during inquiry clarification.",
+  "covariates": [],
+  "known_confounds": [
+    "Applicant-pool composition",
+    "Missing group labels",
+    "Role-specific base rates"
+  ],
+  "falsification_conditions": [
+    "The disparity persists within the registered equivalence region after independently verified joins."
+  ],
+  "support_conditions": [
+    "Verified correction removes join errors and reduces the registered estimate without changing the audit population."
+  ],
+  "boundary_conditions": [
+    "The result applies only to the audited pipeline version, roles, population, and period."
+  ],
+  "required_replications": null
+}

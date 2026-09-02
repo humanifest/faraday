@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/evidence-command.schema.json",
+  "title": "Evidence recording command",
+  "description": "Provider-neutral input contract for claim-scoped evidence.",
+  "type": "object",
+  "required": [
+    "hypothesis_id",
+    "direction",
+    "summary",
+    "dataset_id",
+    "analysis_id"
+  ],
+  "properties": {
+    "hypothesis_id": {"type": "string", "minLength": 1},
+    "claim_id": {"type": ["string", "null"]},
+    "direction": {
+      "enum": ["supports", "weakens", "refutes", "inconclusive"]
+    },
+    "summary": {"type": "string", "minLength": 1},
+    "dataset_id": {"type": "string", "minLength": 1},
+    "analysis_id": {"type": "string", "minLength": 1},
+    "effect_estimate": {"type": "string"},
+    "uncertainty": {"type": "string"},
+    "scope": {"type": "string"},
+    "controls_passed": {"type": "array", "items": {"type": "string"}},
+    "controls_failed": {"type": "array", "items": {"type": "string"}},
+    "higher_level_conclusions_unsupported": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "exploratory": {"type": "boolean", "default": true}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/hypothesis-proposal.schema.json",
+  "title": "Hypothesis proposal",
+  "description": "Provider-neutral input contract for an unreviewed hypothesis proposal.",
+  "type": "object",
+  "required": ["statement"],
+  "properties": {
+    "statement": {"type": "string", "minLength": 1},
+    "generated_by": {"type": "string", "minLength": 1, "default": "codex"},
+    "parent_claims": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "lineage": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "source_context": {"type": "array", "items": {"type": "string"}},
+    "scope": {"type": "string"},
+    "observable_prediction": {"type": "string"},
+    "null_model": {"type": "string"},
+    "competing_models": {"type": "array", "items": {"type": "string"}},
+    "causal_direction": {"type": "string"},
+    "primary_estimand": {"type": "string"},
+    "expected_effect_direction": {"type": "string"},
+    "time_window": {"type": "string"},
+    "covariates": {"type": "array", "items": {"type": "string"}},
+    "known_confounds": {"type": "array", "items": {"type": "string"}},
+    "falsification_conditions": {"type": "array", "items": {"type": "string"}},
+    "support_conditions": {"type": "array", "items": {"type": "string"}},
+    "boundary_conditions": {"type": "array", "items": {"type": "string"}},
+    "required_replications": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "default": null
+    }
+  },
+  "additionalProperties": false
+}
