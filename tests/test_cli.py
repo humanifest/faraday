@@ -144,3 +144,303 @@ def test_json_cli_rejects_malformed_proposal_contract(tmp_path: Path, capsys) ->
     error = json.loads(captured.err)
     assert error["ok"] is False
     assert "competing_models must be an array" in error["error"]["message"]
+
+
+def test_cli_stages_pending_review_without_activation(
+    tmp_path: Path, capsys
+) -> None:
+    workspace = tmp_path / "workspace"
+    global_args = ["--workspace", str(workspace), "--json"]
+    assert main([*global_args, "workspace", "init"]) == 0
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "inquiry",
+                "create",
+                "--id",
+                "pending-review",
+                "--title",
+                "Pending review",
+                "--statement",
+                "Can exploration continue safely?",
+            ]
+        )
+        == 0
+    )
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "hypothesis",
+                "propose",
+                "--statement",
+                "A physical postulate removes the obstruction.",
+                "--prediction",
+                "A registered exploratory gate changes.",
+                "--null-model",
+                "The gate does not change.",
+                "--falsification",
+                "The gate remains failed.",
+            ]
+        )
+        == 0
+    )
+    hypothesis = result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "--actor",
+                "delegated-codex-review",
+                "hypothesis",
+                "stage",
+                hypothesis["hypothesis_id"],
+                "--confidence",
+                "high",
+                "--rationale",
+                "The proposal is complete and the exploration is reversible.",
+            ]
+        )
+        == 0
+    )
+    staged = result_from(capsys)
+    assert staged["workflow_state"] == "pending_review"
+    assert staged["activated_at"] is None
+    assert staged["pending_review_by"] == "delegated-codex-review"
+    assert (
+        main(
+            [
+                *global_args,
+                "hypothesis",
+                "list",
+                "--state",
+                "pending_review",
+            ]
+        )
+        == 0
+    )
+    assert result_from(capsys)[0]["hypothesis_id"] == hypothesis["hypothesis_id"]
+
+
+def test_cli_rigor_audit_supports_ci_failure_thresholds(tmp_path: Path, capsys) -> None:
+    workspace = tmp_path / "workspace"
+    global_args = ["--workspace", str(workspace), "--json"]
+    assert main([*global_args, "workspace", "init"]) == 0
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "inquiry",
+                "create",
+                "--id",
+                "rigor-audit",
+                "--title",
+                "Rigor audit",
+                "--statement",
+                "Can overclaims fail closed?",
+            ]
+        )
+        == 0
+    )
+    result_from(capsys)
+
+    assert main([*global_args, "workspace", "audit", "--fail-on", "error"]) == 0
+    audit = result_from(capsys)
+    assert audit["structurally_valid"] is True
+    assert audit["conclusion_ceiling"] == "unclassified evidence only"
+
+    assert main([*global_args, "workspace", "audit", "--fail-on", "warning"]) == 2
+    captured = capsys.readouterr()
+    error = json.loads(captured.err)
+    assert error["ok"] is False
+    assert "rigor audit failed" in error["error"]["message"]
+
+
+def test_cli_records_general_protocol_run_and_next_action(
+    tmp_path: Path, capsys
+) -> None:
+    workspace = tmp_path / "workspace"
+    global_args = ["--workspace", str(workspace), "--json"]
+    assert main([*global_args, "workspace", "init"]) == 0
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "inquiry",
+                "create",
+                "--id",
+                "theory-check",
+                "--title",
+                "Theory check",
+                "--statement",
+                "Does the formal model entail the invariant?",
+            ]
+        )
+        == 0
+    )
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "hypothesis",
+                "propose",
+                "--statement",
+                "The axioms entail the invariant.",
+                "--prediction",
+                "A proof checker accepts the derivation.",
+                "--null-model",
+                "No valid bounded derivation exists.",
+                "--falsification",
+                "The proof checker rejects a proof step.",
+            ]
+        )
+        == 0
+    )
+    hypothesis = result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "hypothesis",
+                "activate",
+                hypothesis["hypothesis_id"],
+            ]
+        )
+        == 0
+    )
+    result_from(capsys)
+
+    protocol_spec = tmp_path / "protocol.json"
+    protocol_spec.write_text(
+        json.dumps(
+            {
+                "experiment_id": "proof-check",
+                "title": "Registered formal check",
+                "analysis_mode": "confirmatory",
+                "protocol_kind": "formal",
+                "hypotheses_tested": [hypothesis["hypothesis_id"]],
+                "primary_outcome": "Proof checker acceptance",
+                "methodology": "Replay the proof in a pinned checker.",
+                "quality_requirements": ["proof-check"],
+                "controls": ["A deliberately invalid proof must be rejected."],
+                "expected_outputs": ["Proof object"],
+                "success_conditions": ["Checker acceptance"],
+                "environment_requirements": ["Pinned checker hash"],
+                "sample_size_or_stopping_rule": (
+                    "One proof object and one deliberately invalid control."
+                ),
+                "failure_conditions": ["Any rejected proof step"],
+                "safety_constraints": ["No physical intervention"],
+                "analysis_code_hash": "a" * 64,
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        main([*global_args, "protocol", "create", "--spec-file", str(protocol_spec)])
+        == 0
+    )
+    protocol = result_from(capsys)
+    assert main([*global_args, "protocol", "freeze", protocol["protocol_id"]]) == 0
+    protocol = result_from(capsys)
+
+    run_record = tmp_path / "run.json"
+    run_record.write_text(
+        json.dumps(
+            {
+                "protocol_id": protocol["protocol_id"],
+                "started_at": "2026-09-02T10:00:00Z",
+                "completed_at": "2026-09-02T10:01:00Z",
+                "analysis_code_hash": "a" * 64,
+                "environment_hash": "b" * 64,
+                "output_artifacts": [{"locator": "proof.json", "sha256": "c" * 64}],
+                "quality_gates": [
+                    {
+                        "gate_id": "proof-check",
+                        "status": "passed",
+                        "summary": "The proof was independently replayed.",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert main([*global_args, "run", "record", "--record-file", str(run_record)]) == 0
+    run = result_from(capsys)
+    assert run["scientific_evidence_eligible"] is True
+    assert (
+        main(
+            [
+                *global_args,
+                "evidence",
+                "record",
+                "--hypothesis",
+                hypothesis["hypothesis_id"],
+                "--direction",
+                "supports",
+                "--summary",
+                "The registered proof check passed.",
+                "--run",
+                run["run_id"],
+                "--uncertainty",
+                "Bounded to the pinned checker and registered formal system.",
+                "--scope",
+                "The registered invariant only.",
+                "--control-passed",
+                "The deliberately invalid proof was rejected.",
+                "--higher-conclusion-unsupported",
+                "The candidate is empirically correct.",
+                "--validation-tag",
+                "internal_consistency",
+                "--validation-tag",
+                "controlled_benchmark",
+                "--confirmatory",
+            ]
+        )
+        == 0
+    )
+    evidence = result_from(capsys)
+    assert evidence["run_id"] == run["run_id"]
+
+    action_spec = tmp_path / "actions.json"
+    action_spec.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "action_id": "independent-check",
+                        "title": "Independent proof check",
+                        "distinguishes_hypotheses": [hypothesis["hypothesis_id"]],
+                        "expected_discrimination": 0.9,
+                        "uncertainty_reduction": 0.8,
+                        "cost": 0.2,
+                        "burden": 0.1,
+                        "safety_risk": 0.0,
+                        "ambiguity_risk": 0.1,
+                        "rationale": "A second checker probes implementation dependence.",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        main(
+            [
+                *global_args,
+                "next-action",
+                "recommend",
+                "--spec-file",
+                str(action_spec),
+            ]
+        )
+        == 0
+    )
+    recommendation = result_from(capsys)
+    assert recommendation["selected_action_id"] == "independent-check"

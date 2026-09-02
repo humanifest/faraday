@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/next-action.schema.json",
+  "title": "Next research action selection",
+  "type": "object",
+  "required": ["candidates"],
+  "properties": {
+    "candidates": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["action_id", "title", "distinguishes_hypotheses", "expected_discrimination", "uncertainty_reduction", "cost", "burden", "safety_risk", "ambiguity_risk", "rationale"],
+        "properties": {
+          "action_id": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "distinguishes_hypotheses": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+          "expected_discrimination": {"type": "number", "minimum": 0, "maximum": 1},
+          "uncertainty_reduction": {"type": "number", "minimum": 0, "maximum": 1},
+          "cost": {"type": "number", "minimum": 0, "maximum": 1},
+          "burden": {"type": "number", "minimum": 0, "maximum": 1},
+          "safety_risk": {"type": "number", "minimum": 0, "maximum": 1},
+          "ambiguity_risk": {"type": "number", "minimum": 0, "maximum": 1},
+          "rationale": {"type": "string", "minLength": 1},
+          "prerequisites_met": {"type": "boolean", "default": true},
+          "safety_approved": {"type": "boolean", "default": true},
+          "metadata": {"type": "object"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "weights": {
+      "type": "object",
+      "properties": {
+        "expected_discrimination": {"type": "number", "minimum": 0},
+        "uncertainty_reduction": {"type": "number", "minimum": 0},
+        "cost": {"type": "number", "minimum": 0},
+        "burden": {"type": "number", "minimum": 0},
+        "safety_risk": {"type": "number", "minimum": 0},
+        "ambiguity_risk": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

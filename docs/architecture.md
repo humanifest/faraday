@@ -26,7 +26,8 @@ Codex conversation (current client)       future UI / HTTP API / agent
 
 Dependencies point inward:
 
-- `domain` defines inquiry, claim, hypothesis, evidence, and their vocabularies.
+- `domain` defines inquiry, claim, hypothesis, dataset, protocol, run, evidence,
+  and action-selection vocabularies.
 - `application` defines commands, validation policies, and use cases.
 - `ports` defines capabilities the application needs from the outside world.
 - `adapters` implement ports, currently with a transparent filesystem workspace.
@@ -49,14 +50,35 @@ accurate, a source was truthful, or an analysis was well designed; calibration,
 chain of custody, and methodological review are separate gates.
 
 The filesystem adapter uses atomic replacement for JSON state. Single-writer use
-is assumed in version 0.1. Concurrent clients will require repository-level
+is assumed in version 0.2. Concurrent clients will require repository-level
 locking or a transactional database before an API is exposed.
+
+## Epistemic audit and conclusion ceiling
+
+Provenance integrity is necessary but not sufficient: a perfectly hashed toy
+calculation may still be scientifically weak. Evidence therefore carries one or
+more validation tags. Application policy validates those tags against the
+actual protocol, run, dataset role, executor identity, code hash, and quality
+gates. A client cannot obtain an `empirical_test` label for a synthetic formal
+run or an `independent_replication` label for the author's own unchanged code.
+
+The read-only rigor audit checks legacy and current evidence for scope,
+uncertainty, controls, claim ceilings, classification, protocol stop rules, and
+eligibility consistency. Synthesis reports a conservative conclusion ceiling
+derived only from validation tags whose prerequisites pass. Missing capabilities
+remain visible instead of being filled by generated narrative.
+
+These checks validate recorded provenance, not the world. An executor identity
+is not independently authenticated merely because its string differs, and the
+machine cannot by itself establish that a source is truthful, an instrument is
+accurate, or a derivation is sound. Those remain external review and replication
+obligations.
 
 ## Workflow state versus evidence state
 
 These are intentionally orthogonal:
 
-- Workflow: `unreviewed`, `active`, `parked`, `retired`.
+- Workflow: `unreviewed`, `pending_review`, `active`, `parked`, `retired`.
 - Evidence assessment: `unassessed`, `supported`, `weakened`, `refuted`,
   `inconclusive`.
 - Replication: `untested`, `pending`, `replicated`, `failed`, `mixed`.
@@ -67,23 +89,44 @@ insufficiently measured, currently untestable, or ethically prohibited. The
 retirement record retains this distinction and states when reconsideration is
 warranted.
 
-## Roadmap boundaries
+`pending_review` is a constrained research state, not a weaker synonym for
+`active`. It records a high-confidence agent review after the person has
+delegated exploratory autonomy. It permits only exploratory protocol freezes
+and exploratory evidence. Human activation remains necessary before protected
+confirmation or replication.
 
-The following capabilities should be added behind new application commands and
-ports, in this order:
+## General execution model
 
-1. Immutable experiment protocols with versioning and hash commitments.
-2. Dataset manifests with mutually exclusive calibration, discovery, training,
-   confirmation, and replication roles.
-3. Run manifests that bind inputs, protocol, code, environment, seeds, outputs,
-   validation results, and executor identity.
-4. Quality gates and adapters for synchronized multimodal data.
-5. Registered and exploratory execution namespaces with reproducibility checks.
-6. Evidence aggregation without automatic claim-level promotion.
-7. Experiment selection by expected discrimination, uncertainty reduction, cost,
-   burden, safety, ethics, and ambiguity risk.
-8. Provider adapters that may suggest questions or hypotheses as unreviewed
-   proposals, never as canonical conclusions.
+An inquiry is the campaign boundary. Within it, the causal chain is:
+
+```text
+hypothesis -> review state -> frozen protocol -> role-locked inputs -> quality-gated run
+           -> narrowly scoped evidence -> synthesis -> next action
+```
+
+Protocol kinds make this chain domain-neutral. Empirical protocols add sampling,
+randomization, blinding, preprocessing, and statistical requirements. Formal and
+computational protocols instead require reproducible environments. All kinds
+share hash commitments, expected outputs, success/failure conditions, controls,
+and safety constraints.
+
+The application records runs; it does not execute arbitrary code. Executors may
+be local processes, workflow systems, proof assistants, lab instruments, or human
+teams. They cross the boundary by returning a run record with content hashes and
+gate results.
+
+Next-action selection is transparent and deterministic. Unsafe candidates and
+candidates with unmet prerequisites fail closed. Eligible candidates are ranked
+by expected discrimination and uncertainty reduction minus cost, burden, safety
+risk, and ambiguity risk. The candidates, weights, and ranking are all persisted.
+
+## Remaining adapter boundaries
+
+- execution sandbox and workflow-runner adapters;
+- domain quality gates, including synchronized multimodal data;
+- statistics, simulation, theorem-proving, and literature-analysis executors;
+- repository locking or transactional storage for concurrent clients;
+- provider adapters that can suggest only unreviewed hypotheses and actions.
 
 The sleep/acoustic campaign remains a useful eventual acceptance suite, not a
 privileged domain model.

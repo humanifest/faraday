@@ -3,11 +3,15 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from research_machine.domain.models import (
+    ActionRecommendation,
     Claim,
+    DatasetManifest,
     EvidenceRecord,
+    ExperimentProtocol,
     Hypothesis,
     Inquiry,
     Question,
+    ResearchRun,
 )
 
 
@@ -49,6 +53,36 @@ class WorkspaceRepository(Protocol):
     def save_evidence(self, inquiry_id: str, evidence: EvidenceRecord) -> None: ...
 
     def list_evidence(self, inquiry_id: str) -> list[EvidenceRecord]: ...
+
+    def save_dataset(self, inquiry_id: str, dataset: DatasetManifest) -> None: ...
+
+    def find_dataset(self, inquiry_id: str, dataset_id: str) -> DatasetManifest: ...
+
+    def list_datasets(self, inquiry_id: str) -> list[DatasetManifest]: ...
+
+    def save_protocol(self, inquiry_id: str, protocol: ExperimentProtocol) -> None: ...
+
+    def find_protocol(
+        self, inquiry_id: str, protocol_id: str
+    ) -> ExperimentProtocol: ...
+
+    def freeze_protocol(
+        self, inquiry_id: str, protocol: ExperimentProtocol
+    ) -> None: ...
+
+    def list_protocols(self, inquiry_id: str) -> list[ExperimentProtocol]: ...
+
+    def save_run(self, inquiry_id: str, run: ResearchRun) -> None: ...
+
+    def find_run(self, inquiry_id: str, run_id: str) -> ResearchRun: ...
+
+    def list_runs(self, inquiry_id: str) -> list[ResearchRun]: ...
+
+    def save_recommendation(
+        self, inquiry_id: str, recommendation: ActionRecommendation
+    ) -> None: ...
+
+    def list_recommendations(self, inquiry_id: str) -> list[ActionRecommendation]: ...
 
     def write_report(self, inquiry_id: str, name: str, content: str) -> str: ...
 

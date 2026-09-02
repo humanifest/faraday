@@ -1,0 +1,23 @@
+{
+  "protocol_id": "<frozen-protocol-id>",
+  "started_at": "2026-09-02T10:00:00Z",
+  "completed_at": "2026-09-02T10:01:00Z",
+  "analysis_code_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "environment_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "dataset_ids": [],
+  "output_artifacts": [
+    {
+      "locator": "proof-output.json",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_type": "application/json"
+    }
+  ],
+  "quality_gates": [
+    {
+      "gate_id": "proof-check",
+      "status": "passed",
+      "summary": "The independent checker accepted the derivation.",
+      "required": true
+    }
+  ]
+}

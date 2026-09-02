@@ -16,17 +16,22 @@ from research_machine.domain.errors import (
     ValidationError,
 )
 from research_machine.domain.models import (
+    ActionRecommendation,
     Claim,
+    DatasetManifest,
     EvidenceRecord,
+    ExperimentProtocol,
     Hypothesis,
     HypothesisWorkflowState,
     Inquiry,
     Question,
+    ResearchRun,
 )
 
 _SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,95}$")
 _HYPOTHESIS_LOCATIONS = {
     HypothesisWorkflowState.UNREVIEWED.value: "drafts/hypotheses",
+    HypothesisWorkflowState.PENDING_REVIEW.value: "hypotheses/pending_review",
     HypothesisWorkflowState.ACTIVE.value: "hypotheses/active",
     HypothesisWorkflowState.PARKED.value: "hypotheses/parked",
     HypothesisWorkflowState.RETIRED.value: "hypotheses/retired",
@@ -77,6 +82,7 @@ class FileSystemRepository:
             raise ConflictError(f"inquiry {inquiry.inquiry_id} already exists")
         for relative in (
             "drafts/hypotheses",
+            "hypotheses/pending_review",
             "hypotheses/active",
             "hypotheses/parked",
             "hypotheses/retired",
@@ -84,6 +90,7 @@ class FileSystemRepository:
             "protocols/draft",
             "protocols/frozen",
             "runs",
+            "recommendations",
             "evidence",
             "reports",
         ):
@@ -220,6 +227,127 @@ class FileSystemRepository:
             EvidenceRecord.from_dict(self._read_json(path))
             for path in sorted(directory.glob("*.json"))
         ]
+
+    def save_dataset(self, inquiry_id: str, dataset: DatasetManifest) -> None:
+        self._validate_id(dataset.dataset_id, "dataset_id")
+        path = self._inquiry_dir(inquiry_id) / "datasets" / f"{dataset.dataset_id}.json"
+        if path.exists():
+            raise ConflictError(f"dataset {dataset.dataset_id} already exists")
+        self._atomic_json(path, dataset.to_dict())
+
+    def find_dataset(self, inquiry_id: str, dataset_id: str) -> DatasetManifest:
+        self._validate_id(dataset_id, "dataset_id")
+        path = self._inquiry_dir(inquiry_id) / "datasets" / f"{dataset_id}.json"
+        if not path.is_file():
+            raise NotFoundError(f"dataset {dataset_id} does not exist")
+        return DatasetManifest.from_dict(self._read_json(path))
+
+    def list_datasets(self, inquiry_id: str) -> list[DatasetManifest]:
+        directory = self._inquiry_dir(inquiry_id) / "datasets"
+        datasets = [
+            DatasetManifest.from_dict(self._read_json(path))
+            for path in sorted(directory.glob("*.json"))
+        ]
+        return sorted(datasets, key=lambda item: (item.created_at, item.dataset_id))
+
+    def save_protocol(self, inquiry_id: str, protocol: ExperimentProtocol) -> None:
+        self._validate_id(protocol.protocol_id, "protocol_id")
+        try:
+            self.find_protocol(inquiry_id, protocol.protocol_id)
+        except NotFoundError:
+            pass
+        else:
+            raise ConflictError(f"protocol {protocol.protocol_id} already exists")
+        path = (
+            self._inquiry_dir(inquiry_id)
+            / "protocols"
+            / "draft"
+            / f"{protocol.protocol_id}.json"
+        )
+        self._atomic_json(path, protocol.to_dict())
+
+    def find_protocol(self, inquiry_id: str, protocol_id: str) -> ExperimentProtocol:
+        self._validate_id(protocol_id, "protocol_id")
+        base = self._inquiry_dir(inquiry_id) / "protocols"
+        for status in ("draft", "frozen"):
+            path = base / status / f"{protocol_id}.json"
+            if path.is_file():
+                return ExperimentProtocol.from_dict(self._read_json(path))
+        raise NotFoundError(f"protocol {protocol_id} does not exist")
+
+    def freeze_protocol(self, inquiry_id: str, protocol: ExperimentProtocol) -> None:
+        base = self._inquiry_dir(inquiry_id) / "protocols"
+        draft = base / "draft" / f"{protocol.protocol_id}.json"
+        frozen = base / "frozen" / f"{protocol.protocol_id}.json"
+        if not draft.is_file():
+            raise NotFoundError(f"draft protocol {protocol.protocol_id} does not exist")
+        if frozen.exists():
+            raise ConflictError(
+                f"frozen protocol {protocol.protocol_id} already exists"
+            )
+        self._atomic_json(frozen, protocol.to_dict())
+        draft.unlink()
+
+    def list_protocols(self, inquiry_id: str) -> list[ExperimentProtocol]:
+        base = self._inquiry_dir(inquiry_id) / "protocols"
+        protocols: list[ExperimentProtocol] = []
+        for status in ("draft", "frozen"):
+            protocols.extend(
+                ExperimentProtocol.from_dict(self._read_json(path))
+                for path in sorted((base / status).glob("*.json"))
+            )
+        return sorted(
+            protocols,
+            key=lambda item: (item.protocol_family_id, item.version),
+        )
+
+    def save_run(self, inquiry_id: str, run: ResearchRun) -> None:
+        self._validate_id(run.run_id, "run_id")
+        path = self._inquiry_dir(inquiry_id) / "runs" / f"{run.run_id}.json"
+        if path.exists():
+            raise ConflictError(f"run {run.run_id} already exists")
+        self._atomic_json(path, run.to_dict())
+
+    def find_run(self, inquiry_id: str, run_id: str) -> ResearchRun:
+        self._validate_id(run_id, "run_id")
+        path = self._inquiry_dir(inquiry_id) / "runs" / f"{run_id}.json"
+        if not path.is_file():
+            raise NotFoundError(f"run {run_id} does not exist")
+        return ResearchRun.from_dict(self._read_json(path))
+
+    def list_runs(self, inquiry_id: str) -> list[ResearchRun]:
+        directory = self._inquiry_dir(inquiry_id) / "runs"
+        runs = [
+            ResearchRun.from_dict(self._read_json(path))
+            for path in sorted(directory.glob("*.json"))
+        ]
+        return sorted(runs, key=lambda item: (item.completed_at, item.run_id))
+
+    def save_recommendation(
+        self, inquiry_id: str, recommendation: ActionRecommendation
+    ) -> None:
+        self._validate_id(recommendation.recommendation_id, "recommendation_id")
+        path = (
+            self._inquiry_dir(inquiry_id)
+            / "recommendations"
+            / f"{recommendation.recommendation_id}.json"
+        )
+        if path.exists():
+            raise ConflictError(
+                f"recommendation {recommendation.recommendation_id} already exists"
+            )
+        self._atomic_json(path, recommendation.to_dict())
+
+    def list_recommendations(self, inquiry_id: str) -> list[ActionRecommendation]:
+        directory = self._inquiry_dir(inquiry_id) / "recommendations"
+        recommendations = [
+            ActionRecommendation.from_dict(self._read_json(path))
+            for path in sorted(directory.glob("*.json"))
+        ]
+        return sorted(
+            recommendations,
+            key=lambda item: (item.created_at, item.recommendation_id),
+        )
 
     def write_report(self, inquiry_id: str, name: str, content: str) -> str:
         if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,95}", name):

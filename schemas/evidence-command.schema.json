@@ -8,8 +8,10 @@
     "hypothesis_id",
     "direction",
     "summary",
-    "dataset_id",
-    "analysis_id"
+    "uncertainty",
+    "scope",
+    "higher_level_conclusions_unsupported",
+    "validation_tags"
   ],
   "properties": {
     "hypothesis_id": {"type": "string", "minLength": 1},
@@ -18,8 +20,9 @@
       "enum": ["supports", "weakens", "refutes", "inconclusive"]
     },
     "summary": {"type": "string", "minLength": 1},
-    "dataset_id": {"type": "string", "minLength": 1},
-    "analysis_id": {"type": "string", "minLength": 1},
+    "dataset_id": {"type": ["string", "null"], "minLength": 1},
+    "run_id": {"type": ["string", "null"], "minLength": 1},
+    "analysis_id": {"type": "string"},
     "effect_estimate": {"type": "string"},
     "uncertainty": {"type": "string"},
     "scope": {"type": "string"},
@@ -27,9 +30,34 @@
     "controls_failed": {"type": "array", "items": {"type": "string"}},
     "higher_level_conclusions_unsupported": {
       "type": "array",
-      "items": {"type": "string"}
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "validation_tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "source_assessment",
+          "calibration",
+          "internal_consistency",
+          "controlled_benchmark",
+          "independent_replication",
+          "known_result_reproduction",
+          "novel_prediction",
+          "empirical_test"
+        ]
+      }
     },
     "exploratory": {"type": "boolean", "default": true}
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"exploratory": {"const": false}}, "required": ["exploratory"]},
+      "then": {"required": ["run_id"]},
+      "else": {"anyOf": [{"required": ["dataset_id"]}, {"required": ["run_id"]}]}
+    }
+  ]
 }

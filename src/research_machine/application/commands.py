@@ -2,7 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from research_machine.domain.models import ClaimLevel, EvidenceDirection, RejectionType
+from research_machine.domain.models import (
+    ActionCandidate,
+    AnalysisMode,
+    ClaimLevel,
+    DatasetArtifact,
+    DatasetRole,
+    EvidenceDirection,
+    ProtocolKind,
+    QualityGateResult,
+    RejectionType,
+    SelectionWeights,
+    ValidationTag,
+)
 
 
 @dataclass(frozen=True)
@@ -63,8 +75,9 @@ class RecordEvidence:
     hypothesis_id: str
     direction: EvidenceDirection
     summary: str
-    dataset_id: str
     analysis_id: str
+    dataset_id: str | None = None
+    run_id: str | None = None
     claim_id: str | None = None
     effect_estimate: str = ""
     uncertainty: str = ""
@@ -72,4 +85,81 @@ class RecordEvidence:
     controls_passed: list[str] = field(default_factory=list)
     controls_failed: list[str] = field(default_factory=list)
     higher_level_conclusions_unsupported: list[str] = field(default_factory=list)
+    validation_tags: list[ValidationTag] = field(default_factory=list)
     exploratory: bool = True
+
+
+@dataclass(frozen=True)
+class RegisterDataset:
+    name: str
+    role: DatasetRole
+    artifacts: list[DatasetArtifact]
+    dataset_id: str | None = None
+    description: str = ""
+    observation_unit: str = ""
+    source_dataset_ids: list[str] = field(default_factory=list)
+    protocol_id: str | None = None
+    synthetic: bool = False
+    quality_attestations: list[str] = field(default_factory=list)
+    metadata: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CreateProtocol:
+    experiment_id: str
+    title: str
+    analysis_mode: AnalysisMode
+    hypotheses_tested: list[str]
+    primary_outcome: str
+    protocol_kind: ProtocolKind = ProtocolKind.EXPERIMENTAL
+    methodology: str = ""
+    inputs_required: list[str] = field(default_factory=list)
+    quality_requirements: list[str] = field(default_factory=list)
+    controls: list[str] = field(default_factory=list)
+    expected_outputs: list[str] = field(default_factory=list)
+    success_conditions: list[str] = field(default_factory=list)
+    environment_requirements: list[str] = field(default_factory=list)
+    secondary_outcomes: list[str] = field(default_factory=list)
+    independent_variables: list[str] = field(default_factory=list)
+    randomization_plan: str = ""
+    blinding_plan: str = ""
+    sampling_unit: str = ""
+    sample_size_or_stopping_rule: str = ""
+    inclusion_rules: list[str] = field(default_factory=list)
+    exclusion_rules: list[str] = field(default_factory=list)
+    sensor_requirements: list[str] = field(default_factory=list)
+    calibration_requirements: list[str] = field(default_factory=list)
+    clock_accuracy_requirement: str = ""
+    preprocessing_pipeline: str = ""
+    statistical_model: str = ""
+    control_windows: list[str] = field(default_factory=list)
+    multiple_testing_policy: str = ""
+    missing_data_policy: str = ""
+    failure_conditions: list[str] = field(default_factory=list)
+    safety_constraints: list[str] = field(default_factory=list)
+    analysis_code_hash: str = ""
+    external_anchor: str | None = None
+    random_seed_commitment: str | None = None
+
+
+@dataclass(frozen=True)
+class RecordRun:
+    protocol_id: str
+    started_at: str
+    completed_at: str
+    analysis_code_hash: str
+    environment_hash: str
+    random_seed_reveal: str | None = None
+    dataset_ids: list[str] = field(default_factory=list)
+    output_artifacts: list[DatasetArtifact] = field(default_factory=list)
+    quality_gates: list[QualityGateResult] = field(default_factory=list)
+    summary: str = ""
+    synthetic: bool = False
+    metadata: dict[str, object] = field(default_factory=dict)
+    run_id: str | None = None
+
+
+@dataclass(frozen=True)
+class RecommendNextAction:
+    candidates: list[ActionCandidate]
+    weights: SelectionWeights = field(default_factory=SelectionWeights)

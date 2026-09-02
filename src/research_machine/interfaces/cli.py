@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -11,17 +12,32 @@ from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import (
     AddClaim,
     AddQuestion,
+    CreateProtocol,
     CreateInquiry,
     ProposeHypothesis,
+    RecommendNextAction,
     RecordEvidence,
+    RecordRun,
+    RegisterDataset,
     RetireHypothesis,
 )
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.domain.models import (
+    ActionCandidate,
+    AnalysisMode,
     ClaimLevel,
+    DatasetArtifact,
+    DatasetRole,
     EvidenceDirection,
+    HypothesisWorkflowState,
+    ProtocolKind,
+    ProtocolStatus,
+    QualityGateResult,
+    QualityGateStatus,
     RejectionType,
+    SelectionWeights,
+    ValidationTag,
 )
 
 _PROPOSAL_FIELDS = {
@@ -45,6 +61,75 @@ _PROPOSAL_FIELDS = {
     "boundary_conditions",
     "required_replications",
 }
+
+_DATASET_FIELDS = {
+    "dataset_id",
+    "name",
+    "role",
+    "artifacts",
+    "description",
+    "observation_unit",
+    "source_dataset_ids",
+    "protocol_id",
+    "synthetic",
+    "quality_attestations",
+    "metadata",
+}
+
+_PROTOCOL_FIELDS = {
+    "experiment_id",
+    "title",
+    "analysis_mode",
+    "hypotheses_tested",
+    "primary_outcome",
+    "protocol_kind",
+    "methodology",
+    "inputs_required",
+    "quality_requirements",
+    "controls",
+    "expected_outputs",
+    "success_conditions",
+    "environment_requirements",
+    "secondary_outcomes",
+    "independent_variables",
+    "randomization_plan",
+    "blinding_plan",
+    "sampling_unit",
+    "sample_size_or_stopping_rule",
+    "inclusion_rules",
+    "exclusion_rules",
+    "sensor_requirements",
+    "calibration_requirements",
+    "clock_accuracy_requirement",
+    "preprocessing_pipeline",
+    "statistical_model",
+    "control_windows",
+    "multiple_testing_policy",
+    "missing_data_policy",
+    "failure_conditions",
+    "safety_constraints",
+    "analysis_code_hash",
+    "external_anchor",
+    "random_seed_commitment",
+}
+
+_RUN_FIELDS = {
+    "run_id",
+    "protocol_id",
+    "started_at",
+    "completed_at",
+    "analysis_code_hash",
+    "environment_hash",
+    "random_seed_reveal",
+    "dataset_ids",
+    "output_artifacts",
+    "quality_gates",
+    "summary",
+    "synthetic",
+    "metadata",
+}
+
+_ACTION_SPEC_FIELDS = {"candidates", "weights"}
 
 
 def _add_inquiry_option(parser: argparse.ArgumentParser) -> None:
@@ -76,6 +161,16 @@ def build_parser() -> argparse.ArgumentParser:
         "verify", help="Verify the provenance ledger"
     )
     _add_inquiry_option(verify)
+    audit = workspace_commands.add_parser(
+        "audit", help="Audit epistemic maturity and overclaim safeguards"
+    )
+    audit.add_argument(
+        "--fail-on",
+        choices=["never", "error", "warning"],
+        default="never",
+        help="Return an error when findings reach this severity (default: never)",
+    )
+    _add_inquiry_option(audit)
 
     inquiry = groups.add_parser("inquiry", help="Create and inspect inquiries")
     inquiry_commands = inquiry.add_subparsers(dest="action", required=True)
@@ -144,6 +239,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     activate.add_argument("hypothesis_id")
     _add_inquiry_option(activate)
+    stage = hypothesis_commands.add_parser(
+        "stage",
+        help=(
+            "Stage a complete hypothesis for exploratory work while human review "
+            "remains pending"
+        ),
+    )
+    stage.add_argument("hypothesis_id")
+    stage.add_argument("--confidence", required=True, choices=["high"])
+    stage.add_argument("--rationale", required=True)
+    _add_inquiry_option(stage)
     retire = hypothesis_commands.add_parser(
         "retire", help="Preserve a rejected or superseded hypothesis"
     )
@@ -162,9 +268,83 @@ def build_parser() -> argparse.ArgumentParser:
     hypothesis_list = hypothesis_commands.add_parser("list")
     hypothesis_list.add_argument(
         "--state",
-        choices=["unreviewed", "active", "parked", "retired"],
+        choices=[value.value for value in HypothesisWorkflowState],
     )
     _add_inquiry_option(hypothesis_list)
+
+    dataset = groups.add_parser("dataset", help="Register immutable dataset roles")
+    dataset_commands = dataset.add_subparsers(dest="action", required=True)
+    dataset_register = dataset_commands.add_parser("register")
+    dataset_register.add_argument("--manifest-file", type=Path)
+    dataset_register.add_argument("--id", dest="dataset_id")
+    dataset_register.add_argument("--name")
+    dataset_register.add_argument(
+        "--role", choices=[value.value for value in DatasetRole]
+    )
+    dataset_register.add_argument(
+        "--file",
+        action="append",
+        default=[],
+        type=Path,
+        help="Hash and reference a local artifact without copying it",
+    )
+    dataset_register.add_argument("--description")
+    dataset_register.add_argument("--observation-unit")
+    dataset_register.add_argument("--source-dataset", action="append", default=None)
+    dataset_register.add_argument("--protocol")
+    dataset_register.add_argument("--synthetic", action="store_true", default=None)
+    dataset_register.add_argument(
+        "--quality-attestation", action="append", default=None
+    )
+    _add_inquiry_option(dataset_register)
+    dataset_list = dataset_commands.add_parser("list")
+    _add_inquiry_option(dataset_list)
+
+    protocol = groups.add_parser(
+        "protocol", help="Draft, freeze, and amend research protocols"
+    )
+    protocol_commands = protocol.add_subparsers(dest="action", required=True)
+    protocol_create = protocol_commands.add_parser("create")
+    protocol_create.add_argument("--spec-file", type=Path, required=True)
+    _add_inquiry_option(protocol_create)
+    protocol_freeze = protocol_commands.add_parser("freeze")
+    protocol_freeze.add_argument("protocol_id")
+    protocol_freeze.add_argument("--external-anchor")
+    _add_inquiry_option(protocol_freeze)
+    protocol_amend = protocol_commands.add_parser("amend")
+    protocol_amend.add_argument("protocol_id")
+    protocol_amend.add_argument("--spec-file", type=Path, required=True)
+    protocol_amend.add_argument("--reason", required=True)
+    _add_inquiry_option(protocol_amend)
+    protocol_show = protocol_commands.add_parser("show")
+    protocol_show.add_argument("protocol_id")
+    _add_inquiry_option(protocol_show)
+    protocol_list = protocol_commands.add_parser("list")
+    protocol_list.add_argument(
+        "--status", choices=[value.value for value in ProtocolStatus]
+    )
+    _add_inquiry_option(protocol_list)
+
+    run = groups.add_parser("run", help="Record immutable, quality-gated executions")
+    run_commands = run.add_subparsers(dest="action", required=True)
+    run_record = run_commands.add_parser("record")
+    run_record.add_argument("--record-file", type=Path, required=True)
+    _add_inquiry_option(run_record)
+    run_show = run_commands.add_parser("show")
+    run_show.add_argument("run_id")
+    _add_inquiry_option(run_show)
+    run_list = run_commands.add_parser("list")
+    _add_inquiry_option(run_list)
+
+    next_action = groups.add_parser(
+        "next-action", help="Select the safest high-information next research action"
+    )
+    next_action_commands = next_action.add_subparsers(dest="action", required=True)
+    recommend = next_action_commands.add_parser("recommend")
+    recommend.add_argument("--spec-file", type=Path, required=True)
+    _add_inquiry_option(recommend)
+    recommendation_list = next_action_commands.add_parser("list")
+    _add_inquiry_option(recommendation_list)
 
     evidence = groups.add_parser("evidence", help="Record claim-scoped evidence")
     evidence_commands = evidence.add_subparsers(dest="action", required=True)
@@ -176,15 +356,29 @@ def build_parser() -> argparse.ArgumentParser:
         choices=[value.value for value in EvidenceDirection],
     )
     record.add_argument("--summary", required=True)
-    record.add_argument("--dataset", required=True)
-    record.add_argument("--analysis", required=True)
+    record.add_argument("--dataset")
+    record.add_argument("--run")
+    record.add_argument(
+        "--analysis",
+        default="",
+        help="Analysis ID; inferred from --run when supplied",
+    )
     record.add_argument("--claim")
     record.add_argument("--effect-estimate", default="")
-    record.add_argument("--uncertainty", default="")
-    record.add_argument("--scope", default="")
+    record.add_argument("--uncertainty", required=True)
+    record.add_argument("--scope", required=True)
     record.add_argument("--control-passed", action="append", default=[])
     record.add_argument("--control-failed", action="append", default=[])
-    record.add_argument("--higher-conclusion-unsupported", action="append", default=[])
+    record.add_argument(
+        "--higher-conclusion-unsupported", action="append", required=True
+    )
+    record.add_argument(
+        "--validation-tag",
+        action="append",
+        required=True,
+        choices=[tag.value for tag in ValidationTag],
+        help="Machine-validated evidence capability; repeat for multiple tags",
+    )
     record.add_argument(
         "--confirmatory",
         action="store_true",
@@ -201,19 +395,25 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _read_proposal(path: Path | None) -> dict[str, Any]:
+def _read_json_object(
+    path: Path | None, *, allowed_fields: set[str], label: str
+) -> dict[str, Any]:
     if path is None:
         return {}
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError(f"could not read proposal file {path}: {exc}") from exc
+        raise ValueError(f"could not read {label} file {path}: {exc}") from exc
     if not isinstance(value, dict):
-        raise ValueError("proposal file must contain a JSON object")
-    unknown = sorted(set(value) - _PROPOSAL_FIELDS)
+        raise ValueError(f"{label} file must contain a JSON object")
+    unknown = sorted(set(value) - allowed_fields)
     if unknown:
-        raise ValueError("unknown proposal fields: " + ", ".join(unknown))
+        raise ValueError(f"unknown {label} fields: " + ", ".join(unknown))
     return value
+
+
+def _read_proposal(path: Path | None) -> dict[str, Any]:
+    return _read_json_object(path, allowed_fields=_PROPOSAL_FIELDS, label="proposal")
 
 
 def _choose(cli_value: Any, proposal: dict[str, Any], key: str, default: Any) -> Any:
@@ -240,11 +440,233 @@ def _choose_optional_nonnegative_int(
     return value
 
 
+def _json_text_list(value: Any, field_name: str) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError(f"{field_name} must be an array of strings")
+    return value
+
+
+def _hash_file(path: Path) -> DatasetArtifact:
+    resolved = path.expanduser().resolve()
+    if not resolved.is_file():
+        raise ValueError(f"dataset artifact is not a file: {path}")
+    digest = hashlib.sha256()
+    with resolved.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return DatasetArtifact(
+        locator=str(resolved),
+        sha256=digest.hexdigest(),
+        size_bytes=resolved.stat().st_size,
+    )
+
+
+def _dataset_artifacts(
+    manifest: dict[str, Any], files: list[Path]
+) -> list[DatasetArtifact]:
+    artifacts = [_hash_file(path) for path in files]
+    values = manifest.get("artifacts", [])
+    if not isinstance(values, list):
+        raise ValueError("artifacts must be an array")
+    for value in values:
+        if not isinstance(value, dict):
+            raise ValueError("each artifact must be an object")
+        unknown = sorted(
+            set(value) - {"locator", "sha256", "size_bytes", "media_type", "metadata"}
+        )
+        if unknown:
+            raise ValueError("unknown artifact fields: " + ", ".join(unknown))
+        try:
+            artifacts.append(
+                DatasetArtifact(
+                    locator=value["locator"],
+                    sha256=value["sha256"],
+                    size_bytes=value.get("size_bytes"),
+                    media_type=value.get("media_type", ""),
+                    metadata=value.get("metadata", {}),
+                )
+            )
+        except KeyError as exc:
+            raise ValueError(f"artifact is missing field {exc.args[0]}") from exc
+    return artifacts
+
+
+def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
+    try:
+        analysis_mode = AnalysisMode(spec["analysis_mode"])
+    except KeyError as exc:
+        raise ValueError("protocol is missing field analysis_mode") from exc
+    try:
+        protocol_kind = ProtocolKind(
+            spec.get("protocol_kind", ProtocolKind.EXPERIMENTAL.value)
+        )
+    except ValueError as exc:
+        raise ValueError(f"invalid protocol_kind: {exc}") from exc
+    list_fields = {
+        "hypotheses_tested",
+        "inputs_required",
+        "quality_requirements",
+        "controls",
+        "expected_outputs",
+        "success_conditions",
+        "environment_requirements",
+        "secondary_outcomes",
+        "independent_variables",
+        "inclusion_rules",
+        "exclusion_rules",
+        "sensor_requirements",
+        "calibration_requirements",
+        "control_windows",
+        "failure_conditions",
+        "safety_constraints",
+    }
+    lists = {
+        field: _json_text_list(spec.get(field, []), field) for field in list_fields
+    }
+    try:
+        return CreateProtocol(
+            experiment_id=spec["experiment_id"],
+            title=spec["title"],
+            analysis_mode=analysis_mode,
+            hypotheses_tested=lists["hypotheses_tested"],
+            primary_outcome=spec.get("primary_outcome", ""),
+            protocol_kind=protocol_kind,
+            methodology=spec.get("methodology", ""),
+            inputs_required=lists["inputs_required"],
+            quality_requirements=lists["quality_requirements"],
+            controls=lists["controls"],
+            expected_outputs=lists["expected_outputs"],
+            success_conditions=lists["success_conditions"],
+            environment_requirements=lists["environment_requirements"],
+            secondary_outcomes=lists["secondary_outcomes"],
+            independent_variables=lists["independent_variables"],
+            randomization_plan=spec.get("randomization_plan", ""),
+            blinding_plan=spec.get("blinding_plan", ""),
+            sampling_unit=spec.get("sampling_unit", ""),
+            sample_size_or_stopping_rule=spec.get("sample_size_or_stopping_rule", ""),
+            inclusion_rules=lists["inclusion_rules"],
+            exclusion_rules=lists["exclusion_rules"],
+            sensor_requirements=lists["sensor_requirements"],
+            calibration_requirements=lists["calibration_requirements"],
+            clock_accuracy_requirement=spec.get("clock_accuracy_requirement", ""),
+            preprocessing_pipeline=spec.get("preprocessing_pipeline", ""),
+            statistical_model=spec.get("statistical_model", ""),
+            control_windows=lists["control_windows"],
+            multiple_testing_policy=spec.get("multiple_testing_policy", ""),
+            missing_data_policy=spec.get("missing_data_policy", ""),
+            failure_conditions=lists["failure_conditions"],
+            safety_constraints=lists["safety_constraints"],
+            analysis_code_hash=spec.get("analysis_code_hash", ""),
+            external_anchor=spec.get("external_anchor"),
+            random_seed_commitment=spec.get("random_seed_commitment"),
+        )
+    except KeyError as exc:
+        raise ValueError(f"protocol is missing field {exc.args[0]}") from exc
+
+
+def _run_command(spec: dict[str, Any]) -> RecordRun:
+    dataset_ids = _json_text_list(spec.get("dataset_ids", []), "dataset_ids")
+    outputs = _dataset_artifacts({"artifacts": spec.get("output_artifacts", [])}, [])
+    gate_values = spec.get("quality_gates", [])
+    if not isinstance(gate_values, list):
+        raise ValueError("quality_gates must be an array")
+    gates: list[QualityGateResult] = []
+    for value in gate_values:
+        if not isinstance(value, dict):
+            raise ValueError("each quality gate must be an object")
+        unknown = sorted(
+            set(value) - {"gate_id", "status", "summary", "required", "details"}
+        )
+        if unknown:
+            raise ValueError("unknown quality gate fields: " + ", ".join(unknown))
+        try:
+            gates.append(
+                QualityGateResult(
+                    gate_id=value["gate_id"],
+                    status=QualityGateStatus(value["status"]),
+                    summary=value["summary"],
+                    required=value.get("required", True),
+                    details=value.get("details", {}),
+                )
+            )
+        except KeyError as exc:
+            raise ValueError(f"quality gate is missing field {exc.args[0]}") from exc
+    required = (
+        "protocol_id",
+        "started_at",
+        "completed_at",
+        "analysis_code_hash",
+        "environment_hash",
+    )
+    missing = [field for field in required if field not in spec]
+    if missing:
+        raise ValueError("run is missing fields: " + ", ".join(missing))
+    return RecordRun(
+        protocol_id=spec["protocol_id"],
+        started_at=spec["started_at"],
+        completed_at=spec["completed_at"],
+        analysis_code_hash=spec["analysis_code_hash"],
+        environment_hash=spec["environment_hash"],
+        random_seed_reveal=spec.get("random_seed_reveal"),
+        dataset_ids=dataset_ids,
+        output_artifacts=outputs,
+        quality_gates=gates,
+        summary=spec.get("summary", ""),
+        synthetic=spec.get("synthetic", False),
+        metadata=spec.get("metadata", {}),
+        run_id=spec.get("run_id"),
+    )
+
+
+def _recommendation_command(spec: dict[str, Any]) -> RecommendNextAction:
+    candidate_values = spec.get("candidates")
+    if not isinstance(candidate_values, list):
+        raise ValueError("candidates must be an array")
+    candidates: list[ActionCandidate] = []
+    fields = {
+        "action_id",
+        "title",
+        "distinguishes_hypotheses",
+        "expected_discrimination",
+        "uncertainty_reduction",
+        "cost",
+        "burden",
+        "safety_risk",
+        "ambiguity_risk",
+        "rationale",
+        "prerequisites_met",
+        "safety_approved",
+        "metadata",
+    }
+    for value in candidate_values:
+        if not isinstance(value, dict):
+            raise ValueError("each candidate must be an object")
+        unknown = sorted(set(value) - fields)
+        if unknown:
+            raise ValueError("unknown candidate fields: " + ", ".join(unknown))
+        try:
+            candidates.append(ActionCandidate.from_dict(value))
+        except TypeError as exc:
+            raise ValueError(f"invalid action candidate: {exc}") from exc
+    weight_value = spec.get("weights", {})
+    if not isinstance(weight_value, dict):
+        raise ValueError("weights must be an object")
+    try:
+        weights = SelectionWeights.from_dict(weight_value)
+    except TypeError as exc:
+        raise ValueError(f"invalid selection weights: {exc}") from exc
+    return RecommendNextAction(candidates=candidates, weights=weights)
+
+
 def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
     if args.group == "workspace":
         if args.action == "init":
             return service.init_workspace()
-        return service.verify_ledger(args.inquiry)
+        if args.action == "verify":
+            return service.verify_ledger(args.inquiry)
+        return service.audit_rigor(
+            args.inquiry, fail_on=args.fail_on
+        ).to_dict()
 
     if args.group == "inquiry":
         if args.action == "create":
@@ -343,6 +765,13 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             return service.activate_hypothesis(
                 args.hypothesis_id, args.inquiry
             ).to_dict()
+        if args.action == "stage":
+            return service.stage_hypothesis(
+                args.hypothesis_id,
+                args.rationale,
+                args.confidence,
+                args.inquiry,
+            ).to_dict()
         if args.action == "retire":
             return service.retire_hypothesis(
                 RetireHypothesis(
@@ -360,6 +789,86 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             for hypothesis in service.list_hypotheses(args.inquiry, args.state)
         ]
 
+    if args.group == "dataset":
+        if args.action == "register":
+            manifest = _read_json_object(
+                args.manifest_file,
+                allowed_fields=_DATASET_FIELDS,
+                label="dataset manifest",
+            )
+            role_value = _choose(args.role, manifest, "role", None)
+            if role_value is None:
+                raise ValueError("dataset role is required")
+            return service.register_dataset(
+                RegisterDataset(
+                    dataset_id=_choose(args.dataset_id, manifest, "dataset_id", None),
+                    name=_choose(args.name, manifest, "name", ""),
+                    role=DatasetRole(role_value),
+                    artifacts=_dataset_artifacts(manifest, args.file),
+                    description=_choose(args.description, manifest, "description", ""),
+                    observation_unit=_choose(
+                        args.observation_unit, manifest, "observation_unit", ""
+                    ),
+                    source_dataset_ids=_choose_list(
+                        args.source_dataset, manifest, "source_dataset_ids"
+                    ),
+                    protocol_id=_choose(args.protocol, manifest, "protocol_id", None),
+                    synthetic=_choose(args.synthetic, manifest, "synthetic", False),
+                    quality_attestations=_choose_list(
+                        args.quality_attestation,
+                        manifest,
+                        "quality_attestations",
+                    ),
+                    metadata=manifest.get("metadata", {}),
+                ),
+                args.inquiry,
+            ).to_dict()
+        return [dataset.to_dict() for dataset in service.list_datasets(args.inquiry)]
+
+    if args.group == "protocol":
+        if args.action in {"create", "amend"}:
+            spec = _read_json_object(
+                args.spec_file, allowed_fields=_PROTOCOL_FIELDS, label="protocol"
+            )
+            protocol_command = _protocol_command(spec)
+            if args.action == "create":
+                return service.create_protocol(protocol_command, args.inquiry).to_dict()
+            return service.amend_protocol(
+                args.protocol_id, protocol_command, args.reason, args.inquiry
+            ).to_dict()
+        if args.action == "freeze":
+            return service.freeze_protocol(
+                args.protocol_id, args.inquiry, external_anchor=args.external_anchor
+            ).to_dict()
+        if args.action == "show":
+            return service.get_protocol(args.protocol_id, args.inquiry).to_dict()
+        protocols = service.list_protocols(args.inquiry)
+        if args.status:
+            protocols = [item for item in protocols if item.status.value == args.status]
+        return [item.to_dict() for item in protocols]
+
+    if args.group == "run":
+        if args.action == "record":
+            spec = _read_json_object(
+                args.record_file, allowed_fields=_RUN_FIELDS, label="run"
+            )
+            return service.record_run(_run_command(spec), args.inquiry).to_dict()
+        if args.action == "show":
+            return service.get_run(args.run_id, args.inquiry).to_dict()
+        return [run.to_dict() for run in service.list_runs(args.inquiry)]
+
+    if args.group == "next-action":
+        if args.action == "recommend":
+            spec = _read_json_object(
+                args.spec_file,
+                allowed_fields=_ACTION_SPEC_FIELDS,
+                label="next-action",
+            )
+            return service.recommend_next_action(
+                _recommendation_command(spec), args.inquiry
+            ).to_dict()
+        return [item.to_dict() for item in service.list_recommendations(args.inquiry)]
+
     if args.group == "evidence":
         if args.action == "record":
             return service.record_evidence(
@@ -370,6 +879,7 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                     summary=args.summary,
                     dataset_id=args.dataset,
                     analysis_id=args.analysis,
+                    run_id=args.run,
                     effect_estimate=args.effect_estimate,
                     uncertainty=args.uncertainty,
                     scope=args.scope,
@@ -378,6 +888,9 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                     higher_level_conclusions_unsupported=(
                         args.higher_conclusion_unsupported
                     ),
+                    validation_tags=[
+                        ValidationTag(value) for value in args.validation_tag
+                    ],
                     exploratory=not args.confirmatory,
                 ),
                 args.inquiry,

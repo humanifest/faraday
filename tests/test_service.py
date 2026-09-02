@@ -12,14 +12,18 @@ from research_machine.application.commands import (
     CreateInquiry,
     ProposeHypothesis,
     RecordEvidence,
+    RegisterDataset,
     RetireHypothesis,
 )
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import IntegrityError, ValidationError
 from research_machine.domain.models import (
     ClaimLevel,
+    DatasetArtifact,
+    DatasetRole,
     EvidenceDirection,
     RejectionType,
+    ValidationTag,
 )
 
 
@@ -92,6 +96,14 @@ def test_complete_inquiry_loop_preserves_rejected_hypotheses(tmp_path: Path) -> 
         )
     )
     service.activate_hypothesis(hypothesis.hypothesis_id)
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="dataset-holdout-01",
+            name="Exploratory holdout",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[DatasetArtifact("holdout.csv", "a" * 64)],
+        )
+    )
     evidence = service.record_evidence(
         RecordEvidence(
             hypothesis_id=hypothesis.hypothesis_id,
@@ -101,10 +113,12 @@ def test_complete_inquiry_loop_preserves_rejected_hypotheses(tmp_path: Path) -> 
             dataset_id="dataset-holdout-01",
             analysis_id="analysis-error-rates-01",
             uncertainty="95% interval crosses the registered equivalence region.",
+            scope="The sampled resume-screening roles and 2025 period only.",
             higher_level_conclusions_unsupported=[
                 "The AI component caused a persistent systemic disparity."
             ],
-            exploratory=False,
+            validation_tags=[ValidationTag.CALIBRATION],
+            exploratory=True,
         )
     )
     retired = service.retire_hypothesis(
@@ -134,7 +148,7 @@ def test_complete_inquiry_loop_preserves_rejected_hypotheses(tmp_path: Path) -> 
     ).is_file()
     assert service.verify_ledger() == {
         "valid": True,
-        "events": 10,
+        "events": 11,
         "head_hash": service.verify_ledger()["head_hash"],
     }
 
@@ -158,3 +172,37 @@ def test_ledger_verification_detects_tampering(tmp_path: Path) -> None:
 
     with pytest.raises(IntegrityError, match="event hash mismatch"):
         service.verify_ledger("integrity")
+
+
+def test_pending_review_requires_complete_high_confidence_proposal(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry("Review gate", "Can this proposal enter exploration?", "gate")
+    )
+    incomplete = service.propose_hypothesis(
+        ProposeHypothesis(statement="An incomplete proposal.")
+    )
+    with pytest.raises(ValidationError, match="cannot enter pending review"):
+        service.stage_hypothesis(
+            incomplete.hypothesis_id,
+            rationale="This should fail before rationale matters.",
+            confidence="high",
+        )
+
+    complete = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement="A complete competing explanation.",
+            observable_prediction="A registered observable changes.",
+            null_model="The observable does not change.",
+            falsification_conditions=["No registered change is observed."],
+        )
+    )
+    with pytest.raises(ValidationError, match="explicitly high confidence"):
+        service.stage_hypothesis(
+            complete.hypothesis_id,
+            rationale="The structure is complete but confidence is not high.",
+            confidence="medium",
+        )

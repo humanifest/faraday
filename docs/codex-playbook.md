@@ -44,6 +44,13 @@ see what would support and falsify it. LLM generation is currently a manual Code
 activity; an automated generator remains TODO and must use this same proposal
 contract.
 
+If the person has explicitly delegated autonomous exploratory review, Codex may
+stage an operationalized candidate as `pending_review` with a recorded
+high-confidence rationale. This permits exploratory protocols, datasets,
+evidence, and next-action selection while keeping human ratification visibly
+open. It does not authorize confirmatory or replication protocol freezes,
+confirmatory evidence, or language implying human approval.
+
 ## 4. Design discriminatory tests
 
 Prefer a test whose possible outcomes change the relative credibility of several
@@ -55,14 +62,48 @@ Do not invent generic `p < 0.05`, sample-size, or replication thresholds. Derive
 them from an explicit estimand, uncertainty/precision target, data structure,
 burden, and decision context.
 
-## 5. Record evidence narrowly
+Represent proposed work as candidate next actions. Exclude any action whose
+prerequisites are unmet or whose safety/ethics approval is absent. Treat the
+utility score as an auditable decision aid, not a substitute for human judgment.
 
-Evidence records must name the hypothesis, dataset, analysis, direction,
-uncertainty, control outcomes, exploratory status, and conclusions the record
-does not support. “Inconclusive” is a real result, distinct from null evidence or
-refutation.
+## 5. Freeze before protected execution
 
-## 6. Iterate without erasing mistakes
+Choose a protocol kind that matches the work. Empirical protocols must define
+sampling and analysis policies; experiments must additionally define
+randomization and blinding (including justified “not applicable” plans). Formal
+and computational work must define a reproducible environment. Every frozen
+protocol must also name required quality gates, at least one comparator or
+negative control, and an explicit sample-size or stopping rule.
+
+Freeze the protocol before inspecting confirmatory or replication observations.
+Register each dataset once under a role. Never relabel an artifact digest to move
+it from exploration or training into confirmation.
+
+An exploratory protocol may be frozen against `pending_review` hypotheses.
+Confirmatory and replication protocols require every tested hypothesis to be
+active after human review.
+
+An executor returns a run record that binds the frozen protocol hash, exact code
+and environment hashes, registered input IDs, hashed outputs, and gate results.
+Required gate failures make the run invalid. Synthetic inputs remain useful for
+testing but cannot become scientific evidence.
+
+## 6. Record evidence narrowly
+
+Evidence records must name the hypothesis, run or exploratory dataset, direction,
+scope, uncertainty, control outcomes, exploratory status, conclusions the record
+does not support, and one or more validation tags. Confirmatory evidence must
+reference an eligible confirmatory or replication run. “Inconclusive” is a real
+result, distinct from null evidence or refutation.
+
+Use the lowest applicable validation tag. `internal_consistency` and
+`controlled_benchmark` do not imply recovery, prediction, or empirical contact.
+The machine checks advanced tags against provenance. Do not use
+`independent_replication` unless the run names an eligible earlier run and has a
+different executor and code hash. Do not use `empirical_test` for synthetic data,
+formal calculations, or exploratory analyses.
+
+## 7. Iterate without erasing mistakes
 
 After evidence, revise the model set. Retire explanations using typed decisions
 and resurrection conditions. A retired item remains searchable and can be an
@@ -73,5 +114,6 @@ Build the synthesis and verify the ledger at useful checkpoints:
 
 ```bash
 ./research --workspace <path> synthesis build
+./research --workspace <path> workspace audit --fail-on error
 ./research --workspace <path> workspace verify
 ```

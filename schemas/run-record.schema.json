@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/run-record.schema.json",
+  "title": "Research run record",
+  "type": "object",
+  "required": ["protocol_id", "started_at", "completed_at", "analysis_code_hash", "environment_hash", "output_artifacts"],
+  "properties": {
+    "run_id": {"type": "string", "minLength": 1},
+    "protocol_id": {"type": "string", "minLength": 1},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "analysis_code_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "environment_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "random_seed_reveal": {"type": ["string", "null"], "minLength": 1},
+    "dataset_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "output_artifacts": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "required": ["locator", "sha256"],
+        "properties": {
+          "locator": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": ["integer", "null"], "minimum": 0},
+          "media_type": {"type": "string"},
+          "metadata": {"type": "object"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "quality_gates": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["gate_id", "status", "summary"],
+        "properties": {
+          "gate_id": {"type": "string", "minLength": 1},
+          "status": {"enum": ["passed", "failed", "warning", "skipped"]},
+          "summary": {"type": "string", "minLength": 1},
+          "required": {"type": "boolean", "default": true},
+          "details": {"type": "object"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "summary": {"type": "string"},
+    "synthetic": {"type": "boolean", "default": false},
+    "metadata": {"type": "object"}
+  },
+  "additionalProperties": false
+}

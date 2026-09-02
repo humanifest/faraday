@@ -1,0 +1,18 @@
+{
+  "experiment_id": "formal-check-01",
+  "title": "Independent derivation check",
+  "analysis_mode": "confirmatory",
+  "protocol_kind": "formal",
+  "hypotheses_tested": ["<hypothesis-id>"],
+  "primary_outcome": "Independent checker acceptance",
+  "methodology": "Replay the derivation in a pinned proof environment.",
+  "quality_requirements": ["proof-check"],
+  "controls": ["Confirm that a deliberately invalid step is rejected."],
+  "expected_outputs": ["Proof object", "Checker transcript"],
+  "success_conditions": ["The independent checker accepts every proof step."],
+  "environment_requirements": ["Pinned checker and axiom-set hashes"],
+  "sample_size_or_stopping_rule": "One registered proof and one deliberately invalid control; stop after both checker results.",
+  "failure_conditions": ["Any proof step is rejected."],
+  "safety_constraints": ["No physical or human-subject intervention."],
+  "analysis_code_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

@@ -31,6 +31,7 @@ class ClaimLevel(StrEnum):
 
 class HypothesisWorkflowState(StrEnum):
     UNREVIEWED = "unreviewed"
+    PENDING_REVIEW = "pending_review"
     ACTIVE = "active"
     PARKED = "parked"
     RETIRED = "retired"
@@ -70,6 +71,64 @@ class EvidenceDirection(StrEnum):
     WEAKENS = "weakens"
     REFUTES = "refutes"
     INCONCLUSIVE = "inconclusive"
+
+
+class ValidationTag(StrEnum):
+    SOURCE_ASSESSMENT = "source_assessment"
+    CALIBRATION = "calibration"
+    INTERNAL_CONSISTENCY = "internal_consistency"
+    CONTROLLED_BENCHMARK = "controlled_benchmark"
+    INDEPENDENT_REPLICATION = "independent_replication"
+    KNOWN_RESULT_REPRODUCTION = "known_result_reproduction"
+    NOVEL_PREDICTION = "novel_prediction"
+    EMPIRICAL_TEST = "empirical_test"
+
+
+class DatasetRole(StrEnum):
+    CALIBRATION = "calibration"
+    EXPLORATORY = "exploratory"
+    TRAINING = "training"
+    CONFIRMATORY = "confirmatory"
+    REPLICATION = "replication"
+
+
+class AnalysisMode(StrEnum):
+    EXPLORATORY = "exploratory"
+    CONFIRMATORY = "confirmatory"
+    REPLICATION = "replication"
+
+
+class ProtocolStatus(StrEnum):
+    DRAFT = "draft"
+    FROZEN = "frozen"
+
+
+class ProtocolKind(StrEnum):
+    OBSERVATIONAL = "observational"
+    EXPERIMENTAL = "experimental"
+    COMPUTATIONAL = "computational"
+    FORMAL = "formal"
+    LITERATURE = "literature"
+    SYNTHESIS = "synthesis"
+
+
+class QualityGateStatus(StrEnum):
+    PASSED = "passed"
+    FAILED = "failed"
+    WARNING = "warning"
+    SKIPPED = "skipped"
+
+
+class RunStatus(StrEnum):
+    COMPLETED = "completed"
+    INVALID = "invalid"
+    FAILED = "failed"
+
+
+class RigorSeverity(StrEnum):
+    ERROR = "error"
+    WARNING = "warning"
+    INFO = "info"
 
 
 def _jsonable(value: Any) -> Any:
@@ -178,6 +237,10 @@ class Hypothesis(Serializable):
     workflow_state: HypothesisWorkflowState = HypothesisWorkflowState.UNREVIEWED
     evidence_assessment: EvidenceAssessment = EvidenceAssessment.UNASSESSED
     replication_state: ReplicationState = ReplicationState.UNTESTED
+    pending_review_at: str | None = None
+    pending_review_by: str | None = None
+    pending_review_confidence: str = ""
+    pending_review_rationale: str = ""
     activated_at: str | None = None
     retirement: dict[str, Any] | None = None
 
@@ -202,20 +265,268 @@ class EvidenceRecord(Serializable):
     hypothesis_id: str
     direction: EvidenceDirection
     summary: str
-    dataset_id: str
+    dataset_id: str | None
     analysis_id: str
     created_at: str
     claim_id: str | None = None
+    protocol_id: str | None = None
+    run_id: str | None = None
+    scientific_evidence_eligible: bool = False
     effect_estimate: str = ""
     uncertainty: str = ""
     scope: str = ""
     controls_passed: list[str] = field(default_factory=list)
     controls_failed: list[str] = field(default_factory=list)
     higher_level_conclusions_unsupported: list[str] = field(default_factory=list)
+    validation_tags: list[ValidationTag] = field(default_factory=list)
     exploratory: bool = True
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "EvidenceRecord":
         copied = dict(value)
         copied["direction"] = EvidenceDirection(copied["direction"])
+        copied["validation_tags"] = [
+            ValidationTag(item) for item in copied.get("validation_tags", [])
+        ]
+        return cls(**copied)
+
+
+@dataclass(frozen=True)
+class DatasetArtifact(Serializable):
+    locator: str
+    sha256: str
+    size_bytes: int | None = None
+    media_type: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "DatasetArtifact":
+        return cls(**value)
+
+
+@dataclass(frozen=True)
+class DatasetManifest(Serializable):
+    dataset_id: str
+    name: str
+    role: DatasetRole
+    created_at: str
+    artifacts: list[DatasetArtifact]
+    description: str = ""
+    observation_unit: str = ""
+    source_dataset_ids: list[str] = field(default_factory=list)
+    protocol_id: str | None = None
+    synthetic: bool = False
+    quality_attestations: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "DatasetManifest":
+        copied = dict(value)
+        copied["role"] = DatasetRole(copied["role"])
+        copied["artifacts"] = [
+            DatasetArtifact.from_dict(item) for item in copied.get("artifacts", [])
+        ]
+        return cls(**copied)
+
+
+@dataclass(frozen=True)
+class ExperimentProtocol(Serializable):
+    protocol_id: str
+    protocol_family_id: str
+    version: int
+    experiment_id: str
+    title: str
+    analysis_mode: AnalysisMode
+    hypotheses_tested: list[str]
+    primary_outcome: str
+    created_at: str
+    created_by: str
+    protocol_kind: ProtocolKind = ProtocolKind.EXPERIMENTAL
+    methodology: str = ""
+    inputs_required: list[str] = field(default_factory=list)
+    quality_requirements: list[str] = field(default_factory=list)
+    controls: list[str] = field(default_factory=list)
+    expected_outputs: list[str] = field(default_factory=list)
+    success_conditions: list[str] = field(default_factory=list)
+    environment_requirements: list[str] = field(default_factory=list)
+    secondary_outcomes: list[str] = field(default_factory=list)
+    independent_variables: list[str] = field(default_factory=list)
+    randomization_plan: str = ""
+    blinding_plan: str = ""
+    sampling_unit: str = ""
+    sample_size_or_stopping_rule: str = ""
+    inclusion_rules: list[str] = field(default_factory=list)
+    exclusion_rules: list[str] = field(default_factory=list)
+    sensor_requirements: list[str] = field(default_factory=list)
+    calibration_requirements: list[str] = field(default_factory=list)
+    clock_accuracy_requirement: str = ""
+    preprocessing_pipeline: str = ""
+    statistical_model: str = ""
+    control_windows: list[str] = field(default_factory=list)
+    multiple_testing_policy: str = ""
+    missing_data_policy: str = ""
+    failure_conditions: list[str] = field(default_factory=list)
+    safety_constraints: list[str] = field(default_factory=list)
+    analysis_code_hash: str = ""
+    status: ProtocolStatus = ProtocolStatus.DRAFT
+    protocol_hash: str | None = None
+    registration_timestamp: str | None = None
+    external_anchor: str | None = None
+    random_seed_commitment: str | None = None
+    supersedes_protocol_id: str | None = None
+    amendment_reason: str | None = None
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "ExperimentProtocol":
+        copied = dict(value)
+        copied["analysis_mode"] = AnalysisMode(copied["analysis_mode"])
+        copied["status"] = ProtocolStatus(copied.get("status", ProtocolStatus.DRAFT))
+        copied["protocol_kind"] = ProtocolKind(
+            copied.get("protocol_kind", ProtocolKind.EXPERIMENTAL)
+        )
+        return cls(**copied)
+
+
+# ``ResearchProtocol`` is the domain-neutral name.  Keep the original class name
+# as the serialized/backwards-compatible API while clients migrate terminology.
+ResearchProtocol = ExperimentProtocol
+
+
+@dataclass(frozen=True)
+class QualityGateResult(Serializable):
+    gate_id: str
+    status: QualityGateStatus
+    summary: str
+    required: bool = True
+    details: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "QualityGateResult":
+        copied = dict(value)
+        copied["status"] = QualityGateStatus(copied["status"])
+        return cls(**copied)
+
+
+@dataclass(frozen=True)
+class ResearchRun(Serializable):
+    run_id: str
+    protocol_id: str
+    protocol_hash: str
+    analysis_mode: AnalysisMode
+    started_at: str
+    completed_at: str
+    executed_by: str
+    analysis_code_hash: str
+    environment_hash: str
+    random_seed_reveal: str | None = None
+    dataset_ids: list[str] = field(default_factory=list)
+    output_artifacts: list[DatasetArtifact] = field(default_factory=list)
+    quality_gates: list[QualityGateResult] = field(default_factory=list)
+    status: RunStatus = RunStatus.COMPLETED
+    scientific_evidence_eligible: bool = False
+    summary: str = ""
+    synthetic: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "ResearchRun":
+        copied = dict(value)
+        copied["analysis_mode"] = AnalysisMode(copied["analysis_mode"])
+        copied["status"] = RunStatus(copied.get("status", RunStatus.COMPLETED))
+        copied["output_artifacts"] = [
+            DatasetArtifact.from_dict(item)
+            for item in copied.get("output_artifacts", [])
+        ]
+        copied["quality_gates"] = [
+            QualityGateResult.from_dict(item)
+            for item in copied.get("quality_gates", [])
+        ]
+        return cls(**copied)
+
+
+@dataclass(frozen=True)
+class RigorFinding(Serializable):
+    code: str
+    severity: RigorSeverity
+    message: str
+    entity_type: str = "workspace"
+    entity_id: str = ""
+    remediation: str = ""
+
+
+@dataclass(frozen=True)
+class RigorAudit(Serializable):
+    structurally_valid: bool
+    conclusion_ceiling: str
+    capabilities: dict[str, bool]
+    evidence_counts: dict[str, int]
+    findings: list[RigorFinding] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ActionCandidate(Serializable):
+    action_id: str
+    title: str
+    distinguishes_hypotheses: list[str]
+    expected_discrimination: float
+    uncertainty_reduction: float
+    cost: float
+    burden: float
+    safety_risk: float
+    ambiguity_risk: float
+    rationale: str
+    prerequisites_met: bool = True
+    safety_approved: bool = True
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "ActionCandidate":
+        return cls(**value)
+
+
+@dataclass(frozen=True)
+class SelectionWeights(Serializable):
+    expected_discrimination: float = 1.0
+    uncertainty_reduction: float = 0.5
+    cost: float = 0.25
+    burden: float = 0.35
+    safety_risk: float = 0.75
+    ambiguity_risk: float = 0.75
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "SelectionWeights":
+        return cls(**value)
+
+
+@dataclass(frozen=True)
+class ActionScore(Serializable):
+    action_id: str
+    utility: float
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "ActionScore":
+        return cls(**value)
+
+
+@dataclass(frozen=True)
+class ActionRecommendation(Serializable):
+    recommendation_id: str
+    selected_action_id: str
+    created_at: str
+    created_by: str
+    rationale: str
+    candidates: list[ActionCandidate]
+    ranked_scores: list[ActionScore]
+    weights: SelectionWeights
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "ActionRecommendation":
+        copied = dict(value)
+        copied["ranked_scores"] = [
+            ActionScore.from_dict(item) for item in copied.get("ranked_scores", [])
+        ]
+        copied["candidates"] = [
+            ActionCandidate.from_dict(item) for item in copied.get("candidates", [])
+        ]
+        copied["weights"] = SelectionWeights.from_dict(copied.get("weights", {}))
         return cls(**copied)

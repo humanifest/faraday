@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/dataset-manifest.schema.json",
+  "title": "Dataset registration manifest",
+  "type": "object",
+  "required": ["name", "role", "artifacts"],
+  "properties": {
+    "dataset_id": {"type": "string", "minLength": 1},
+    "name": {"type": "string", "minLength": 1},
+    "role": {"enum": ["calibration", "exploratory", "training", "confirmatory", "replication"]},
+    "description": {"type": "string"},
+    "observation_unit": {"type": "string"},
+    "source_dataset_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "protocol_id": {"type": ["string", "null"]},
+    "synthetic": {"type": "boolean", "default": false},
+    "quality_attestations": {"type": "array", "items": {"type": "string"}},
+    "metadata": {"type": "object"},
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/artifact"}
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["locator", "sha256"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "media_type": {"type": "string"},
+        "metadata": {"type": "object"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

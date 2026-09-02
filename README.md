@@ -18,7 +18,23 @@ reconsidered.
 - Build a claim hierarchy from measurement validity through attribution/intent.
 - Propose structured hypotheses as unreviewed candidates.
 - Prevent incomplete hypotheses from entering the active model set.
-- Attach evidence only after a hypothesis has been reviewed and activated.
+- Support an auditable `pending_review` lane for delegated autonomous
+  exploration without representing agent confidence as human approval.
+- Register immutable, content-hashed datasets with roles that prevent
+  exploratory/confirmatory leakage.
+- Draft, amend, and hash-freeze observational, experimental, computational,
+  formal, literature, and synthesis protocols.
+- Record code-, environment-, input-, output-, and quality-gate-bound runs.
+- Prevent failed or synthetic runs from becoming confirmatory evidence.
+- Rank feasible, safety-approved next actions with an explicit utility function.
+- Attach evidence only after a hypothesis has been reviewed and activated;
+  confirmatory evidence must trace to an eligible recorded run.
+- Require every new evidence record to state its scope, uncertainty, explicit
+  claim ceiling, and machine-validated capability tags.
+- Reject unsupported replication, known-result reproduction, novel-prediction,
+  and empirical-test labels rather than accepting them as self-attestations.
+- Publish a deterministic epistemic audit and conservative conclusion ceiling in
+  every synthesis.
 - Retire hypotheses without erasing them, including rejection type, limitations,
   lineage, and resurrection conditions.
 - Build deterministic, claim-scoped Markdown syntheses.
@@ -26,10 +42,10 @@ reconsidered.
   detect later tampering.
 - Emit stable JSON for Codex today and other clients later.
 
-Protocol freezing, dataset-role enforcement, execution sandboxes, temporal data
-adapters, statistical engines, and experiment selection are the next layers.
-Their boundaries are reserved in each inquiry workspace, but this version does
-not pretend to provide them yet.
+The core deliberately does not implement a statistical package, proof checker,
+sensor pipeline, literature retriever, or execution sandbox. Those are adapters
+and executors. The core records their inputs, commitments, gates, and outputs
+under one provenance model.
 
 ## Quick start
 
@@ -69,6 +85,42 @@ An activatable hypothesis must define an observable prediction, at least one
 falsification condition, and either a null model or competing model. Generated
 proposals are never activated automatically.
 
+When a person delegates provisional exploratory review, a complete hypothesis
+may be staged without activation:
+
+```bash
+./research --workspace .research hypothesis stage <hypothesis-id> \
+  --confidence high \
+  --rationale "Complete competing hypothesis; exploratory work is reversible."
+```
+
+`pending_review` hypotheses may anchor frozen **exploratory** protocols and
+receive exploratory evidence. Confirmatory or replication protocol freezes and
+confirmatory evidence still require activation after human review.
+
+The general execution loop uses JSON contracts:
+
+```bash
+./research --workspace .research protocol create --spec-file examples/formal-protocol.json
+./research --workspace .research protocol freeze <protocol-id>
+./research --workspace .research run record --record-file examples/run-record.json
+./research --workspace .research evidence record \
+  --hypothesis <hypothesis-id> --direction supports \
+  --summary "The registered check passed." --run <run-id> \
+  --scope "The registered bounded system only." \
+  --uncertainty "Limited to the pinned implementation." \
+  --control-passed "The registered negative control failed as expected." \
+  --higher-conclusion-unsupported "The model is empirically correct." \
+  --validation-tag internal_consistency \
+  --validation-tag controlled_benchmark --confirmatory
+./research --workspace .research next-action recommend \
+  --spec-file examples/next-actions.json
+./research --workspace .research workspace audit --fail-on error
+```
+
+Replace the placeholder IDs and hashes in the examples with values from the
+active inquiry and the actual code, environment, and artifacts.
+
 ## Codex-first workflow
 
 1. The person states a curiosity or suspicion in natural language.
@@ -76,12 +128,17 @@ proposals are never activated automatically.
 3. The person and Codex clarify scope, constructs, population, outcomes, time,
    and what evidence could change the person's mind.
 4. Codex creates a claim map and proposes a diverse competing-model set.
-5. The person reviews proposals; only operationalized candidates are activated.
-6. Available data and analyses produce claim-scoped evidence records. Tests that
-   require the physical world become proposed experiments, not simulated facts.
+5. The person reviews proposals before activation. If autonomous exploratory
+   review was delegated, Codex may stage complete candidates as `pending_review`
+   under the restrictions above.
+6. Freeze a protocol before protected data are inspected, then record the actual
+   run with code/environment hashes, input roles, output hashes, and quality gates.
+   Tests that require the physical world remain proposed work until an external
+   executor returns real artifacts.
 7. Hypotheses are refined, parked, or retired with reasons and resurrection
    conditions. The next experiment should discriminate among survivors.
-8. A deterministic synthesis reports what was and was not established.
+8. A deterministic synthesis reports what was and was not established, including
+   the highest defensible conclusion ceiling and missing maturity capabilities.
 
 See [AGENTS.md](AGENTS.md) for the operating contract and
 [docs/architecture.md](docs/architecture.md) for the dependency boundaries. The
@@ -98,18 +155,19 @@ conversational loop is in [docs/codex-playbook.md](docs/codex-playbook.md).
     questions.json
     claims.json
     drafts/hypotheses/
-    hypotheses/{active,parked,retired}/
+    hypotheses/{pending_review,active,parked,retired}/
     datasets/
     protocols/{draft,frozen}/
     runs/
+    recommendations/
     evidence/
     reports/
     ledger.jsonl
 ```
 
 JSON files are canonical application state. `ledger.jsonl` is append-only and
-must never be hand-edited. Dataset and protocol directories are reserved for the
-next implementation phase.
+must never be hand-edited. Registered datasets, protocols, runs, evidence, and
+recommendations are immutable records; amendments create new protocol versions.
 
 ## Development
 
@@ -119,6 +177,26 @@ python -m compileall -q src tests
 ```
 
 The package has no runtime dependencies. It supports Python 3.11 and newer.
+
+## Epistemic validation tags
+
+Evidence is classified by what it actually tests: `source_assessment`,
+`calibration`, `internal_consistency`, `controlled_benchmark`,
+`independent_replication`, `known_result_reproduction`, `novel_prediction`, or
+`empirical_test`. Higher tags have enforceable prerequisites. In particular,
+independent replication must name an eligible earlier run through
+`metadata.replicates_run_id`, use a different executor identity, and use a
+different analysis-code hash. Known-result reproduction requires a passed
+`known-result-reproduction` quality gate. Novel predictions and empirical tests
+require active hypotheses and protected non-exploratory runs; empirical tests
+also require non-synthetic observational or experimental data.
+
+`workspace audit` reports errors, warnings, the capability vector, and a
+conservative conclusion ceiling. Use `--fail-on error` in CI. Warnings remain
+visible for scientifically missing capabilities—such as absent independent
+replication—without making unfinished research impossible to commit.
+`structurally_valid=true` means only that no internal audit contradiction was
+found; it is not a scientific-success flag.
 
 ## Design principle
 
