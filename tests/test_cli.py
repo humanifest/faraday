@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -350,6 +351,24 @@ def test_cli_records_general_protocol_run_and_next_action(
     assert main([*global_args, "protocol", "freeze", protocol["protocol_id"]]) == 0
     protocol = result_from(capsys)
 
+    assert (
+        main(
+            [
+                *global_args,
+                "run",
+                "template",
+                "--protocol",
+                protocol["protocol_id"],
+            ]
+        )
+        == 0
+    )
+    template = result_from(capsys)
+    assert template["would_append_event"] is False
+    assert [
+        item["gate_id"] for item in template["record"]["quality_gates"]
+    ] == ["proof-check"]
+
     run_record = tmp_path / "run.json"
     run_record.write_text(
         json.dumps(
@@ -371,7 +390,85 @@ def test_cli_records_general_protocol_run_and_next_action(
         ),
         encoding="utf-8",
     )
-    assert main([*global_args, "run", "record", "--record-file", str(run_record)]) == 0
+    assert (
+        main(
+            [
+                *global_args,
+                "run",
+                "preflight",
+                "--record-file",
+                str(run_record),
+            ]
+        )
+        == 0
+    )
+    preflight = result_from(capsys)
+    assert preflight["status"] == "ready"
+    assert preflight["would_append_event"] is False
+    assert preflight["quality_gate_order_matches_protocol"] is True
+    assert preflight["record_file_sha256"] == hashlib.sha256(
+        run_record.read_bytes()
+    ).hexdigest()
+    assert preflight["record_file_size_bytes"] == len(run_record.read_bytes())
+
+    invalid_record = tmp_path / "invalid-run-label.json"
+    invalid_value = json.loads(run_record.read_text())
+    invalid_value["quality_gates"][0]["gate_id"] = "shortened label"
+    invalid_record.write_text(json.dumps(invalid_value), encoding="utf-8")
+    assert (
+        main(
+            [
+                *global_args,
+                "run",
+                "preflight",
+                "--record-file",
+                str(invalid_record),
+            ]
+        )
+        == 1
+    )
+    invalid_preflight = result_from(capsys)
+    assert invalid_preflight["status"] == "would_record_invalid"
+    assert invalid_preflight["missing_quality_gate_ids"] == ["proof-check"]
+    assert invalid_preflight["unexpected_quality_gate_ids"] == [
+        "shortened label"
+    ]
+    assert main([*global_args, "run", "list"]) == 0
+    assert result_from(capsys) == []
+
+    assert (
+        main(
+            [
+                *global_args,
+                "run",
+                "record",
+                "--record-file",
+                str(run_record),
+                "--expect-record-sha256",
+                "0" * 64,
+            ]
+        )
+        == 2
+    )
+    hash_error = json.loads(capsys.readouterr().err)
+    assert "run record hash mismatch" in hash_error["error"]["message"]
+    assert main([*global_args, "run", "list"]) == 0
+    assert result_from(capsys) == []
+
+    assert (
+        main(
+            [
+                *global_args,
+                "run",
+                "record",
+                "--record-file",
+                str(run_record),
+                "--expect-record-sha256",
+                preflight["record_file_sha256"],
+            ]
+        )
+        == 0
+    )
     run = result_from(capsys)
     assert run["scientific_evidence_eligible"] is True
     assert (

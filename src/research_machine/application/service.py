@@ -57,6 +57,7 @@ from research_machine.domain.models import (
     ProtocolKind,
     QualityGateStatus,
     ResearchRun,
+    RunRecordPreflight,
     RigorAudit,
     RigorSeverity,
     RunStatus,
@@ -665,10 +666,13 @@ class ResearchService:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         return self.repository.find_protocol(resolved, protocol_id)
 
-    def record_run(
-        self, command: RecordRun, inquiry_id: str | None = None
+    def _prepare_run(
+        self,
+        command: RecordRun,
+        resolved: str,
+        *,
+        run_id: str,
     ) -> ResearchRun:
-        resolved = self.repository.resolve_inquiry_id(inquiry_id)
         if not isinstance(command.synthetic, bool):
             raise ValidationError("synthetic must be true or false")
         if not isinstance(command.metadata, dict):
@@ -743,7 +747,7 @@ class ResearchService:
         invalid = bool(missing_gates or required_gate_failure or protocol_gate_failure)
         synthetic = command.synthetic or any(dataset.synthetic for dataset in datasets)
         run = ResearchRun(
-            run_id=command.run_id or f"run-{self.token()}",
+            run_id=run_id,
             protocol_id=protocol.protocol_id,
             protocol_hash=protocol.protocol_hash,
             analysis_mode=protocol.analysis_mode,
@@ -765,9 +769,136 @@ class ResearchService:
                 **({"missing_quality_gates": missing_gates} if missing_gates else {}),
             },
         )
+        return run
+
+    def record_run(
+        self, command: RecordRun, inquiry_id: str | None = None
+    ) -> ResearchRun:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        run = self._prepare_run(
+            command,
+            resolved,
+            run_id=command.run_id or f"run-{self.token()}",
+        )
         self.repository.save_run(resolved, run)
         self._event(resolved, "run.record", "run", run.run_id, run.to_dict())
         return run
+
+    def preflight_run(
+        self, command: RecordRun, inquiry_id: str | None = None
+    ) -> RunRecordPreflight:
+        """Predict run-record validity without writing state or consuming an ID."""
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        preview = self._prepare_run(
+            command,
+            resolved,
+            run_id=command.run_id or "run-id-assigned-only-on-record",
+        )
+        protocol = self.repository.find_protocol(resolved, command.protocol_id)
+        required_ids = list(protocol.quality_requirements)
+        provided_ids = [gate.gate_id for gate in preview.quality_gates]
+        required_set = set(required_ids)
+        provided_set = set(provided_ids)
+        missing_ids = sorted(required_set - provided_set)
+        unexpected_ids = sorted(provided_set - required_set)
+        gates_by_id = {gate.gate_id: gate for gate in preview.quality_gates}
+        failed_required_ids = [
+            gate.gate_id
+            for gate in preview.quality_gates
+            if gate.required and gate.status is not QualityGateStatus.PASSED
+        ]
+        failed_protocol_ids = [
+            gate_id
+            for gate_id in required_ids
+            if gate_id in gates_by_id
+            and gates_by_id[gate_id].status is not QualityGateStatus.PASSED
+        ]
+        return RunRecordPreflight(
+            status=(
+                "ready"
+                if preview.status is RunStatus.COMPLETED
+                else "would_record_invalid"
+            ),
+            would_append_event=False,
+            protocol_id=protocol.protocol_id,
+            protocol_hash=protocol.protocol_hash or "",
+            requested_run_id=command.run_id,
+            record_status_if_submitted=preview.status,
+            scientific_evidence_eligible_if_submitted=(
+                preview.scientific_evidence_eligible
+            ),
+            synthetic_if_submitted=preview.synthetic,
+            required_quality_gate_ids=required_ids,
+            provided_quality_gate_ids=provided_ids,
+            missing_quality_gate_ids=missing_ids,
+            unexpected_quality_gate_ids=unexpected_ids,
+            failed_required_gate_ids=failed_required_ids,
+            failed_protocol_gate_ids=failed_protocol_ids,
+            exact_quality_gate_set=(not missing_ids and not unexpected_ids),
+            quality_gate_order_matches_protocol=(provided_ids == required_ids),
+            conclusion_ceiling=(
+                "Prospective record-shape validation only. This preflight writes "
+                "no run or ledger event and does not validate artifact bytes, "
+                "execution truth, scientific methods, or conclusions."
+            ),
+        )
+
+    def run_record_template(
+        self, protocol_id: str, inquiry_id: str | None = None
+    ) -> dict[str, Any]:
+        """Return a deliberately non-submittable skeleton with exact gate IDs."""
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        protocol = self.repository.find_protocol(resolved, protocol_id)
+        if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
+            raise ValidationError("run templates require a frozen protocol")
+        if _protocol_commitment(protocol) != protocol.protocol_hash:
+            raise ValidationError(
+                "frozen protocol content no longer matches its hash commitment"
+            )
+        return {
+            "schema_version": 1,
+            "template_kind": "research-machine-run-record-v1",
+            "template_only": True,
+            "would_append_event": False,
+            "protocol_hash": protocol.protocol_hash,
+            "record": {
+                "protocol_id": protocol.protocol_id,
+                "started_at": "<ISO-8601 timestamp with UTC offset>",
+                "completed_at": "<ISO-8601 timestamp with UTC offset>",
+                "analysis_code_hash": protocol.analysis_code_hash,
+                "environment_hash": "<64 lowercase hexadecimal characters>",
+                "random_seed_reveal": (
+                    "<exact seed matching the frozen commitment>"
+                    if protocol.random_seed_commitment
+                    else None
+                ),
+                "dataset_ids": [],
+                "output_artifacts": [],
+                "quality_gates": [
+                    {
+                        "gate_id": gate_id,
+                        "status": "skipped",
+                        "summary": "<replace with the observed gate result>",
+                        "required": True,
+                        "details": {},
+                    }
+                    for gate_id in protocol.quality_requirements
+                ],
+                "summary": "",
+                "synthetic": False,
+                "metadata": {},
+            },
+            "instructions": [
+                "Replace every angle-bracket placeholder with observed provenance.",
+                "Add at least one output artifact with its real hash.",
+                "Set every gate status from observed output; skipped or failed required gates make the run invalid.",
+                "Run `research run preflight --record-file ...` before `research run record`.",
+            ],
+            "conclusion_ceiling": (
+                "Template generation only. No execution, result, run, or ledger "
+                "event is created."
+            ),
+        }
 
     def list_runs(self, inquiry_id: str | None = None) -> list[ResearchRun]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)

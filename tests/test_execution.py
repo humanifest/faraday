@@ -325,6 +325,115 @@ def test_failed_gate_and_synthetic_run_cannot_be_confirmatory_evidence(
             )
 
 
+def test_run_preflight_predicts_status_without_writing_state(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    before = service.verify_ledger("formal")
+
+    report = service.preflight_run(
+        run_command(protocol.protocol_id, QualityGateStatus.PASSED),
+        "formal",
+    )
+
+    after = service.verify_ledger("formal")
+    assert report.status == "ready"
+    assert report.would_append_event is False
+    assert report.record_status_if_submitted is RunStatus.COMPLETED
+    assert report.scientific_evidence_eligible_if_submitted is True
+    assert report.required_quality_gate_ids == ["proof-check"]
+    assert report.provided_quality_gate_ids == ["proof-check"]
+    assert report.missing_quality_gate_ids == []
+    assert report.unexpected_quality_gate_ids == []
+    assert report.exact_quality_gate_set is True
+    assert report.quality_gate_order_matches_protocol is True
+    assert before == after
+    assert service.list_runs("formal") == []
+
+
+def test_run_preflight_exposes_label_mismatch_before_invalid_append(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    mismatched = run_command(
+        protocol.protocol_id,
+        QualityGateStatus.PASSED,
+        quality_gates=[
+            QualityGateResult(
+                gate_id="accurate human paraphrase",
+                status=QualityGateStatus.PASSED,
+                summary="The proof check passed under a shortened label.",
+            )
+        ],
+    )
+
+    report = service.preflight_run(mismatched, "formal")
+
+    assert report.status == "would_record_invalid"
+    assert report.record_status_if_submitted is RunStatus.INVALID
+    assert report.missing_quality_gate_ids == ["proof-check"]
+    assert report.unexpected_quality_gate_ids == ["accurate human paraphrase"]
+    assert report.exact_quality_gate_set is False
+    assert report.quality_gate_order_matches_protocol is False
+    assert service.list_runs("formal") == []
+
+
+def test_run_preflight_reports_failed_gate_and_synthetic_ceiling(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+
+    failed = service.preflight_run(
+        run_command(protocol.protocol_id, QualityGateStatus.FAILED), "formal"
+    )
+    synthetic = service.preflight_run(
+        run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            synthetic=True,
+        ),
+        "formal",
+    )
+
+    assert failed.failed_required_gate_ids == ["proof-check"]
+    assert failed.failed_protocol_gate_ids == ["proof-check"]
+    assert failed.record_status_if_submitted is RunStatus.INVALID
+    assert synthetic.status == "ready"
+    assert synthetic.record_status_if_submitted is RunStatus.COMPLETED
+    assert synthetic.synthetic_if_submitted is True
+    assert synthetic.scientific_evidence_eligible_if_submitted is False
+    assert service.list_runs("formal") == []
+
+
+def test_run_record_template_preserves_frozen_gate_order_and_is_not_submittable(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    before = service.verify_ledger("formal")
+
+    template = service.run_record_template(protocol.protocol_id, "formal")
+
+    assert template["template_only"] is True
+    assert template["would_append_event"] is False
+    assert template["protocol_hash"] == protocol.protocol_hash
+    assert template["record"]["analysis_code_hash"] == CODE_HASH
+    assert template["record"]["environment_hash"].startswith("<")
+    assert template["record"]["output_artifacts"] == []
+    assert template["record"]["quality_gates"] == [
+        {
+            "gate_id": "proof-check",
+            "status": "skipped",
+            "summary": "<replace with the observed gate result>",
+            "required": True,
+            "details": {},
+        }
+    ]
+    assert service.verify_ledger("formal") == before
+    assert service.list_runs("formal") == []
+
+
 def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
     tmp_path: Path,
 ) -> None:

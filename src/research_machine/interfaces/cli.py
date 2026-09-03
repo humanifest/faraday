@@ -329,7 +329,23 @@ def build_parser() -> argparse.ArgumentParser:
     run_commands = run.add_subparsers(dest="action", required=True)
     run_record = run_commands.add_parser("record")
     run_record.add_argument("--record-file", type=Path, required=True)
+    run_record.add_argument(
+        "--expect-record-sha256",
+        help="Reject unless the parsed record bytes match this preflighted digest",
+    )
     _add_inquiry_option(run_record)
+    run_preflight = run_commands.add_parser(
+        "preflight",
+        help="Validate a run record without appending it to canonical state",
+    )
+    run_preflight.add_argument("--record-file", type=Path, required=True)
+    _add_inquiry_option(run_preflight)
+    run_template = run_commands.add_parser(
+        "template",
+        help="Emit a non-submittable run skeleton with exact frozen gate IDs",
+    )
+    run_template.add_argument("--protocol", required=True)
+    _add_inquiry_option(run_template)
     run_show = run_commands.add_parser("show")
     run_show.add_argument("run_id")
     _add_inquiry_option(run_show)
@@ -395,20 +411,30 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _read_json_object(
+def _read_json_object_and_hash(
     path: Path | None, *, allowed_fields: set[str], label: str
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], str | None, int]:
     if path is None:
-        return {}
+        return {}, None, 0
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        content = path.read_bytes()
+        value = json.loads(content)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"could not read {label} file {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise ValueError(f"{label} file must contain a JSON object")
     unknown = sorted(set(value) - allowed_fields)
     if unknown:
         raise ValueError(f"unknown {label} fields: " + ", ".join(unknown))
+    return value, hashlib.sha256(content).hexdigest(), len(content)
+
+
+def _read_json_object(
+    path: Path | None, *, allowed_fields: set[str], label: str
+) -> dict[str, Any]:
+    value, _, _ = _read_json_object_and_hash(
+        path, allowed_fields=allowed_fields, label=label
+    )
     return value
 
 
@@ -848,11 +874,39 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
         return [item.to_dict() for item in protocols]
 
     if args.group == "run":
-        if args.action == "record":
-            spec = _read_json_object(
-                args.record_file, allowed_fields=_RUN_FIELDS, label="run"
+        if args.action in {"record", "preflight"}:
+            spec, record_file_sha256, record_file_size_bytes = (
+                _read_json_object_and_hash(
+                    args.record_file, allowed_fields=_RUN_FIELDS, label="run"
+                )
             )
-            return service.record_run(_run_command(spec), args.inquiry).to_dict()
+            if args.action == "record" and args.expect_record_sha256 is not None:
+                expected = args.expect_record_sha256
+                if (
+                    len(expected) != 64
+                    or expected.lower() != expected
+                    or any(
+                        character not in "0123456789abcdef"
+                        for character in expected
+                    )
+                ):
+                    raise ValueError(
+                        "expect-record-sha256 must be 64 lowercase hexadecimal characters"
+                    )
+                if record_file_sha256 != expected:
+                    raise ValueError(
+                        "run record hash mismatch: "
+                        f"expected {expected}, observed {record_file_sha256}"
+                    )
+            command = _run_command(spec)
+            if args.action == "record":
+                return service.record_run(command, args.inquiry).to_dict()
+            report = service.preflight_run(command, args.inquiry).to_dict()
+            report["record_file_sha256"] = record_file_sha256
+            report["record_file_size_bytes"] = record_file_size_bytes
+            return report
+        if args.action == "template":
+            return service.run_record_template(args.protocol, args.inquiry)
         if args.action == "show":
             return service.get_run(args.run_id, args.inquiry).to_dict()
         return [run.to_dict() for run in service.list_runs(args.inquiry)]
@@ -938,4 +992,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: {exc}", file=sys.stderr)
         return 2
     _render(result, json_output=args.json)
+    if (
+        args.group == "run"
+        and args.action == "preflight"
+        and isinstance(result, dict)
+        and result.get("status") != "ready"
+    ):
+        return 1
     return 0

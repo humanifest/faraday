@@ -445,6 +445,27 @@ class ResearchRun(Serializable):
 
 
 @dataclass(frozen=True)
+class RunRecordPreflight(Serializable):
+    status: str
+    would_append_event: bool
+    protocol_id: str
+    protocol_hash: str
+    requested_run_id: str | None
+    record_status_if_submitted: RunStatus
+    scientific_evidence_eligible_if_submitted: bool
+    synthetic_if_submitted: bool
+    required_quality_gate_ids: list[str]
+    provided_quality_gate_ids: list[str]
+    missing_quality_gate_ids: list[str]
+    unexpected_quality_gate_ids: list[str]
+    failed_required_gate_ids: list[str]
+    failed_protocol_gate_ids: list[str]
+    exact_quality_gate_set: bool
+    quality_gate_order_matches_protocol: bool
+    conclusion_ceiling: str
+
+
+@dataclass(frozen=True)
 class RigorFinding(Serializable):
     code: str
     severity: RigorSeverity

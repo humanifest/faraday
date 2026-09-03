@@ -25,6 +25,8 @@ reconsidered.
 - Draft, amend, and hash-freeze observational, experimental, computational,
   formal, literature, and synthesis protocols.
 - Record code-, environment-, input-, output-, and quality-gate-bound runs.
+- Generate exact frozen quality-gate templates and preflight complete run
+  records without consuming a run ID or appending a ledger event.
 - Prevent failed or synthetic runs from becoming confirmatory evidence.
 - Rank feasible, safety-approved next actions with an explicit utility function.
 - Attach evidence only after a hypothesis has been reviewed and activated;
@@ -164,6 +166,8 @@ The general execution loop uses JSON contracts:
 ```bash
 ./research --workspace .research protocol create --spec-file examples/formal-protocol.json
 ./research --workspace .research protocol freeze <protocol-id>
+./research --workspace .research run template --protocol <protocol-id>
+./research --workspace .research run preflight --record-file examples/run-record.json
 ./research --workspace .research run record --record-file examples/run-record.json
 ./research --workspace .research evidence record \
   --hypothesis <hypothesis-id> --direction supports \
@@ -181,6 +185,13 @@ The general execution loop uses JSON contracts:
 
 Replace the placeholder IDs and hashes in the examples with values from the
 active inquiry and the actual code, environment, and artifacts.
+
+`run template` and `run preflight` are read-only. The template deliberately
+contains invalid placeholders and skipped gates so it cannot be mistaken for an
+observed result. The preflight uses the same validation and status construction
+as `run record`, predicts whether submission would be completed or invalid, and
+exits nonzero for a would-be invalid record. See
+[docs/run-record-preflight.md](docs/run-record-preflight.md).
 
 ## Codex-first workflow
 
