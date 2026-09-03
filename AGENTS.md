@@ -58,6 +58,16 @@ canonical write path.
 - Preserve exploratory/confirmatory separation. Register artifact hashes once;
   do not relabel them. Freeze protected protocols before their observations are
   registered. Confirmatory evidence must trace to an eligible quality-gated run.
+- Keep execution quality separate from scientific direction. Required quality
+  gates cover integrity, provenance, measurement availability, controls being
+  evaluated, and faithful application of the frozen decision rule. Desired
+  values or hypothesis-supporting outcomes belong in success and falsification
+  conditions; a valid null, adverse, or partial result must remain eligible for
+  evidence with the appropriate direction.
+- For a sealed numerical comparison, require a public measurement definition
+  for every hidden target: observable, input, parameters, evaluation point or
+  time, convention, aggregation, and tolerance. The sealed value must not depend
+  on an undisclosed implementation choice.
 - A `pending_review` label must remain visible in synthesis. Never describe it as
   approval, validation, confirmation, or human review.
 - Synthetic data and runs may test plumbing, but must never be presented as

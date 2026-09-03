@@ -91,6 +91,20 @@ Freeze the protocol before inspecting confirmatory or replication observations.
 Register each dataset once under a role. Never relabel an artifact digest to move
 it from exploration or training into confirmation.
 
+Required quality gates answer whether the execution and measurement are usable:
+hashes and provenance match, inputs are admissible, controls were evaluated, and
+the frozen classification rule was applied. Put the result that would support or
+falsify the hypothesis in `success_conditions` and `failure_conditions`, not in
+a required quality gate. Otherwise a valid adverse result becomes an invalid run
+and cannot enter evidence.
+
+For blinded or sealed numerical comparisons, publish a complete measurement
+definition before execution even when the target value stays hidden. Each target
+needs its observable, input, parameter values, evaluation point or time,
+convention, aggregation, and tolerance. A sealed value that relies on an omitted
+choice tests guesswork about the original implementation rather than
+reproducibility of the public method.
+
 An exploratory protocol may be frozen against `pending_review` hypotheses.
 Confirmatory and replication protocols require every tested hypothesis to be
 active after human review.
