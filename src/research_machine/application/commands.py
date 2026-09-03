@@ -157,6 +157,9 @@ class RecordRun:
     synthetic: bool = False
     metadata: dict[str, object] = field(default_factory=dict)
     run_id: str | None = None
+    artifact_root: str | None = None
+    attestation_schema_path: str | None = None
+    expected_attestation_schema_sha256: str | None = None
 
 
 @dataclass(frozen=True)

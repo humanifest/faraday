@@ -333,12 +333,40 @@ def build_parser() -> argparse.ArgumentParser:
         "--expect-record-sha256",
         help="Reject unless the parsed record bytes match this preflighted digest",
     )
+    run_record.add_argument(
+        "--artifact-root",
+        type=Path,
+        help="Re-hash relative output-artifact locators before recording",
+    )
+    run_record.add_argument(
+        "--attestation-schema",
+        type=Path,
+        help="Validate a replication attestation against this local schema",
+    )
+    run_record.add_argument(
+        "--expect-attestation-schema-sha256",
+        help="Reject unless the attestation schema matches this commitment",
+    )
     _add_inquiry_option(run_record)
     run_preflight = run_commands.add_parser(
         "preflight",
         help="Validate a run record without appending it to canonical state",
     )
     run_preflight.add_argument("--record-file", type=Path, required=True)
+    run_preflight.add_argument(
+        "--artifact-root",
+        type=Path,
+        help="Re-hash relative output-artifact locators during preflight",
+    )
+    run_preflight.add_argument(
+        "--attestation-schema",
+        type=Path,
+        help="Validate a replication attestation against this local schema",
+    )
+    run_preflight.add_argument(
+        "--expect-attestation-schema-sha256",
+        help="Require this SHA-256 for the attestation schema",
+    )
     _add_inquiry_option(run_preflight)
     run_template = run_commands.add_parser(
         "template",
@@ -418,8 +446,12 @@ def _read_json_object_and_hash(
         return {}, None, 0
     try:
         content = path.read_bytes()
-        value = json.loads(content)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        value = json.loads(
+            content,
+            parse_constant=_reject_nonfinite_json,
+            object_pairs_hook=_reject_duplicate_json_keys,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise ValueError(f"could not read {label} file {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise ValueError(f"{label} file must contain a JSON object")
@@ -427,6 +459,19 @@ def _read_json_object_and_hash(
     if unknown:
         raise ValueError(f"unknown {label} fields: " + ", ".join(unknown))
     return value, hashlib.sha256(content).hexdigest(), len(content)
+
+
+def _reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON number: {value}")
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key: {key}")
+        result[key] = value
+    return result
 
 
 def _read_json_object(
@@ -590,7 +635,13 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         raise ValueError(f"protocol is missing field {exc.args[0]}") from exc
 
 
-def _run_command(spec: dict[str, Any]) -> RecordRun:
+def _run_command(
+    spec: dict[str, Any],
+    *,
+    artifact_root: Path | None = None,
+    attestation_schema: Path | None = None,
+    expected_attestation_schema_sha256: str | None = None,
+) -> RecordRun:
     dataset_ids = _json_text_list(spec.get("dataset_ids", []), "dataset_ids")
     outputs = _dataset_artifacts({"artifacts": spec.get("output_artifacts", [])}, [])
     gate_values = spec.get("quality_gates", [])
@@ -641,6 +692,17 @@ def _run_command(spec: dict[str, Any]) -> RecordRun:
         synthetic=spec.get("synthetic", False),
         metadata=spec.get("metadata", {}),
         run_id=spec.get("run_id"),
+        artifact_root=(
+            str(artifact_root.resolve()) if artifact_root is not None else None
+        ),
+        attestation_schema_path=(
+            str(attestation_schema.resolve())
+            if attestation_schema is not None
+            else None
+        ),
+        expected_attestation_schema_sha256=(
+            expected_attestation_schema_sha256
+        ),
     )
 
 
@@ -898,7 +960,14 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                         "run record hash mismatch: "
                         f"expected {expected}, observed {record_file_sha256}"
                     )
-            command = _run_command(spec)
+            command = _run_command(
+                spec,
+                artifact_root=args.artifact_root,
+                attestation_schema=args.attestation_schema,
+                expected_attestation_schema_sha256=(
+                    args.expect_attestation_schema_sha256
+                ),
+            )
             if args.action == "record":
                 return service.record_run(command, args.inquiry).to_dict()
             report = service.preflight_run(command, args.inquiry).to_dict()

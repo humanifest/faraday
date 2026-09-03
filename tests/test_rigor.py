@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -266,6 +268,70 @@ def test_independent_replication_requires_clean_room_attestation(
         )
 
     attestation_locator = "independence-attestation.json"
+    artifact_root = tmp_path / "replication-artifacts"
+    artifact_root.mkdir()
+    result_path = artifact_root / "replication-clean-room.json"
+    result_path.write_text('{"reproduced":true}\n', encoding="utf-8")
+    attestation = {
+        "target_run_id": original.run_id,
+        "executor_identity": "replicator",
+        "design": "clean_room",
+        "independence_dimensions": ["executor", "implementation"],
+        "prior_implementation_accessed": False,
+        "allowed_input_manifest": {
+            "locator": "contract.md",
+            "sha256": "2" * 64,
+        },
+        "analysis_code_hash": "d" * 64,
+        "contamination_disclosures": [],
+    }
+    attestation_path = artifact_root / attestation_locator
+    attestation_path.write_text(json.dumps(attestation), encoding="utf-8")
+    attestation_schema = tmp_path / "attestation.schema.json"
+    attestation_schema.write_text(
+        json.dumps(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "additionalProperties": False,
+                "required": list(attestation),
+                "properties": {
+                    "target_run_id": {"const": original.run_id},
+                    "executor_identity": {"const": "replicator"},
+                    "design": {"const": "clean_room"},
+                    "independence_dimensions": {
+                        "type": "array",
+                        "minItems": 2,
+                        "uniqueItems": True,
+                        "items": {"type": "string"},
+                    },
+                    "prior_implementation_accessed": {"const": False},
+                    "allowed_input_manifest": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["locator", "sha256"],
+                        "properties": {
+                            "locator": {"type": "string", "minLength": 1},
+                            "sha256": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$",
+                            },
+                        },
+                    },
+                    "analysis_code_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$",
+                    },
+                    "contamination_disclosures": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    schema_hash = hashlib.sha256(attestation_schema.read_bytes()).hexdigest()
     replication = replicator.record_run(
         RecordRun(
             run_id="run-independent-clean-room",
@@ -275,10 +341,15 @@ def test_independent_replication_requires_clean_room_attestation(
             analysis_code_hash="d" * 64,
             environment_hash="e" * 64,
             output_artifacts=[
-                DatasetArtifact("replication-clean-room.json", "f" * 64),
+                DatasetArtifact(
+                    "replication-clean-room.json",
+                    hashlib.sha256(result_path.read_bytes()).hexdigest(),
+                    size_bytes=result_path.stat().st_size,
+                ),
                 DatasetArtifact(
                     attestation_locator,
-                    "1" * 64,
+                    hashlib.sha256(attestation_path.read_bytes()).hexdigest(),
+                    size_bytes=attestation_path.stat().st_size,
                     metadata={"artifact_role": "independence_attestation"},
                 ),
             ],
@@ -302,8 +373,12 @@ def test_independent_replication_requires_clean_room_attestation(
                     "attestation_artifact": attestation_locator,
                 },
             },
+            artifact_root=str(artifact_root),
+            attestation_schema_path=str(attestation_schema),
+            expected_attestation_schema_sha256=schema_hash,
         )
     )
+    assert replication.metadata["artifact_integrity"]["status"] == "passed"
     evidence = replicator.record_evidence(
         _classified_evidence(
             hypothesis.hypothesis_id,

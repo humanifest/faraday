@@ -20,6 +20,7 @@ from research_machine.application.commands import (
     RegisterDataset,
     RetireHypothesis,
 )
+from research_machine.application.artifact_integrity import verify_run_artifacts
 from research_machine.application.policies import (
     normalize_text,
     require_text,
@@ -677,6 +678,10 @@ class ResearchService:
             raise ValidationError("synthetic must be true or false")
         if not isinstance(command.metadata, dict):
             raise ValidationError("metadata must be an object")
+        if "artifact_integrity" in command.metadata:
+            raise ValidationError(
+                "metadata.artifact_integrity is reserved for machine verification"
+            )
         protocol = self.repository.find_protocol(resolved, command.protocol_id)
         if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
             raise ValidationError("runs require a frozen, hash-committed protocol")
@@ -732,6 +737,37 @@ class ResearchService:
         self._validate_run_datasets(protocol, datasets)
 
         outputs = validate_dataset_artifacts(command.output_artifacts)
+        expected_attestation_schema_sha256 = (
+            require_sha256(
+                command.expected_attestation_schema_sha256,
+                "expected_attestation_schema_sha256",
+            )
+            if command.expected_attestation_schema_sha256 is not None
+            else None
+        )
+        verify_artifacts = any(
+            value is not None
+            for value in (
+                command.artifact_root,
+                command.attestation_schema_path,
+                expected_attestation_schema_sha256,
+            )
+        ) or isinstance(command.metadata.get("replication_independence"), dict)
+        artifact_integrity = (
+            verify_run_artifacts(
+                outputs,
+                artifact_root=command.artifact_root,
+                actor=self.actor,
+                analysis_code_hash=analysis_code_hash,
+                run_metadata=command.metadata,
+                attestation_schema_path=command.attestation_schema_path,
+                expected_attestation_schema_sha256=(
+                    expected_attestation_schema_sha256
+                ),
+            )
+            if verify_artifacts
+            else None
+        )
         gates = validate_quality_gates(command.quality_gates)
         gates_by_id = {gate.gate_id: gate for gate in gates}
         missing_gates = sorted(set(protocol.quality_requirements) - set(gates_by_id))
@@ -744,7 +780,15 @@ class ResearchService:
             for gate_id in protocol.quality_requirements
             if gate_id in gates_by_id
         )
-        invalid = bool(missing_gates or required_gate_failure or protocol_gate_failure)
+        invalid = bool(
+            missing_gates
+            or required_gate_failure
+            or protocol_gate_failure
+            or (
+                artifact_integrity is not None
+                and artifact_integrity.status != "passed"
+            )
+        )
         synthetic = command.synthetic or any(dataset.synthetic for dataset in datasets)
         run = ResearchRun(
             run_id=run_id,
@@ -767,6 +811,11 @@ class ResearchService:
             metadata={
                 **dict(command.metadata),
                 **({"missing_quality_gates": missing_gates} if missing_gates else {}),
+                **(
+                    {"artifact_integrity": artifact_integrity.to_dict()}
+                    if artifact_integrity is not None
+                    else {}
+                ),
             },
         )
         return run
@@ -780,6 +829,19 @@ class ResearchService:
             resolved,
             run_id=command.run_id or f"run-{self.token()}",
         )
+        artifact_integrity = run.metadata.get("artifact_integrity")
+        if (
+            isinstance(artifact_integrity, dict)
+            and artifact_integrity.get("status") != "passed"
+        ):
+            codes = [
+                finding.get("code", "UNKNOWN")
+                for finding in artifact_integrity.get("findings", [])
+                if isinstance(finding, dict)
+            ]
+            raise ValidationError(
+                "artifact integrity preflight failed: " + ", ".join(codes)
+            )
         self.repository.save_run(resolved, run)
         self._event(resolved, "run.record", "run", run.run_id, run.to_dict())
         return run
@@ -817,10 +879,15 @@ class ResearchService:
             existing.run_id == command.run_id
             for existing in self.repository.list_runs(resolved)
         )
+        artifact_integrity = preview.metadata.get("artifact_integrity")
+        artifact_reject = (
+            isinstance(artifact_integrity, dict)
+            and artifact_integrity.get("status") != "passed"
+        )
         return RunRecordPreflight(
             status=(
                 "would_reject"
-                if run_id_conflict
+                if run_id_conflict or artifact_reject
                 else (
                     "ready"
                     if preview.status is RunStatus.COMPLETED
@@ -833,11 +900,11 @@ class ResearchService:
             requested_run_id=command.run_id,
             requested_run_id_conflicts=run_id_conflict,
             record_status_if_submitted=(
-                None if run_id_conflict else preview.status
+                None if run_id_conflict or artifact_reject else preview.status
             ),
             scientific_evidence_eligible_if_submitted=(
                 None
-                if run_id_conflict
+                if run_id_conflict or artifact_reject
                 else preview.scientific_evidence_eligible
             ),
             synthetic_if_submitted=preview.synthetic,
@@ -849,10 +916,17 @@ class ResearchService:
             failed_protocol_gate_ids=failed_protocol_ids,
             exact_quality_gate_set=(not missing_ids and not unexpected_ids),
             quality_gate_order_matches_protocol=(provided_ids == required_ids),
+            artifact_integrity=(
+                dict(artifact_integrity)
+                if isinstance(artifact_integrity, dict)
+                else None
+            ),
             conclusion_ceiling=(
                 "Prospective record-shape validation only. This preflight writes "
-                "no run or ledger event and does not validate artifact bytes, "
-                "execution truth, scientific methods, or conclusions."
+                "no run or ledger event. When an artifact root and pinned "
+                "attestation schema are supplied it also validates local bytes "
+                "and record consistency, but never execution truth, attester "
+                "identity, scientific methods, or conclusions."
             ),
         )
 

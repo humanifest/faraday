@@ -41,7 +41,8 @@ dataset, artifact, quality-gate, and synthetic-status construction as
 - missing and additional gate IDs;
 - failed supplied-required and frozen-protocol gates;
 - exact-set and order comparisons; and
-- the SHA-256 and byte count of the exact parsed record file; and
+- the SHA-256 and byte count of the exact parsed record file;
+- optional local artifact and attestation-integrity observations; and
 - `would_append_event: false`.
 
 A ready record exits 0. A structurally valid record that would be immutably
@@ -58,9 +59,13 @@ local policy rather than silently changing old recording semantics.
 
 ## Boundary and ceiling
 
-The preflight validates a proposed record's structure against canonical state.
-It does not re-run code, inspect notebook outputs, hash locator contents, prove
-that an execution happened, or establish that gate summaries are truthful.
+The base preflight validates a proposed record's structure against canonical
+state. It does not re-run code, inspect notebook semantics, prove that an
+execution happened, or establish that gate summaries are truthful. When
+`--artifact-root`, `--attestation-schema`, and
+`--expect-attestation-schema-sha256` are supplied, it additionally re-hashes
+local output artifacts and validates the replication attestation as documented
+in [replication-return-intake.md](replication-return-intake.md).
 Submitting after a passing preflight remains a separate explicit command. Bind
 the submission to the preflighted bytes when possible:
 

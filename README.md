@@ -27,6 +27,9 @@ reconsidered.
 - Record code-, environment-, input-, output-, and quality-gate-bound runs.
 - Generate exact frozen quality-gate templates and preflight complete run
   records without consuming a run ID or appending a ledger event.
+- Re-hash returned run artifacts, validate a hash-pinned clean-room attestation
+  schema, and cross-check the attestation against the proposed run before an
+  independent-replication record can enter the ledger.
 - Prevent failed or synthetic runs from becoming confirmatory evidence.
 - Rank feasible, safety-approved next actions with an explicit utility function.
 - Attach evidence only after a hypothesis has been reviewed and activated;
@@ -109,6 +112,11 @@ contract and limitations are documented in
 
 The receipt is an executor artifact, not canonical evidence. A client still
 records the resulting hashes and quality gates through `research run record`.
+
+Independent-replication returns receive an additional fail-closed intake. The
+same local artifact root and pinned attestation schema must be supplied to both
+preflight and record commands; details and the supported schema profile are in
+[docs/replication-return-intake.md](docs/replication-return-intake.md).
 
 ## Quick start
 
@@ -267,8 +275,10 @@ independent replication must name an eligible earlier run through
 different analysis-code hash. It must also declare a clean-room design with
 executor and implementation independence, an explicit prior-code-access status,
 a hashed allowed-input manifest, contamination disclosures, and a hashed output
-artifact carrying `artifact_role=independence_attestation`. A different actor
-string plus a cosmetic code edit is therefore insufficient. Known-result
+artifact carrying `artifact_role=independence_attestation`. Before recording,
+the local artifact bytes and sizes must match the declarations, the attestation
+must satisfy a committed schema, and its core fields must agree with the run.
+A different actor string plus a cosmetic code edit is therefore insufficient. Known-result
 reproduction requires a passed `known-result-reproduction` quality gate. Novel
 predictions and empirical tests require active hypotheses and protected
 non-exploratory runs; empirical tests also require non-synthetic observational

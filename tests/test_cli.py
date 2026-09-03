@@ -15,6 +15,40 @@ def result_from(capsys) -> dict:
     return payload["result"]
 
 
+def test_json_cli_rejects_duplicate_keys_and_nonfinite_numbers(
+    tmp_path: Path, capsys
+) -> None:
+    workspace = tmp_path / "workspace"
+    global_args = ["--workspace", str(workspace), "--json"]
+    assert main([*global_args, "workspace", "init"]) == 0
+    result_from(capsys)
+    invalid_inputs = (
+        (
+            "duplicate.json",
+            '{"statement":"first","statement":"second"}',
+            "duplicate JSON object key",
+        ),
+        ("nan.json", '{"statement":NaN}', "non-finite JSON number"),
+    )
+    for name, content, expected in invalid_inputs:
+        proposal = tmp_path / name
+        proposal.write_text(content, encoding="utf-8")
+        assert (
+            main(
+                [
+                    *global_args,
+                    "hypothesis",
+                    "propose",
+                    "--proposal-file",
+                    str(proposal),
+                ]
+            )
+            == 2
+        )
+        error = json.loads(capsys.readouterr().err)
+        assert expected in error["error"]["message"]
+
+
 def test_json_cli_accepts_structured_hypothesis_proposals(
     tmp_path: Path, capsys
 ) -> None:

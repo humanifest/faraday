@@ -463,6 +463,7 @@ class RunRecordPreflight(Serializable):
     failed_protocol_gate_ids: list[str]
     exact_quality_gate_set: bool
     quality_gate_order_matches_protocol: bool
+    artifact_integrity: dict[str, Any] | None
     conclusion_ceiling: str
 
 

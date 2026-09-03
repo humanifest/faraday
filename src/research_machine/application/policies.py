@@ -305,6 +305,23 @@ def validate_validation_tag_context(
                 "independent_replication requires a hashed output artifact matching "
                 "attestation_artifact with artifact_role=independence_attestation"
             )
+        artifact_integrity = current.metadata.get("artifact_integrity")
+        if not isinstance(artifact_integrity, dict):
+            raise ValidationError(
+                "independent_replication requires machine-verified artifact_integrity"
+            )
+        if (
+            artifact_integrity.get("status") != "passed"
+            or artifact_integrity.get("all_artifacts_match") is not True
+            or artifact_integrity.get("attestation_schema_matches_commitment")
+            is not True
+            or artifact_integrity.get("attestation_schema_valid") is not True
+            or artifact_integrity.get("attestation_consistent") is not True
+        ):
+            raise ValidationError(
+                "independent_replication requires passed artifact bytes, pinned "
+                "attestation schema validation, and run-attestation consistency"
+            )
 
     if ValidationTag.KNOWN_RESULT_REPRODUCTION in tag_set:
         current = require_eligible_run(ValidationTag.KNOWN_RESULT_REPRODUCTION)
