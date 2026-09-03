@@ -22,4 +22,4 @@ def test_package_version_has_one_authoritative_source() -> None:
     assert "jupyter-client>=8.6" in configuration["project"][
         "optional-dependencies"
     ]["notebook"]
-    assert research_machine.__version__ == "0.3.1"
+    assert research_machine.__version__ == "0.3.2"

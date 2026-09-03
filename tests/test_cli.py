@@ -365,6 +365,36 @@ def test_cli_records_general_protocol_run_and_next_action(
                 "methodology": "Replay the proof in a pinned checker.",
                 "quality_requirements": ["proof-check"],
                 "controls": ["A deliberately invalid proof must be rejected."],
+                "measurement_definitions": [
+                    {
+                        "measurement_id": "candidate-proof",
+                        "role": "primary",
+                        "registered_target": "Proof checker acceptance",
+                        "observable": "checker exit status",
+                        "input_condition": "registered candidate proof",
+                        "parameter_values": {"checker_mode": "strict"},
+                        "evaluation_point": "after the final proof step",
+                        "convention": "exit status zero means accepted",
+                        "aggregation": "single checker result",
+                        "tolerance": "exact",
+                        "expected_behavior": "accepted",
+                    },
+                    {
+                        "measurement_id": "invalid-proof-control",
+                        "role": "control",
+                        "registered_target": (
+                            "A deliberately invalid proof must be rejected."
+                        ),
+                        "observable": "checker exit status",
+                        "input_condition": "registered invalid proof",
+                        "parameter_values": {"checker_mode": "strict"},
+                        "evaluation_point": "at the injected invalid step",
+                        "convention": "nonzero exit status means rejected",
+                        "aggregation": "single checker result",
+                        "tolerance": "exact",
+                        "expected_behavior": "rejected",
+                    },
+                ],
                 "expected_outputs": ["Proof object"],
                 "success_conditions": ["Checker acceptance"],
                 "environment_requirements": ["Pinned checker hash"],
@@ -385,6 +415,9 @@ def test_cli_records_general_protocol_run_and_next_action(
     protocol = result_from(capsys)
     assert main([*global_args, "protocol", "freeze", protocol["protocol_id"]]) == 0
     protocol = result_from(capsys)
+    assert protocol["measurement_definitions"][1]["evaluation_point"] == (
+        "at the injected invalid step"
+    )
 
     assert (
         main(

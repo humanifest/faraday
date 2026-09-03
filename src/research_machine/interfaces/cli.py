@@ -35,6 +35,8 @@ from research_machine.domain.models import (
     DatasetRole,
     EvidenceDirection,
     HypothesisWorkflowState,
+    MeasurementDefinition,
+    MeasurementRole,
     ProtocolKind,
     ProtocolStatus,
     QualityGateResult,
@@ -91,6 +93,7 @@ _PROTOCOL_FIELDS = {
     "inputs_required",
     "quality_requirements",
     "controls",
+    "measurement_definitions",
     "expected_outputs",
     "success_conditions",
     "environment_requirements",
@@ -643,6 +646,54 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
     lists = {
         field: _json_text_list(spec.get(field, []), field) for field in list_fields
     }
+    measurement_values = spec.get("measurement_definitions", [])
+    if not isinstance(measurement_values, list):
+        raise ValueError("measurement_definitions must be an array")
+    measurement_fields = {
+        "measurement_id",
+        "role",
+        "registered_target",
+        "observable",
+        "input_condition",
+        "parameter_values",
+        "evaluation_point",
+        "convention",
+        "aggregation",
+        "tolerance",
+        "expected_behavior",
+    }
+    measurements: list[MeasurementDefinition] = []
+    for value in measurement_values:
+        if not isinstance(value, dict):
+            raise ValueError("each measurement definition must be an object")
+        unknown = sorted(set(value) - measurement_fields)
+        if unknown:
+            raise ValueError(
+                "unknown measurement definition fields: " + ", ".join(unknown)
+            )
+        try:
+            role = MeasurementRole(value["role"])
+            measurements.append(
+                MeasurementDefinition(
+                    measurement_id=value["measurement_id"],
+                    role=role,
+                    registered_target=value["registered_target"],
+                    observable=value["observable"],
+                    input_condition=value["input_condition"],
+                    parameter_values=value["parameter_values"],
+                    evaluation_point=value["evaluation_point"],
+                    convention=value["convention"],
+                    aggregation=value["aggregation"],
+                    tolerance=value["tolerance"],
+                    expected_behavior=value["expected_behavior"],
+                )
+            )
+        except KeyError as exc:
+            raise ValueError(
+                f"measurement definition is missing field {exc.args[0]}"
+            ) from exc
+        except ValueError as exc:
+            raise ValueError(f"invalid measurement role: {value.get('role')}") from exc
     try:
         return CreateProtocol(
             experiment_id=spec["experiment_id"],
@@ -655,6 +706,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             inputs_required=lists["inputs_required"],
             quality_requirements=lists["quality_requirements"],
             controls=lists["controls"],
+            measurement_definitions=measurements,
             expected_outputs=lists["expected_outputs"],
             success_conditions=lists["success_conditions"],
             environment_requirements=lists["environment_requirements"],

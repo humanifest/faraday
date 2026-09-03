@@ -1667,6 +1667,7 @@ class ResearchService:
                 command.quality_requirements, "quality_requirements"
             ),
             controls=require_text_list(command.controls, "controls"),
+            measurement_definitions=list(command.measurement_definitions),
             expected_outputs=require_text_list(
                 command.expected_outputs, "expected_outputs"
             ),

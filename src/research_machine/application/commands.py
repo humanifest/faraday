@@ -11,6 +11,7 @@ from research_machine.domain.models import (
     DatasetArtifact,
     DatasetRole,
     EvidenceDirection,
+    MeasurementDefinition,
     ProtocolKind,
     QualityGateResult,
     RejectionType,
@@ -151,6 +152,7 @@ class CreateProtocol:
     inputs_required: list[str] = field(default_factory=list)
     quality_requirements: list[str] = field(default_factory=list)
     controls: list[str] = field(default_factory=list)
+    measurement_definitions: list[MeasurementDefinition] = field(default_factory=list)
     expected_outputs: list[str] = field(default_factory=list)
     success_conditions: list[str] = field(default_factory=list)
     environment_requirements: list[str] = field(default_factory=list)

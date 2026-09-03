@@ -20,6 +20,8 @@ from research_machine.domain.models import (
     AnalysisMode,
     DatasetArtifact,
     EvidenceDirection,
+    MeasurementDefinition,
+    MeasurementRole,
     ProtocolKind,
     QualityGateResult,
     QualityGateStatus,
@@ -167,6 +169,122 @@ def test_protocol_freeze_requires_controls_quality_gates_and_stop_rule(
     assert "quality_requirements" in message
     assert "controls" in message
     assert "sample_size_or_stopping_rule" in message
+
+
+def test_typed_measurement_contract_rejects_omitted_control_time(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, _ = _prepared_run(tmp_path)
+    control = "The negative dissipator must violate complete positivity."
+
+    def measurement(
+        measurement_id: str,
+        role: MeasurementRole,
+        target: str,
+        point: str,
+    ) -> MeasurementDefinition:
+        return MeasurementDefinition(
+            measurement_id=measurement_id,
+            role=role,
+            registered_target=target,
+            observable="minimum Choi eigenvalue",
+            input_condition="fixed finite CQ generator",
+            parameter_values={"t": "0.01 dimensionless"},
+            evaluation_point=point,
+            convention="column-vectorization Choi convention",
+            aggregation="minimum over Hermitian eigenspectrum",
+            tolerance="absolute error <= 1e-6",
+            expected_behavior="negative for the malformed generator",
+        )
+
+    common = dict(
+        title="Typed CQ control contract",
+        analysis_mode=AnalysisMode.REPLICATION,
+        hypotheses_tested=[hypothesis.hypothesis_id],
+        primary_outcome="Main channel structural verdict",
+        protocol_kind=ProtocolKind.COMPUTATIONAL,
+        methodology="Evaluate the main channel and fixed malformed control.",
+        quality_requirements=["contract-check"],
+        controls=[control],
+        expected_outputs=["Measurement packet"],
+        success_conditions=["The fixed measurement contract is reproduced."],
+        environment_requirements=["Pinned numerical environment"],
+        sample_size_or_stopping_rule="Exactly one fixed evaluation.",
+        failure_conditions=["Any registered measurement is omitted."],
+        safety_constraints=["No physical intervention."],
+        analysis_code_hash="8" * 64,
+    )
+    untyped = service.create_protocol(
+        CreateProtocol(experiment_id="typed-cq-legacy", **common)
+    )
+    service.freeze_protocol(untyped.protocol_id)
+    audit = service.audit_rigor()
+    assert any(
+        item.code == "PROTECTED_COMPUTATIONAL_MEASUREMENTS_UNTYPED"
+        and item.entity_id == untyped.protocol_id
+        for item in audit.findings
+    )
+
+    incomplete = service.create_protocol(
+        CreateProtocol(
+            experiment_id="typed-cq-incomplete",
+            measurement_definitions=[
+                measurement(
+                    "main",
+                    MeasurementRole.PRIMARY,
+                    common["primary_outcome"],
+                    "t=0.05",
+                ),
+                measurement("negative", MeasurementRole.CONTROL, control, ""),
+            ],
+            **common,
+        )
+    )
+    with pytest.raises(ValidationError, match="evaluation_point"):
+        service.freeze_protocol(incomplete.protocol_id)
+
+    misaligned = service.create_protocol(
+        CreateProtocol(
+            experiment_id="typed-cq-misaligned",
+            measurement_definitions=[
+                measurement(
+                    "main",
+                    MeasurementRole.PRIMARY,
+                    common["primary_outcome"],
+                    "t=0.05",
+                ),
+                measurement(
+                    "negative",
+                    MeasurementRole.CONTROL,
+                    "An unregistered control",
+                    "t=0.01",
+                ),
+            ],
+            **common,
+        )
+    )
+    with pytest.raises(ValidationError, match="exactly one measurement"):
+        service.freeze_protocol(misaligned.protocol_id)
+
+    complete = service.create_protocol(
+        CreateProtocol(
+            experiment_id="typed-cq-complete",
+            measurement_definitions=[
+                measurement(
+                    "main",
+                    MeasurementRole.PRIMARY,
+                    common["primary_outcome"],
+                    "t=0.05",
+                ),
+                measurement("negative", MeasurementRole.CONTROL, control, "t=0.01"),
+            ],
+            **common,
+        )
+    )
+    frozen = service.freeze_protocol(complete.protocol_id)
+    assert frozen.measurement_definitions[1].evaluation_point == "t=0.01"
+    reloaded = service.get_protocol(frozen.protocol_id)
+    assert reloaded.measurement_definitions[0].role is MeasurementRole.PRIMARY
 
 
 def test_advanced_tags_cannot_overstate_a_formal_self_check(tmp_path: Path) -> None:

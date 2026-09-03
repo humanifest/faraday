@@ -29,6 +29,9 @@ reconsidered.
   exploratory/confirmatory leakage.
 - Draft, amend, and hash-freeze observational, experimental, computational,
   formal, literature, and synthesis protocols.
+- Optionally bind every primary, secondary, and control outcome to a typed
+  measurement contract whose parameters, evaluation point, convention,
+  aggregation, tolerance, and expected behavior are freeze-validated.
 - Record code-, environment-, input-, output-, and quality-gate-bound runs.
 - Generate exact frozen quality-gate templates and preflight complete run
   records without consuming a run ID or appending a ledger event.

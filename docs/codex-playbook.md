@@ -105,6 +105,11 @@ convention, aggregation, and tolerance. A sealed value that relies on an omitted
 choice tests guesswork about the original implementation rather than
 reproducibility of the public method.
 
+Use `measurement_definitions` when those choices need machine enforcement. Once
+the list is nonempty, the freeze gate requires exactly one typed definition for
+the primary outcome, every secondary outcome, and every registered control. See
+`measurement-contract.md`.
+
 An exploratory protocol may be frozen against `pending_review` hypotheses.
 Confirmatory and replication protocols require every tested hypothesis to be
 active after human review.

@@ -12,6 +12,8 @@ from research_machine.domain.models import (
     ExperimentProtocol,
     Hypothesis,
     HypothesisWorkflowState,
+    MeasurementDefinition,
+    MeasurementRole,
     ProtocolKind,
     ProtocolStatus,
     QualityGateResult,
@@ -490,6 +492,8 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         missing.append("success_conditions")
     if len(set(protocol.quality_requirements)) != len(protocol.quality_requirements):
         raise ValidationError("quality_requirements must not contain duplicates")
+    if protocol.measurement_definitions:
+        validate_measurement_contract(protocol)
     if (
         protocol.protocol_kind
         in {
@@ -506,6 +510,63 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
     require_sha256(protocol.analysis_code_hash, "analysis_code_hash")
     if protocol.random_seed_commitment:
         require_sha256(protocol.random_seed_commitment, "random_seed_commitment")
+
+
+def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
+    definitions = protocol.measurement_definitions
+    if any(not isinstance(item, MeasurementDefinition) for item in definitions):
+        raise ValidationError(
+            "measurement_definitions must contain MeasurementDefinition values"
+        )
+    identifiers: set[str] = set()
+    observed_targets: list[tuple[MeasurementRole, str]] = []
+    for index, definition in enumerate(definitions):
+        prefix = f"measurement_definitions[{index}]"
+        measurement_id = require_text(
+            definition.measurement_id, f"{prefix}.measurement_id"
+        )
+        if measurement_id in identifiers:
+            raise ValidationError(f"duplicate measurement_id: {measurement_id}")
+        identifiers.add(measurement_id)
+        if not isinstance(definition.role, MeasurementRole):
+            raise ValidationError(f"{prefix}.role must be a MeasurementRole")
+        target = require_text(
+            definition.registered_target, f"{prefix}.registered_target"
+        )
+        for field_name in (
+            "observable",
+            "input_condition",
+            "evaluation_point",
+            "convention",
+            "aggregation",
+            "tolerance",
+            "expected_behavior",
+        ):
+            require_text(getattr(definition, field_name), f"{prefix}.{field_name}")
+        if (
+            not isinstance(definition.parameter_values, dict)
+            or not definition.parameter_values
+        ):
+            raise ValidationError(
+                f"{prefix}.parameter_values must be a non-empty object"
+            )
+        for name, value in definition.parameter_values.items():
+            require_text(name, f"{prefix}.parameter_values key")
+            require_text(value, f"{prefix}.parameter_values[{name!r}]")
+        observed_targets.append((definition.role, target))
+
+    expected_targets = (
+        [(MeasurementRole.PRIMARY, protocol.primary_outcome)]
+        + [(MeasurementRole.SECONDARY, item) for item in protocol.secondary_outcomes]
+        + [(MeasurementRole.CONTROL, item) for item in protocol.controls]
+    )
+    if sorted((role.value, target) for role, target in observed_targets) != sorted(
+        (role.value, target) for role, target in expected_targets
+    ):
+        raise ValidationError(
+            "measurement_definitions must define exactly one measurement for the "
+            "primary outcome, every secondary outcome, and every registered control"
+        )
 
 
 def validate_quality_gates(

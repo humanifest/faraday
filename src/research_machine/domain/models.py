@@ -127,6 +127,12 @@ class ProtocolKind(StrEnum):
     SYNTHESIS = "synthesis"
 
 
+class MeasurementRole(StrEnum):
+    PRIMARY = "primary"
+    SECONDARY = "secondary"
+    CONTROL = "control"
+
+
 class QualityGateStatus(StrEnum):
     PASSED = "passed"
     FAILED = "failed"
@@ -373,6 +379,27 @@ class DatasetManifest(Serializable):
 
 
 @dataclass(frozen=True)
+class MeasurementDefinition(Serializable):
+    measurement_id: str
+    role: MeasurementRole
+    registered_target: str
+    observable: str
+    input_condition: str
+    parameter_values: dict[str, str]
+    evaluation_point: str
+    convention: str
+    aggregation: str
+    tolerance: str
+    expected_behavior: str
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "MeasurementDefinition":
+        copied = dict(value)
+        copied["role"] = MeasurementRole(copied["role"])
+        return cls(**copied)
+
+
+@dataclass(frozen=True)
 class ExperimentProtocol(Serializable):
     protocol_id: str
     protocol_family_id: str
@@ -389,6 +416,9 @@ class ExperimentProtocol(Serializable):
     inputs_required: list[str] = field(default_factory=list)
     quality_requirements: list[str] = field(default_factory=list)
     controls: list[str] = field(default_factory=list)
+    measurement_definitions: list[MeasurementDefinition] = field(
+        default_factory=list
+    )
     expected_outputs: list[str] = field(default_factory=list)
     success_conditions: list[str] = field(default_factory=list)
     environment_requirements: list[str] = field(default_factory=list)
@@ -427,6 +457,12 @@ class ExperimentProtocol(Serializable):
         copied["protocol_kind"] = ProtocolKind(
             copied.get("protocol_kind", ProtocolKind.EXPERIMENTAL)
         )
+        copied["measurement_definitions"] = [
+            item
+            if isinstance(item, MeasurementDefinition)
+            else MeasurementDefinition.from_dict(item)
+            for item in copied.get("measurement_definitions", [])
+        ]
         return cls(**copied)
 
 

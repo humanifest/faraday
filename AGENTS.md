@@ -72,7 +72,9 @@ canonical write path.
 - For a sealed numerical comparison, require a public measurement definition
   for every hidden target: observable, input, parameters, evaluation point or
   time, convention, aggregation, and tolerance. The sealed value must not depend
-  on an undisclosed implementation choice.
+  on an undisclosed implementation choice. Use the typed
+  `measurement_definitions` contract for new protocols so the freeze gate checks
+  exact primary, secondary, and control coverage.
 - A `pending_review` label must remain visible in synthesis. Never describe it as
   approval, validation, confirmation, or human review.
 - Synthetic data and runs may test plumbing, but must never be presented as

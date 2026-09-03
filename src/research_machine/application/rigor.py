@@ -9,6 +9,7 @@ from research_machine.application.policies import (
 )
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.domain.models import (
+    AnalysisMode,
     Claim,
     ClaimDisposition,
     ClaimEpistemicLayer,
@@ -18,6 +19,7 @@ from research_machine.domain.models import (
     ExperimentProtocol,
     Hypothesis,
     Inquiry,
+    ProtocolKind,
     ProtocolStatus,
     QualityGateStatus,
     ResearchRun,
@@ -410,6 +412,25 @@ def audit_research_state(
                 "Frozen protocol has no comparator or negative control.",
                 entity_type="protocol",
                 entity_id=protocol.protocol_id,
+            )
+        if (
+            protocol.analysis_mode
+            in {AnalysisMode.CONFIRMATORY, AnalysisMode.REPLICATION}
+            and protocol.protocol_kind is ProtocolKind.COMPUTATIONAL
+            and not protocol.measurement_definitions
+        ):
+            add(
+                "PROTECTED_COMPUTATIONAL_MEASUREMENTS_UNTYPED",
+                RigorSeverity.WARNING,
+                "This protected computational protocol has no typed measurement "
+                "contract, so parameter and evaluation-point completeness is not "
+                "machine-verifiable.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "Use measurement_definitions in the next protocol version; do "
+                    "not retroactively certify or rewrite the frozen protocol."
+                ),
             )
         if not protocol.sample_size_or_stopping_rule.strip():
             add(
