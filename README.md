@@ -47,6 +47,23 @@ sensor pipeline, literature retriever, or execution sandbox. Those are adapters
 and executors. The core records their inputs, commitments, gates, and outputs
 under one provenance model.
 
+An optional domain-neutral notebook executor is included for protected local
+calculations. Unlike `nbconvert`'s default failure path, it atomically writes the
+partially executed notebook and an execution receipt when a later cell raises,
+then exits nonzero. It refuses to overwrite prior output and can enforce the
+frozen source hash:
+
+```bash
+pip install -e '.[notebook]'
+research-notebook frozen-source.ipynb executed.ipynb \
+  --result-json execution-receipt.json \
+  --expect-source-sha256 <frozen-sha256> \
+  --working-directory <project-root>
+```
+
+The receipt is an executor artifact, not canonical evidence. A client still
+records the resulting hashes and quality gates through `research run record`.
+
 ## Quick start
 
 No installation or network access is required during development:

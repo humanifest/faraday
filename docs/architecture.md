@@ -118,6 +118,14 @@ be local processes, workflow systems, proof assistants, lab instruments, or huma
 teams. They cross the boundary by returning a run record with content hashes and
 gate results.
 
+`research-notebook` is one optional executor adapter, not an application-service
+command. It runs a hash-pinned notebook, refuses output overwrites, and writes
+both the notebook and a receipt atomically. If a cell raises, the notebook keeps
+all completed outputs plus the error cell and the process exits nonzero. This
+lets a failed run remain diagnosable without rerunning protected computation.
+The executor does not decide whether a failure is infrastructure, scientific,
+or evidence-eligible; the frozen protocol and recorded run gates decide that.
+
 Next-action selection is transparent and deterministic. Unsafe candidates and
 candidates with unmet prerequisites fail closed. Eligible candidates are ranked
 by expected discrimination and uncertainty reduction minus cost, burden, safety
