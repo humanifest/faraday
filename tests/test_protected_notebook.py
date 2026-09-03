@@ -156,6 +156,48 @@ def test_hash_mismatch_rejects_before_runtime_or_output(tmp_path: Path) -> None:
     assert not output.exists()
 
 
+def test_dependency_preflight_rejects_before_runtime_or_output(
+    tmp_path: Path,
+) -> None:
+    dependency = tmp_path / "input.bin"
+    dependency.write_bytes(b"registered")
+    expected_dependency_hash = hashlib.sha256(dependency.read_bytes()).hexdigest()
+    source = tmp_path / "source.ipynb"
+    output = tmp_path / "executed.ipynb"
+    manifest = tmp_path / "dependencies.json"
+    notebook = source_notebook()
+    notebook["cells"][0]["source"] = [
+        f"EXPECTED_HASHES = {{'input.bin': {'0' * 64!r}}}\n"
+    ]
+    source.write_text(json.dumps(notebook))
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "dependencies": [
+                    {
+                        "locator": "input.bin",
+                        "sha256": expected_dependency_hash,
+                    }
+                ],
+            }
+        )
+    )
+    runtime = FakeRuntime(failed_notebook(), RuntimeError("must not run"))
+
+    with pytest.raises(ValueError, match="EMBEDDED_HASH_MISMATCH"):
+        execute_protected_notebook(
+            source,
+            output,
+            dependency_manifest_path=manifest,
+            working_directory=tmp_path,
+            runtime=runtime,
+        )
+
+    assert runtime.execute_calls == 0
+    assert not output.exists()
+
+
 def test_existing_output_is_never_overwritten(tmp_path: Path) -> None:
     source = tmp_path / "source.ipynb"
     output = tmp_path / "executed.ipynb"

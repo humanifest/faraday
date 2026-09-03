@@ -13,4 +13,7 @@ def test_package_version_has_one_authoritative_source() -> None:
     assert configuration["tool"]["setuptools"]["dynamic"]["version"] == {
         "attr": "research_machine.__version__"
     }
-    assert research_machine.__version__ == "0.2.3"
+    assert configuration["project"]["scripts"]["research-notebook-preflight"] == (
+        "research_machine.executors.notebook_preflight:main"
+    )
+    assert research_machine.__version__ == "0.2.4"

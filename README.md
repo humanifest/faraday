@@ -40,6 +40,8 @@ reconsidered.
 - Build deterministic, claim-scoped Markdown syntheses.
 - Record every state-changing command in a hash-chained append-only ledger and
   detect later tampering.
+- Statically compare a notebook's literal dependency mapping, a strict JSON
+  manifest, and actual file bytes before a protected kernel is launched.
 - Emit stable JSON for Codex today and other clients later.
 
 The core deliberately does not implement a statistical package, proof checker,
@@ -58,8 +60,27 @@ pip install -e '.[notebook]'
 research-notebook frozen-source.ipynb executed.ipynb \
   --result-json execution-receipt.json \
   --expect-source-sha256 <frozen-sha256> \
+  --dependency-manifest notebook-dependencies.json \
+  --expect-dependency-manifest-sha256 <manifest-sha256> \
   --working-directory <project-root>
 ```
+
+The same dependency check should run before protocol freeze. It parses one
+literal `EXPECTED_HASHES` assignment with Python's AST but never executes a
+notebook cell, then compares that mapping with the manifest and the actual
+files:
+
+```bash
+research-notebook-preflight frozen-source.ipynb \
+  --manifest notebook-dependencies.json \
+  --workspace-root <project-root> \
+  --expect-source-sha256 <frozen-sha256> \
+  --expect-manifest-sha256 <manifest-sha256> \
+  --result-json preflight-report.json
+```
+
+The manifest schema, fail-closed rules, and scope limits are documented in
+[docs/notebook-dependency-preflight.md](docs/notebook-dependency-preflight.md).
 
 The receipt is an executor artifact, not canonical evidence. A client still
 records the resulting hashes and quality gates through `research run record`.

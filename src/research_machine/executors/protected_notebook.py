@@ -17,6 +17,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Protocol, Sequence
 
+from research_machine.executors.notebook_preflight import (
+    preflight_notebook_dependencies,
+)
+
 
 class NotebookRuntime(Protocol):
     """Minimal execution surface, injectable for dependency-free tests."""
@@ -147,6 +151,9 @@ def execute_protected_notebook(
     *,
     result_path: Path | None = None,
     expected_source_sha256: str | None = None,
+    dependency_manifest_path: Path | None = None,
+    expected_dependency_manifest_sha256: str | None = None,
+    dependency_hash_variable: str = "EXPECTED_HASHES",
     working_directory: Path | None = None,
     timeout_seconds: int = 600,
     kernel_name: str = "python3",
@@ -156,13 +163,19 @@ def execute_protected_notebook(
     """Execute once and atomically preserve the notebook even when a cell fails.
 
     Existing outputs are rejected to keep a protected execution from silently
-    overwriting an earlier result.  A source-hash mismatch is rejected before
-    kernel execution and therefore produces no executed-notebook artifact.
+    overwriting an earlier result. Source-hash and optional static dependency-
+    manifest mismatches are rejected before kernel execution and therefore
+    produce no executed-notebook artifact.
     """
 
     source_path = source_path.resolve()
     output_path = output_path.resolve()
     result_path = result_path.resolve() if result_path is not None else None
+    dependency_manifest_path = (
+        dependency_manifest_path.resolve()
+        if dependency_manifest_path is not None
+        else None
+    )
     working_directory = (
         working_directory.resolve()
         if working_directory is not None
@@ -177,6 +190,13 @@ def execute_protected_notebook(
         raise FileExistsError(f"refusing to overwrite receipt: {result_path}")
     if timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be positive")
+    if (
+        expected_dependency_manifest_sha256 is not None
+        and dependency_manifest_path is None
+    ):
+        raise ValueError(
+            "expected dependency manifest hash requires a dependency manifest"
+        )
 
     source_bytes = source_path.read_bytes()
     source_sha256 = _sha256_bytes(source_bytes)
@@ -188,6 +208,21 @@ def execute_protected_notebook(
             "source hash mismatch: "
             f"expected {expected_source_sha256.lower()}, observed {source_sha256}"
         )
+
+    if dependency_manifest_path is not None:
+        preflight = preflight_notebook_dependencies(
+            source_path,
+            dependency_manifest_path,
+            workspace_root=working_directory,
+            hash_variable=dependency_hash_variable,
+            expected_source_sha256=expected_source_sha256,
+            expected_manifest_sha256=expected_dependency_manifest_sha256,
+        )
+        if preflight.status != "passed":
+            codes = ", ".join(
+                str(finding["code"]) for finding in preflight.findings
+            )
+            raise ValueError(f"dependency preflight failed: {codes}")
 
     active_runtime = runtime or _load_default_runtime()
     notebook = active_runtime.read(source_path)
@@ -266,6 +301,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("output", type=Path)
     parser.add_argument("--result-json", required=True, type=Path)
     parser.add_argument("--expect-source-sha256")
+    parser.add_argument("--dependency-manifest", type=Path)
+    parser.add_argument("--expect-dependency-manifest-sha256")
+    parser.add_argument("--dependency-hash-variable", default="EXPECTED_HASHES")
     parser.add_argument("--working-directory", type=Path)
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--kernel-name", default="python3")
@@ -280,6 +318,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.output,
             result_path=args.result_json,
             expected_source_sha256=args.expect_source_sha256,
+            dependency_manifest_path=args.dependency_manifest,
+            expected_dependency_manifest_sha256=(
+                args.expect_dependency_manifest_sha256
+            ),
+            dependency_hash_variable=args.dependency_hash_variable,
             working_directory=args.working_directory,
             timeout_seconds=args.timeout,
             kernel_name=args.kernel_name,

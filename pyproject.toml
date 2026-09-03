@@ -16,6 +16,7 @@ notebook = ["nbclient>=0.10", "nbformat>=5.10"]
 [project.scripts]
 research = "research_machine.interfaces.cli:main"
 research-notebook = "research_machine.executors.protected_notebook:main"
+research-notebook-preflight = "research_machine.executors.notebook_preflight:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
