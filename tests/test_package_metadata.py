@@ -16,4 +16,10 @@ def test_package_version_has_one_authoritative_source() -> None:
     assert configuration["project"]["scripts"]["research-notebook-preflight"] == (
         "research_machine.executors.notebook_preflight:main"
     )
-    assert research_machine.__version__ == "0.2.5"
+    assert configuration["project"]["scripts"][
+        "research-notebook-runtime-preflight"
+    ] == "research_machine.executors.runtime_preflight:main"
+    assert "jupyter-client>=8.6" in configuration["project"][
+        "optional-dependencies"
+    ]["notebook"]
+    assert research_machine.__version__ == "0.2.6"

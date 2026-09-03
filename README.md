@@ -42,6 +42,9 @@ reconsidered.
   detect later tampering.
 - Statically compare a notebook's literal dependency mapping, a strict JSON
   manifest, and actual file bytes before a protected kernel is launched.
+- Probe the selected interpreter, Jupyter kernel, and working directory with one
+  fixed generated marker cell before protocol freeze, without accepting or
+  loading an analysis notebook.
 - Emit stable JSON for Codex today and other clients later.
 
 The core deliberately does not implement a statistical package, proof checker,
@@ -83,6 +86,24 @@ research-notebook-preflight frozen-source.ipynb \
 
 The manifest schema, fail-closed rules, and scope limits are documented in
 [docs/notebook-dependency-preflight.md](docs/notebook-dependency-preflight.md).
+
+Static integrity does not prove that the interpreter has the notebook extras or
+that the process boundary permits a kernel. Run the separate runtime preflight
+before freezing a scientific protocol:
+
+```bash
+research-notebook-runtime-preflight \
+  --result-json runtime-preflight.json \
+  --working-directory <project-root> \
+  --kernel-name python3 \
+  --timeout 30
+```
+
+This command accepts no source notebook and no arbitrary code. It starts the
+requested kernel, runs one built-in marker cell, verifies the kernel working
+directory, shuts the kernel down, and writes a non-overwriting report. Its
+contract and limitations are documented in
+[docs/notebook-runtime-preflight.md](docs/notebook-runtime-preflight.md).
 
 The receipt is an executor artifact, not canonical evidence. A client still
 records the resulting hashes and quality gates through `research run record`.
