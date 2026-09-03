@@ -471,7 +471,23 @@ def audit_research_state(
                         isinstance(integrity, dict)
                         and integrity.get("status") == "passed"
                     )
-                    if run_started < registered and not (
+                    if (
+                        run_started < registered
+                        and chronology is None
+                    ):
+                        add(
+                            "LEGACY_RUN_CHRONOLOGY_UNATTESTED",
+                            RigorSeverity.WARNING,
+                            "This run predates machine-issued protocol chronology receipts; "
+                            "its relationship to canonical registration is not attested.",
+                            entity_type="run",
+                            entity_id=run.run_id,
+                            remediation=(
+                                "Do not call this locally preregistered. Reproduce it under a "
+                                "current protocol or preserve a verifiable external-freeze accession."
+                            ),
+                        )
+                    elif run_started < registered and not (
                         external_receipt and external_integrity_passed
                     ):
                         add(
