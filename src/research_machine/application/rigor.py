@@ -11,6 +11,7 @@ from research_machine.domain.models import (
     ExperimentProtocol,
     Hypothesis,
     ProtocolStatus,
+    QualityGateStatus,
     ResearchRun,
     RigorAudit,
     RigorFinding,
@@ -245,6 +246,30 @@ def audit_research_state(
             )
         if not run.scientific_evidence_eligible:
             invalid_runs += 1
+        passed_gate_ids = {
+            gate.gate_id
+            for gate in run.quality_gates
+            if gate.status is QualityGateStatus.PASSED
+        }
+        required_gates_passed = all(
+            gate.status is QualityGateStatus.PASSED
+            for gate in run.quality_gates
+            if gate.required
+        )
+        if (
+            run.synthetic
+            and run.status is RunStatus.COMPLETED
+            and required_gates_passed
+            and "known-result-reproduction" in passed_gate_ids
+        ):
+            add(
+                "SYNTHETIC_KNOWN_RESULT_CALIBRATION_PASSED",
+                RigorSeverity.INFO,
+                "A synthetic run passed its known-result calibration gates but remains "
+                "ineligible as scientific evidence.",
+                entity_type="run",
+                entity_id=run.run_id,
+            )
     if invalid_runs:
         add(
             "FAILED_OR_INELIGIBLE_RUNS_RETAINED",

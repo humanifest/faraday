@@ -199,6 +199,24 @@ def build_synthesis(
             f"- Evidence-eligible runs: {len(valid_runs)}",
             f"- Invalid or synthetic runs: {len(invalid_runs)}",
             f"- Evidence-eligible records: {sum(item.scientific_evidence_eligible for item in evidence)}",
+        ]
+    )
+    if invalid_runs:
+        lines.extend(["", "### Calibration and ineligible run outcomes", ""])
+        for run in invalid_runs:
+            required = [gate for gate in run.quality_gates if gate.required]
+            passed = sum(gate.status.value == "passed" for gate in required)
+            kind = "synthetic calibration" if run.synthetic else "ineligible run"
+            lines.append(
+                f"- `{run.run_id}` [{kind}; {run.status.value}; scientific evidence "
+                f"ineligible]: required gates passed {passed}/{len(required)}. "
+                f"{_text(run.summary)}"
+            )
+            failed = [gate.gate_id for gate in required if gate.status.value != "passed"]
+            if failed:
+                lines.append("  - Required gates not passed: " + "; ".join(failed))
+    lines.extend(
+        [
             "",
             "## Epistemic rigor audit",
             "",

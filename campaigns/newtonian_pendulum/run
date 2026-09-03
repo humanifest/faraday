@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+"""Repository-local launcher for the pendulum calibration campaign."""
+
+from pathlib import Path
+import sys
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPOSITORY_ROOT))
+sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
+
+from campaigns.newtonian_pendulum.run_campaign import main  # noqa: E402
+
+
+raise SystemExit(main())

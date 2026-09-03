@@ -145,6 +145,12 @@ See [AGENTS.md](AGENTS.md) for the operating contract and
 provider-neutral JSON contracts live in [schemas](schemas), and the fuller
 conversational loop is in [docs/codex-playbook.md](docs/codex-playbook.md).
 
+The first end-to-end known-result calibration is the synthetic
+[Newtonian pendulum campaign](campaigns/newtonian_pendulum/README.md). It tests
+competing laws, an independent analysis path, registered exclusions, and
+fail-closed behavior on planted defects while remaining explicitly ineligible
+as scientific evidence.
+
 ## Workspace layout
 
 ```text
