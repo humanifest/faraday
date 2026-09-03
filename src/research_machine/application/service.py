@@ -102,6 +102,133 @@ def _protocol_commitment(protocol: ExperimentProtocol) -> str:
     return _sha256_json(payload)
 
 
+def _parse_aware_timestamp(value: str, field_name: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValidationError(f"{field_name} must be an ISO-8601 timestamp") from exc
+    if parsed.utcoffset() is None:
+        raise ValidationError(f"{field_name} must include a UTC offset")
+    return parsed
+
+
+def _protocol_chronology_receipt(
+    *,
+    protocol: ExperimentProtocol,
+    started: datetime,
+    metadata: dict[str, object],
+    output_artifacts: list,
+) -> dict[str, object]:
+    if not protocol.registration_timestamp:
+        raise ValidationError("frozen protocol has no canonical registration timestamp")
+    registered = _parse_aware_timestamp(
+        protocol.registration_timestamp, "protocol registration_timestamp"
+    )
+    external = metadata.get("external_protocol_freeze")
+    if external is None:
+        if started < registered:
+            raise ValidationError(
+                "run started before canonical protocol registration; an externally "
+                "frozen run requires metadata.external_protocol_freeze"
+            )
+        return {
+            "status": "local_preregistered",
+            "canonical_registration_timestamp": protocol.registration_timestamp,
+            "run_started_at": started.isoformat(),
+            "canonical_registration_precedes_run": True,
+        }
+    if not isinstance(external, dict):
+        raise ValidationError("metadata.external_protocol_freeze must be an object")
+    allowed_fields = {
+        "declared_frozen_at",
+        "canonicalized_after_execution",
+        "protocol_artifact",
+        "analysis_source_artifact",
+        "freeze_manifest_artifact",
+    }
+    unknown_fields = sorted(set(external) - allowed_fields)
+    if unknown_fields:
+        raise ValidationError(
+            "unknown external_protocol_freeze fields: " + ", ".join(unknown_fields)
+        )
+    missing_fields = sorted(allowed_fields - set(external))
+    if missing_fields:
+        raise ValidationError(
+            "external_protocol_freeze is missing fields: " + ", ".join(missing_fields)
+        )
+    if not protocol.external_anchor:
+        raise ValidationError(
+            "external_protocol_freeze requires a frozen protocol external_anchor"
+        )
+    declared_text = require_text(
+        external["declared_frozen_at"],
+        "external_protocol_freeze.declared_frozen_at",
+    )
+    declared = _parse_aware_timestamp(
+        declared_text, "external_protocol_freeze.declared_frozen_at"
+    )
+    if declared > started:
+        raise ValidationError(
+            "external protocol freeze must not postdate the run start"
+        )
+    canonicalized_after = external["canonicalized_after_execution"]
+    if not isinstance(canonicalized_after, bool):
+        raise ValidationError(
+            "external_protocol_freeze.canonicalized_after_execution must be true or false"
+        )
+    observed_after = registered > started
+    if canonicalized_after is not observed_after:
+        raise ValidationError(
+            "external_protocol_freeze.canonicalized_after_execution conflicts with "
+            "the canonical registration and run timestamps"
+        )
+    protocol_locator = require_text(
+        external["protocol_artifact"],
+        "external_protocol_freeze.protocol_artifact",
+    )
+    source_locator = require_text(
+        external["analysis_source_artifact"],
+        "external_protocol_freeze.analysis_source_artifact",
+    )
+    manifest_locator = require_text(
+        external["freeze_manifest_artifact"],
+        "external_protocol_freeze.freeze_manifest_artifact",
+    )
+    if len({protocol_locator, source_locator, manifest_locator}) != 3:
+        raise ValidationError(
+            "external protocol, analysis source, and freeze manifest artifacts must be distinct"
+        )
+    expected_roles = {
+        protocol_locator: "external_frozen_protocol",
+        source_locator: "analysis_source",
+        manifest_locator: "external_freeze_manifest",
+    }
+    for locator, role in expected_roles.items():
+        matching = [
+            artifact
+            for artifact in output_artifacts
+            if artifact.locator == locator
+            and artifact.metadata.get("artifact_role") == role
+        ]
+        if len(matching) != 1:
+            raise ValidationError(
+                f"exactly one {role} output artifact must match {locator}"
+            )
+    return {
+        "status": "externally_attested_pre_execution_freeze",
+        "canonical_registration_timestamp": protocol.registration_timestamp,
+        "external_declared_frozen_at": declared_text,
+        "run_started_at": started.isoformat(),
+        "canonical_registration_precedes_run": not observed_after,
+        "canonicalized_after_execution": canonicalized_after,
+        "external_anchor": protocol.external_anchor,
+        "protocol_artifact": protocol_locator,
+        "analysis_source_artifact": source_locator,
+        "freeze_manifest_artifact": manifest_locator,
+        "chronology_cryptographically_verified": False,
+    }
+
+
 class ResearchService:
     def __init__(
         self,
@@ -837,6 +964,10 @@ class ResearchService:
             raise ValidationError(
                 "metadata.artifact_integrity is reserved for machine verification"
             )
+        if "protocol_chronology" in command.metadata:
+            raise ValidationError(
+                "metadata.protocol_chronology is reserved for machine verification"
+            )
         protocol = self.repository.find_protocol(resolved, command.protocol_id)
         if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
             raise ValidationError("runs require a frozen, hash-committed protocol")
@@ -870,15 +1001,8 @@ class ResearchService:
                 )
         started_at = require_text(command.started_at, "started_at")
         completed_at = require_text(command.completed_at, "completed_at")
-        try:
-            started = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
-            completed = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
-        except ValueError as exc:
-            raise ValidationError(
-                "started_at and completed_at must be ISO-8601 timestamps"
-            ) from exc
-        if started.utcoffset() is None or completed.utcoffset() is None:
-            raise ValidationError("run timestamps must include a UTC offset")
+        started = _parse_aware_timestamp(started_at, "started_at")
+        completed = _parse_aware_timestamp(completed_at, "completed_at")
         if completed < started:
             raise ValidationError("completed_at must not precede started_at")
 
@@ -892,6 +1016,12 @@ class ResearchService:
         self._validate_run_datasets(protocol, datasets)
 
         outputs = validate_dataset_artifacts(command.output_artifacts)
+        protocol_chronology = _protocol_chronology_receipt(
+            protocol=protocol,
+            started=started,
+            metadata=command.metadata,
+            output_artifacts=outputs,
+        )
         expected_attestation_schema_sha256 = (
             require_sha256(
                 command.expected_attestation_schema_sha256,
@@ -907,7 +1037,9 @@ class ResearchService:
                 command.attestation_schema_path,
                 expected_attestation_schema_sha256,
             )
-        ) or isinstance(command.metadata.get("replication_independence"), dict)
+        ) or isinstance(
+            command.metadata.get("replication_independence"), dict
+        ) or isinstance(command.metadata.get("external_protocol_freeze"), dict)
         artifact_integrity = (
             verify_run_artifacts(
                 outputs,
@@ -962,6 +1094,7 @@ class ResearchService:
             synthetic=synthetic,
             metadata={
                 **dict(command.metadata),
+                "protocol_chronology": protocol_chronology,
                 **({"missing_quality_gates": missing_gates} if missing_gates else {}),
                 **(
                     {"artifact_integrity": artifact_integrity.to_dict()}
@@ -1072,6 +1205,9 @@ class ResearchService:
                 dict(artifact_integrity)
                 if isinstance(artifact_integrity, dict)
                 else None
+            ),
+            protocol_chronology=dict(
+                preview.metadata.get("protocol_chronology", {})
             ),
             conclusion_ceiling=(
                 "Prospective record-shape validation only. This preflight writes "

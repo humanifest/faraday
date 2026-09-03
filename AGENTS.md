@@ -58,6 +58,11 @@ canonical write path.
 - Preserve exploratory/confirmatory separation. Register artifact hashes once;
   do not relabel them. Freeze protected protocols before their observations are
   registered. Confirmatory evidence must trace to an eligible quality-gated run.
+- A run may not predate its canonical protocol registration unless it is
+  explicitly accessioned from an external pre-execution freeze. Preserve and
+  locally verify the external protocol, analysis source, and zero-execution
+  freeze manifest; record that their chronology remains an attestation rather
+  than a cryptographically authenticated timestamp.
 - Keep execution quality separate from scientific direction. Required quality
   gates cover integrity, provenance, measurement availability, controls being
   evaluated, and faithful application of the frozen decision rule. Desired

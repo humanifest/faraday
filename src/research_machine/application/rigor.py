@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from datetime import datetime
 
 from research_machine.application.policies import (
     normalize_confidence,
@@ -430,6 +431,71 @@ def audit_research_state(
 
     invalid_runs = 0
     for run in runs:
+        protocol = protocol_by_id.get(run.protocol_id)
+        if protocol is not None and protocol.registration_timestamp:
+            try:
+                run_started = datetime.fromisoformat(
+                    run.started_at.replace("Z", "+00:00")
+                )
+                registered = datetime.fromisoformat(
+                    protocol.registration_timestamp.replace("Z", "+00:00")
+                )
+            except ValueError:
+                add(
+                    "PROTOCOL_RUN_CHRONOLOGY_INVALID",
+                    RigorSeverity.ERROR,
+                    "Protocol registration or run-start timestamp is not valid ISO-8601.",
+                    entity_type="run",
+                    entity_id=run.run_id,
+                )
+            else:
+                if run_started.utcoffset() is None or registered.utcoffset() is None:
+                    add(
+                        "PROTOCOL_RUN_CHRONOLOGY_INVALID",
+                        RigorSeverity.ERROR,
+                        "Protocol registration and run-start timestamps must include a UTC offset.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                    )
+                else:
+                    chronology = run.metadata.get("protocol_chronology")
+                    external_receipt = (
+                        isinstance(chronology, dict)
+                        and chronology.get("status")
+                        == "externally_attested_pre_execution_freeze"
+                        and chronology.get("chronology_cryptographically_verified")
+                        is False
+                    )
+                    integrity = run.metadata.get("artifact_integrity")
+                    external_integrity_passed = (
+                        isinstance(integrity, dict)
+                        and integrity.get("status") == "passed"
+                    )
+                    if run_started < registered and not (
+                        external_receipt and external_integrity_passed
+                    ):
+                        add(
+                            "RUN_PRECEDES_CANONICAL_PROTOCOL_REGISTRATION",
+                            RigorSeverity.ERROR,
+                            "Run started before canonical protocol registration without a "
+                            "machine-verified external-freeze accession receipt.",
+                            entity_type="run",
+                            entity_id=run.run_id,
+                            remediation=(
+                                "Do not call this locally preregistered. Preserve and verify "
+                                "the externally frozen protocol, source, and freeze manifest."
+                            ),
+                        )
+                    elif external_receipt:
+                        add(
+                            "EXTERNAL_PROTOCOL_FREEZE_ATTESTED",
+                            RigorSeverity.WARNING,
+                            "The run uses a hash-verified external freeze declaration; byte "
+                            "identity is checked, but the declared pre-execution time is not "
+                            "cryptographically authenticated by Research Machine.",
+                            entity_type="run",
+                            entity_id=run.run_id,
+                        )
         if run.scientific_evidence_eligible and (
             run.synthetic or run.status is not RunStatus.COMPLETED
         ):

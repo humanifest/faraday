@@ -507,6 +507,7 @@ class RunRecordPreflight(Serializable):
     exact_quality_gate_set: bool
     quality_gate_order_matches_protocol: bool
     artifact_integrity: dict[str, Any] | None
+    protocol_chronology: dict[str, Any]
     conclusion_ceiling: str
 
 

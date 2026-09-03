@@ -89,8 +89,8 @@ def frozen_formal_protocol(service: ResearchService, hypothesis_id: str):
 def run_command(protocol_id: str, status: QualityGateStatus, **overrides) -> RecordRun:
     values = {
         "protocol_id": protocol_id,
-        "started_at": "2026-09-02T10:00:00Z",
-        "completed_at": "2026-09-02T10:01:00Z",
+        "started_at": "2026-09-02T12:01:00Z",
+        "completed_at": "2026-09-02T12:02:00Z",
         "analysis_code_hash": CODE_HASH,
         "environment_hash": ENVIRONMENT_HASH,
         "random_seed_reveal": SEED_REVEAL,

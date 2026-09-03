@@ -49,6 +49,13 @@ This makes later mutation detectable. It does not prove that a sensor was
 accurate, a source was truthful, or an analysis was well designed; calibration,
 chain of custody, and methodological review are separate gates.
 
+New run records also bind protocol chronology. Local runs must not predate the
+canonical freeze. An externally frozen run can be accessioned later only when
+its protocol, analysis source, and zero-execution freeze manifest are preserved
+as hash-verified artifacts. The machine labels that chronology externally
+attested: hashes prove the bytes received, not when an external party first
+created them.
+
 The filesystem adapter uses atomic replacement for JSON state. Single-writer use
 is assumed in version 0.2. Concurrent clients will require repository-level
 locking or a transactional database before an API is exposed.

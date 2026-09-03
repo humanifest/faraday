@@ -15,7 +15,7 @@ from research_machine.application.json_schema_profile import (
 from research_machine.domain.models import DatasetArtifact
 
 
-_PROFILE = "local-run-artifacts-and-attestation-v1"
+_PROFILE = "local-run-artifacts-attestation-and-external-freeze-v2"
 
 
 @dataclass(frozen=True)
@@ -340,6 +340,137 @@ def _core_attestation_findings(
     return findings
 
 
+def _external_freeze_findings(
+    *,
+    artifacts: Sequence[DatasetArtifact],
+    artifact_contents: dict[str, bytes],
+    analysis_code_hash: str,
+    run_metadata: dict[str, Any],
+) -> list[dict[str, Any]]:
+    external = run_metadata.get("external_protocol_freeze")
+    if external is None:
+        return []
+    if not isinstance(external, dict):
+        return [
+            _finding(
+                "EXTERNAL_FREEZE_METADATA_INVALID",
+                "external_protocol_freeze must be an object",
+            )
+        ]
+    locators_and_roles = (
+        (external.get("protocol_artifact"), "external_frozen_protocol"),
+        (external.get("analysis_source_artifact"), "analysis_source"),
+        (external.get("freeze_manifest_artifact"), "external_freeze_manifest"),
+    )
+    findings: list[dict[str, Any]] = []
+    matched: dict[str, DatasetArtifact] = {}
+    for locator, role in locators_and_roles:
+        matches = [
+            artifact
+            for artifact in artifacts
+            if artifact.locator == locator
+            and artifact.metadata.get("artifact_role") == role
+        ]
+        if len(matches) != 1:
+            findings.append(
+                _finding(
+                    "EXTERNAL_FREEZE_ARTIFACT_NOT_UNIQUE",
+                    "exactly one external-freeze artifact must match its locator and role",
+                    locator=locator,
+                    role=role,
+                    matches=len(matches),
+                )
+            )
+        elif isinstance(locator, str):
+            matched[locator] = matches[0]
+    manifest_locator = external.get("freeze_manifest_artifact")
+    if not isinstance(manifest_locator, str) or manifest_locator not in artifact_contents:
+        return findings
+    manifest, manifest_error = _load_json_object(
+        artifact_contents[manifest_locator],
+        label="external freeze manifest",
+        code_prefix="EXTERNAL_FREEZE_MANIFEST",
+    )
+    if manifest_error is not None:
+        findings.append(manifest_error)
+        return findings
+
+    comparisons = (
+        (
+            "frozen_at",
+            external.get("declared_frozen_at"),
+            "EXTERNAL_FREEZE_TIME_MISMATCH",
+        ),
+        (
+            "analysis_code_sha256",
+            analysis_code_hash,
+            "EXTERNAL_FREEZE_ANALYSIS_HASH_MISMATCH",
+        ),
+    )
+    for field_name, expected, code in comparisons:
+        observed = manifest.get(field_name)
+        if observed != expected:
+            findings.append(
+                _finding(
+                    code,
+                    "external freeze manifest conflicts with the proposed run",
+                    field=field_name,
+                    expected=expected,
+                    observed=observed,
+                )
+            )
+    if manifest.get("scientific_execution_count_at_freeze") != 0:
+        findings.append(
+            _finding(
+                "EXTERNAL_FREEZE_EXECUTION_COUNT_INVALID",
+                "external freeze manifest must declare zero scientific executions at freeze",
+                observed=manifest.get("scientific_execution_count_at_freeze"),
+            )
+        )
+
+    manifest_artifacts = manifest.get("artifacts")
+    if not isinstance(manifest_artifacts, list):
+        findings.append(
+            _finding(
+                "EXTERNAL_FREEZE_ARTIFACT_LIST_INVALID",
+                "external freeze manifest must contain an artifacts array",
+            )
+        )
+        return findings
+    for metadata_field in ("protocol_artifact", "analysis_source_artifact"):
+        locator = external.get(metadata_field)
+        if not isinstance(locator, str) or locator not in matched:
+            continue
+        artifact = matched[locator]
+        if not any(
+            isinstance(item, dict)
+            and item.get("locator") == locator
+            and item.get("sha256") == artifact.sha256
+            for item in manifest_artifacts
+        ):
+            findings.append(
+                _finding(
+                    "EXTERNAL_FREEZE_ARTIFACT_COMMITMENT_MISSING",
+                    "external freeze manifest does not commit to a required artifact",
+                    locator=locator,
+                    expected_sha256=artifact.sha256,
+                )
+            )
+    protocol_locator = external.get("protocol_artifact")
+    if isinstance(protocol_locator, str) and protocol_locator in matched:
+        expected_protocol_hash = matched[protocol_locator].sha256
+        if manifest.get("protocol_sha256") != expected_protocol_hash:
+            findings.append(
+                _finding(
+                    "EXTERNAL_FREEZE_PROTOCOL_HASH_MISMATCH",
+                    "external freeze manifest top-level protocol hash is inconsistent",
+                    expected_sha256=expected_protocol_hash,
+                    observed_sha256=manifest.get("protocol_sha256"),
+                )
+            )
+    return findings
+
+
 def verify_run_artifacts(
     artifacts: Sequence[DatasetArtifact],
     *,
@@ -387,6 +518,15 @@ def verify_run_artifacts(
                 findings.extend(artifact_findings)
                 if content is not None and observation.status == "passed":
                     artifact_contents[artifact.locator] = content
+
+    findings.extend(
+        _external_freeze_findings(
+            artifacts=artifacts,
+            artifact_contents=artifact_contents,
+            analysis_code_hash=analysis_code_hash,
+            run_metadata=run_metadata,
+        )
+    )
 
     schema: dict[str, Any] | None = None
     if attestation_required:
@@ -521,8 +661,10 @@ def verify_run_artifacts(
         findings=findings,
         artifacts=observations,
         conclusion_ceiling=(
-            "Local byte, pinned-schema, and record-consistency preflight only. "
+            "Local byte, external-freeze, pinned-schema, and record-consistency "
+            "preflight only. "
             "A pass does not authenticate the attester, prove independence, "
-            "validate the scientific execution, or establish any conclusion."
+            "cryptographically prove chronology, validate the scientific execution, "
+            "or establish any conclusion."
         ),
     )

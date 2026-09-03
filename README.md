@@ -35,6 +35,9 @@ reconsidered.
 - Re-hash returned run artifacts, validate a hash-pinned clean-room attestation
   schema, and cross-check the attestation against the proposed run before an
   independent-replication record can enter the ledger.
+- Reject runs that predate their canonical protocol registration unless a
+  hash-verified external protocol, analysis source, and zero-execution freeze
+  manifest establish an explicitly attested external-freeze accession.
 - Prevent failed or synthetic runs from becoming confirmatory evidence.
 - Rank feasible, safety-approved next actions with an explicit utility function.
 - Attach evidence only after a hypothesis has been reviewed and activated;

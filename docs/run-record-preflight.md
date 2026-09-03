@@ -42,6 +42,7 @@ dataset, artifact, quality-gate, and synthetic-status construction as
 - failed supplied-required and frozen-protocol gates;
 - exact-set and order comparisons; and
 - the SHA-256 and byte count of the exact parsed record file;
+- a machine-reserved protocol-chronology receipt;
 - optional local artifact and attestation-integrity observations; and
 - `would_append_event: false`.
 
@@ -78,3 +79,9 @@ research --workspace .research run record \
 Without `--expect-record-sha256`, the record file can change between preflight
 and submission. With it, Research Machine hashes the bytes it parses and rejects
 a different file before constructing or appending the run.
+
+A normal run must start at or after the frozen protocol's canonical registration
+timestamp. A returned run that began earlier requires the explicit external
+freeze accession described in
+[External protocol freeze accession](external-protocol-freeze.md). Preflight
+rejects a merely backdated timestamp or self-declared chronology receipt.

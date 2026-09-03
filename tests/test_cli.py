@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from research_machine.interfaces.cli import main
@@ -403,13 +404,18 @@ def test_cli_records_general_protocol_run_and_next_action(
         item["gate_id"] for item in template["record"]["quality_gates"]
     ] == ["proof-check"]
 
+    registered_at = datetime.fromisoformat(
+        protocol["registration_timestamp"].replace("Z", "+00:00")
+    )
+    run_started = registered_at + timedelta(seconds=1)
+    run_completed = registered_at + timedelta(seconds=2)
     run_record = tmp_path / "run.json"
     run_record.write_text(
         json.dumps(
             {
                 "protocol_id": protocol["protocol_id"],
-                "started_at": "2026-09-02T10:00:00Z",
-                "completed_at": "2026-09-02T10:01:00Z",
+                "started_at": run_started.isoformat(),
+                "completed_at": run_completed.isoformat(),
                 "analysis_code_hash": "a" * 64,
                 "environment_hash": "b" * 64,
                 "output_artifacts": [{"locator": "proof.json", "sha256": "c" * 64}],
