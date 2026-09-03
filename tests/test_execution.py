@@ -339,6 +339,7 @@ def test_run_preflight_predicts_status_without_writing_state(tmp_path: Path) -> 
     assert report.status == "ready"
     assert report.would_append_event is False
     assert report.record_status_if_submitted is RunStatus.COMPLETED
+    assert report.requested_run_id_conflicts is False
     assert report.scientific_evidence_eligible_if_submitted is True
     assert report.required_quality_gate_ids == ["proof-check"]
     assert report.provided_quality_gate_ids == ["proof-check"]
@@ -348,6 +349,28 @@ def test_run_preflight_predicts_status_without_writing_state(tmp_path: Path) -> 
     assert report.quality_gate_order_matches_protocol is True
     assert before == after
     assert service.list_runs("formal") == []
+
+
+def test_run_preflight_predicts_explicit_run_id_conflict(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    command = run_command(
+        protocol.protocol_id,
+        QualityGateStatus.PASSED,
+        run_id="run-already-recorded",
+    )
+    service.record_run(command, "formal")
+    before = service.verify_ledger("formal")
+
+    report = service.preflight_run(command, "formal")
+
+    assert report.status == "would_reject"
+    assert report.requested_run_id == "run-already-recorded"
+    assert report.requested_run_id_conflicts is True
+    assert report.record_status_if_submitted is None
+    assert report.scientific_evidence_eligible_if_submitted is None
+    assert service.verify_ledger("formal") == before
+    assert len(service.list_runs("formal")) == 1
 
 
 def test_run_preflight_exposes_label_mismatch_before_invalid_append(

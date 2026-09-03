@@ -813,19 +813,32 @@ class ResearchService:
             if gate_id in gates_by_id
             and gates_by_id[gate_id].status is not QualityGateStatus.PASSED
         ]
+        run_id_conflict = command.run_id is not None and any(
+            existing.run_id == command.run_id
+            for existing in self.repository.list_runs(resolved)
+        )
         return RunRecordPreflight(
             status=(
-                "ready"
-                if preview.status is RunStatus.COMPLETED
-                else "would_record_invalid"
+                "would_reject"
+                if run_id_conflict
+                else (
+                    "ready"
+                    if preview.status is RunStatus.COMPLETED
+                    else "would_record_invalid"
+                )
             ),
             would_append_event=False,
             protocol_id=protocol.protocol_id,
             protocol_hash=protocol.protocol_hash or "",
             requested_run_id=command.run_id,
-            record_status_if_submitted=preview.status,
+            requested_run_id_conflicts=run_id_conflict,
+            record_status_if_submitted=(
+                None if run_id_conflict else preview.status
+            ),
             scientific_evidence_eligible_if_submitted=(
-                preview.scientific_evidence_eligible
+                None
+                if run_id_conflict
+                else preview.scientific_evidence_eligible
             ),
             synthetic_if_submitted=preview.synthetic,
             required_quality_gate_ids=required_ids,

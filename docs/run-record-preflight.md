@@ -36,6 +36,7 @@ dataset, artifact, quality-gate, and synthetic-status construction as
 `run record`, but stops before repository writes. Its report includes:
 
 - the record status and evidence eligibility that submission would produce;
+- an explicit-ID conflict that would make submission reject before recording;
 - frozen and supplied gate IDs in order;
 - missing and additional gate IDs;
 - failed supplied-required and frozen-protocol gates;
@@ -44,9 +45,10 @@ dataset, artifact, quality-gate, and synthetic-status construction as
 - `would_append_event: false`.
 
 A ready record exits 0. A structurally valid record that would be immutably
-recorded as invalid exits 1. Invalid input, an unfrozen or mutated protocol,
-unknown data, bad hashes, or other validation errors exit 2. No branch writes a
-run, consumes an ID, or appends an event.
+recorded as invalid, or whose explicit run ID already exists and would be
+rejected, exits 1. Invalid input, an unfrozen or mutated protocol, unknown data,
+bad hashes, or other validation errors exit 2. No branch writes a run, consumes
+an ID, or appends an event.
 
 Additional passing gates are compatible with the historical `run record`
 contract, so a preflight may report `status: ready` while

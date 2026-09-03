@@ -451,8 +451,9 @@ class RunRecordPreflight(Serializable):
     protocol_id: str
     protocol_hash: str
     requested_run_id: str | None
-    record_status_if_submitted: RunStatus
-    scientific_evidence_eligible_if_submitted: bool
+    requested_run_id_conflicts: bool
+    record_status_if_submitted: RunStatus | None
+    scientific_evidence_eligible_if_submitted: bool | None
     synthetic_if_submitted: bool
     required_quality_gate_ids: list[str]
     provided_quality_gate_ids: list[str]
