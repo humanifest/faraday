@@ -52,7 +52,9 @@ under one provenance model.
 An optional domain-neutral notebook executor is included for protected local
 calculations. Unlike `nbconvert`'s default failure path, it atomically writes the
 partially executed notebook and an execution receipt when a later cell raises,
-then exits nonzero. It refuses to overwrite prior output and can enforce the
+then exits nonzero. A failure before runtime or kernel launch writes a
+`pre_execution_failure` receipt with `kernel_started: false` and no executed
+notebook. It refuses to overwrite prior output or receipts and can enforce the
 frozen source hash:
 
 ```bash

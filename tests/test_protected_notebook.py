@@ -8,6 +8,7 @@ import pytest
 
 from research_machine.executors.protected_notebook import (
     execute_protected_notebook,
+    main,
 )
 
 
@@ -212,6 +213,54 @@ def test_existing_output_is_never_overwritten(tmp_path: Path) -> None:
         )
 
     assert output.read_text() == "immutable"
+
+
+def test_cli_pre_execution_runtime_failure_writes_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.ipynb"
+    output = tmp_path / "executed.ipynb"
+    result = tmp_path / "receipt.json"
+    source.write_text(json.dumps(source_notebook()))
+
+    def missing_runtime():
+        raise RuntimeError("notebook runtime deliberately unavailable")
+
+    monkeypatch.setattr(
+        "research_machine.executors.protected_notebook._load_default_runtime",
+        missing_runtime,
+    )
+
+    exit_code = main(
+        [str(source), str(output), "--result-json", str(result)]
+    )
+
+    assert exit_code == 2
+    assert not output.exists()
+    report = json.loads(result.read_text())
+    assert report["status"] == "pre_execution_failure"
+    assert report["error_type"] == "RuntimeError"
+    assert report["kernel_started"] is False
+    assert report["code_cells_started"] == 0
+    assert report["receipt_written"] is True
+    assert report["source_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+
+
+def test_cli_pre_execution_failure_never_overwrites_existing_receipt(
+    tmp_path: Path,
+) -> None:
+    missing_source = tmp_path / "missing.ipynb"
+    output = tmp_path / "executed.ipynb"
+    result = tmp_path / "receipt.json"
+    result.write_text("immutable")
+
+    exit_code = main(
+        [str(missing_source), str(output), "--result-json", str(result)]
+    )
+
+    assert exit_code == 2
+    assert result.read_text() == "immutable"
+    assert not output.exists()
 
 
 def test_real_nbclient_preserves_error_output_when_explicitly_enabled(

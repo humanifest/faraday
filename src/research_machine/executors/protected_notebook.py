@@ -310,8 +310,68 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _pre_execution_report(
+    args: argparse.Namespace,
+    error: BaseException,
+    *,
+    started_at: str,
+    completed_at: str,
+) -> dict[str, Any]:
+    source_path = args.source.resolve()
+    source_sha256 = None
+    try:
+        if source_path.is_file():
+            source_sha256 = _sha256_bytes(source_path.read_bytes())
+    except OSError:
+        pass
+    working_directory = (
+        args.working_directory.resolve()
+        if args.working_directory is not None
+        else source_path.parent
+    )
+    return {
+        "status": "pre_execution_failure",
+        "source_path": str(source_path),
+        "source_sha256": source_sha256,
+        "requested_output_path": str(args.output.resolve()),
+        "output_path": None,
+        "output_sha256": None,
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "code_cells_started": 0,
+        "code_cells_completed": 0,
+        "error_cell_id": None,
+        "error_type": type(error).__name__,
+        "error_message": str(error),
+        "kernel_started": False,
+        "kernel_name": args.kernel_name,
+        "timeout_seconds": args.timeout,
+        "working_directory": str(working_directory),
+    }
+
+
+def _persist_pre_execution_report(
+    result_path: Path, report: dict[str, Any]
+) -> tuple[bool, str | None]:
+    """Persist a launch failure without ever overwriting an earlier receipt."""
+    result_path = result_path.resolve()
+    if result_path.exists():
+        return False, f"refusing to overwrite receipt: {result_path}"
+    try:
+        report["receipt_written"] = True
+        _atomic_write(
+            result_path,
+            (json.dumps(report, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+        )
+    except OSError as exc:
+        report["receipt_written"] = False
+        return False, str(exc)
+    return True, None
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    invocation_started_at = _utc_now()
     try:
         receipt = execute_protected_notebook(
             args.source,
@@ -328,7 +388,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             kernel_name=args.kernel_name,
         )
     except (FileExistsError, FileNotFoundError, RuntimeError, ValueError) as exc:
-        print(json.dumps({"status": "pre_execution_failure", "error": str(exc)}))
+        report = _pre_execution_report(
+            args,
+            exc,
+            started_at=invocation_started_at,
+            completed_at=_utc_now(),
+        )
+        written, receipt_error = _persist_pre_execution_report(
+            args.result_json, report
+        )
+        if not written:
+            report["receipt_written"] = False
+            report["receipt_error"] = receipt_error
+        print(json.dumps(report, indent=2, sort_keys=True))
         return 2
     print(json.dumps(asdict(receipt), indent=2, sort_keys=True))
     return 0 if receipt.status == "completed" else 1

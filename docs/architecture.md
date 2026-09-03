@@ -123,6 +123,9 @@ command. It runs a hash-pinned notebook, refuses output overwrites, and writes
 both the notebook and a receipt atomically. If a cell raises, the notebook keeps
 all completed outputs plus the error cell and the process exits nonzero. This
 lets a failed run remain diagnosable without rerunning protected computation.
+If source authentication, dependency preflight, or optional runtime loading
+fails before the kernel starts, the executor writes a non-overwriting
+`pre_execution_failure` receipt and no executed notebook.
 The executor does not decide whether a failure is infrastructure, scientific,
 or evidence-eligible; the frozen protocol and recorded run gates decide that.
 
