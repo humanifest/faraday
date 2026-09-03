@@ -83,3 +83,12 @@ canonical write path.
   application service validates and records them.
 - Add tests for every new validation gate and every provenance-sensitive state
   transition. Run `pytest` and ledger verification before declaring completion.
+
+## Publishing safety
+
+- Default every newly created remote repository, release artifact, dataset, and
+  hosted project to **private** visibility.
+- Public visibility requires an explicit instruction from the project owner for
+  that specific publication. Do not infer public authorization from an existing
+  open-source repository, a prior publication, or a request merely to “push.”
+- Verify the destination and visibility before the first upload.
