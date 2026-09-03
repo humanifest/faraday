@@ -60,7 +60,10 @@ calculation may still be scientifically weak. Evidence therefore carries one or
 more validation tags. Application policy validates those tags against the
 actual protocol, run, dataset role, executor identity, code hash, and quality
 gates. A client cannot obtain an `empirical_test` label for a synthetic formal
-run or an `independent_replication` label for the author's own unchanged code.
+run or an `independent_replication` label from only a changed actor string and
+code hash. Replication runs must also declare clean-room executor and
+implementation independence, pin their allowed inputs, disclose contamination,
+and preserve a hashed attestation artifact.
 
 The read-only rigor audit checks legacy and current evidence for scope,
 uncertainty, controls, claim ceilings, classification, protocol stop rules, and
@@ -69,10 +72,10 @@ derived only from validation tags whose prerequisites pass. Missing capabilities
 remain visible instead of being filled by generated narrative.
 
 These checks validate recorded provenance, not the world. An executor identity
-is not independently authenticated merely because its string differs, and the
-machine cannot by itself establish that a source is truthful, an instrument is
-accurate, or a derivation is sound. Those remain external review and replication
-obligations.
+or clean-room declaration is not independently authenticated merely because it
+is recorded, and the machine cannot by itself establish that the declaration is
+truthful, an instrument is accurate, or a derivation is sound. Those remain
+external review and replication obligations.
 
 ## Workflow state versus evidence state
 

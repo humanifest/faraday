@@ -186,10 +186,15 @@ Evidence is classified by what it actually tests: `source_assessment`,
 `empirical_test`. Higher tags have enforceable prerequisites. In particular,
 independent replication must name an eligible earlier run through
 `metadata.replicates_run_id`, use a different executor identity, and use a
-different analysis-code hash. Known-result reproduction requires a passed
-`known-result-reproduction` quality gate. Novel predictions and empirical tests
-require active hypotheses and protected non-exploratory runs; empirical tests
-also require non-synthetic observational or experimental data.
+different analysis-code hash. It must also declare a clean-room design with
+executor and implementation independence, an explicit prior-code-access status,
+a hashed allowed-input manifest, contamination disclosures, and a hashed output
+artifact carrying `artifact_role=independence_attestation`. A different actor
+string plus a cosmetic code edit is therefore insufficient. Known-result
+reproduction requires a passed `known-result-reproduction` quality gate. Novel
+predictions and empirical tests require active hypotheses and protected
+non-exploratory runs; empirical tests also require non-synthetic observational
+or experimental data.
 
 `workspace audit` reports errors, warnings, the capability vector, and a
 conservative conclusion ceiling. Use `--fail-on error` in CI. Warnings remain

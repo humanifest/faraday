@@ -210,7 +210,7 @@ def test_audit_and_synthesis_publish_a_conservative_ceiling(tmp_path: Path) -> N
     assert "independent_replication: absent" in synthesis
 
 
-def test_independent_replication_requires_distinct_executor_and_code(
+def test_independent_replication_requires_clean_room_attestation(
     tmp_path: Path,
 ) -> None:
     author, hypothesis, original = _prepared_run(tmp_path)
@@ -236,7 +236,7 @@ def test_independent_replication_requires_distinct_executor_and_code(
     )
     protocol = author.freeze_protocol(draft.protocol_id)
     replicator = _service(tmp_path, actor="replicator")
-    replication = replicator.record_run(
+    incomplete_replication = replicator.record_run(
         RecordRun(
             protocol_id=protocol.protocol_id,
             started_at="2026-09-02T12:03:00Z",
@@ -252,6 +252,56 @@ def test_independent_replication_requires_distinct_executor_and_code(
                 )
             ],
             metadata={"replicates_run_id": original.run_id},
+        )
+    )
+    with pytest.raises(
+        ValidationError, match="replication_independence"
+    ):
+        replicator.record_evidence(
+            _classified_evidence(
+                hypothesis.hypothesis_id,
+                incomplete_replication.run_id,
+                validation_tags=[ValidationTag.INDEPENDENT_REPLICATION],
+            )
+        )
+
+    attestation_locator = "independence-attestation.json"
+    replication = replicator.record_run(
+        RecordRun(
+            run_id="run-independent-clean-room",
+            protocol_id=protocol.protocol_id,
+            started_at="2026-09-02T12:05:00Z",
+            completed_at="2026-09-02T12:06:00Z",
+            analysis_code_hash="d" * 64,
+            environment_hash="e" * 64,
+            output_artifacts=[
+                DatasetArtifact("replication-clean-room.json", "f" * 64),
+                DatasetArtifact(
+                    attestation_locator,
+                    "1" * 64,
+                    metadata={"artifact_role": "independence_attestation"},
+                ),
+            ],
+            quality_gates=[
+                QualityGateResult(
+                    gate_id="replication-check",
+                    status=QualityGateStatus.PASSED,
+                    summary="Clean-room implementation reproduced the result.",
+                )
+            ],
+            metadata={
+                "replicates_run_id": original.run_id,
+                "replication_independence": {
+                    "design": "clean_room",
+                    "independence_dimensions": ["executor", "implementation"],
+                    "prior_implementation_accessed": False,
+                    "allowed_inputs": [
+                        {"locator": "contract.md", "sha256": "2" * 64}
+                    ],
+                    "contamination_disclosures": [],
+                    "attestation_artifact": attestation_locator,
+                },
+            },
         )
     )
     evidence = replicator.record_evidence(

@@ -237,6 +237,74 @@ def validate_validation_tag_context(
             raise ValidationError(
                 "independent_replication requires a distinct analysis-code hash"
             )
+        independence = current.metadata.get("replication_independence")
+        if not isinstance(independence, dict):
+            raise ValidationError(
+                "independent_replication requires run metadata."
+                "replication_independence"
+            )
+        if independence.get("design") != "clean_room":
+            raise ValidationError(
+                "independent_replication requires a clean_room replication design"
+            )
+        dimensions = require_text_list(
+            independence.get("independence_dimensions", []),
+            "replication_independence.independence_dimensions",
+        )
+        missing_dimensions = {"executor", "implementation"} - set(dimensions)
+        if missing_dimensions:
+            raise ValidationError(
+                "independent_replication requires executor and implementation "
+                "independence dimensions"
+            )
+        if independence.get("prior_implementation_accessed") is not False:
+            raise ValidationError(
+                "independent_replication requires an explicit false "
+                "prior_implementation_accessed declaration"
+            )
+        allowed_inputs = independence.get("allowed_inputs")
+        if not isinstance(allowed_inputs, list) or not allowed_inputs:
+            raise ValidationError(
+                "independent_replication requires a non-empty allowed_inputs manifest"
+            )
+        for index, item in enumerate(allowed_inputs):
+            if not isinstance(item, dict):
+                raise ValidationError(
+                    "replication_independence.allowed_inputs items must be objects"
+                )
+            require_text(
+                item.get("locator", ""),
+                f"replication_independence.allowed_inputs[{index}].locator",
+            )
+            require_sha256(
+                item.get("sha256", ""),
+                f"replication_independence.allowed_inputs[{index}].sha256",
+            )
+        disclosures = independence.get("contamination_disclosures")
+        if not isinstance(disclosures, list):
+            raise ValidationError(
+                "independent_replication requires a contamination_disclosures list"
+            )
+        require_text_list(
+            disclosures,
+            "replication_independence.contamination_disclosures",
+        )
+        attestation_locator = require_text(
+            independence.get("attestation_artifact", ""),
+            "replication_independence.attestation_artifact",
+        )
+        matching_attestations = [
+            artifact
+            for artifact in current.output_artifacts
+            if artifact.locator == attestation_locator
+            and artifact.metadata.get("artifact_role")
+            == "independence_attestation"
+        ]
+        if not matching_attestations:
+            raise ValidationError(
+                "independent_replication requires a hashed output artifact matching "
+                "attestation_artifact with artifact_role=independence_attestation"
+            )
 
     if ValidationTag.KNOWN_RESULT_REPRODUCTION in tag_set:
         current = require_eligible_run(ValidationTag.KNOWN_RESULT_REPRODUCTION)

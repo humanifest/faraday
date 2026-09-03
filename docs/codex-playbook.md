@@ -100,8 +100,11 @@ Use the lowest applicable validation tag. `internal_consistency` and
 `controlled_benchmark` do not imply recovery, prediction, or empirical contact.
 The machine checks advanced tags against provenance. Do not use
 `independent_replication` unless the run names an eligible earlier run and has a
-different executor and code hash. Do not use `empirical_test` for synthetic data,
-formal calculations, or exploratory analyses.
+different executor and code hash. The run must also carry a clean-room
+independence declaration, a hash-pinned allowed-input manifest, contamination
+disclosures, and a hashed independence-attestation output. Do not use
+`empirical_test` for synthetic data, formal calculations, or exploratory
+analyses.
 
 ## 7. Iterate without erasing mistakes
 
