@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "research-machine"
-version = "0.2.2"
+dynamic = ["version"]
 description = "A headless, provenance-first engine for turning curiosity into testable inquiries."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -19,6 +19,9 @@ research-notebook = "research_machine.executors.protected_notebook:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "research_machine.__version__"}
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
