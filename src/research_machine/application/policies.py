@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+import math
 import re
 
 from research_machine.domain.errors import ValidationError
@@ -49,6 +50,24 @@ def require_text_list(values: Sequence[str], field_name: str) -> list[str]:
     return [require_text(value, f"{field_name} item") for value in values]
 
 
+def require_unique_text_list(values: Sequence[str], field_name: str) -> list[str]:
+    normalized = require_text_list(values, field_name)
+    if len(set(normalized)) != len(normalized):
+        raise ValidationError(f"{field_name} must not contain duplicates")
+    return normalized
+
+
+def normalize_confidence(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValidationError("confidence must be a number from 0 through 1 or null")
+    normalized = float(value)
+    if not math.isfinite(normalized) or not 0 <= normalized <= 1:
+        raise ValidationError("confidence must be a number from 0 through 1 or null")
+    return normalized
+
+
 def validate_hypothesis_activation(hypothesis: Hypothesis) -> None:
     if hypothesis.workflow_state not in {
         HypothesisWorkflowState.UNREVIEWED,
@@ -95,9 +114,7 @@ def validate_hypothesis_staging(hypothesis: Hypothesis) -> None:
         )
 
 
-def validate_evidence_target(
-    hypothesis: Hypothesis, *, exploratory: bool
-) -> None:
+def validate_evidence_target(hypothesis: Hypothesis, *, exploratory: bool) -> None:
     if hypothesis.workflow_state is HypothesisWorkflowState.UNREVIEWED:
         raise ValidationError(
             "evidence cannot be attached to an unreviewed proposal; stage or activate "
@@ -196,7 +213,9 @@ def validate_validation_tag_context(
                 "source_assessment requires a literature run or dataset-only evidence"
             )
         if run is None and not datasets:
-            raise ValidationError("source_assessment requires a dataset or literature run")
+            raise ValidationError(
+                "source_assessment requires a dataset or literature run"
+            )
 
     if ValidationTag.CALIBRATION in tag_set and run is None and not datasets:
         raise ValidationError("calibration requires a dataset or recorded run")
@@ -240,8 +259,7 @@ def validate_validation_tag_context(
         independence = current.metadata.get("replication_independence")
         if not isinstance(independence, dict):
             raise ValidationError(
-                "independent_replication requires run metadata."
-                "replication_independence"
+                "independent_replication requires run metadata.replication_independence"
             )
         if independence.get("design") != "clean_room":
             raise ValidationError(
@@ -297,8 +315,7 @@ def validate_validation_tag_context(
             artifact
             for artifact in current.output_artifacts
             if artifact.locator == attestation_locator
-            and artifact.metadata.get("artifact_role")
-            == "independence_attestation"
+            and artifact.metadata.get("artifact_role") == "independence_attestation"
         ]
         if not matching_attestations:
             raise ValidationError(
@@ -338,20 +355,26 @@ def validate_validation_tag_context(
 
     if ValidationTag.NOVEL_PREDICTION in tag_set:
         current = require_eligible_run(ValidationTag.NOVEL_PREDICTION)
-        if exploratory or hypothesis.workflow_state is not HypothesisWorkflowState.ACTIVE:
+        if (
+            exploratory
+            or hypothesis.workflow_state is not HypothesisWorkflowState.ACTIVE
+        ):
             raise ValidationError(
                 "novel_prediction requires confirmatory evidence for an active hypothesis"
             )
         if current.analysis_mode is not AnalysisMode.CONFIRMATORY:
-            raise ValidationError(
-                "novel_prediction requires a confirmatory-mode run"
-            )
+            raise ValidationError("novel_prediction requires a confirmatory-mode run")
         if protocol is None or not protocol.registration_timestamp:
-            raise ValidationError("novel_prediction requires a frozen protocol timestamp")
+            raise ValidationError(
+                "novel_prediction requires a frozen protocol timestamp"
+            )
 
     if ValidationTag.EMPIRICAL_TEST in tag_set:
         require_eligible_run(ValidationTag.EMPIRICAL_TEST)
-        if exploratory or hypothesis.workflow_state is not HypothesisWorkflowState.ACTIVE:
+        if (
+            exploratory
+            or hypothesis.workflow_state is not HypothesisWorkflowState.ACTIVE
+        ):
             raise ValidationError(
                 "empirical_test requires confirmatory evidence for an active hypothesis"
             )
@@ -363,7 +386,9 @@ def validate_validation_tag_context(
                 "empirical_test requires an observational or experimental protocol"
             )
         if not datasets:
-            raise ValidationError("empirical_test requires at least one recorded dataset")
+            raise ValidationError(
+                "empirical_test requires at least one recorded dataset"
+            )
         if any(dataset.synthetic for dataset in datasets):
             raise ValidationError("empirical_test cannot use synthetic data")
 

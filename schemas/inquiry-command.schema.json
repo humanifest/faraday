@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/inquiry-command.schema.json",
+  "title": "Inquiry creation command",
+  "description": "Provider-neutral contract for a phenomenon and its decision context.",
+  "type": "object",
+  "required": ["title", "initial_statement"],
+  "properties": {
+    "inquiry_id": {"type": ["string", "null"]},
+    "title": {"type": "string", "minLength": 1},
+    "initial_statement": {"type": "string", "minLength": 1},
+    "decision_to_support": {"type": "string", "default": ""},
+    "minimum_evidence": {"type": "string", "default": ""},
+    "decision_change_criteria": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "default": []
+    },
+    "decision_owner": {"type": "string", "default": ""}
+  },
+  "additionalProperties": false
+}

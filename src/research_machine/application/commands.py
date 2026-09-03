@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from research_machine.domain.models import (
     ActionCandidate,
     AnalysisMode,
+    ClaimDisposition,
+    ClaimEpistemicLayer,
     ClaimLevel,
     DatasetArtifact,
     DatasetRole,
@@ -22,6 +24,18 @@ class CreateInquiry:
     title: str
     initial_statement: str
     inquiry_id: str | None = None
+    decision_to_support: str = ""
+    minimum_evidence: str = ""
+    decision_change_criteria: list[str] = field(default_factory=list)
+    decision_owner: str = ""
+
+
+@dataclass(frozen=True)
+class SetInquiryDecision:
+    decision_to_support: str
+    minimum_evidence: str
+    decision_change_criteria: list[str]
+    decision_owner: str = ""
 
 
 @dataclass(frozen=True)
@@ -35,6 +49,27 @@ class AddClaim:
     level: ClaimLevel
     parent_claims: list[str] = field(default_factory=list)
     scope: str = ""
+    epistemic_layer: ClaimEpistemicLayer = ClaimEpistemicLayer.UNRESOLVED
+    disposition: ClaimDisposition = ClaimDisposition.UNRESOLVED
+    confidence: float | None = None
+    source_refs: list[str] = field(default_factory=list)
+    conflicts_with: list[str] = field(default_factory=list)
+    falsified_by: list[str] = field(default_factory=list)
+    last_reviewed: str | None = None
+    decision_owner: str = ""
+
+
+@dataclass(frozen=True)
+class ReviewClaim:
+    claim_id: str
+    epistemic_layer: ClaimEpistemicLayer | None = None
+    disposition: ClaimDisposition | None = None
+    confidence: float | None = None
+    source_refs: list[str] | None = None
+    conflicts_with: list[str] | None = None
+    falsified_by: list[str] | None = None
+    reviewed_at: str | None = None
+    decision_owner: str | None = None
 
 
 @dataclass(frozen=True)

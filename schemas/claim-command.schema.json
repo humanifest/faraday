@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/claim-command.schema.json",
+  "title": "Claim creation command",
+  "description": "A claim whose inferential level, epistemic layer, and project disposition remain distinct.",
+  "type": "object",
+  "required": ["statement", "level"],
+  "properties": {
+    "statement": {"type": "string", "minLength": 1},
+    "level": {
+      "enum": [
+        "measurement_validity",
+        "statistical_association",
+        "causal_direction",
+        "robustness",
+        "mechanism",
+        "adaptation",
+        "attribution_intent",
+        "other"
+      ]
+    },
+    "parent_claims": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true,
+      "default": []
+    },
+    "scope": {"type": "string", "default": ""},
+    "epistemic_layer": {
+      "enum": [
+        "documented_fact",
+        "source_claim",
+        "project_interpretation",
+        "reasonable_inference",
+        "unresolved"
+      ],
+      "default": "unresolved"
+    },
+    "disposition": {
+      "enum": ["unresolved", "accepted", "rejected", "superseded"],
+      "default": "unresolved"
+    },
+    "confidence": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "default": null
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "default": []
+    },
+    "conflicts_with": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true,
+      "default": []
+    },
+    "falsified_by": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "default": []
+    },
+    "last_reviewed": {"type": ["string", "null"]},
+    "decision_owner": {"type": "string", "default": ""}
+  },
+  "additionalProperties": false
+}

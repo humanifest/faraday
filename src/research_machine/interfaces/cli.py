@@ -19,13 +19,17 @@ from research_machine.application.commands import (
     RecordEvidence,
     RecordRun,
     RegisterDataset,
+    ReviewClaim,
     RetireHypothesis,
+    SetInquiryDecision,
 )
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.domain.models import (
     ActionCandidate,
     AnalysisMode,
+    ClaimDisposition,
+    ClaimEpistemicLayer,
     ClaimLevel,
     DatasetArtifact,
     DatasetRole,
@@ -178,8 +182,20 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--title", required=True)
     create.add_argument("--statement", required=True)
     create.add_argument("--id", dest="inquiry_id")
+    create.add_argument("--decision", default="")
+    create.add_argument("--minimum-evidence", default="")
+    create.add_argument("--change-criterion", action="append", default=[])
+    create.add_argument("--decision-owner", default="")
     select = inquiry_commands.add_parser("select", help="Select the active inquiry")
     select.add_argument("inquiry_id")
+    decision = inquiry_commands.add_parser(
+        "decision", help="Set the decision context after clarification"
+    )
+    decision.add_argument("--decision", required=True)
+    decision.add_argument("--minimum-evidence", required=True)
+    decision.add_argument("--change-criterion", action="append", required=True)
+    decision.add_argument("--decision-owner", default="")
+    _add_inquiry_option(decision)
     show = inquiry_commands.add_parser("show", help="Show complete structured state")
     _add_inquiry_option(show)
 
@@ -204,7 +220,40 @@ def build_parser() -> argparse.ArgumentParser:
     )
     claim_add.add_argument("--parent-claim", action="append", default=[])
     claim_add.add_argument("--scope", default="")
+    claim_add.add_argument(
+        "--epistemic-layer",
+        choices=[value.value for value in ClaimEpistemicLayer],
+        default=ClaimEpistemicLayer.UNRESOLVED.value,
+    )
+    claim_add.add_argument(
+        "--disposition",
+        choices=[value.value for value in ClaimDisposition],
+        default=ClaimDisposition.UNRESOLVED.value,
+    )
+    claim_add.add_argument("--confidence", type=float)
+    claim_add.add_argument("--source-ref", action="append", default=[])
+    claim_add.add_argument("--conflicts-with", action="append", default=[])
+    claim_add.add_argument("--falsified-by", action="append", default=[])
+    claim_add.add_argument("--last-reviewed")
+    claim_add.add_argument("--decision-owner", default="")
     _add_inquiry_option(claim_add)
+    claim_review = claim_commands.add_parser(
+        "review", help="Review epistemic layer, disposition, and provenance"
+    )
+    claim_review.add_argument("claim_id")
+    claim_review.add_argument(
+        "--epistemic-layer", choices=[value.value for value in ClaimEpistemicLayer]
+    )
+    claim_review.add_argument(
+        "--disposition", choices=[value.value for value in ClaimDisposition]
+    )
+    claim_review.add_argument("--confidence", type=float)
+    claim_review.add_argument("--source-ref", action="append", default=None)
+    claim_review.add_argument("--conflicts-with", action="append", default=None)
+    claim_review.add_argument("--falsified-by", action="append", default=None)
+    claim_review.add_argument("--reviewed-at")
+    claim_review.add_argument("--decision-owner")
+    _add_inquiry_option(claim_review)
     claim_list = claim_commands.add_parser("list")
     _add_inquiry_option(claim_list)
 
@@ -700,9 +749,7 @@ def _run_command(
             if attestation_schema is not None
             else None
         ),
-        expected_attestation_schema_sha256=(
-            expected_attestation_schema_sha256
-        ),
+        expected_attestation_schema_sha256=(expected_attestation_schema_sha256),
     )
 
 
@@ -752,17 +799,33 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             return service.init_workspace()
         if args.action == "verify":
             return service.verify_ledger(args.inquiry)
-        return service.audit_rigor(
-            args.inquiry, fail_on=args.fail_on
-        ).to_dict()
+        return service.audit_rigor(args.inquiry, fail_on=args.fail_on).to_dict()
 
     if args.group == "inquiry":
         if args.action == "create":
             return service.create_inquiry(
-                CreateInquiry(args.title, args.statement, args.inquiry_id)
+                CreateInquiry(
+                    title=args.title,
+                    initial_statement=args.statement,
+                    inquiry_id=args.inquiry_id,
+                    decision_to_support=args.decision,
+                    minimum_evidence=args.minimum_evidence,
+                    decision_change_criteria=args.change_criterion,
+                    decision_owner=args.decision_owner,
+                )
             ).to_dict()
         if args.action == "select":
             return service.select_inquiry(args.inquiry_id).to_dict()
+        if args.action == "decision":
+            return service.set_inquiry_decision(
+                SetInquiryDecision(
+                    decision_to_support=args.decision,
+                    minimum_evidence=args.minimum_evidence,
+                    decision_change_criteria=args.change_criterion,
+                    decision_owner=args.decision_owner,
+                ),
+                args.inquiry,
+            ).to_dict()
         return service.show_inquiry(args.inquiry)
 
     if args.group == "question":
@@ -782,6 +845,35 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                     level=ClaimLevel(args.level),
                     parent_claims=args.parent_claim,
                     scope=args.scope,
+                    epistemic_layer=ClaimEpistemicLayer(args.epistemic_layer),
+                    disposition=ClaimDisposition(args.disposition),
+                    confidence=args.confidence,
+                    source_refs=args.source_ref,
+                    conflicts_with=args.conflicts_with,
+                    falsified_by=args.falsified_by,
+                    last_reviewed=args.last_reviewed,
+                    decision_owner=args.decision_owner,
+                ),
+                args.inquiry,
+            ).to_dict()
+        if args.action == "review":
+            return service.review_claim(
+                ReviewClaim(
+                    claim_id=args.claim_id,
+                    epistemic_layer=(
+                        ClaimEpistemicLayer(args.epistemic_layer)
+                        if args.epistemic_layer
+                        else None
+                    ),
+                    disposition=(
+                        ClaimDisposition(args.disposition) if args.disposition else None
+                    ),
+                    confidence=args.confidence,
+                    source_refs=args.source_ref,
+                    conflicts_with=args.conflicts_with,
+                    falsified_by=args.falsified_by,
+                    reviewed_at=args.reviewed_at,
+                    decision_owner=args.decision_owner,
                 ),
                 args.inquiry,
             ).to_dict()
@@ -948,8 +1040,7 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                     len(expected) != 64
                     or expected.lower() != expected
                     or any(
-                        character not in "0123456789abcdef"
-                        for character in expected
+                        character not in "0123456789abcdef" for character in expected
                     )
                 ):
                     raise ValueError(
@@ -960,7 +1051,7 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                         "run record hash mismatch: "
                         f"expected {expected}, observed {record_file_sha256}"
                     )
-            command = _run_command(
+            run_command = _run_command(
                 spec,
                 artifact_root=args.artifact_root,
                 attestation_schema=args.attestation_schema,
@@ -969,8 +1060,8 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                 ),
             )
             if args.action == "record":
-                return service.record_run(command, args.inquiry).to_dict()
-            report = service.preflight_run(command, args.inquiry).to_dict()
+                return service.record_run(run_command, args.inquiry).to_dict()
+            report = service.preflight_run(run_command, args.inquiry).to_dict()
             report["record_file_sha256"] = record_file_sha256
             report["record_file_size_bytes"] = record_file_size_bytes
             return report

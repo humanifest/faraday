@@ -72,6 +72,17 @@ def build_synthesis(
         "This report is derived from structured state. It does not promote evidence "
         "between claim levels or infer mechanism, adaptation, attribution, or intent.",
         "",
+        "## Decision context",
+        "",
+        f"- Decision to support: {_text(inquiry.decision_to_support)}",
+        f"- Minimum evidence: {_text(inquiry.minimum_evidence)}",
+        "- Decision owner: " + _text(inquiry.decision_owner),
+        "- Evidence that would change the decision: "
+        + (
+            "; ".join(inquiry.decision_change_criteria)
+            or "No change criteria recorded."
+        ),
+        "",
         "## Clarifying questions",
         "",
     ]
@@ -86,9 +97,25 @@ def build_synthesis(
     if claims:
         for claim in claims:
             parents = ", ".join(claim.parent_claims) or "none"
-            lines.append(
-                f"- `{claim.claim_id}` [{claim.level.value}] {claim.statement} "
-                f"(parents: {parents})"
+            confidence = (
+                f"{claim.confidence:.2f}"
+                if claim.confidence is not None
+                else "not assessed"
+            )
+            lines.extend(
+                [
+                    f"- `{claim.claim_id}` [{claim.level.value}; "
+                    f"{claim.epistemic_layer.value}; {claim.disposition.value}] "
+                    f"{claim.statement}",
+                    f"  - Depends on: {parents}",
+                    "  - Conflicts with: "
+                    + (", ".join(claim.conflicts_with) or "none"),
+                    "  - Sources: " + ("; ".join(claim.source_refs) or "none"),
+                    "  - Falsified by: "
+                    + ("; ".join(claim.falsified_by) or "not specified"),
+                    f"  - Confidence: {confidence}; last reviewed: "
+                    + (claim.last_reviewed or "not recorded"),
+                ]
             )
     else:
         lines.append("- No claims recorded.")
@@ -212,7 +239,9 @@ def build_synthesis(
                 f"ineligible]: required gates passed {passed}/{len(required)}. "
                 f"{_text(run.summary)}"
             )
-            failed = [gate.gate_id for gate in required if gate.status.value != "passed"]
+            failed = [
+                gate.gate_id for gate in required if gate.status.value != "passed"
+            ]
             if failed:
                 lines.append("  - Required gates not passed: " + "; ".join(failed))
     lines.extend(

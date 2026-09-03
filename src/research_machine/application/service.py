@@ -18,13 +18,17 @@ from research_machine.application.commands import (
     RecordEvidence,
     RecordRun,
     RegisterDataset,
+    ReviewClaim,
     RetireHypothesis,
+    SetInquiryDecision,
 )
 from research_machine.application.artifact_integrity import verify_run_artifacts
 from research_machine.application.policies import (
+    normalize_confidence,
     normalize_text,
     require_text,
     require_text_list,
+    require_unique_text_list,
     require_sha256,
     validate_action_candidates,
     validate_dataset_artifacts,
@@ -43,6 +47,8 @@ from research_machine.domain.models import (
     ActionRecommendation,
     AnalysisMode,
     Claim,
+    ClaimDisposition,
+    ClaimEpistemicLayer,
     DatasetManifest,
     DatasetRole,
     EvidenceAssessment,
@@ -122,6 +128,16 @@ class ResearchService:
             title=title,
             initial_statement=statement,
             created_at=self.clock(),
+            decision_to_support=normalize_text(
+                command.decision_to_support, "decision_to_support"
+            ),
+            minimum_evidence=normalize_text(
+                command.minimum_evidence, "minimum_evidence"
+            ),
+            decision_change_criteria=require_unique_text_list(
+                command.decision_change_criteria, "decision_change_criteria"
+            ),
+            decision_owner=normalize_text(command.decision_owner, "decision_owner"),
         )
         self.repository.create_inquiry(inquiry)
         self._event(
@@ -132,6 +148,43 @@ class ResearchService:
             inquiry.to_dict(),
         )
         return inquiry
+
+    def set_inquiry_decision(
+        self,
+        command: SetInquiryDecision,
+        inquiry_id: str | None = None,
+    ) -> Inquiry:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        inquiry = self.repository.load_inquiry(resolved)
+        updated = replace(
+            inquiry,
+            decision_to_support=require_text(
+                command.decision_to_support, "decision_to_support"
+            ),
+            minimum_evidence=require_text(command.minimum_evidence, "minimum_evidence"),
+            decision_change_criteria=require_unique_text_list(
+                command.decision_change_criteria, "decision_change_criteria"
+            ),
+            decision_owner=normalize_text(command.decision_owner, "decision_owner"),
+        )
+        if not updated.decision_change_criteria:
+            raise ValidationError(
+                "decision_change_criteria must contain at least one criterion"
+            )
+        self.repository.save_inquiry(updated)
+        self._event(
+            resolved,
+            "inquiry.decision.set",
+            "inquiry",
+            resolved,
+            {
+                "decision_to_support": updated.decision_to_support,
+                "minimum_evidence": updated.minimum_evidence,
+                "decision_change_criteria": updated.decision_change_criteria,
+                "decision_owner": updated.decision_owner,
+            },
+        )
+        return updated
 
     def select_inquiry(self, inquiry_id: str) -> Inquiry:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
@@ -225,10 +278,23 @@ class ResearchService:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         claims = self.repository.load_claims(resolved)
         parent_claims = require_text_list(command.parent_claims, "parent_claims")
+        conflicts_with = require_unique_text_list(
+            command.conflicts_with, "conflicts_with"
+        )
         known = {claim.claim_id for claim in claims}
-        missing = sorted(set(parent_claims) - known)
+        missing = sorted((set(parent_claims) | set(conflicts_with)) - known)
         if missing:
-            raise ValidationError("unknown parent claims: " + ", ".join(missing))
+            raise ValidationError("unknown claim references: " + ", ".join(missing))
+        overlap = sorted(set(parent_claims) & set(conflicts_with))
+        if overlap:
+            raise ValidationError(
+                "claims cannot be both dependencies and conflicts: "
+                + ", ".join(overlap)
+            )
+        if not isinstance(command.epistemic_layer, ClaimEpistemicLayer):
+            raise ValidationError("epistemic_layer must be a ClaimEpistemicLayer")
+        if not isinstance(command.disposition, ClaimDisposition):
+            raise ValidationError("disposition must be a ClaimDisposition")
         claim = Claim(
             claim_id=f"clm-{self.token()}",
             statement=require_text(command.statement, "claim statement"),
@@ -236,7 +302,20 @@ class ResearchService:
             created_at=self.clock(),
             parent_claims=parent_claims,
             scope=normalize_text(command.scope, "scope"),
+            epistemic_layer=command.epistemic_layer,
+            disposition=command.disposition,
+            confidence=normalize_confidence(command.confidence),
+            source_refs=require_unique_text_list(command.source_refs, "source_refs"),
+            conflicts_with=conflicts_with,
+            falsified_by=require_unique_text_list(command.falsified_by, "falsified_by"),
+            last_reviewed=(
+                require_text(command.last_reviewed, "last_reviewed")
+                if command.last_reviewed is not None
+                else None
+            ),
+            decision_owner=normalize_text(command.decision_owner, "decision_owner"),
         )
+        self._validate_claim_authority(claim)
         claims.append(claim)
         self.repository.save_claims(resolved, claims)
         self._event(
@@ -247,6 +326,83 @@ class ResearchService:
             claim.to_dict(),
         )
         return claim
+
+    def review_claim(
+        self, command: ReviewClaim, inquiry_id: str | None = None
+    ) -> Claim:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        claims = self.repository.load_claims(resolved)
+        known = {claim.claim_id for claim in claims}
+        if command.epistemic_layer is not None and not isinstance(
+            command.epistemic_layer, ClaimEpistemicLayer
+        ):
+            raise ValidationError("epistemic_layer must be a ClaimEpistemicLayer")
+        if command.disposition is not None and not isinstance(
+            command.disposition, ClaimDisposition
+        ):
+            raise ValidationError("disposition must be a ClaimDisposition")
+        for index, claim in enumerate(claims):
+            if claim.claim_id != command.claim_id:
+                continue
+            conflicts_with = (
+                claim.conflicts_with
+                if command.conflicts_with is None
+                else require_unique_text_list(command.conflicts_with, "conflicts_with")
+            )
+            if claim.claim_id in conflicts_with:
+                raise ValidationError("a claim cannot conflict with itself")
+            missing = sorted(set(conflicts_with) - known)
+            if missing:
+                raise ValidationError("unknown conflict claims: " + ", ".join(missing))
+            overlap = sorted(set(claim.parent_claims) & set(conflicts_with))
+            if overlap:
+                raise ValidationError(
+                    "claims cannot be both dependencies and conflicts: "
+                    + ", ".join(overlap)
+                )
+            updated = replace(
+                claim,
+                epistemic_layer=command.epistemic_layer or claim.epistemic_layer,
+                disposition=command.disposition or claim.disposition,
+                confidence=(
+                    claim.confidence
+                    if command.confidence is None
+                    else normalize_confidence(command.confidence)
+                ),
+                source_refs=(
+                    claim.source_refs
+                    if command.source_refs is None
+                    else require_unique_text_list(command.source_refs, "source_refs")
+                ),
+                conflicts_with=conflicts_with,
+                falsified_by=(
+                    claim.falsified_by
+                    if command.falsified_by is None
+                    else require_unique_text_list(command.falsified_by, "falsified_by")
+                ),
+                last_reviewed=(
+                    require_text(command.reviewed_at, "reviewed_at")
+                    if command.reviewed_at is not None
+                    else self.clock()
+                ),
+                decision_owner=(
+                    claim.decision_owner
+                    if command.decision_owner is None
+                    else normalize_text(command.decision_owner, "decision_owner")
+                ),
+            )
+            self._validate_claim_authority(updated)
+            claims[index] = updated
+            self.repository.save_claims(resolved, claims)
+            self._event(
+                resolved,
+                "claim.review",
+                "claim",
+                updated.claim_id,
+                updated.to_dict(),
+            )
+            return updated
+        raise NotFoundError(f"claim {command.claim_id} does not exist")
 
     def propose_hypothesis(
         self, command: ProposeHypothesis, inquiry_id: str | None = None
@@ -581,8 +737,7 @@ class ResearchService:
             if hypothesis.workflow_state is HypothesisWorkflowState.ACTIVE:
                 continue
             if (
-                hypothesis.workflow_state
-                is HypothesisWorkflowState.PENDING_REVIEW
+                hypothesis.workflow_state is HypothesisWorkflowState.PENDING_REVIEW
                 and protocol.analysis_mode is AnalysisMode.EXPLORATORY
             ):
                 continue
@@ -761,9 +916,7 @@ class ResearchService:
                 analysis_code_hash=analysis_code_hash,
                 run_metadata=command.metadata,
                 attestation_schema_path=command.attestation_schema_path,
-                expected_attestation_schema_sha256=(
-                    expected_attestation_schema_sha256
-                ),
+                expected_attestation_schema_sha256=(expected_attestation_schema_sha256),
             )
             if verify_artifacts
             else None
@@ -785,8 +938,7 @@ class ResearchService:
             or required_gate_failure
             or protocol_gate_failure
             or (
-                artifact_integrity is not None
-                and artifact_integrity.status != "passed"
+                artifact_integrity is not None and artifact_integrity.status != "passed"
             )
         )
         synthetic = command.synthetic or any(dataset.synthetic for dataset in datasets)
@@ -1197,12 +1349,15 @@ class ResearchService:
     def build_synthesis(self, inquiry_id: str | None = None) -> dict[str, Any]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         inquiry = self.repository.load_inquiry(resolved)
+        claims = self.repository.load_claims(resolved)
         hypotheses = self.repository.list_hypotheses(resolved)
         evidence = self.repository.list_evidence(resolved)
         datasets = self.repository.list_datasets(resolved)
         protocols = self.repository.list_protocols(resolved)
         runs = self.repository.list_runs(resolved)
         rigor_audit = audit_research_state(
+            inquiry=inquiry,
+            claims=claims,
             hypotheses=hypotheses,
             evidence=evidence,
             datasets=datasets,
@@ -1212,7 +1367,7 @@ class ResearchService:
         content = build_synthesis(
             inquiry,
             self.repository.load_questions(resolved),
-            self.repository.load_claims(resolved),
+            claims,
             hypotheses,
             evidence,
             datasets,
@@ -1241,6 +1396,8 @@ class ResearchService:
     ) -> RigorAudit:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         audit = audit_research_state(
+            inquiry=self.repository.load_inquiry(resolved),
+            claims=self.repository.load_claims(resolved),
             hypotheses=self.repository.list_hypotheses(resolved),
             evidence=self.repository.list_evidence(resolved),
             datasets=self.repository.list_datasets(resolved),
@@ -1250,9 +1407,7 @@ class ResearchService:
         if fail_on not in {"never", "error", "warning"}:
             raise ValidationError("fail_on must be never, error, or warning")
         severities = {finding.severity for finding in audit.findings}
-        should_fail = (
-            fail_on == "error" and RigorSeverity.ERROR in severities
-        ) or (
+        should_fail = (fail_on == "error" and RigorSeverity.ERROR in severities) or (
             fail_on == "warning"
             and bool(severities & {RigorSeverity.ERROR, RigorSeverity.WARNING})
         )
@@ -1273,6 +1428,21 @@ class ResearchService:
     def verify_ledger(self, inquiry_id: str | None = None) -> dict[str, Any]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         return self.repository.verify_ledger(resolved)
+
+    @staticmethod
+    def _validate_claim_authority(claim: Claim) -> None:
+        source_grounded_layers = {
+            ClaimEpistemicLayer.DOCUMENTED_FACT,
+            ClaimEpistemicLayer.SOURCE_CLAIM,
+        }
+        if (
+            claim.disposition is ClaimDisposition.ACCEPTED
+            and claim.epistemic_layer in source_grounded_layers
+            and not claim.source_refs
+        ):
+            raise ValidationError(
+                "accepted documented facts and source claims require source_refs"
+            )
 
     @staticmethod
     def _validate_run_datasets(

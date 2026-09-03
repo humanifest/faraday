@@ -7,11 +7,14 @@ canonical write path.
 ## Start of an inquiry
 
 1. Translate “I think …” into an inquiry without strengthening it.
-2. Record important ambiguity as questions before proposing a preferred answer.
-3. Clarify population, setting, construct, outcome, time window, comparison,
+2. Identify the practical decision, minimum evidence, decision owner, and
+   observations that would change the decision. If these are not yet known,
+   leave them visibly unresolved rather than inventing them.
+3. Record important ambiguity as questions before proposing a preferred answer.
+4. Clarify population, setting, construct, outcome, time window, comparison,
    available data, ethical constraints, and what observation would change the
    user's mind.
-4. Separate observation from statistical association, causality, mechanism,
+5. Separate observation from statistical association, causality, mechanism,
    adaptation, attribution, and intent by creating claim-level nodes.
 
 ## Hypotheses
@@ -48,6 +51,10 @@ canonical write path.
   under an observational or experimental confirmatory protocol.
 - Never promote support at one claim level to a higher one. Association does not
   imply causal direction; causality does not establish mechanism or intent.
+- Keep a claim's epistemic layer separate from its disposition. A source's claim
+  is not a documented fact, and an accepted project interpretation does not
+  become one through repetition. Record conflicts rather than reconciling them
+  rhetorically; accepted conflicting claims must fail the rigor audit.
 - Preserve exploratory/confirmatory separation. Register artifact hashes once;
   do not relabel them. Freeze protected protocols before their observations are
   registered. Confirmatory evidence must trace to an eligible quality-gated run.

@@ -2,14 +2,21 @@ from __future__ import annotations
 
 from collections import Counter
 
-from research_machine.application.policies import validate_validation_tag_context
+from research_machine.application.policies import (
+    normalize_confidence,
+    validate_validation_tag_context,
+)
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.domain.models import (
+    Claim,
+    ClaimDisposition,
+    ClaimEpistemicLayer,
     DatasetManifest,
     EvidenceDirection,
     EvidenceRecord,
     ExperimentProtocol,
     Hypothesis,
+    Inquiry,
     ProtocolStatus,
     QualityGateStatus,
     ResearchRun,
@@ -32,7 +39,9 @@ def _conclusion_ceiling(capabilities: dict[str, bool]) -> str:
     if not capabilities[ValidationTag.INDEPENDENT_REPLICATION.value]:
         return "controlled but internally generated result"
     if not capabilities[ValidationTag.KNOWN_RESULT_REPRODUCTION.value]:
-        return "independently replicated limited result; known-result reproduction absent"
+        return (
+            "independently replicated limited result; known-result reproduction absent"
+        )
     if not capabilities[ValidationTag.NOVEL_PREDICTION.value]:
         return "replicated and reproduced result; no novel prediction"
     if not capabilities[ValidationTag.EMPIRICAL_TEST.value]:
@@ -42,6 +51,8 @@ def _conclusion_ceiling(capabilities: dict[str, bool]) -> str:
 
 def audit_research_state(
     *,
+    inquiry: Inquiry,
+    claims: list[Claim],
     hypotheses: list[Hypothesis],
     evidence: list[EvidenceRecord],
     datasets: list[DatasetManifest],
@@ -69,6 +80,187 @@ def audit_research_state(
                 remediation=remediation,
             )
         )
+
+    if not inquiry.decision_to_support.strip():
+        add(
+            "INQUIRY_DECISION_MISSING",
+            RigorSeverity.WARNING,
+            "The inquiry does not state the practical decision it should support.",
+            entity_type="inquiry",
+            entity_id=inquiry.inquiry_id,
+            remediation="Record the smallest practical decision this research informs.",
+        )
+    if not inquiry.minimum_evidence.strip():
+        add(
+            "INQUIRY_MINIMUM_EVIDENCE_MISSING",
+            RigorSeverity.WARNING,
+            "The inquiry has no declared minimum evidence threshold.",
+            entity_type="inquiry",
+            entity_id=inquiry.inquiry_id,
+        )
+    if not inquiry.decision_change_criteria:
+        add(
+            "INQUIRY_CHANGE_CRITERIA_MISSING",
+            RigorSeverity.WARNING,
+            "The inquiry does not state what observations would change the decision.",
+            entity_type="inquiry",
+            entity_id=inquiry.inquiry_id,
+        )
+    if inquiry.decision_to_support.strip() and not inquiry.decision_owner.strip():
+        add(
+            "INQUIRY_DECISION_OWNER_MISSING",
+            RigorSeverity.WARNING,
+            "The inquiry names a decision but not the person responsible for it.",
+            entity_type="inquiry",
+            entity_id=inquiry.inquiry_id,
+        )
+
+    claim_ids = [claim.claim_id for claim in claims]
+    claim_id_set = set(claim_ids)
+    duplicate_claim_ids = sorted(
+        claim_id for claim_id in claim_id_set if claim_ids.count(claim_id) > 1
+    )
+    for claim_id in duplicate_claim_ids:
+        add(
+            "DUPLICATE_CLAIM_ID",
+            RigorSeverity.ERROR,
+            "The authoritative claim spine contains a duplicate stable ID.",
+            entity_type="claim",
+            entity_id=claim_id,
+        )
+
+    dependencies = {claim.claim_id: claim.parent_claims for claim in claims}
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(claim_id: str) -> bool:
+        if claim_id in visiting:
+            return True
+        if claim_id in visited:
+            return False
+        visiting.add(claim_id)
+        cyclic = any(
+            parent in dependencies and visit(parent)
+            for parent in dependencies.get(claim_id, [])
+        )
+        visiting.remove(claim_id)
+        visited.add(claim_id)
+        return cyclic
+
+    if any(visit(claim_id) for claim_id in claim_id_set):
+        add(
+            "CLAIM_DEPENDENCY_CYCLE",
+            RigorSeverity.ERROR,
+            "The authoritative claim spine contains a dependency cycle.",
+        )
+
+    claims_by_id = {claim.claim_id: claim for claim in claims}
+    reported_accepted_conflicts: set[frozenset[str]] = set()
+    for claim in claims:
+        try:
+            normalize_confidence(claim.confidence)
+        except ResearchMachineError as exc:
+            add(
+                "CLAIM_CONFIDENCE_INVALID",
+                RigorSeverity.ERROR,
+                str(exc),
+                entity_type="claim",
+                entity_id=claim.claim_id,
+            )
+        missing_parents = sorted(set(claim.parent_claims) - claim_id_set)
+        missing_conflicts = sorted(set(claim.conflicts_with) - claim_id_set)
+        if missing_parents:
+            add(
+                "CLAIM_DEPENDENCY_MISSING",
+                RigorSeverity.ERROR,
+                "Claim references missing dependencies: " + ", ".join(missing_parents),
+                entity_type="claim",
+                entity_id=claim.claim_id,
+            )
+        if missing_conflicts:
+            add(
+                "CLAIM_CONFLICT_REFERENCE_MISSING",
+                RigorSeverity.ERROR,
+                "Claim references missing conflicts: " + ", ".join(missing_conflicts),
+                entity_type="claim",
+                entity_id=claim.claim_id,
+            )
+        if (
+            claim.epistemic_layer
+            in {
+                ClaimEpistemicLayer.DOCUMENTED_FACT,
+                ClaimEpistemicLayer.SOURCE_CLAIM,
+            }
+            and not claim.source_refs
+        ):
+            severity = (
+                RigorSeverity.ERROR
+                if claim.disposition is ClaimDisposition.ACCEPTED
+                else RigorSeverity.WARNING
+            )
+            add(
+                "SOURCE_GROUNDED_CLAIM_WITHOUT_SOURCE",
+                severity,
+                "A documented fact or source claim has no source reference.",
+                entity_type="claim",
+                entity_id=claim.claim_id,
+            )
+        if (
+            claim.epistemic_layer is ClaimEpistemicLayer.REASONABLE_INFERENCE
+            and not claim.parent_claims
+        ):
+            add(
+                "INFERENCE_WITHOUT_DEPENDENCY",
+                RigorSeverity.WARNING,
+                "A reasonable inference does not identify the claims it depends on.",
+                entity_type="claim",
+                entity_id=claim.claim_id,
+            )
+        if claim.disposition is ClaimDisposition.ACCEPTED and not claim.last_reviewed:
+            add(
+                "ACCEPTED_CLAIM_NOT_REVIEWED",
+                RigorSeverity.WARNING,
+                "An accepted claim has no recorded review timestamp.",
+                entity_type="claim",
+                entity_id=claim.claim_id,
+            )
+        if (
+            claim.disposition is ClaimDisposition.ACCEPTED
+            and not claim.decision_owner.strip()
+        ):
+            add(
+                "ACCEPTED_CLAIM_OWNER_MISSING",
+                RigorSeverity.WARNING,
+                "An accepted claim has no recorded decision owner.",
+                entity_type="claim",
+                entity_id=claim.claim_id,
+            )
+        if claim.disposition is ClaimDisposition.REJECTED and not claim.falsified_by:
+            add(
+                "REJECTED_CLAIM_WITHOUT_FALSIFIER",
+                RigorSeverity.WARNING,
+                "A rejected claim does not identify what rejected it.",
+                entity_type="claim",
+                entity_id=claim.claim_id,
+            )
+        for conflict_id in claim.conflicts_with:
+            conflict = claims_by_id.get(conflict_id)
+            conflict_pair = frozenset({claim.claim_id, conflict_id})
+            if (
+                conflict is not None
+                and claim.disposition is ClaimDisposition.ACCEPTED
+                and conflict.disposition is ClaimDisposition.ACCEPTED
+                and conflict_pair not in reported_accepted_conflicts
+            ):
+                reported_accepted_conflicts.add(conflict_pair)
+                add(
+                    "ACCEPTED_CLAIMS_CONFLICT",
+                    RigorSeverity.ERROR,
+                    f"Accepted claims {claim.claim_id} and {conflict_id} conflict.",
+                    entity_type="claim",
+                    entity_id=claim.claim_id,
+                    remediation="Resolve the conflict or narrow the claims before relying on both.",
+                )
 
     hypothesis_by_id = {item.hypothesis_id: item for item in hypotheses}
     protocol_by_id = {item.protocol_id: item for item in protocols}
@@ -147,7 +339,9 @@ def audit_research_state(
             )
             continue
         run = run_by_id.get(record.run_id) if record.run_id else None
-        protocol = protocol_by_id.get(record.protocol_id) if record.protocol_id else None
+        protocol = (
+            protocol_by_id.get(record.protocol_id) if record.protocol_id else None
+        )
         record_datasets: list[DatasetManifest] = []
         if run is not None:
             record_datasets = [
@@ -169,7 +363,9 @@ def audit_research_state(
             )
         if record.validation_tags:
             replicated_run = None
-            if run is not None and isinstance(run.metadata.get("replicates_run_id"), str):
+            if run is not None and isinstance(
+                run.metadata.get("replicates_run_id"), str
+            ):
                 replicated_run = run_by_id.get(run.metadata["replicates_run_id"])
             try:
                 validate_validation_tag_context(
@@ -277,9 +473,7 @@ def audit_research_state(
             f"{invalid_runs} failed, invalid, or synthetic runs remain visible.",
         )
 
-    capabilities = {
-        tag.value: bool(tag_counts[tag.value]) for tag in ValidationTag
-    }
+    capabilities = {tag.value: bool(tag_counts[tag.value]) for tag in ValidationTag}
     capabilities["classified_evidence"] = bool(sum(tag_counts.values()))
     for tag in (
         ValidationTag.INDEPENDENT_REPLICATION,
@@ -317,9 +511,7 @@ def audit_research_state(
     evidence_counts = {
         "total": len(evidence),
         "classified": sum(bool(record.validation_tags) for record in evidence),
-        "legacy_unclassified": sum(
-            not record.validation_tags for record in evidence
-        ),
+        "legacy_unclassified": sum(not record.validation_tags for record in evidence),
         "exploratory": sum(record.exploratory for record in evidence),
         "confirmatory_or_replication": sum(
             not record.exploratory for record in evidence

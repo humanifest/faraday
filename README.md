@@ -14,8 +14,13 @@ reconsidered.
 ## What works now
 
 - Create and select inquiries from an initial statement such as “I think …”.
+- State the practical decision an inquiry should support, its minimum evidence,
+  decision owner, and observations that would change the decision.
 - Record and answer clarifying questions.
 - Build a claim hierarchy from measurement validity through attribution/intent.
+- Keep documented facts, source claims, project interpretations, reasonable
+  inferences, and unresolved claims in explicit epistemic layers, with source,
+  conflict, falsification, confidence, and review metadata.
 - Propose structured hypotheses as unreviewed candidates.
 - Prevent incomplete hypotheses from entering the active model set.
 - Support an auditable `pending_review` lane for delegated autonomous
@@ -128,7 +133,11 @@ cd /Users/admin/dev/SEEDZ/research-machine
 ./research --workspace .research inquiry create \
   --id ai-hiring-bias \
   --title "AI hiring bias" \
-  --statement "I suspect persistent group disparities in AI hiring decisions."
+  --statement "I suspect persistent group disparities in AI hiring decisions." \
+  --decision "Whether to commission an independent audit." \
+  --decision-owner "project owner" \
+  --minimum-evidence "Reproducible outcome disparities on independently checked records." \
+  --change-criterion "Do not commission if a powered audit excludes the decision-relevant disparity."
 ./research --workspace .research question add \
   --text "Which hiring stage, population, outcome, and period are in scope?"
 ./research --workspace .research --json inquiry show
@@ -224,6 +233,9 @@ See [AGENTS.md](AGENTS.md) for the operating contract and
 [docs/architecture.md](docs/architecture.md) for the dependency boundaries. The
 provider-neutral JSON contracts live in [schemas](schemas), and the fuller
 conversational loop is in [docs/codex-playbook.md](docs/codex-playbook.md).
+The design ideas recovered indirectly from probably deleted Cursor histories,
+and the limits of that provenance, are recorded in
+[docs/recovered-cursor-method.md](docs/recovered-cursor-method.md).
 
 The first end-to-end known-result calibration is the synthetic
 [Newtonian pendulum campaign](campaigns/newtonian_pendulum/README.md). It tests

@@ -29,6 +29,21 @@ class ClaimLevel(StrEnum):
     OTHER = "other"
 
 
+class ClaimEpistemicLayer(StrEnum):
+    DOCUMENTED_FACT = "documented_fact"
+    SOURCE_CLAIM = "source_claim"
+    PROJECT_INTERPRETATION = "project_interpretation"
+    REASONABLE_INFERENCE = "reasonable_inference"
+    UNRESOLVED = "unresolved"
+
+
+class ClaimDisposition(StrEnum):
+    UNRESOLVED = "unresolved"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    SUPERSEDED = "superseded"
+
+
 class HypothesisWorkflowState(StrEnum):
     UNREVIEWED = "unreviewed"
     PENDING_REVIEW = "pending_review"
@@ -156,6 +171,10 @@ class Inquiry(Serializable):
     created_at: str
     status: InquiryStatus = InquiryStatus.CLARIFYING
     current_synthesis_path: str | None = None
+    decision_to_support: str = ""
+    minimum_evidence: str = ""
+    decision_change_criteria: list[str] = field(default_factory=list)
+    decision_owner: str = ""
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "Inquiry":
@@ -166,6 +185,10 @@ class Inquiry(Serializable):
             created_at=value["created_at"],
             status=InquiryStatus(value.get("status", InquiryStatus.CLARIFYING)),
             current_synthesis_path=value.get("current_synthesis_path"),
+            decision_to_support=value.get("decision_to_support", ""),
+            minimum_evidence=value.get("minimum_evidence", ""),
+            decision_change_criteria=list(value.get("decision_change_criteria", [])),
+            decision_owner=value.get("decision_owner", ""),
         )
 
 
@@ -198,6 +221,14 @@ class Claim(Serializable):
     created_at: str
     parent_claims: list[str] = field(default_factory=list)
     scope: str = ""
+    epistemic_layer: ClaimEpistemicLayer = ClaimEpistemicLayer.UNRESOLVED
+    disposition: ClaimDisposition = ClaimDisposition.UNRESOLVED
+    confidence: float | None = None
+    source_refs: list[str] = field(default_factory=list)
+    conflicts_with: list[str] = field(default_factory=list)
+    falsified_by: list[str] = field(default_factory=list)
+    last_reviewed: str | None = None
+    decision_owner: str = ""
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "Claim":
@@ -208,6 +239,18 @@ class Claim(Serializable):
             created_at=value["created_at"],
             parent_claims=list(value.get("parent_claims", [])),
             scope=value.get("scope", ""),
+            epistemic_layer=ClaimEpistemicLayer(
+                value.get("epistemic_layer", ClaimEpistemicLayer.UNRESOLVED)
+            ),
+            disposition=ClaimDisposition(
+                value.get("disposition", ClaimDisposition.UNRESOLVED)
+            ),
+            confidence=value.get("confidence"),
+            source_refs=list(value.get("source_refs", [])),
+            conflicts_with=list(value.get("conflicts_with", [])),
+            falsified_by=list(value.get("falsified_by", [])),
+            last_reviewed=value.get("last_reviewed"),
+            decision_owner=value.get("decision_owner", ""),
         )
 
 

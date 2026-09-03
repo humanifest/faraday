@@ -8,6 +8,11 @@ not hidden state: durable research state belongs in the workspace.
 Create the inquiry using the person's own level of confidence. Convert a broad
 suspicion into questions; do not quietly rewrite it as a finding.
 
+Name the practical decision the inquiry is intended to support, the minimum
+evidence required to make that decision, who owns it, and observations that
+would change it. These fields may remain visibly unresolved during early
+clarification; Codex must not fill them with plausible-sounding inventions.
+
 Useful first clarifications include:
 
 - What exactly is being observed or alleged?
@@ -25,6 +30,13 @@ Record material questions and answers with `question add` and `question answer`.
 Create small claims at the lowest defensible level. Give higher-level claims
 explicit parent dependencies. Start with measurement validity before attempting
 association, causal direction, robustness, mechanism, adaptation, or intent.
+
+For every claim, distinguish its epistemic layer—documented fact, source claim,
+project interpretation, reasonable inference, or unresolved—from its project
+disposition. Attach sources to facts and source claims, connect inferences to
+their dependencies, and record conflicts without smoothing them into a single
+narrative. Confidence is a review annotation, not automatically a calibrated
+probability.
 
 ## 3. Generate a competing-model set
 

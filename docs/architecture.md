@@ -26,8 +26,8 @@ Codex conversation (current client)       future UI / HTTP API / agent
 
 Dependencies point inward:
 
-- `domain` defines inquiry, claim, hypothesis, dataset, protocol, run, evidence,
-  and action-selection vocabularies.
+- `domain` defines decision-oriented inquiries; layered claims; hypotheses;
+  datasets; protocols; runs; evidence; and action-selection vocabularies.
 - `application` defines commands, validation policies, and use cases.
 - `ports` defines capabilities the application needs from the outside world.
 - `adapters` implement ports, currently with a transparent filesystem workspace.
@@ -67,7 +67,10 @@ and preserve a hashed attestation artifact.
 
 The read-only rigor audit checks legacy and current evidence for scope,
 uncertainty, controls, claim ceilings, classification, protocol stop rules, and
-eligibility consistency. Synthesis reports a conservative conclusion ceiling
+eligibility consistency. It also checks that the inquiry names its decision and
+change criteria, that claim references form a valid acyclic spine, that factual
+and sourced claims retain sources, and that accepted claims do not carry an
+unresolved contradiction. Synthesis reports a conservative conclusion ceiling
 derived only from validation tags whose prerequisites pass. Missing capabilities
 remain visible instead of being filled by generated narrative.
 
