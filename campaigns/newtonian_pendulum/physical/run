@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Repository-local launcher for physical campaign preparation and analysis."""
+
+from pathlib import Path
+import sys
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPOSITORY_ROOT))
+sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
+
+
+def main() -> int:
+    if len(sys.argv) < 2 or sys.argv[1] not in {"prepare", "analyze"}:
+        print("usage: physical/run {prepare|analyze} [options]", file=sys.stderr)
+        return 2
+    action = sys.argv.pop(1)
+    if action == "prepare":
+        from campaigns.newtonian_pendulum.physical.prepare import main as command
+    else:
+        from campaigns.newtonian_pendulum.physical.executor import main as command
+    return command()
+
+
+raise SystemExit(main())

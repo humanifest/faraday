@@ -63,7 +63,8 @@ Inspect `run-summary.json`, `artifacts/suite-report.json`, and the generated
 `.research` workspace. A correct run has every suite gate marked `passed`, while
 `scientific_evidence_eligible` remains `false`.
 
-The next stage is a real pendulum experiment under a separately frozen
-experimental protocol. Its observations must be collected after registration,
+The next stage is the [physical pendulum campaign](physical/README.md), which
+prepares a separately frozen experimental protocol and raw-source-backed
+collection kit. Its observations must be collected after registration,
 registered as non-synthetic confirmatory data, and analyzed without changing
-these rules.
+the frozen rules.
