@@ -1,0 +1,12 @@
+{
+  "method": "permutation_mean_difference",
+  "analysis_id": "two-group-comparison-v1",
+  "outcome_column": "outcome",
+  "group_column": "condition",
+  "groups": ["treatment", "control"],
+  "permutations": 10000,
+  "seed": 8128,
+  "missing_data_policy": "complete_case",
+  "purpose": "Estimate and test the preregistered difference in group means.",
+  "claim_ceiling": "A difference between these groups in the registered sample; no causal or population-level claim without the corresponding design and sampling gates."
+}

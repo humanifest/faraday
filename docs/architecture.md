@@ -123,10 +123,11 @@ computational protocols instead require reproducible environments. All kinds
 share hash commitments, expected outputs, success/failure conditions, controls,
 and safety constraints.
 
-The application records runs; it does not execute arbitrary code. Executors may
-be local processes, workflow systems, proof assistants, lab instruments, or human
-teams. They cross the boundary by returning a run record with content hashes and
-gate results.
+The application records runs and never executes arbitrary protocol content.
+Research Machine does ship bounded, declared analysis methods through a validated
+add-on registry. Other executors may be local processes, workflow systems, proof
+assistants, lab instruments, or human teams. All cross the boundary by returning
+content hashes and gate results; successful execution alone is not evidence.
 
 `research-notebook` is one optional executor adapter, not an application-service
 command. It runs a hash-pinned notebook, refuses output overwrites, and writes
@@ -151,6 +152,16 @@ risk, and ambiguity risk. The candidates, weights, and ranking are all persisted
 - statistics, simulation, theorem-proving, and literature-analysis executors;
 - repository locking or transactional storage for concurrent clients;
 - provider adapters that can suggest only unreviewed hypotheses and actions.
+
+## Add-on boundary
+
+The core owns universal scientific workflow and truth state. Add-ons provide
+discipline methods, instruments, simulations, templates, and quality gates.
+They are discovered through one validated registry and cannot mutate canonical
+state except through application services. The distribution bundles a
+general-science toolkit so a new empirical inquiry can be designed, executed,
+recorded, audited, and synthesized without a second repository. See
+`docs/addons.md` for the extension contract.
 
 The sleep/acoustic campaign remains a useful eventual acceptance suite, not a
 privileged domain model.

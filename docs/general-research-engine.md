@@ -28,14 +28,15 @@ From the Vindication prototype:
 ## What stays outside the core
 
 Sleep-stage semantics, acoustic controls, event-window construction, sensor
-synchronization, and domain statistical models become adapters or executor
-packages. Their outputs enter the core through dataset, protocol, run, gate, and
-evidence contracts. This preserves their value without baking one campaign's
-ontology into every future inquiry.
+synchronization, and domain statistical models become installable add-ons to the
+one Research Machine distribution. Their outputs enter the core through dataset,
+protocol, run, gate, and evidence contracts. This preserves their value without
+baking one campaign's ontology into every future inquiry or creating a second
+research system.
 
 New domains should extend through three surfaces:
 
-1. an executor that implements a frozen protocol;
+1. a versioned add-on manifest and executor that implements a frozen protocol;
 2. named quality gates whose results can be recorded in a run;
 3. example campaigns used as end-to-end acceptance tests.
 

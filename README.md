@@ -62,11 +62,19 @@ reconsidered.
   fixed generated marker cell before protocol freeze, without accepting or
   loading an analysis notebook.
 - Emit stable JSON for Codex today and other clients later.
+- Discover validated scientific add-ons without creating a second evidence
+  system, and execute bundled cross-disciplinary analyses with hash-bound,
+  write-once receipts.
 
-The core deliberately does not implement a statistical package, proof checker,
-sensor pipeline, literature retriever, or execution sandbox. Those are adapters
-and executors. The core records their inputs, commitments, gates, and outputs
-under one provenance model.
+The distribution is self-contained for the scientific lifecycle and includes a
+small general-science execution toolkit. Specialized statistics, proof checkers,
+sensor pipelines, and literature retrieval extend it as add-ons. They do not
+replace its canonical inputs, commitments, gates, evidence rules, or provenance
+model.
+
+Inspect extensions with `research addon list`. Run a bundled, deterministic CSV
+analysis with `research analysis run`; see [scientific add-ons](docs/addons.md)
+and the [scientific platform roadmap](docs/scientific-platform-roadmap.md).
 
 An optional domain-neutral notebook executor is included for protected local
 calculations. Unlike `nbconvert`'s default failure path, it atomically writes the
@@ -264,7 +272,7 @@ The design ideas recovered indirectly from probably deleted Cursor histories,
 and the limits of that provenance, are recorded in
 [docs/recovered-cursor-method.md](docs/recovered-cursor-method.md).
 
-The first end-to-end known-result calibration is the synthetic
+The first domain add-on and end-to-end known-result calibration is the synthetic
 [Newtonian pendulum campaign](campaigns/newtonian_pendulum/README.md). It tests
 competing laws, an independent analysis path, registered exclusions, and
 fail-closed behavior on planted defects while remaining explicitly ineligible

@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from research_machine.adapters.filesystem import FileSystemRepository
+from research_machine.addons.execution import execute_analysis
+from research_machine.addons.registry import default_registry
 from research_machine.application.commands import (
     AddClaim,
     AddQuestion,
@@ -529,6 +531,25 @@ def build_parser() -> argparse.ArgumentParser:
     synthesis_commands = synthesis.add_subparsers(dest="action", required=True)
     synthesis_build = synthesis_commands.add_parser("build")
     _add_inquiry_option(synthesis_build)
+
+    addon = groups.add_parser(
+        "addon", help="Inspect bundled and installed discipline extensions"
+    )
+    addon_commands = addon.add_subparsers(dest="action", required=True)
+    addon_commands.add_parser("list", help="List validated scientific add-ons")
+    addon_show = addon_commands.add_parser("show", help="Show one add-on contract")
+    addon_show.add_argument("addon_id")
+
+    analysis = groups.add_parser(
+        "analysis", help="Execute a declared method through the add-on boundary"
+    )
+    analysis_commands = analysis.add_subparsers(dest="action", required=True)
+    analysis_run = analysis_commands.add_parser(
+        "run", help="Run a deterministic analysis without claiming canonical evidence"
+    )
+    analysis_run.add_argument("--spec-file", type=Path, required=True)
+    analysis_run.add_argument("--data-file", type=Path, required=True)
+    analysis_run.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -935,6 +956,20 @@ def _cross_lane_lesson_command(spec: dict[str, Any]) -> RecordCrossLaneLesson:
 
 
 def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
+    if args.group == "addon":
+        registry = default_registry()
+        if args.action == "list":
+            return [manifest.describe() for manifest in registry.list()]
+        return registry.get(args.addon_id).describe()
+
+    if args.group == "analysis" and args.action == "run":
+        return execute_analysis(
+            registry=default_registry(),
+            spec_path=args.spec_file,
+            data_path=args.data_file,
+            output_dir=args.output,
+        )
+
     if args.group == "workspace":
         if args.action == "init":
             return service.init_workspace()

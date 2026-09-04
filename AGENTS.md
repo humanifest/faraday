@@ -96,8 +96,23 @@ canonical write path.
   is a proposal source and remains TODO until a port and explicit policy exist.
 - Keep reports deterministic from stored state. Generative prose may supplement
   them later but must not replace or silently mutate canonical evidence.
-- Keep domain executors outside the core. They return hashed run records; the
-  application service validates and records them.
+- Keep discipline-specific semantics in validated add-ons. Research Machine must
+  remain one self-contained tool: it ships a general-science execution toolkit,
+  discovers optional add-ons through `research_machine.addons`, and receives all
+  add-on outputs through the same dataset, protocol, run, evidence, and ledger
+  contracts.
+- An add-on may provide readers, instrument adapters, analysis methods,
+  simulations, quality gates, and protocol templates. It must not create a
+  competing canonical store, weaken core review rules, promote claims, or treat
+  successful execution as evidence eligibility.
+- Put universally applicable concepts and validation rules in the core. Put
+  physics-, psychology-, biology-, or instrument-specific assumptions in an
+  add-on. When two disciplines need copied logic, generalize it into the core
+  and retain acceptance tests in both disciplines.
+- Every executable add-on method must expose a stable identifier, required
+  specification fields, versioned manifest, hash-locatable implementation, claim
+  ceiling, deterministic behavior when randomness is used, and adversarial
+  fail-closed tests. Update `docs/addons.md` when the extension contract changes.
 - Add tests for every new validation gate and every provenance-sensitive state
   transition. Run `pytest` and ledger verification before declaring completion.
 
