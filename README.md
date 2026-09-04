@@ -142,7 +142,7 @@ preflight and record commands; details and the supported schema profile are in
 No installation or network access is required during development:
 
 ```bash
-cd /Users/admin/dev/SEEDZ/research-machine
+cd /Users/admin/dev/research-machine
 ./research --workspace .research workspace init
 ./research --workspace .research inquiry create \
   --id ai-hiring-bias \
