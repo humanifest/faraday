@@ -212,3 +212,21 @@ class RecommendActionPortfolio:
     candidates: list[ActionCandidate]
     completed_action_ids: list[str] = field(default_factory=list)
     weights: SelectionWeights = field(default_factory=SelectionWeights)
+
+
+@dataclass(frozen=True)
+class RecordCrossLaneLesson:
+    origin_lane_id: str
+    target_lane_ids: list[str]
+    origin_artifact_locator: str
+    origin_artifact_sha256: str
+    origin_integrity_status: str
+    observation: str
+    failure_class: str
+    strongest_alternative_explanation: str
+    challenged_invariant: str
+    first_permitted_future_versions: list[str]
+    prohibited_retroactive_targets: list[str]
+    proposed_repair: str
+    repair_falsifier: str
+    conclusion_ceiling: str

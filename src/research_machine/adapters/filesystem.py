@@ -18,6 +18,7 @@ from research_machine.domain.errors import (
 from research_machine.domain.models import (
     ActionRecommendation,
     Claim,
+    CrossLaneLesson,
     DatasetManifest,
     EvidenceRecord,
     ExperimentProtocol,
@@ -91,6 +92,7 @@ class FileSystemRepository:
             "protocols/frozen",
             "runs",
             "recommendations",
+            "cross_lane_lessons",
             "evidence",
             "reports",
         ):
@@ -348,6 +350,29 @@ class FileSystemRepository:
             recommendations,
             key=lambda item: (item.created_at, item.recommendation_id),
         )
+
+    def save_cross_lane_lesson(
+        self, inquiry_id: str, lesson: CrossLaneLesson
+    ) -> None:
+        self._validate_id(lesson.lesson_id, "lesson_id")
+        path = (
+            self._inquiry_dir(inquiry_id)
+            / "cross_lane_lessons"
+            / f"{lesson.lesson_id}.json"
+        )
+        if path.exists():
+            raise ConflictError(f"cross-lane lesson {lesson.lesson_id} already exists")
+        self._atomic_json(path, lesson.to_dict())
+
+    def list_cross_lane_lessons(self, inquiry_id: str) -> list[CrossLaneLesson]:
+        directory = self._inquiry_dir(inquiry_id) / "cross_lane_lessons"
+        if not directory.is_dir():
+            return []
+        lessons = [
+            CrossLaneLesson.from_dict(self._read_json(path))
+            for path in sorted(directory.glob("*.json"))
+        ]
+        return sorted(lessons, key=lambda item: (item.created_at, item.lesson_id))
 
     def write_report(self, inquiry_id: str, name: str, content: str) -> str:
         if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,95}", name):

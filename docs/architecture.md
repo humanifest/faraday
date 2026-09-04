@@ -57,7 +57,7 @@ attested: hashes prove the bytes received, not when an external party first
 created them.
 
 The filesystem adapter uses atomic replacement for JSON state. Single-writer use
-is assumed in version 0.4. Concurrent clients will require repository-level
+is assumed in version 0.5. Concurrent clients will require repository-level
 locking or a transactional database before an API is exposed.
 
 ## Epistemic audit and conclusion ceiling

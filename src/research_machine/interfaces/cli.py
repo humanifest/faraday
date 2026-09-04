@@ -17,6 +17,7 @@ from research_machine.application.commands import (
     ProposeHypothesis,
     RecommendActionPortfolio,
     RecommendNextAction,
+    RecordCrossLaneLesson,
     RecordEvidence,
     RecordRun,
     RegisterDataset,
@@ -144,6 +145,22 @@ _ACTION_PORTFOLIO_SPEC_FIELDS = {
     "candidates",
     "completed_action_ids",
     "weights",
+}
+_CROSS_LANE_LESSON_SPEC_FIELDS = {
+    "origin_lane_id",
+    "target_lane_ids",
+    "origin_artifact_locator",
+    "origin_artifact_sha256",
+    "origin_integrity_status",
+    "observation",
+    "failure_class",
+    "strongest_alternative_explanation",
+    "challenged_invariant",
+    "first_permitted_future_versions",
+    "prohibited_retroactive_targets",
+    "proposed_repair",
+    "repair_falsifier",
+    "conclusion_ceiling",
 }
 
 
@@ -454,6 +471,17 @@ def build_parser() -> argparse.ArgumentParser:
     _add_inquiry_option(portfolio)
     recommendation_list = next_action_commands.add_parser("list")
     _add_inquiry_option(recommendation_list)
+
+    lesson = groups.add_parser(
+        "cross-lane-lesson",
+        help="Record prospective lessons transferred between research lanes",
+    )
+    lesson_commands = lesson.add_subparsers(dest="action", required=True)
+    lesson_record = lesson_commands.add_parser("record")
+    lesson_record.add_argument("--spec-file", type=Path, required=True)
+    _add_inquiry_option(lesson_record)
+    lesson_list = lesson_commands.add_parser("list")
+    _add_inquiry_option(lesson_list)
 
     evidence = groups.add_parser("evidence", help="Record claim-scoped evidence")
     evidence_commands = evidence.add_subparsers(dest="action", required=True)
@@ -899,6 +927,13 @@ def _portfolio_recommendation_command(
     )
 
 
+def _cross_lane_lesson_command(spec: dict[str, Any]) -> RecordCrossLaneLesson:
+    try:
+        return RecordCrossLaneLesson(**spec)
+    except TypeError as exc:
+        raise ValueError(f"invalid cross-lane lesson: {exc}") from exc
+
+
 def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
     if args.group == "workspace":
         if args.action == "init":
@@ -1197,6 +1232,21 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                 _portfolio_recommendation_command(spec), args.inquiry
             ).to_dict()
         return [item.to_dict() for item in service.list_recommendations(args.inquiry)]
+
+    if args.group == "cross-lane-lesson":
+        if args.action == "record":
+            spec = _read_json_object(
+                args.spec_file,
+                allowed_fields=_CROSS_LANE_LESSON_SPEC_FIELDS,
+                label="cross-lane lesson",
+            )
+            return service.record_cross_lane_lesson(
+                _cross_lane_lesson_command(spec), args.inquiry
+            ).to_dict()
+        return [
+            item.to_dict()
+            for item in service.list_cross_lane_lessons(args.inquiry)
+        ]
 
     if args.group == "evidence":
         if args.action == "record":

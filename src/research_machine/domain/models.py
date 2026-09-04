@@ -655,3 +655,28 @@ class ActionRecommendation(Serializable):
             ActionLane.from_dict(item) for item in copied.get("lanes", [])
         ]
         return cls(**copied)
+
+
+@dataclass(frozen=True)
+class CrossLaneLesson(Serializable):
+    lesson_id: str
+    origin_lane_id: str
+    target_lane_ids: list[str]
+    origin_artifact_locator: str
+    origin_artifact_sha256: str
+    origin_integrity_status: str
+    observation: str
+    failure_class: str
+    strongest_alternative_explanation: str
+    challenged_invariant: str
+    first_permitted_future_versions: list[str]
+    prohibited_retroactive_targets: list[str]
+    proposed_repair: str
+    repair_falsifier: str
+    conclusion_ceiling: str
+    created_at: str
+    created_by: str
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "CrossLaneLesson":
+        return cls(**value)

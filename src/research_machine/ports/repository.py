@@ -5,6 +5,7 @@ from typing import Any, Protocol
 from research_machine.domain.models import (
     ActionRecommendation,
     Claim,
+    CrossLaneLesson,
     DatasetManifest,
     EvidenceRecord,
     ExperimentProtocol,
@@ -83,6 +84,12 @@ class WorkspaceRepository(Protocol):
     ) -> None: ...
 
     def list_recommendations(self, inquiry_id: str) -> list[ActionRecommendation]: ...
+
+    def save_cross_lane_lesson(
+        self, inquiry_id: str, lesson: CrossLaneLesson
+    ) -> None: ...
+
+    def list_cross_lane_lessons(self, inquiry_id: str) -> list[CrossLaneLesson]: ...
 
     def write_report(self, inquiry_id: str, name: str, content: str) -> str: ...
 

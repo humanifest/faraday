@@ -135,6 +135,69 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
     }
 
 
+def test_json_cli_records_cross_lane_lesson(tmp_path: Path, capsys) -> None:
+    workspace = tmp_path / "workspace"
+    global_args = ["--workspace", str(workspace), "--json"]
+    assert main([*global_args, "workspace", "init"]) == 0
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "inquiry",
+                "create",
+                "--id",
+                "dogfood",
+                "--title",
+                "Dogfood",
+                "--statement",
+                "Can an exposed failure improve a future machine version?",
+            ]
+        )
+        == 0
+    )
+    result_from(capsys)
+    spec = tmp_path / "lesson.json"
+    spec.write_text(
+        json.dumps(
+            {
+                "origin_lane_id": "science",
+                "target_lane_ids": ["machine"],
+                "origin_artifact_locator": "results/run.json",
+                "origin_artifact_sha256": "a" * 64,
+                "origin_integrity_status": "declared",
+                "observation": "A control omitted its evaluation time.",
+                "failure_class": "interface_ambiguity",
+                "strongest_alternative_explanation": (
+                    "The implementation may be defective."
+                ),
+                "challenged_invariant": "Every target is reproducibly defined.",
+                "first_permitted_future_versions": ["machine-v2"],
+                "prohibited_retroactive_targets": ["machine-v1", "protocol-v1"],
+                "proposed_repair": "Require a typed evaluation time.",
+                "repair_falsifier": "An omitted-time fixture is accepted.",
+                "conclusion_ceiling": "Process lesson only.",
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        main(
+            [
+                *global_args,
+                "cross-lane-lesson",
+                "record",
+                "--spec-file",
+                str(spec),
+            ]
+        )
+        == 0
+    )
+    lesson = result_from(capsys)
+    assert lesson["failure_class"] == "interface_ambiguity"
+    assert lesson["first_permitted_future_versions"] == ["machine-v2"]
+
+
 def test_json_cli_accepts_structured_hypothesis_proposals(
     tmp_path: Path, capsys
 ) -> None:

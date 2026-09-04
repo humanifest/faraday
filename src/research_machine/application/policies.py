@@ -793,3 +793,92 @@ def validate_selection_weights(weights: SelectionWeights) -> SelectionWeights:
             raise ValidationError(f"selection weight {field_name} must be non-negative")
         values[field_name] = float(value)
     return SelectionWeights(**values)
+
+
+def validate_cross_lane_lesson(
+    *,
+    origin_lane_id: str,
+    target_lane_ids: Sequence[str],
+    origin_artifact_locator: str,
+    origin_artifact_sha256: str,
+    origin_integrity_status: str,
+    observation: str,
+    failure_class: str,
+    strongest_alternative_explanation: str,
+    challenged_invariant: str,
+    first_permitted_future_versions: Sequence[str],
+    prohibited_retroactive_targets: Sequence[str],
+    proposed_repair: str,
+    repair_falsifier: str,
+    conclusion_ceiling: str,
+) -> dict[str, object]:
+    origin_lane = require_text(origin_lane_id, "origin_lane_id")
+    target_lanes = require_unique_text_list(target_lane_ids, "target_lane_ids")
+    if not target_lanes:
+        raise ValidationError("target_lane_ids must name at least one target lane")
+    if origin_lane in target_lanes:
+        raise ValidationError("a cross-lane lesson must target a different lane")
+    integrity_status = require_text(
+        origin_integrity_status, "origin_integrity_status"
+    )
+    if integrity_status not in {"declared", "verified_elsewhere"}:
+        raise ValidationError(
+            "origin_integrity_status must be declared or verified_elsewhere"
+        )
+    failure = require_text(failure_class, "failure_class")
+    if failure not in {
+        "theory_failure",
+        "machine_failure",
+        "interface_ambiguity",
+        "infrastructure_failure",
+        "inconclusive",
+    }:
+        raise ValidationError("failure_class is not recognized")
+    future_versions = require_unique_text_list(
+        first_permitted_future_versions, "first_permitted_future_versions"
+    )
+    prohibited_targets = require_unique_text_list(
+        prohibited_retroactive_targets, "prohibited_retroactive_targets"
+    )
+    if not future_versions:
+        raise ValidationError(
+            "first_permitted_future_versions must name at least one future version"
+        )
+    if not prohibited_targets:
+        raise ValidationError(
+            "prohibited_retroactive_targets must name at least one frozen or "
+            "exposed target"
+        )
+    overlap = sorted(set(future_versions) & set(prohibited_targets))
+    if overlap:
+        raise ValidationError(
+            "future versions cannot also be prohibited retroactive targets: "
+            + ", ".join(overlap)
+        )
+    return {
+        "origin_lane_id": origin_lane,
+        "target_lane_ids": target_lanes,
+        "origin_artifact_locator": require_text(
+            origin_artifact_locator, "origin_artifact_locator"
+        ),
+        "origin_artifact_sha256": require_sha256(
+            origin_artifact_sha256, "origin_artifact_sha256"
+        ),
+        "origin_integrity_status": integrity_status,
+        "observation": require_text(observation, "observation"),
+        "failure_class": failure,
+        "strongest_alternative_explanation": require_text(
+            strongest_alternative_explanation,
+            "strongest_alternative_explanation",
+        ),
+        "challenged_invariant": require_text(
+            challenged_invariant, "challenged_invariant"
+        ),
+        "first_permitted_future_versions": future_versions,
+        "prohibited_retroactive_targets": prohibited_targets,
+        "proposed_repair": require_text(proposed_repair, "proposed_repair"),
+        "repair_falsifier": require_text(repair_falsifier, "repair_falsifier"),
+        "conclusion_ceiling": require_text(
+            conclusion_ceiling, "conclusion_ceiling"
+        ),
+    }

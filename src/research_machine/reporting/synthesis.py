@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from research_machine.domain.models import (
     ActionRecommendation,
     Claim,
+    CrossLaneLesson,
     DatasetManifest,
     EvidenceRecord,
     ExperimentProtocol,
@@ -58,6 +59,7 @@ def build_synthesis(
     protocols: list[ExperimentProtocol],
     runs: list[ResearchRun],
     recommendations: list[ActionRecommendation],
+    cross_lane_lessons: list[CrossLaneLesson],
     rigor_audit: RigorAudit,
 ) -> str:
     evidence_by_hypothesis: dict[str, list[EvidenceRecord]] = defaultdict(list)
@@ -291,6 +293,7 @@ def build_synthesis(
             f"- Parked hypotheses: {len(parked)}",
             f"- Active hypotheses: {len(active)}",
             f"- Evidence records: {len(evidence)}",
+            f"- Cross-lane process lessons: {len(cross_lane_lessons)}",
             _recommendation_summary(recommendations),
             "",
         ]

@@ -205,6 +205,8 @@ The general execution loop uses JSON contracts:
   --spec-file examples/next-actions.json
 ./research --workspace .research next-action portfolio \
   --spec-file examples/next-action-portfolio.json
+./research --workspace .research cross-lane-lesson record \
+  --spec-file examples/cross-lane-lesson.json
 ./research --workspace .research workspace audit --fail-on error
 ```
 
@@ -219,6 +221,14 @@ second action from another lane. Externally blocked lanes must be marked
 typed `information_targets` instead of pretending to distinguish a scientific
 hypothesis. The resulting recommendation remains an immutable, ledgered record;
 it does not establish scientific independence or satisfy a promotion gate.
+
+Use `cross-lane-lesson record` before an observed machine or substantive
+failure changes later work. A lesson must preserve the origin hash, strongest
+alternative explanation, failure class, challenged invariant, first permitted
+future versions, prohibited retroactive targets, proposed repair, falsifier,
+and conclusion ceiling. The future and prohibited version sets must be
+disjoint. A lesson is process state only: recording one does not create
+evidence, change an old verdict, or raise a synthesis conclusion ceiling.
 
 `run template` and `run preflight` are read-only. The template deliberately
 contains invalid placeholders and skipped gates so it cannot be mistaken for an
@@ -275,6 +285,7 @@ as scientific evidence.
     protocols/{draft,frozen}/
     runs/
     recommendations/
+    cross_lane_lessons/
     evidence/
     reports/
     ledger.jsonl

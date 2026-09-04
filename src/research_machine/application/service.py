@@ -16,6 +16,7 @@ from research_machine.application.commands import (
     ProposeHypothesis,
     RecommendActionPortfolio,
     RecommendNextAction,
+    RecordCrossLaneLesson,
     RecordEvidence,
     RecordRun,
     RegisterDataset,
@@ -33,6 +34,7 @@ from research_machine.application.policies import (
     require_sha256,
     validate_action_candidates,
     validate_action_lanes,
+    validate_cross_lane_lesson,
     validate_dataset_artifacts,
     validate_evidence_annotations,
     validate_evidence_target,
@@ -50,6 +52,7 @@ from research_machine.domain.models import (
     ActionRecommendation,
     AnalysisMode,
     Claim,
+    CrossLaneLesson,
     ClaimDisposition,
     ClaimEpistemicLayer,
     DatasetManifest,
@@ -355,6 +358,10 @@ class ResearchService:
             "recommendations": [
                 item.to_dict()
                 for item in self.repository.list_recommendations(resolved)
+            ],
+            "cross_lane_lessons": [
+                item.to_dict()
+                for item in self.repository.list_cross_lane_lessons(resolved)
             ],
         }
 
@@ -1394,6 +1401,54 @@ class ResearchService:
         )
         return recommendation
 
+    def record_cross_lane_lesson(
+        self, command: RecordCrossLaneLesson, inquiry_id: str | None = None
+    ) -> CrossLaneLesson:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        normalized = validate_cross_lane_lesson(
+            origin_lane_id=command.origin_lane_id,
+            target_lane_ids=command.target_lane_ids,
+            origin_artifact_locator=command.origin_artifact_locator,
+            origin_artifact_sha256=command.origin_artifact_sha256,
+            origin_integrity_status=command.origin_integrity_status,
+            observation=command.observation,
+            failure_class=command.failure_class,
+            strongest_alternative_explanation=(
+                command.strongest_alternative_explanation
+            ),
+            challenged_invariant=command.challenged_invariant,
+            first_permitted_future_versions=(
+                command.first_permitted_future_versions
+            ),
+            prohibited_retroactive_targets=(
+                command.prohibited_retroactive_targets
+            ),
+            proposed_repair=command.proposed_repair,
+            repair_falsifier=command.repair_falsifier,
+            conclusion_ceiling=command.conclusion_ceiling,
+        )
+        lesson = CrossLaneLesson(
+            lesson_id=f"lesson-{self.token()}",
+            created_at=self.clock(),
+            created_by=self.actor,
+            **normalized,
+        )
+        self.repository.save_cross_lane_lesson(resolved, lesson)
+        self._event(
+            resolved,
+            "cross-lane-lesson.record",
+            "cross_lane_lesson",
+            lesson.lesson_id,
+            lesson.to_dict(),
+        )
+        return lesson
+
+    def list_cross_lane_lessons(
+        self, inquiry_id: str | None = None
+    ) -> list[CrossLaneLesson]:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        return self.repository.list_cross_lane_lessons(resolved)
+
     def list_recommendations(
         self, inquiry_id: str | None = None
     ) -> list[ActionRecommendation]:
@@ -1578,6 +1633,7 @@ class ResearchService:
             protocols,
             runs,
             self.repository.list_recommendations(resolved),
+            self.repository.list_cross_lane_lessons(resolved),
             rigor_audit,
         )
         path = self.repository.write_report(resolved, "current-synthesis.md", content)

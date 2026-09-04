@@ -1,0 +1,25 @@
+{
+  "origin_lane_id": "substantive",
+  "target_lane_ids": [
+    "machine"
+  ],
+  "origin_artifact_locator": "results/exposed-run.json",
+  "origin_artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "origin_integrity_status": "declared",
+  "observation": "A public contract omitted a parameter needed to reproduce one control.",
+  "failure_class": "interface_ambiguity",
+  "strongest_alternative_explanation": "The implementation may be defective even if the contract is complete.",
+  "challenged_invariant": "Every sealed target has a complete public measurement definition.",
+  "first_permitted_future_versions": [
+    "machine-v-next",
+    "protocol-v2"
+  ],
+  "prohibited_retroactive_targets": [
+    "machine-v-current",
+    "protocol-v1",
+    "oracle-v1"
+  ],
+  "proposed_repair": "Require a typed evaluation point for every sealed target.",
+  "repair_falsifier": "The next validator accepts a fixture that omits the evaluation point.",
+  "conclusion_ceiling": "Process lesson only; no scientific result or theory evidence."
+}

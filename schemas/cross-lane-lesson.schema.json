@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/cross-lane-lesson.schema.json",
+  "title": "Prospective cross-lane research lesson",
+  "type": "object",
+  "required": [
+    "origin_lane_id",
+    "target_lane_ids",
+    "origin_artifact_locator",
+    "origin_artifact_sha256",
+    "origin_integrity_status",
+    "observation",
+    "failure_class",
+    "strongest_alternative_explanation",
+    "challenged_invariant",
+    "first_permitted_future_versions",
+    "prohibited_retroactive_targets",
+    "proposed_repair",
+    "repair_falsifier",
+    "conclusion_ceiling"
+  ],
+  "properties": {
+    "origin_lane_id": {"type": "string", "minLength": 1},
+    "target_lane_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "origin_artifact_locator": {"type": "string", "minLength": 1},
+    "origin_artifact_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "origin_integrity_status": {
+      "enum": ["declared", "verified_elsewhere"]
+    },
+    "observation": {"type": "string", "minLength": 1},
+    "failure_class": {
+      "enum": [
+        "theory_failure",
+        "machine_failure",
+        "interface_ambiguity",
+        "infrastructure_failure",
+        "inconclusive"
+      ]
+    },
+    "strongest_alternative_explanation": {"type": "string", "minLength": 1},
+    "challenged_invariant": {"type": "string", "minLength": 1},
+    "first_permitted_future_versions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "prohibited_retroactive_targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "proposed_repair": {"type": "string", "minLength": 1},
+    "repair_falsifier": {"type": "string", "minLength": 1},
+    "conclusion_ceiling": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}
