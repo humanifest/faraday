@@ -10,11 +10,12 @@ methods without changing its epistemic rules or canonical state.
   replication, synthesis, and provenance lifecycle.
 - Typed measurements, frozen protocols, execution-quality gates, chronology
   checks, artifact verification, and conservative claim ceilings.
-- A validated add-on registry with bundled general-science and physics add-ons.
+- A validated add-on registry with a bundled general-science add-on and explicit
+  loading of local experiment add-ons without publication.
 - Write-once execution receipts binding analysis specification, data,
   implementation, environment, output, and gates.
 - Cross-disciplinary CSV summaries, correlation, and seeded permutation testing.
-- Synthetic and physical pendulum acceptance paths.
+- Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit
 
@@ -30,7 +31,7 @@ installed Research Machine distribution.
 
 ## Phase 2 — migrate the sleep/acoustic prototype
 
-Port raw-container inspection, versioned event sidecars, clock calibration,
+In a separate experiment repository, port raw-container inspection, versioned event sidecars, clock calibration,
 sensor synchronization, association windows, sham/replay/canary controls, and
 the five acceptance scenarios from Vindication into a `sleep_acoustic` add-on.
 Preserve the old repository as frozen evidence until parity fixtures pass.

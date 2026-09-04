@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import importlib.util
 import re
+from collections.abc import Iterable
 from importlib.metadata import entry_points
+from pathlib import Path
 
 from research_machine.addons.models import AddonManifest, AnalysisMethod
 from research_machine.domain.errors import NotFoundError, ValidationError
@@ -66,11 +70,9 @@ class AddonRegistry:
 
 def default_registry(*, include_installed: bool = True) -> AddonRegistry:
     from research_machine.addons.general_science import MANIFEST as GENERAL
-    from research_machine.addons.physics import MANIFEST as PHYSICS
 
     registry = AddonRegistry()
     registry.register(GENERAL)
-    registry.register(PHYSICS)
     if include_installed:
         discovered = entry_points(group="research_machine.addons")
         for entry_point in sorted(discovered, key=lambda item: item.name):
@@ -81,4 +83,35 @@ def default_registry(*, include_installed: bool = True) -> AddonRegistry:
                     f"add-on entry point {entry_point.name} did not return AddonManifest"
                 )
             registry.register(manifest)
+    return registry
+
+
+def load_local_addons(registry: AddonRegistry, paths: Iterable[Path]) -> AddonRegistry:
+    """Load explicitly named local add-ons without requiring package installation."""
+    for supplied in paths:
+        root = supplied.expanduser().resolve()
+        source = root / "research_addon.py" if root.is_dir() else root
+        if not source.is_file():
+            raise ValidationError(
+                f"local add-on must be a research_addon.py file or containing directory: {supplied}"
+            )
+        digest = hashlib.sha256(str(source).encode()).hexdigest()[:16]
+        module_name = f"research_machine_local_addon_{digest}"
+        specification = importlib.util.spec_from_file_location(module_name, source)
+        if specification is None or specification.loader is None:
+            raise ValidationError(f"could not load local add-on: {source}")
+        module = importlib.util.module_from_spec(specification)
+        try:
+            specification.loader.exec_module(module)
+        except Exception as exc:
+            raise ValidationError(f"local add-on failed to import {source}: {exc}") from exc
+        loaded = getattr(module, "MANIFEST", None)
+        if loaded is None:
+            factory = getattr(module, "get_manifest", None)
+            loaded = factory() if callable(factory) else None
+        if not isinstance(loaded, AddonManifest):
+            raise ValidationError(
+                f"local add-on {source} must expose MANIFEST or get_manifest() returning AddonManifest"
+            )
+        registry.register(loaded)
     return registry

@@ -6,20 +6,19 @@
   "additionalProperties": false,
   "required": ["method", "claim_ceiling"],
   "properties": {
-    "method": {"enum": ["descriptive_summary", "pearson_correlation", "permutation_mean_difference", "pendulum_gravity_estimate"]},
+    "method": {"enum": ["descriptive_summary", "pearson_correlation", "permutation_mean_difference"]},
     "analysis_id": {"type": "string", "minLength": 1},
     "columns": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
     "x_column": {"type": "string", "minLength": 1},
     "y_column": {"type": "string", "minLength": 1},
     "outcome_column": {"type": "string", "minLength": 1},
     "group_column": {"type": "string", "minLength": 1},
-    "length_column": {"type": "string", "minLength": 1},
-    "period_column": {"type": "string", "minLength": 1},
     "groups": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2},
     "permutations": {"type": "integer", "minimum": 100, "maximum": 1000000},
     "seed": {"type": "integer"},
     "missing_data_policy": {"const": "complete_case"},
     "purpose": {"type": "string"},
-    "claim_ceiling": {"type": "string", "minLength": 1}
+    "claim_ceiling": {"type": "string", "minLength": 1},
+    "parameters": {"type": "object"}
   }
 }

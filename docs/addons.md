@@ -22,9 +22,6 @@ Research Machine includes:
 
 - `general_science`: dependency-free CSV summaries, Pearson correlation, and a
   seeded two-group permutation test;
-- `physics`: a packaged pendulum/gravity method plus the synthetic and physical
-  pendulum acceptance campaigns in the source distribution.
-
 Use `research addon list` and `research addon show ADDON_ID` to inspect the
 active capability surface.
 
@@ -58,9 +55,26 @@ Execution is not evidence by itself. For confirmatory work:
 Exploratory execution can happen earlier, but its data and conclusions remain
 exploratory and cannot later be relabeled as confirmatory.
 
-## Third-party add-ons
+## Local experiment add-ons
 
-Python packages may publish an entry point in the
+An experiment repository does not need to publish or install a Python package.
+Place a `research_addon.py` file in its add-on directory and expose either an
+`AddonManifest` named `MANIFEST` or a zero-argument `get_manifest()` function.
+Load it explicitly:
+
+```bash
+research --addon-path /path/to/experiment/addons/example addon list
+research --addon-path /path/to/experiment/addons/example analysis run \
+  --spec-file analysis.json --data-file observations.csv --output artifacts/run-001
+```
+
+Multiple paths may be supplied. `RESEARCH_ADDON_PATH` accepts the platform path
+separator for persistent local configuration. Supplying a path authorizes local
+Python code execution from that exact add-on, so never load an unreviewed path.
+
+## Installed add-ons
+
+Later, Python packages may publish an entry point in the
 `research_machine.addons` group. The loaded object (or zero-argument factory)
 must return `research_machine.addons.AddonManifest`. Identifiers are stable and
 globally unique; duplicate add-on or method identifiers fail closed.
@@ -81,8 +95,8 @@ canonical application services.
 
 ## Planned bundled add-ons
 
-The next add-on should be `sleep_acoustic`, migrated from the frozen Vindication
-prototype. Later candidates include psychology experiment design and
+The next external add-on should be `sleep_acoustic`, migrated from the frozen
+Vindication prototype into its own experiment repository. Later candidates include psychology experiment design and
 randomization, time-series and signal processing, biological assays,
 survey/psychometric validation, causal inference, and literature synthesis.
 Each should be added only with a second-domain regression check so shared logic

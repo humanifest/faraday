@@ -161,7 +161,9 @@ They are discovered through one validated registry and cannot mutate canonical
 state except through application services. The distribution bundles a
 general-science toolkit so a new empirical inquiry can be designed, executed,
 recorded, audited, and synthesized without a second repository. See
-`docs/addons.md` for the extension contract.
+`docs/addons.md` for the extension contract. Live experiments, their workspaces,
+and domain conclusions reside in separate repositories; an explicit local add-on
+path is sufficient during development, so package publication is not required.
 
-The sleep/acoustic campaign remains a useful eventual acceptance suite, not a
-privileged domain model.
+The sleep/acoustic campaign remains a useful eventual external acceptance suite,
+not a privileged domain model or content stored in this repository.

@@ -72,8 +72,10 @@ sensor pipelines, and literature retrieval extend it as add-ons. They do not
 replace its canonical inputs, commitments, gates, evidence rules, or provenance
 model.
 
-Inspect extensions with `research addon list`. Run a bundled, deterministic CSV
-analysis with `research analysis run`; see [scientific add-ons](docs/addons.md)
+Inspect extensions with `research addon list`. Local experiment repositories can
+be connected without publishing or installing a package by passing
+`--addon-path /path/to/addon`. Run a bundled, deterministic CSV analysis with
+`research analysis run`; see [scientific add-ons](docs/addons.md)
 and the [scientific platform roadmap](docs/scientific-platform-roadmap.md).
 
 An optional domain-neutral notebook executor is included for protected local
@@ -272,11 +274,9 @@ The design ideas recovered indirectly from probably deleted Cursor histories,
 and the limits of that provenance, are recorded in
 [docs/recovered-cursor-method.md](docs/recovered-cursor-method.md).
 
-The first domain add-on and end-to-end known-result calibration is the synthetic
-[Newtonian pendulum campaign](campaigns/newtonian_pendulum/README.md). It tests
-competing laws, an independent analysis path, registered exclusions, and
-fail-closed behavior on planted defects while remaining explicitly ineligible
-as scientific evidence.
+Substantive experiments and domain acceptance campaigns live in separate
+repositories. This repository contains only the machine, discipline-neutral
+tools, schemas, and synthetic software-invariant fixtures.
 
 ## Workspace layout
 

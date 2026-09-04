@@ -38,7 +38,8 @@ New domains should extend through three surfaces:
 
 1. a versioned add-on manifest and executor that implements a frozen protocol;
 2. named quality gates whose results can be recorded in a run;
-3. example campaigns used as end-to-end acceptance tests.
+3. example campaigns, stored in the experiment repository, used as end-to-end
+   acceptance tests.
 
 The central rule is simple: improve one engine. A domain prototype may incubate
 an idea, but the idea is complete only after it is generalized into the canonical

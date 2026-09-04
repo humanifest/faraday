@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 
 from research_machine.addons.models import AddonManifest
-from research_machine.addons.registry import AddonRegistry, default_registry
+from research_machine.addons.registry import (
+    AddonRegistry,
+    default_registry,
+    load_local_addons,
+)
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
 
@@ -21,13 +25,10 @@ def _result(capsys) -> object:
 
 def test_default_registry_exposes_general_and_domain_addons() -> None:
     registry = default_registry(include_installed=False)
-    assert [item.addon_id for item in registry.list()] == ["general_science", "physics"]
+    assert [item.addon_id for item in registry.list()] == ["general_science"]
     addon, method = registry.resolve_method("permutation_mean_difference")
     assert addon.addon_id == "general_science"
     assert "seed" in method.required_spec_fields
-    physics, physics_method = registry.resolve_method("pendulum_gravity_estimate")
-    assert physics.addon_id == "physics"
-    assert physics_method.required_spec_fields == ("length_column", "period_column")
 
 
 def test_registry_rejects_duplicate_addon_ids() -> None:
@@ -42,7 +43,7 @@ def test_cli_lists_addons_without_initializing_workspace(tmp_path: Path, capsys)
     workspace = tmp_path / "not-created"
     assert main(["--workspace", str(workspace), "--json", "addon", "list"]) == 0
     values = _result(capsys)
-    assert {item["addon_id"] for item in values} >= {"general_science", "physics"}
+    assert {item["addon_id"] for item in values} >= {"general_science"}
     assert not workspace.exists()
 
 
@@ -83,28 +84,59 @@ def test_general_analysis_is_deterministic_and_non_evidentiary(
     assert receipt["output"]["sha256"] == hashlib.sha256(result_bytes).hexdigest()
 
 
-def test_physics_addon_executes_through_the_same_contract(
+def test_explicit_local_addon_loads_without_installing_a_package(
     tmp_path: Path, capsys
 ) -> None:
-    data = tmp_path / "pendulum.csv"
-    data.write_text("length_m,period_s\n0.25,1.003\n0.50,1.419\n1.00,2.007\n")
-    spec = tmp_path / "analysis.json"
-    spec.write_text(
-        json.dumps(
-            {
-                "method": "pendulum_gravity_estimate",
-                "length_column": "length_m",
-                "period_column": "period_s",
-                "claim_ceiling": "Small-angle model estimate for these trials only.",
-            }
-        )
+    addon = tmp_path / "example-addon"
+    addon.mkdir()
+    (addon / "research_addon.py").write_text(
+        """from research_machine.addons import AddonManifest, AnalysisMethod
+
+def count_rows(spec, rows):
+    return {"n": len(rows)}
+
+MANIFEST = AddonManifest(
+    addon_id="example_domain",
+    name="Example domain",
+    version="1.0.0",
+    discipline="test discipline",
+    description="A local test add-on.",
+    methods=(AnalysisMethod("count_rows", "Count rows", "Count input rows.", (), count_rows),),
+)
+""",
+        encoding="utf-8",
     )
-    output = tmp_path / "physics-output"
-    assert main(["--json", "analysis", "run", "--spec-file", str(spec), "--data-file", str(data), "--output", str(output)]) == 0
+    registry = load_local_addons(
+        default_registry(include_installed=False), [addon]
+    )
+    assert registry.get("example_domain").name == "Example domain"
+
+    data = tmp_path / "data.csv"
+    data.write_text("value\n1\n2\n", encoding="utf-8")
+    spec = tmp_path / "spec.json"
+    spec.write_text(
+        json.dumps({"method": "count_rows", "claim_ceiling": "Row count only."}),
+        encoding="utf-8",
+    )
+    output = tmp_path / "output"
+    assert main(
+        [
+            "--json",
+            "--addon-path",
+            str(addon),
+            "analysis",
+            "run",
+            "--spec-file",
+            str(spec),
+            "--data-file",
+            str(data),
+            "--output",
+            str(output),
+        ]
+    ) == 0
     result = _result(capsys)
-    estimate = result["result"]["result"]["gravity_mean_m_s2"]
-    assert 9.7 < estimate < 9.9
-    assert result["receipt"]["addon"]["addon_id"] == "physics"
+    assert result["result"]["result"] == {"n": 2}
+    assert result["receipt"]["addon"]["addon_id"] == "example_domain"
 
 
 def test_analysis_refuses_overwrite_and_undeclared_claim_ceiling(

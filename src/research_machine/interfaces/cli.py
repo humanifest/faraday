@@ -10,7 +10,7 @@ from typing import Any, Sequence
 
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.addons.execution import execute_analysis
-from research_machine.addons.registry import default_registry
+from research_machine.addons.registry import default_registry, load_local_addons
 from research_machine.application.commands import (
     AddClaim,
     AddQuestion,
@@ -186,6 +186,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Identity recorded in provenance events",
     )
     parser.add_argument("--json", action="store_true", help="Emit stable JSON output")
+    parser.add_argument(
+        "--addon-path",
+        action="append",
+        type=Path,
+        default=[],
+        help=(
+            "Load an explicit local add-on directory or research_addon.py file; "
+            "repeatable and also read from RESEARCH_ADDON_PATH"
+        ),
+    )
     groups = parser.add_subparsers(dest="group", required=True)
 
     workspace = groups.add_parser("workspace", help="Create and verify workspaces")
@@ -956,15 +966,21 @@ def _cross_lane_lesson_command(spec: dict[str, Any]) -> RecordCrossLaneLesson:
 
 
 def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
+    configured_paths = [
+        Path(value)
+        for value in os.environ.get("RESEARCH_ADDON_PATH", "").split(os.pathsep)
+        if value
+    ]
+    configured_paths.extend(args.addon_path)
+    registry = load_local_addons(default_registry(), configured_paths)
     if args.group == "addon":
-        registry = default_registry()
         if args.action == "list":
             return [manifest.describe() for manifest in registry.list()]
         return registry.get(args.addon_id).describe()
 
     if args.group == "analysis" and args.action == "run":
         return execute_analysis(
-            registry=default_registry(),
+            registry=registry,
             spec_path=args.spec_file,
             data_path=args.data_file,
             output_dir=args.output,

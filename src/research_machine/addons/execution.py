@@ -23,14 +23,13 @@ _SPEC_FIELDS = {
     "y_column",
     "outcome_column",
     "group_column",
-    "length_column",
-    "period_column",
     "groups",
     "permutations",
     "seed",
     "missing_data_policy",
     "purpose",
     "claim_ceiling",
+    "parameters",
 }
 
 

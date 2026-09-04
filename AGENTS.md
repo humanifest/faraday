@@ -88,6 +88,15 @@ canonical write path.
 
 ## Engineering boundaries
 
+- This repository develops the Research Machine, not any substantive research
+  project. Do not place live hypotheses, study protocols, collected data,
+  experiment workspaces, or domain conclusions here. Keep those in a separate
+  experiment repository and connect them with `--addon-path` or
+  `RESEARCH_ADDON_PATH`.
+- Machine tests may contain synthetic fixtures that test software invariants.
+  They must be labeled as fixtures and must not become a parallel research
+  record. Domain acceptance campaigns belong with their experiment/add-on.
+
 - Domain and application modules must not import Codex, OpenAI, an LLM SDK, the
   CLI, HTTP frameworks, or storage implementations.
 - Codex is a client/orchestrator, not a hidden dependency. Future agents and UIs
@@ -98,7 +107,8 @@ canonical write path.
   them later but must not replace or silently mutate canonical evidence.
 - Keep discipline-specific semantics in validated add-ons. Research Machine must
   remain one self-contained tool: it ships a general-science execution toolkit,
-  discovers optional add-ons through `research_machine.addons`, and receives all
+  discovers installed or explicitly supplied local add-ons through
+  `research_machine.addons`, and receives all
   add-on outputs through the same dataset, protocol, run, evidence, and ledger
   contracts.
 - An add-on may provide readers, instrument adapters, analysis methods,
