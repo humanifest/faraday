@@ -580,6 +580,9 @@ class ActionCandidate(Serializable):
     rationale: str
     prerequisites_met: bool = True
     safety_approved: bool = True
+    lane_id: str = "default"
+    information_targets: list[str] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -612,6 +615,18 @@ class ActionScore(Serializable):
 
 
 @dataclass(frozen=True)
+class ActionLane(Serializable):
+    lane_id: str
+    title: str
+    status: str = "active"
+    blocked_on: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "ActionLane":
+        return cls(**value)
+
+
+@dataclass(frozen=True)
 class ActionRecommendation(Serializable):
     recommendation_id: str
     selected_action_id: str
@@ -621,6 +636,10 @@ class ActionRecommendation(Serializable):
     candidates: list[ActionCandidate]
     ranked_scores: list[ActionScore]
     weights: SelectionWeights
+    selection_mode: str = "single"
+    selected_action_ids_by_lane: dict[str, str] = field(default_factory=dict)
+    lanes: list[ActionLane] = field(default_factory=list)
+    completed_action_ids: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "ActionRecommendation":
@@ -632,4 +651,7 @@ class ActionRecommendation(Serializable):
             ActionCandidate.from_dict(item) for item in copied.get("candidates", [])
         ]
         copied["weights"] = SelectionWeights.from_dict(copied.get("weights", {}))
+        copied["lanes"] = [
+            ActionLane.from_dict(item) for item in copied.get("lanes", [])
+        ]
         return cls(**copied)

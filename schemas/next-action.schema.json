@@ -13,7 +13,8 @@
         "properties": {
           "action_id": {"type": "string", "minLength": 1},
           "title": {"type": "string", "minLength": 1},
-          "distinguishes_hypotheses": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+          "distinguishes_hypotheses": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+          "information_targets": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true, "default": []},
           "expected_discrimination": {"type": "number", "minimum": 0, "maximum": 1},
           "uncertainty_reduction": {"type": "number", "minimum": 0, "maximum": 1},
           "cost": {"type": "number", "minimum": 0, "maximum": 1},
@@ -23,8 +24,14 @@
           "rationale": {"type": "string", "minLength": 1},
           "prerequisites_met": {"type": "boolean", "default": true},
           "safety_approved": {"type": "boolean", "default": true},
+          "lane_id": {"type": "string", "minLength": 1, "default": "default"},
+          "depends_on": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true, "default": []},
           "metadata": {"type": "object"}
         },
+        "anyOf": [
+          {"properties": {"distinguishes_hypotheses": {"minItems": 1}}},
+          {"required": ["information_targets"], "properties": {"information_targets": {"minItems": 1}}}
+        ],
         "additionalProperties": false
       }
     },

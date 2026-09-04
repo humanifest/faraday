@@ -203,11 +203,22 @@ The general execution loop uses JSON contracts:
   --validation-tag controlled_benchmark --confirmatory
 ./research --workspace .research next-action recommend \
   --spec-file examples/next-actions.json
+./research --workspace .research next-action portfolio \
+  --spec-file examples/next-action-portfolio.json
 ./research --workspace .research workspace audit --fail-on error
 ```
 
 Replace the placeholder IDs and hashes in the examples with values from the
 active inquiry and the actual code, environment, and artifacts.
+
+Use `next-action portfolio` when independent workstreams must advance in the
+same cycle. It validates explicit action dependencies, selects one safe and
+currently feasible action per active lane, and fails rather than borrowing a
+second action from another lane. Externally blocked lanes must be marked
+`blocked` with a nonempty `blocked_on` reason. Infrastructure actions may name
+typed `information_targets` instead of pretending to distinguish a scientific
+hypothesis. The resulting recommendation remains an immutable, ledgered record;
+it does not establish scientific independence or satisfy a promotion gate.
 
 `run template` and `run preflight` are read-only. The template deliberately
 contains invalid placeholders and skipped gates so it cannot be mistaken for an

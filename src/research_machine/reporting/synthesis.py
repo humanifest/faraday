@@ -291,17 +291,32 @@ def build_synthesis(
             f"- Parked hypotheses: {len(parked)}",
             f"- Active hypotheses: {len(active)}",
             f"- Evidence records: {len(evidence)}",
-            (
-                "- Selected next action: "
-                + recommendations[-1].selected_action_id
-                + " — "
-                + recommendations[-1].rationale
-                if recommendations
-                else "- No next action has been selected. Candidate actions should "
-                "distinguish surviving models rather than merely seek support for a "
-                "preferred explanation."
-            ),
+            _recommendation_summary(recommendations),
             "",
         ]
     )
     return "\n".join(lines)
+
+
+def _recommendation_summary(
+    recommendations: list[ActionRecommendation],
+) -> str:
+    if not recommendations:
+        return (
+            "- No next action has been selected. Candidate actions should "
+            "distinguish surviving models rather than merely seek support for a "
+            "preferred explanation."
+        )
+    latest = recommendations[-1]
+    if latest.selection_mode == "portfolio":
+        selected = "; ".join(
+            f"{lane_id}: {action_id}"
+            for lane_id, action_id in latest.selected_action_ids_by_lane.items()
+        )
+        return "- Selected next actions by lane: " + selected
+    return (
+        "- Selected next action: "
+        + latest.selected_action_id
+        + " — "
+        + latest.rationale
+    )

@@ -14,6 +14,7 @@ from research_machine.application.commands import (
     CreateProtocol,
     CreateInquiry,
     ProposeHypothesis,
+    RecommendActionPortfolio,
     RecommendNextAction,
     RecordEvidence,
     RecordRun,
@@ -31,12 +32,14 @@ from research_machine.application.policies import (
     require_unique_text_list,
     require_sha256,
     validate_action_candidates,
+    validate_action_lanes,
     validate_dataset_artifacts,
     validate_evidence_annotations,
     validate_evidence_target,
     validate_hypothesis_activation,
     validate_hypothesis_staging,
     validate_protocol_freeze,
+    validate_portfolio_action_candidates,
     validate_quality_gates,
     validate_selection_weights,
     validate_validation_tag_context,
@@ -71,7 +74,7 @@ from research_machine.domain.models import (
 )
 from research_machine.ports.repository import WorkspaceRepository
 from research_machine.reporting.synthesis import build_synthesis
-from research_machine.selection import rank_actions
+from research_machine.selection import rank_actions, rank_actions_by_lane
 
 
 def utc_now() -> str:
@@ -1320,6 +1323,71 @@ class ResearchService:
         self._event(
             resolved,
             "next-action.recommend",
+            "recommendation",
+            recommendation.recommendation_id,
+            recommendation.to_dict(),
+        )
+        return recommendation
+
+    def recommend_action_portfolio(
+        self, command: RecommendActionPortfolio, inquiry_id: str | None = None
+    ) -> ActionRecommendation:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        researchable_hypotheses = {
+            hypothesis.hypothesis_id
+            for hypothesis in self.repository.list_hypotheses(resolved)
+            if hypothesis.workflow_state
+            in {
+                HypothesisWorkflowState.PENDING_REVIEW,
+                HypothesisWorkflowState.ACTIVE,
+            }
+        }
+        lanes = validate_action_lanes(command.lanes)
+        candidates, completed = validate_portfolio_action_candidates(
+            command.candidates,
+            researchable_hypotheses,
+            lanes,
+            command.completed_action_ids,
+        )
+        weights = validate_selection_weights(command.weights)
+        rankings = rank_actions_by_lane(candidates, lanes, completed, weights)
+        selected_by_lane = {
+            lane.lane_id: rankings[lane.lane_id][0].action_id
+            for lane in lanes
+            if lane.status == "active"
+        }
+        ranked_scores = [
+            score
+            for lane in lanes
+            if lane.status == "active"
+            for score in rankings[lane.lane_id]
+        ]
+        selected_candidates = {
+            candidate.action_id: candidate for candidate in candidates
+        }
+        selected_ids = list(selected_by_lane.values())
+        rationale = "; ".join(
+            f"{lane_id}: {selected_candidates[action_id].rationale}"
+            for lane_id, action_id in selected_by_lane.items()
+        )
+        recommendation = ActionRecommendation(
+            recommendation_id=f"rec-{self.token()}",
+            selected_action_id=selected_ids[0],
+            created_at=self.clock(),
+            created_by=self.actor,
+            rationale=rationale,
+            candidates=candidates,
+            ranked_scores=ranked_scores,
+            weights=weights,
+            selection_mode="portfolio",
+            selected_action_ids_by_lane=selected_by_lane,
+            lanes=lanes,
+            completed_action_ids=completed,
+        )
+        self.repository.save_recommendation(resolved, recommendation)
+        self._event(
+            resolved,
+            "next-action.portfolio",
             "recommendation",
             recommendation.recommendation_id,
             recommendation.to_dict(),

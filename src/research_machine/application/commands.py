@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from research_machine.domain.models import (
     ActionCandidate,
+    ActionLane,
     AnalysisMode,
     ClaimDisposition,
     ClaimEpistemicLayer,
@@ -202,4 +203,12 @@ class RecordRun:
 @dataclass(frozen=True)
 class RecommendNextAction:
     candidates: list[ActionCandidate]
+    weights: SelectionWeights = field(default_factory=SelectionWeights)
+
+
+@dataclass(frozen=True)
+class RecommendActionPortfolio:
+    lanes: list[ActionLane]
+    candidates: list[ActionCandidate]
+    completed_action_ids: list[str] = field(default_factory=list)
     weights: SelectionWeights = field(default_factory=SelectionWeights)

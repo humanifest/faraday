@@ -5,6 +5,7 @@ import re
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     ActionCandidate,
+    ActionLane,
     AnalysisMode,
     DatasetManifest,
     DatasetArtifact,
@@ -628,9 +629,13 @@ def validate_action_candidates(
         hypotheses = require_text_list(
             candidate.distinguishes_hypotheses, "distinguishes_hypotheses"
         )
-        if not hypotheses:
+        information_targets = require_unique_text_list(
+            candidate.information_targets, "information_targets"
+        )
+        if not hypotheses and not information_targets:
             raise ValidationError(
-                f"action {action_id} must distinguish at least one hypothesis"
+                f"action {action_id} must distinguish at least one hypothesis or "
+                "name at least one information target"
             )
         if len(set(hypotheses)) != len(hypotheses):
             raise ValidationError(
@@ -654,6 +659,7 @@ def validate_action_candidates(
             raise ValidationError("safety_approved must be true or false")
         if not isinstance(candidate.metadata, dict):
             raise ValidationError("action metadata must be an object")
+        depends_on = require_unique_text_list(candidate.depends_on, "depends_on")
         seen.add(action_id)
         normalized.append(
             ActionCandidate(
@@ -669,10 +675,105 @@ def validate_action_candidates(
                 rationale=require_text(candidate.rationale, "action rationale"),
                 prerequisites_met=candidate.prerequisites_met,
                 safety_approved=candidate.safety_approved,
+                lane_id=require_text(candidate.lane_id, "lane_id"),
+                information_targets=information_targets,
+                depends_on=depends_on,
                 metadata=dict(candidate.metadata),
             )
         )
     return normalized
+
+
+def validate_action_lanes(lanes: Sequence[ActionLane]) -> list[ActionLane]:
+    if isinstance(lanes, (str, bytes)) or not isinstance(lanes, Sequence):
+        raise ValidationError("lanes must be a list")
+    if not lanes:
+        raise ValidationError("at least one action lane is required")
+    normalized: list[ActionLane] = []
+    seen: set[str] = set()
+    for lane in lanes:
+        if not isinstance(lane, ActionLane):
+            raise ValidationError("lanes must contain ActionLane values")
+        lane_id = require_text(lane.lane_id, "lane_id")
+        if lane_id in seen:
+            raise ValidationError(f"duplicate lane_id: {lane_id}")
+        status = require_text(lane.status, "lane status")
+        if status not in {"active", "blocked"}:
+            raise ValidationError("lane status must be active or blocked")
+        blocked_on = require_unique_text_list(lane.blocked_on, "blocked_on")
+        if status == "active" and blocked_on:
+            raise ValidationError(f"active lane {lane_id} cannot declare blocked_on")
+        if status == "blocked" and not blocked_on:
+            raise ValidationError(f"blocked lane {lane_id} must declare blocked_on")
+        seen.add(lane_id)
+        normalized.append(
+            ActionLane(
+                lane_id=lane_id,
+                title=require_text(lane.title, "lane title"),
+                status=status,
+                blocked_on=blocked_on,
+            )
+        )
+    if not any(lane.status == "active" for lane in normalized):
+        raise ValidationError("at least one action lane must be active")
+    return normalized
+
+
+def validate_portfolio_action_candidates(
+    candidates: Sequence[ActionCandidate],
+    known_hypotheses: set[str],
+    lanes: Sequence[ActionLane],
+    completed_action_ids: Sequence[str],
+) -> tuple[list[ActionCandidate], list[str]]:
+    normalized = validate_action_candidates(candidates, known_hypotheses)
+    lane_ids = {lane.lane_id for lane in lanes}
+    for candidate in normalized:
+        if candidate.lane_id not in lane_ids:
+            raise ValidationError(
+                f"action {candidate.action_id} references unknown lane: "
+                f"{candidate.lane_id}"
+            )
+
+    action_ids = {candidate.action_id for candidate in normalized}
+    completed = require_unique_text_list(completed_action_ids, "completed_action_ids")
+    unknown_completed = sorted(set(completed) - action_ids)
+    if unknown_completed:
+        raise ValidationError(
+            "completed_action_ids reference unknown actions: "
+            + ", ".join(unknown_completed)
+        )
+    for candidate in normalized:
+        unknown_dependencies = sorted(set(candidate.depends_on) - action_ids)
+        if unknown_dependencies:
+            raise ValidationError(
+                f"action {candidate.action_id} has unknown dependencies: "
+                + ", ".join(unknown_dependencies)
+            )
+        if candidate.action_id in candidate.depends_on:
+            raise ValidationError(
+                f"action {candidate.action_id} cannot depend on itself"
+            )
+
+    dependencies = {
+        candidate.action_id: set(candidate.depends_on) for candidate in normalized
+    }
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(action_id: str) -> None:
+        if action_id in visiting:
+            raise ValidationError("action dependency graph contains a cycle")
+        if action_id in visited:
+            return
+        visiting.add(action_id)
+        for dependency in dependencies[action_id]:
+            visit(dependency)
+        visiting.remove(action_id)
+        visited.add(action_id)
+
+    for action_id in sorted(dependencies):
+        visit(action_id)
+    return normalized, completed
 
 
 def validate_selection_weights(weights: SelectionWeights) -> SelectionWeights:

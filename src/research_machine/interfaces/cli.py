@@ -15,6 +15,7 @@ from research_machine.application.commands import (
     CreateProtocol,
     CreateInquiry,
     ProposeHypothesis,
+    RecommendActionPortfolio,
     RecommendNextAction,
     RecordEvidence,
     RecordRun,
@@ -27,6 +28,7 @@ from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.domain.models import (
     ActionCandidate,
+    ActionLane,
     AnalysisMode,
     ClaimDisposition,
     ClaimEpistemicLayer,
@@ -137,6 +139,12 @@ _RUN_FIELDS = {
 }
 
 _ACTION_SPEC_FIELDS = {"candidates", "weights"}
+_ACTION_PORTFOLIO_SPEC_FIELDS = {
+    "lanes",
+    "candidates",
+    "completed_action_ids",
+    "weights",
+}
 
 
 def _add_inquiry_option(parser: argparse.ArgumentParser) -> None:
@@ -439,6 +447,11 @@ def build_parser() -> argparse.ArgumentParser:
     recommend = next_action_commands.add_parser("recommend")
     recommend.add_argument("--spec-file", type=Path, required=True)
     _add_inquiry_option(recommend)
+    portfolio = next_action_commands.add_parser(
+        "portfolio", help="Select one safe, feasible action per active lane"
+    )
+    portfolio.add_argument("--spec-file", type=Path, required=True)
+    _add_inquiry_option(portfolio)
     recommendation_list = next_action_commands.add_parser("list")
     _add_inquiry_option(recommendation_list)
 
@@ -805,7 +818,7 @@ def _run_command(
     )
 
 
-def _recommendation_command(spec: dict[str, Any]) -> RecommendNextAction:
+def _action_candidates(spec: dict[str, Any]) -> list[ActionCandidate]:
     candidate_values = spec.get("candidates")
     if not isinstance(candidate_values, list):
         raise ValueError("candidates must be an array")
@@ -823,6 +836,9 @@ def _recommendation_command(spec: dict[str, Any]) -> RecommendNextAction:
         "rationale",
         "prerequisites_met",
         "safety_approved",
+        "lane_id",
+        "information_targets",
+        "depends_on",
         "metadata",
     }
     for value in candidate_values:
@@ -835,14 +851,52 @@ def _recommendation_command(spec: dict[str, Any]) -> RecommendNextAction:
             candidates.append(ActionCandidate.from_dict(value))
         except TypeError as exc:
             raise ValueError(f"invalid action candidate: {exc}") from exc
+    return candidates
+
+
+def _selection_weights(spec: dict[str, Any]) -> SelectionWeights:
     weight_value = spec.get("weights", {})
     if not isinstance(weight_value, dict):
         raise ValueError("weights must be an object")
     try:
-        weights = SelectionWeights.from_dict(weight_value)
+        return SelectionWeights.from_dict(weight_value)
     except TypeError as exc:
         raise ValueError(f"invalid selection weights: {exc}") from exc
-    return RecommendNextAction(candidates=candidates, weights=weights)
+
+
+def _recommendation_command(spec: dict[str, Any]) -> RecommendNextAction:
+    return RecommendNextAction(
+        candidates=_action_candidates(spec), weights=_selection_weights(spec)
+    )
+
+
+def _portfolio_recommendation_command(
+    spec: dict[str, Any],
+) -> RecommendActionPortfolio:
+    lane_values = spec.get("lanes")
+    if not isinstance(lane_values, list):
+        raise ValueError("lanes must be an array")
+    lanes: list[ActionLane] = []
+    fields = {"lane_id", "title", "status", "blocked_on"}
+    for value in lane_values:
+        if not isinstance(value, dict):
+            raise ValueError("each lane must be an object")
+        unknown = sorted(set(value) - fields)
+        if unknown:
+            raise ValueError("unknown lane fields: " + ", ".join(unknown))
+        try:
+            lanes.append(ActionLane.from_dict(value))
+        except TypeError as exc:
+            raise ValueError(f"invalid action lane: {exc}") from exc
+    completed = spec.get("completed_action_ids", [])
+    if not isinstance(completed, list):
+        raise ValueError("completed_action_ids must be an array")
+    return RecommendActionPortfolio(
+        lanes=lanes,
+        candidates=_action_candidates(spec),
+        completed_action_ids=completed,
+        weights=_selection_weights(spec),
+    )
 
 
 def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
@@ -1132,6 +1186,15 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             )
             return service.recommend_next_action(
                 _recommendation_command(spec), args.inquiry
+            ).to_dict()
+        if args.action == "portfolio":
+            spec = _read_json_object(
+                args.spec_file,
+                allowed_fields=_ACTION_PORTFOLIO_SPEC_FIELDS,
+                label="next-action portfolio",
+            )
+            return service.recommend_action_portfolio(
+                _portfolio_recommendation_command(spec), args.inquiry
             ).to_dict()
         return [item.to_dict() for item in service.list_recommendations(args.inquiry)]
 

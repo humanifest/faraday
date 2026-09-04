@@ -50,6 +50,91 @@ def test_json_cli_rejects_duplicate_keys_and_nonfinite_numbers(
         assert expected in error["error"]["message"]
 
 
+def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> None:
+    workspace = tmp_path / "workspace"
+    global_args = ["--workspace", str(workspace), "--json"]
+    assert main([*global_args, "workspace", "init"]) == 0
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "inquiry",
+                "create",
+                "--id",
+                "parallel-research",
+                "--title",
+                "Parallel research",
+                "--statement",
+                "Can multiple lanes advance without starvation?",
+            ]
+        )
+        == 0
+    )
+    result_from(capsys)
+
+    spec = tmp_path / "portfolio.json"
+    spec.write_text(
+        json.dumps(
+            {
+                "lanes": [
+                    {"lane_id": "machine", "title": "Machine"},
+                    {"lane_id": "science", "title": "Science"},
+                ],
+                "candidates": [
+                    {
+                        "action_id": "machine-audit",
+                        "title": "Audit machine",
+                        "distinguishes_hypotheses": [],
+                        "information_targets": ["machine:false-acceptance"],
+                        "expected_discrimination": 0.9,
+                        "uncertainty_reduction": 0.8,
+                        "cost": 0.2,
+                        "burden": 0.1,
+                        "safety_risk": 0.0,
+                        "ambiguity_risk": 0.1,
+                        "rationale": "Probe a machine invariant.",
+                        "lane_id": "machine",
+                    },
+                    {
+                        "action_id": "science-falsifier",
+                        "title": "Run falsifier",
+                        "distinguishes_hypotheses": [],
+                        "information_targets": ["science:first-failing-gate"],
+                        "expected_discrimination": 0.7,
+                        "uncertainty_reduction": 0.6,
+                        "cost": 0.2,
+                        "burden": 0.1,
+                        "safety_risk": 0.0,
+                        "ambiguity_risk": 0.1,
+                        "rationale": "Probe the cheapest scientific failure.",
+                        "lane_id": "science",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        main(
+            [
+                *global_args,
+                "next-action",
+                "portfolio",
+                "--spec-file",
+                str(spec),
+            ]
+        )
+        == 0
+    )
+    recommendation = result_from(capsys)
+    assert recommendation["selection_mode"] == "portfolio"
+    assert recommendation["selected_action_ids_by_lane"] == {
+        "machine": "machine-audit",
+        "science": "science-falsifier",
+    }
+
+
 def test_json_cli_accepts_structured_hypothesis_proposals(
     tmp_path: Path, capsys
 ) -> None:
