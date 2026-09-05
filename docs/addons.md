@@ -20,8 +20,9 @@ provenance contracts. Add-ons cannot promote a claim or bypass review.
 
 Research Machine includes:
 
-- `general_science`: dependency-free CSV summaries, Pearson correlation, and a
-  seeded two-group permutation test;
+- `general_science`: dependency-free CSV summaries, Pearson correlation, a
+  seeded two-group permutation test, and design-bound bootstrap estimation for
+  independent or paired two-group comparisons;
 Use `research addon list` and `research addon show ADDON_ID` to inspect the
 active capability surface.
 
@@ -54,6 +55,13 @@ Execution is not evidence by itself. For confirmatory work:
 
 Exploratory execution can happen earlier, but its data and conclusions remain
 exploratory and cannot later be relabeled as confirmatory.
+
+The bundled estimators require an explicit `study_design`. An
+`independent_mean_difference_ci` refuses an undeclared or paired design; a
+`paired_mean_difference_ci` requires one observation for each registered group
+per pair identifier and refuses incomplete or duplicate pairs. Their bootstrap
+intervals and standardized effects quantify uncertainty but do not establish
+causality, generalizability, or mechanism.
 
 ## Local experiment add-ons
 

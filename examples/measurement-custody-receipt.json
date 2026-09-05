@@ -1,0 +1,43 @@
+{
+  "receipt_id": "example-light-meter-custody-v1",
+  "raw_sources": [
+    {
+      "locator": "raw/light-meter-export.csv",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "captured_at": "2026-09-04T12:00:00Z",
+      "acquisition_method": "Instrument export"
+    }
+  ],
+  "transformations": [
+    {
+      "transformation_id": "normalize-light-meter-export",
+      "version": "1.0.0",
+      "implementation_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "input_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "output_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "calibrations": [
+    {
+      "calibration_id": "light-meter-reference-check",
+      "reference": "Traceable reference lamp",
+      "performed_at": "2026-09-04T11:45:00Z",
+      "result": "Residual within the predeclared tolerance.",
+      "status": "passed"
+    }
+  ],
+  "quality_gates": [
+    {
+      "gate_id": "light-meter-calibration",
+      "status": "passed",
+      "summary": "Reference-lamp check passed."
+    }
+  ],
+  "derived_observations": [
+    {
+      "observation_id": "illuminance-at-pot",
+      "definition": "Normalized illuminance at the pot position.",
+      "source_output_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ]
+}

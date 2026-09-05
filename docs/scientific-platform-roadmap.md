@@ -25,6 +25,14 @@ multiple-testing adjustments, random assignment generation, missingness reports,
 and publication-quality tables and plots. Every method needs frozen assumptions,
 units, deterministic fixtures, adversarial cases, and explicit claim ceilings.
 
+Initial delivery: the bundled general-science add-on now provides deterministic
+bootstrap confidence intervals and standardized effects for registered,
+two-group independent and paired designs. The independent estimator rejects a
+paired declaration; the paired estimator requires explicit pair identifiers and
+rejects incomplete or duplicate pairs. These methods estimate bounded effects;
+they do not establish causality or replace design, measurement, or sampling
+gates.
+
 Completion criterion: a small observational or randomized two-group study can be
 planned, frozen, analyzed, recorded, audited, and packaged using only the
 installed Research Machine distribution.
@@ -48,6 +56,29 @@ stopping rules, and falsifiers; then emits reviewable inquiry, hypothesis,
 measurement, protocol, data-dictionary, and run-record drafts. Add a local job
 runner for allow-listed add-on methods and a portable replication-package
 exporter.
+
+Initial delivery: `research design scaffold` accepts a bounded plain-language
+brief and emits review-only hypothesis, protocol, data-dictionary, and
+collection-plan drafts plus a deterministic design audit. It fail-closes human
+participant work missing consent, privacy, risk, or independent review, and
+flags unresolved causal comparisons, measurement units, calibration, controls,
+confounds, analysis commitments, and stopping rules. It is not yet a
+conversational interface, a repository creator, a power calculator, or a
+protocol-registration workflow.
+
+Measurement-custody delivery: frozen protocols with calibration requirements
+must declare their required custody gates. Before protected datasets bind to
+such a protocol, the machine validates an immutable raw-source list, ordered
+hash-pinned transformations, passed calibration records, passed gates, and
+derived-observation lineage. This is provider-free and can be used through the
+CLI today; persisted standalone custody receipts and instrument adapters remain
+next work.
+
+Ethics-gate delivery: a human-subject protocol cannot freeze until its consent,
+withdrawal, privacy, retention/deletion, and risk plans are explicit and it
+records a qualified independent-review receipt. The machine does not judge or
+substitute for qualified review; it prevents an absent review record from being
+silently treated as clearance.
 
 Completion criterion: a new experiment can be initialized without manually
 authoring JSON while no generated hypothesis or protocol silently becomes

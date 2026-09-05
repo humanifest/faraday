@@ -47,6 +47,7 @@ from research_machine.application.policies import (
     validate_validation_tag_context,
 )
 from research_machine.application.rigor import audit_research_state
+from research_machine.measurement.custody import validate_measurement_custody
 from research_machine.domain.errors import ConflictError, NotFoundError, ValidationError
 from research_machine.domain.models import (
     ActionRecommendation,
@@ -781,6 +782,11 @@ class ResearchService:
                 raise ValidationError(
                     f"dataset role {command.role.value} does not match protocol mode "
                     f"{protocol.analysis_mode.value}"
+                )
+            if protocol.measurement_custody_requirements:
+                validate_measurement_custody(
+                    command.metadata.get("measurement_custody"),
+                    protocol.measurement_custody_requirements,
                 )
         elif command.role in protected_roles:
             raise ValidationError(
@@ -1828,6 +1834,10 @@ class ResearchService:
             calibration_requirements=require_text_list(
                 command.calibration_requirements, "calibration_requirements"
             ),
+            measurement_custody_requirements=require_text_list(
+                command.measurement_custody_requirements,
+                "measurement_custody_requirements",
+            ),
             clock_accuracy_requirement=normalize_text(
                 command.clock_accuracy_requirement, "clock_accuracy_requirement"
             ),
@@ -1851,6 +1861,17 @@ class ResearchService:
             ),
             safety_constraints=require_text_list(
                 command.safety_constraints, "safety_constraints"
+            ),
+            human_subjects=command.human_subjects,
+            consent_plan=normalize_text(command.consent_plan, "consent_plan"),
+            withdrawal_plan=normalize_text(command.withdrawal_plan, "withdrawal_plan"),
+            privacy_plan=normalize_text(command.privacy_plan, "privacy_plan"),
+            retention_deletion_plan=normalize_text(
+                command.retention_deletion_plan, "retention_deletion_plan"
+            ),
+            risk_assessment=normalize_text(command.risk_assessment, "risk_assessment"),
+            independent_review_receipt=normalize_text(
+                command.independent_review_receipt, "independent_review_receipt"
             ),
             analysis_code_hash=normalize_text(
                 command.analysis_code_hash, "analysis_code_hash"

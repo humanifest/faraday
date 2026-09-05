@@ -11,6 +11,44 @@ explanations alive, separates levels of inference, records scoped evidence, and
 preserves rejected hypotheses with the conditions under which they should be
 reconsidered.
 
+## Guided design scaffold
+
+`research design scaffold` turns a small, plain-language JSON brief into
+review-only hypothesis, protocol, data-dictionary, and collection-plan drafts.
+It also gives plain-language structural findings for causal identification,
+measurement units and calibration, controls, confounds, stopping rules, and
+human-participant safeguards. It never creates canonical state, activates a
+hypothesis, freezes a protocol, or authorizes data collection.
+
+```bash
+./research --json design scaffold --brief-file examples/design-brief.json
+```
+
+The output is deliberately marked `review_required` even when no structural
+blocker is found. Human-participant drafts fail closed until consent, privacy,
+risk, and qualified independent-review fields are supplied.
+
+For human-subject protocols, the freeze gate separately requires a consent
+plan, withdrawal plan, privacy plan, retention/deletion plan, risk assessment,
+and a qualified independent-review receipt. These are scientific and safety
+requirements, not a declaration that the machine can grant ethical approval.
+
+## Measurement custody
+
+Protected datasets may bind a raw-to-derived custody receipt to a frozen
+protocol. A receipt names immutable raw-source hashes, ordered and
+implementation-hashed transformations, passed calibration results, passed
+quality gates, and the exact transformation output behind each derived
+observation. A protocol with calibration requirements must name the custody
+gates it requires; protected dataset registration fails unless its receipt
+satisfies them. The receipt can be inspected before registration without any
+network service or LLM:
+
+```bash
+./research --json measurement validate --receipt-file custody-receipt.json \
+  --require-gate clock-sync
+```
+
 ## What works now
 
 - Create and select inquiries from an initial statement such as “I think …”.
@@ -144,7 +182,7 @@ preflight and record commands; details and the supported schema profile are in
 No installation or network access is required during development:
 
 ```bash
-cd /Users/admin/dev/research-machine
+cd /Users/admin/dev/faraday
 ./research --workspace .research workspace init
 ./research --workspace .research inquiry create \
   --id ai-hiring-bias \

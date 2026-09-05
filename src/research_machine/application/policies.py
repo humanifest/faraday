@@ -487,6 +487,20 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         missing.append("failure_conditions")
     if not protocol.safety_constraints:
         missing.append("safety_constraints")
+    if not isinstance(protocol.human_subjects, bool):
+        raise ValidationError("human_subjects must be true or false")
+    if protocol.human_subjects:
+        for field in (
+            "consent_plan",
+            "withdrawal_plan",
+            "privacy_plan",
+            "retention_deletion_plan",
+            "risk_assessment",
+            "independent_review_receipt",
+        ):
+            value = getattr(protocol, field)
+            if not isinstance(value, str) or not value.strip():
+                missing.append(field)
     if not protocol.expected_outputs:
         missing.append("expected_outputs")
     if not protocol.success_conditions:
@@ -495,6 +509,14 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         raise ValidationError("quality_requirements must not contain duplicates")
     if protocol.measurement_definitions:
         validate_measurement_contract(protocol)
+    if len(set(protocol.measurement_custody_requirements)) != len(
+        protocol.measurement_custody_requirements
+    ):
+        raise ValidationError("measurement_custody_requirements must not contain duplicates")
+    for gate_id in protocol.measurement_custody_requirements:
+        require_text(gate_id, "measurement_custody_requirements item")
+    if protocol.calibration_requirements and not protocol.measurement_custody_requirements:
+        missing.append("measurement_custody_requirements")
     if (
         protocol.protocol_kind
         in {

@@ -29,6 +29,8 @@ from research_machine.application.commands import (
 )
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ResearchMachineError
+from research_machine.design.scaffold import scaffold_design
+from research_machine.measurement.custody import validate_measurement_custody
 from research_machine.domain.models import (
     ActionCandidate,
     ActionLane,
@@ -112,6 +114,7 @@ _PROTOCOL_FIELDS = {
     "exclusion_rules",
     "sensor_requirements",
     "calibration_requirements",
+    "measurement_custody_requirements",
     "clock_accuracy_requirement",
     "preprocessing_pipeline",
     "statistical_model",
@@ -120,6 +123,13 @@ _PROTOCOL_FIELDS = {
     "missing_data_policy",
     "failure_conditions",
     "safety_constraints",
+    "human_subjects",
+    "consent_plan",
+    "withdrawal_plan",
+    "privacy_plan",
+    "retention_deletion_plan",
+    "risk_assessment",
+    "independent_review_receipt",
     "analysis_code_hash",
     "external_anchor",
     "random_seed_commitment",
@@ -560,6 +570,21 @@ def build_parser() -> argparse.ArgumentParser:
     analysis_run.add_argument("--spec-file", type=Path, required=True)
     analysis_run.add_argument("--data-file", type=Path, required=True)
     analysis_run.add_argument("--output", type=Path, required=True)
+
+    design = groups.add_parser("design", help="Create review-only experiment drafts and audit their structure")
+    design_commands = design.add_subparsers(dest="action", required=True)
+    design_scaffold = design_commands.add_parser("scaffold", help="Generate a review-only study scaffold from a plain JSON brief")
+    design_scaffold.add_argument("--brief-file", type=Path, required=True)
+
+    measurement = groups.add_parser(
+        "measurement", help="Validate raw-to-derived custody before data registration"
+    )
+    measurement_commands = measurement.add_subparsers(dest="action", required=True)
+    measurement_validate = measurement_commands.add_parser(
+        "validate", help="Validate a provider-free measurement custody receipt"
+    )
+    measurement_validate.add_argument("--receipt-file", type=Path, required=True)
+    measurement_validate.add_argument("--require-gate", action="append", default=[])
     return parser
 
 
@@ -711,6 +736,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         "exclusion_rules",
         "sensor_requirements",
         "calibration_requirements",
+        "measurement_custody_requirements",
         "control_windows",
         "failure_conditions",
         "safety_constraints",
@@ -792,6 +818,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             exclusion_rules=lists["exclusion_rules"],
             sensor_requirements=lists["sensor_requirements"],
             calibration_requirements=lists["calibration_requirements"],
+            measurement_custody_requirements=lists["measurement_custody_requirements"],
             clock_accuracy_requirement=spec.get("clock_accuracy_requirement", ""),
             preprocessing_pipeline=spec.get("preprocessing_pipeline", ""),
             statistical_model=spec.get("statistical_model", ""),
@@ -800,6 +827,13 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             missing_data_policy=spec.get("missing_data_policy", ""),
             failure_conditions=lists["failure_conditions"],
             safety_constraints=lists["safety_constraints"],
+            human_subjects=spec.get("human_subjects", False),
+            consent_plan=spec.get("consent_plan", ""),
+            withdrawal_plan=spec.get("withdrawal_plan", ""),
+            privacy_plan=spec.get("privacy_plan", ""),
+            retention_deletion_plan=spec.get("retention_deletion_plan", ""),
+            risk_assessment=spec.get("risk_assessment", ""),
+            independent_review_receipt=spec.get("independent_review_receipt", ""),
             analysis_code_hash=spec.get("analysis_code_hash", ""),
             external_anchor=spec.get("external_anchor"),
             random_seed_commitment=spec.get("random_seed_commitment"),
@@ -985,6 +1019,38 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             data_path=args.data_file,
             output_dir=args.output,
         )
+
+    if args.group == "design" and args.action == "scaffold":
+        brief = _read_json_object(
+            args.brief_file,
+            allowed_fields={
+                "title", "question", "decision", "study_type", "population", "setting",
+                "intervention", "outcome", "outcome_unit", "unit_of_observation",
+                "comparison", "sampling_plan", "randomization_plan", "blinding_plan",
+                "controls", "confounds", "calibration_plan", "measurement_validity",
+                "analysis_commitment", "stopping_rule", "human_participants", "consent_plan",
+                "privacy_plan", "withdrawal_plan", "retention_deletion_plan",
+                "independent_review", "independent_review_receipt",
+                "risk_description", "exclusions",
+            },
+            label="design brief",
+        )
+        return scaffold_design(brief)
+
+    if args.group == "measurement" and args.action == "validate":
+        receipt = _read_json_object(
+            args.receipt_file,
+            allowed_fields={
+                "receipt_id",
+                "raw_sources",
+                "transformations",
+                "calibrations",
+                "quality_gates",
+                "derived_observations",
+            },
+            label="measurement custody receipt",
+        )
+        return {"status": "passed", "receipt": validate_measurement_custody(receipt, args.require_gate)}
 
     if args.group == "workspace":
         if args.action == "init":

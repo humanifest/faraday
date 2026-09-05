@@ -167,6 +167,7 @@ class CreateProtocol:
     exclusion_rules: list[str] = field(default_factory=list)
     sensor_requirements: list[str] = field(default_factory=list)
     calibration_requirements: list[str] = field(default_factory=list)
+    measurement_custody_requirements: list[str] = field(default_factory=list)
     clock_accuracy_requirement: str = ""
     preprocessing_pipeline: str = ""
     statistical_model: str = ""
@@ -175,6 +176,13 @@ class CreateProtocol:
     missing_data_policy: str = ""
     failure_conditions: list[str] = field(default_factory=list)
     safety_constraints: list[str] = field(default_factory=list)
+    human_subjects: bool = False
+    consent_plan: str = ""
+    withdrawal_plan: str = ""
+    privacy_plan: str = ""
+    retention_deletion_plan: str = ""
+    risk_assessment: str = ""
+    independent_review_receipt: str = ""
     analysis_code_hash: str = ""
     external_anchor: str | None = None
     random_seed_commitment: str | None = None

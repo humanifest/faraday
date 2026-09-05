@@ -1,0 +1,20 @@
+{
+  "title": "Seedling light trial",
+  "question": "Does blue light change seedling height?",
+  "decision": "Choose a greenhouse light.",
+  "study_type": "causal",
+  "intervention": "Blue light",
+  "comparison": "White-light control",
+  "outcome": "Seedling height",
+  "outcome_unit": "millimetres",
+  "unit_of_observation": "Independent pot",
+  "sampling_plan": "Randomly sample eligible pots from one tray.",
+  "randomization_plan": "Randomize pots to light before measurements begin.",
+  "controls": ["White-light control"],
+  "confounds": ["Tray position"],
+  "calibration_plan": "Verify the light meter against a reference before each collection day.",
+  "measurement_validity": "Measure a marked stem with a calibrated ruler.",
+  "analysis_commitment": "Estimate the mean difference and a confidence interval.",
+  "stopping_rule": "Twenty independent pots per arm.",
+  "exclusions": []
+}
