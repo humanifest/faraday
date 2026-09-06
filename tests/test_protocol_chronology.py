@@ -156,12 +156,20 @@ def _run(protocol_id: str, root: Path, artifacts: list[DatasetArtifact], **overr
                 gate_id="intake-integrity",
                 status=QualityGateStatus.PASSED,
                 summary="The returned bytes and declarations passed intake.",
+                details={"evidence_sha256": artifacts[-1].sha256},
             )
         ],
-        "metadata": {},
+        "metadata": {"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
         "artifact_root": str(root),
     }
     values.update(overrides)
+    metadata = {"protocol_deviation_disclosure": {
+        "status": "no_deviations_declared", "deviations": [],
+    }}
+    metadata.update(values.get("metadata", {}))
+    values["metadata"] = metadata
     return RecordRun(**values)
 
 

@@ -4,6 +4,796 @@ import json
 from pathlib import Path
 
 from research_machine.interfaces.cli import main
+import pytest
+from research_machine.design.scaffold import scaffold_design
+
+
+def _secondary_measurement(outcome: str, column: str, **overrides):
+    value = {
+        "outcome": outcome, "observable": f"Recorded {outcome}",
+        "input_condition": "All eligible units at the endpoint",
+        "parameter_values": {"instrument": "registered fixture"},
+        "evaluation_point": "Registered endpoint", "convention": "Higher is larger",
+        "aggregation": "One value per independent unit", "tolerance": "Exact parsing",
+        "expected_behavior": "Report regardless of direction", "data_column": column,
+        "temporal_role": "not_applicable", "scale_type": "interval", "unit": "points",
+        "admissible_values": [], "valid_min": 0.0, "valid_max": 100.0,
+        "missing_value_codes": ["<blank>"],
+    }
+    return {**value, **overrides}
+
+
+def _control_measurement(control: str, column: str = "", **overrides):
+    value = _secondary_measurement(control, column)
+    value["control"] = value.pop("outcome")
+    if not column:
+        value.update({
+            "scale_type": "", "unit": "", "admissible_values": [],
+            "valid_min": None, "valid_max": None, "missing_value_codes": [],
+        })
+    return {**value, **overrides}
+
+
+def _causal_measurement(variable: str, role: str, column: str, **overrides):
+    value = _secondary_measurement(variable, column)
+    value["variable"] = value.pop("outcome")
+    value["role"] = role
+    value["temporal_role"] = "at_exposure" if role == "exposure" else "pre_exposure"
+    if role == "exposure":
+        value.update({
+            "scale_type": "nominal", "unit": "assigned level",
+            "admissible_values": ["treated", "control"],
+            "valid_min": None, "valid_max": None,
+        })
+    return {**value, **overrides}
+
+
+def _validity_check(check_id: str = "primary-validity", gate_id: str = "primary-validity-assessed"):
+    return {
+        "check_id": check_id,
+        "evidence_type": "criterion",
+        "validity_claim": "The recorded outcome agrees sufficiently with a traceable reference.",
+        "assessment_plan": "Compare a blinded prespecified subset against the reference before analysis unlock.",
+        "acceptance_criterion": "Absolute disagreement is at most 2 mm for at least 95% of checked units.",
+        "failure_response": "Stop primary interpretation and investigate the measurement process.",
+        "assessment_gate_id": gate_id,
+    }
+
+
+def test_measurement_columns_are_explicit_unique_and_not_reserved():
+    base = {
+        "title": "Column fixture", "question": "Question", "decision": "Decision",
+        "outcome": "Primary score", "unit_of_observation": "unit",
+        "human_participants": False, "outcome_data_column": "primary_score",
+    }
+    explicit = scaffold_design(base)
+    assert explicit["artifacts"]["measurement-definition-draft.json"]["data_column"] == "primary_score"
+    proposed = explicit["artifacts"]["data-dictionary-draft.json"]["proposed_columns"]
+    assert "primary_score" in {item["name"] for item in proposed}
+
+    collision = scaffold_design({
+        **base,
+        "secondary_outcomes": ["Response time"],
+        "secondary_measurements": [
+            _secondary_measurement("Response time", "PRIMARY_SCORE"),
+        ],
+    })
+    assert "MEASUREMENT_COLUMN_COLLISION" in {
+        item["code"] for item in collision["findings"]
+    }
+    proposed = collision["artifacts"]["data-dictionary-draft.json"]["proposed_columns"]
+    assert any(
+        item["name"] == "PRIMARY_SCORE" and item["role"] == "secondary_outcome"
+        for item in proposed
+    )
+
+    reserved = scaffold_design({**base, "outcome_data_column": "unit_id"})
+    assert "MEASUREMENT_COLUMN_RESERVED" in {
+        item["code"] for item in reserved["findings"]
+    }
+
+
+def test_primary_observable_is_not_substituted_by_validity_evidence():
+    base = {
+        "title": "Construct fixture", "question": "Question", "decision": "Decision",
+        "outcome": "Height", "unit_of_observation": "pot",
+        "human_participants": False, "study_type": "correlational",
+        "measurement_validity": "Compare a blinded subset with a traceable reference ruler.",
+        "outcome_data_column": "height_mm",
+        "measurement_input_condition": "Eligible pots at day seven",
+        "measurement_parameter_values": {"ruler_resolution": "1 mm"},
+        "measurement_evaluation_point": "Day seven",
+        "measurement_convention": "Millimetres upward from the stem mark",
+        "measurement_aggregation": "Mean of two readings per pot",
+        "measurement_tolerance": "Readings agree within 2 mm",
+        "measurement_expected_behavior": "Retain all valid readings",
+        "measurement_temporal_role": "not_applicable",
+    }
+    unresolved = scaffold_design(base)
+    assert "MEASUREMENT_CONTRACT_INCOMPLETE" in {
+        item["code"] for item in unresolved["findings"]
+    }
+    draft = unresolved["artifacts"]["measurement-definition-draft.json"]
+    assert draft["observable"].startswith("[REVIEW REQUIRED]")
+    assert unresolved["artifacts"]["data-dictionary-draft.json"]["measurement_validity"].startswith("Compare")
+
+    complete = scaffold_design({
+        **base, "measurement_observable": "Mean marked-stem height in millimetres",
+    })
+    assert "MEASUREMENT_CONTRACT_INCOMPLETE" not in {
+        item["code"] for item in complete["findings"]
+    }
+    assert complete["artifacts"]["measurement-definition-draft.json"]["observable"] == (
+        "Mean marked-stem height in millimetres"
+    )
+
+
+def test_confirmatory_measurement_requires_structured_validity_decision_rules():
+    base = {
+        "title": "Validity fixture", "question": "Question", "decision": "Decision",
+        "outcome": "Height", "unit_of_observation": "pot",
+        "human_participants": False, "study_type": "correlational",
+        "measurement_validity": "Check against a reference.",
+    }
+    missing = scaffold_design(base)
+    assert "MEASUREMENT_VALIDITY_PLAN_INCOMPLETE" in {
+        item["code"] for item in missing["findings"]
+    }
+
+    planned = scaffold_design({
+        **base, "measurement_validity_checks": [_validity_check()],
+    })
+    assert "MEASUREMENT_VALIDITY_PLAN_INCOMPLETE" not in {
+        item["code"] for item in planned["findings"]
+    }
+    protocol = planned["artifacts"]["protocol-draft.json"]
+    assert protocol["measurement_validity_checks"][0]["evidence_type"] == "criterion"
+    assert "primary-validity-assessed" in protocol["quality_requirements"]
+    validity = planned["artifacts"]["measurement-validity-plan-draft.json"]
+    assert validity["checks"][0]["acceptance_criterion"].startswith("Absolute disagreement")
+
+    collision = scaffold_design({
+        **base,
+        "measurement_validity_checks": [_validity_check(gate_id="shared-assessment")],
+        "missingness_assumption": "Complete cases preserve the contrast.",
+        "missingness_assessment_plan": "Inspect missingness patterns.",
+        "missingness_failure_response": "Stop interpretation.",
+        "missingness_assessment_kind": "empirical_diagnostic",
+        "missingness_assessment_gate_id": "shared-assessment",
+    })
+    assert "QUALITY_GATE_PURPOSE_COLLISION" in {
+        item["code"] for item in collision["findings"]
+    }
+
+
+def test_unit_identity_column_is_explicit_and_shared_by_all_guided_artifacts():
+    base = {
+        "title": "Unit fixture", "question": "Question", "decision": "Decision",
+        "outcome": "Score", "unit_of_observation": "visit",
+        "independent_unit": "participant", "human_participants": False,
+        "study_type": "correlational", "outcome_data_column": "score",
+    }
+    missing = scaffold_design(base)
+    assert "UNIT_ID_COLUMN_UNRESOLVED" in {
+        item["code"] for item in missing["findings"]
+    }
+    assert missing["status"] == "blocked"
+
+    explicit = scaffold_design({**base, "unit_id_column": "participant_key"})
+    assert "UNIT_ID_COLUMN_UNRESOLVED" not in {
+        item["code"] for item in explicit["findings"]
+    }
+    assert explicit["artifacts"]["protocol-draft.json"]["unit_id_column"] == "participant_key"
+    columns = explicit["artifacts"]["data-dictionary-draft.json"]["proposed_columns"]
+    assert "participant_key" in {item["name"] for item in columns}
+    assert "participant_key" in explicit["artifacts"]["collection-plan.md"]
+
+    collision = scaffold_design({
+        **base, "unit_id_column": "participant_key",
+        "outcome_data_column": "PARTICIPANT_KEY",
+    })
+    assert "MEASUREMENT_COLUMN_RESERVED" in {
+        item["code"] for item in collision["findings"]
+    }
+
+
+def test_comparison_column_is_bound_to_contrast_and_causal_exposure():
+    base = {
+        "title": "Contrast fixture", "question": "Question", "decision": "Decision",
+        "outcome": "Score", "unit_of_observation": "unit",
+        "human_participants": False, "study_type": "correlational",
+        "contrast_groups": ["exposed", "unexposed"],
+        "outcome_data_column": "score",
+    }
+    missing = scaffold_design(base)
+    assert "GROUP_DATA_COLUMN_UNRESOLVED" in {
+        item["code"] for item in missing["findings"]
+    }
+
+    explicit = scaffold_design({**base, "group_data_column": "exposure"})
+    assert "GROUP_DATA_COLUMN_UNRESOLVED" not in {
+        item["code"] for item in explicit["findings"]
+    }
+    dictionary = explicit["artifacts"]["data-dictionary-draft.json"]
+    assert any(
+        item["name"] == "exposure" and item["role"] == "comparison_label"
+        for item in dictionary["proposed_columns"]
+    )
+    analysis = explicit["artifacts"]["analysis-commitment-draft.json"]
+    assert analysis["group_column"] == "exposure"
+
+    collision = scaffold_design({
+        **base, "group_data_column": "score",
+    })
+    assert "MEASUREMENT_COLUMN_RESERVED" in {
+        item["code"] for item in collision["findings"]
+    }
+
+    graph = {
+        "nodes": [
+            {"id": "exposure", "observed": True},
+            {"id": "outcome", "observed": True},
+        ],
+        "edges": [{"cause": "exposure", "effect": "outcome"}],
+        "exposure": "exposure", "outcome": "outcome",
+        "proposed_adjustment_set": [], "assignment_type": "observational",
+        "assumptions": [],
+    }
+    mismatch = scaffold_design({
+        **base, "study_type": "causal", "assignment_type": "observational",
+        "exposure_definition": "Recorded baseline exposure",
+        "comparison": "Unexposed units", "group_data_column": "assigned_arm",
+        "causal_identification": graph,
+    })
+    assert "CAUSAL_EXPOSURE_COLUMN_MISMATCH" in {
+        item["code"] for item in mismatch["findings"]
+    }
+
+
+def test_causal_measurements_exactly_cover_exposure_and_adjustment_set():
+    graph = {
+        "nodes": [
+            {"id": "treatment", "observed": True},
+            {"id": "outcome", "observed": True},
+            {"id": "baseline", "observed": True},
+        ],
+        "edges": [
+            {"cause": "baseline", "effect": "treatment"},
+            {"cause": "baseline", "effect": "outcome"},
+            {"cause": "treatment", "effect": "outcome"},
+        ],
+        "exposure": "treatment", "outcome": "outcome",
+        "proposed_adjustment_set": ["baseline"],
+        "assignment_type": "observational", "assumptions": [],
+    }
+    base = {
+        "title": "Causal measurement fixture", "question": "Question",
+        "decision": "Decision", "outcome": "outcome",
+        "unit_of_observation": "unit", "human_participants": False,
+        "study_type": "causal", "assignment_type": "observational",
+        "exposure_definition": "Observed treatment status", "comparison": "control",
+        "contrast_groups": ["treated", "control"],
+        "group_data_column": "treatment", "outcome_data_column": "outcome",
+        "causal_identification": graph,
+    }
+    missing = scaffold_design(base)
+    assert "CAUSAL_MEASUREMENT_COVERAGE_INVALID" in {
+        item["code"] for item in missing["findings"]
+    }
+
+    measurements = [
+        _causal_measurement("treatment", "exposure", "treatment"),
+        _causal_measurement("baseline", "covariate", "baseline"),
+    ]
+    complete = scaffold_design({**base, "causal_measurements": measurements})
+    codes = {item["code"] for item in complete["findings"]}
+    assert "CAUSAL_MEASUREMENT_COVERAGE_INVALID" not in codes
+    assert "CAUSAL_EXPOSURE_LEVELS_MISMATCH" not in codes
+    drafts = complete["artifacts"]["causal-measurement-definitions-draft.json"]["measurements"]
+    assert [(item["role"], item["registered_target"]) for item in drafts] == [
+        ("exposure", "treatment"), ("covariate", "baseline"),
+    ]
+    proposed = complete["artifacts"]["data-dictionary-draft.json"]["proposed_columns"]
+    assert any(
+        item["name"] == "baseline" and item["role"] == "causal_covariate"
+        for item in proposed
+    )
+
+    post_treatment = [measurements[0], {**measurements[1], "temporal_role": "post_exposure"}]
+    invalid = scaffold_design({**base, "causal_measurements": post_treatment})
+    assert "CAUSAL_MEASUREMENT_TIMING_INVALID" in {
+        item["code"] for item in invalid["findings"]
+    }
+
+
+def test_secondary_outcomes_require_distinct_roles_and_multiplicity_plan():
+    base = {"title": "Fixture", "question": "Question", "decision": "Decision",
+            "outcome": "Primary score", "unit_of_observation": "unit",
+            "study_type": "correlational", "human_participants": False}
+    missing = scaffold_design({**base, "secondary_outcomes": ["Response time", "Errors"]})
+    assert "MULTIPLICITY_POLICY_MISSING" in {item["code"] for item in missing["findings"]}
+    assert "MULTIPLICITY_PLAN_INCOMPLETE" in {item["code"] for item in missing["findings"]}
+    policy = "Primary score is the sole confirmatory outcome; Holm-adjust the two secondary outcomes and interpret them as secondary."
+    planned = scaffold_design({**base, "secondary_outcomes": ["Response time", "Errors"],
+                               "confirmatory_outcomes": ["Primary score", "Response time", "Errors"],
+                               "exploratory_outcomes": [], "multiplicity_method": "holm",
+                               "multiplicity_alpha": 0.05,
+                               "population": "Registered fixture units",
+                               "setting": "Fixture laboratory",
+                               "outcome_unit": "points",
+                               "effect_scale": "mean difference",
+                               "conclusion_time_window": "registered endpoint",
+                               "smallest_effect_size_of_interest": 2.0,
+                               "non_supporting_direction": "inconclusive",
+                               "higher_level_conclusions_unsupported": ["No causal or external-validity conclusion"],
+                               "multiple_testing_policy": policy})
+    codes = {item["code"] for item in planned["findings"]}
+    assert "MULTIPLICITY_POLICY_MISSING" not in codes
+    protocol = planned["artifacts"]["protocol-draft.json"]
+    assert protocol["secondary_outcomes"] == ["Response time", "Errors"]
+    assert protocol["confirmatory_outcomes"] == ["Primary score", "Response time", "Errors"]
+    assert protocol["multiplicity_method"] == "holm"
+    assert protocol["multiplicity_alpha"] == 0.05
+    assert protocol["multiple_testing_policy"] == policy
+    assert protocol["conclusion_contract"]["smallest_effect_size_of_interest"] == 2.0
+    assert protocol["conclusion_contract"]["permitted_claim_level"] == "statistical_association"
+    workflow = planned["artifacts"]["analysis-workflow-draft.json"]
+    assert [step["step_id"] for step in workflow["steps"]] == [
+        "primary-estimate", "outcome-test-1", "outcome-test-2", "outcome-test-3",
+        "confirmatory-holm",
+    ]
+    assert workflow["steps"][-1]["depends_on"] == [
+        "outcome-test-1", "outcome-test-2", "outcome-test-3",
+    ]
+    assert [item["outcome"] for item in workflow["steps"][-1]["family_members"]] == [
+        "Primary score", "Response time", "Errors",
+    ]
+
+
+def test_secondary_outcomes_require_exact_typed_measurement_coverage():
+    base = {
+        "title": "Secondary measurement fixture", "question": "Question",
+        "decision": "Decision", "outcome": "Primary score",
+        "unit_of_observation": "unit", "human_participants": False,
+        "secondary_outcomes": ["Response time", "Errors"],
+    }
+    missing = scaffold_design(base)
+    assert "SECONDARY_MEASUREMENT_COVERAGE_INVALID" in {
+        item["code"] for item in missing["findings"]
+    }
+    covered = scaffold_design({
+        **base,
+        "secondary_measurements": [
+            _secondary_measurement("Response time", "response_time", unit="milliseconds"),
+            _secondary_measurement("Errors", "errors", scale_type="count", unit="count", valid_min=0, valid_max=20),
+        ],
+    })
+    assert "SECONDARY_MEASUREMENT_COVERAGE_INVALID" not in {
+        item["code"] for item in covered["findings"]
+    }
+    drafts = covered["artifacts"]["secondary-measurement-definitions-draft.json"]["measurements"]
+    assert [item["registered_target"] for item in drafts] == ["Response time", "Errors"]
+    substituted = scaffold_design({
+        **base,
+        "secondary_measurements": [
+            _secondary_measurement("Response time", "response_time"),
+            _secondary_measurement("Favorable surrogate", "surrogate"),
+        ],
+    })
+    assert "SECONDARY_MEASUREMENT_COVERAGE_INVALID" in {
+        item["code"] for item in substituted["findings"]
+    }
+    conflicted = scaffold_design({**base, "secondary_outcomes": ["primary SCORE"]})
+    assert conflicted["status"] == "blocked"
+    assert "OUTCOME_ROLE_CONFLICT" in {item["code"] for item in conflicted["findings"]}
+    duplicated = scaffold_design({**base, "secondary_outcomes": ["Errors", " errors "]})
+    assert "SECONDARY_OUTCOME_DUPLICATE" in {item["code"] for item in duplicated["findings"]}
+    policy = "Primary score is the sole confirmatory outcome; classify all other outcomes prospectively."
+    omitted = scaffold_design({**base, "secondary_outcomes": ["Response time", "Errors"],
+                               "confirmatory_outcomes": ["Primary score"],
+                               "exploratory_outcomes": ["Response time"],
+                               "multiplicity_method": "single_test", "multiplicity_alpha": 0.05,
+                               "multiple_testing_policy": policy})
+    assert "MULTIPLICITY_OUTCOME_PARTITION_INVALID" in {item["code"] for item in omitted["findings"]}
+    substituted = scaffold_design({**base, "secondary_outcomes": ["Response time", "Errors"],
+                                   "confirmatory_outcomes": ["Primary score"],
+                                   "exploratory_outcomes": ["Response time", "Favorable surrogate"],
+                                   "multiplicity_method": "single_test", "multiplicity_alpha": 0.05,
+                                   "multiple_testing_policy": policy})
+    assert "MULTIPLICITY_OUTCOME_PARTITION_INVALID" in {item["code"] for item in substituted["findings"]}
+
+
+def test_controls_require_exact_reproducible_measurement_coverage():
+    base = {
+        "title": "Control measurement fixture", "question": "Question",
+        "decision": "Decision", "outcome": "score", "unit_of_observation": "unit",
+        "human_participants": False, "controls": ["Blank sample", "Reference sample"],
+    }
+    missing = scaffold_design(base)
+    assert "CONTROL_MEASUREMENT_COVERAGE_INVALID" in {
+        item["code"] for item in missing["findings"]
+    }
+    covered = scaffold_design({
+        **base,
+        "control_measurements": [
+            _control_measurement("Blank sample"),
+            _control_measurement("Reference sample", "reference_value"),
+        ],
+    })
+    assert "CONTROL_MEASUREMENT_COVERAGE_INVALID" not in {
+        item["code"] for item in covered["findings"]
+    }
+    drafts = covered["artifacts"]["control-measurement-definitions-draft.json"]["measurements"]
+    assert [item["registered_target"] for item in drafts] == ["Blank sample", "Reference sample"]
+    assert drafts[0]["data_column"] == ""
+    assert drafts[1]["scale_type"] == "interval"
+    substituted = scaffold_design({
+        **base,
+        "control_measurements": [
+            _control_measurement("Blank sample"),
+            _control_measurement("Favorable surrogate"),
+        ],
+    })
+    assert "CONTROL_MEASUREMENT_COVERAGE_INVALID" in {
+        item["code"] for item in substituted["findings"]
+    }
+
+
+def test_stopping_count_does_not_supply_information_justification(tmp_path, capsys):
+    brief = {"title": "Fixture", "question": "Question", "decision": "Decision", "outcome": "Score",
+             "unit_of_observation": "unit", "stopping_rule": "Stop after 100 units", "human_participants": False}
+    finding = "SAMPLE_SIZE_JUSTIFICATION_MISSING"
+    assert finding in {item["code"] for item in scaffold_design(brief)["findings"]}
+    brief["sample_size_justification"] = "Feasibility-limited pilot; interval width remains uncertain and no confirmatory power is claimed."
+    path = tmp_path / "brief.json"
+    path.write_text(json.dumps(brief))
+    assert main(["--json", "design", "scaffold", "--brief-file", str(path)]) == 0
+    result = json.loads(capsys.readouterr().out)["result"]
+    assert finding not in {item["code"] for item in result["findings"]}
+    assert result["artifacts"]["data-dictionary-draft.json"]["sample_size_justification"] == brief["sample_size_justification"]
+
+
+def test_guided_design_recomputes_and_audits_sample_size_decision():
+    base = {
+        "title": "Planning fixture", "question": "Does A improve score?",
+        "decision": "Choose A or B", "study_type": "correlational",
+        "outcome": "score", "unit_of_observation": "unit", "human_participants": False,
+        "expected_effect_direction": "positive",
+        "analysis_design": "independent_groups",
+        "minimum_analyzable_units": 63, "maximum_excluded_fraction": 0.1,
+        "multiplicity_method": "single_test", "multiplicity_alpha": 0.05,
+        "confidence_level": 0.95, "smallest_effect_size_of_interest": 0.5,
+    }
+    practical = {
+        "strategy": "practical_power",
+        "specification": {
+            "study_design": "independent_groups",
+            "smallest_effect_size_of_interest": 0.5,
+            "assumed_true_effect": 1.0, "assumed_standard_deviation": 1.0,
+            "alpha": 0.05, "confidence_level": 0.95,
+            "target_power": 0.8, "alternative": "positive",
+        },
+        "justification": "Power the confidence bound clearing the practical threshold.",
+    }
+    result = scaffold_design({**base, "sample_size_plan": practical})
+    receipt = result["artifacts"]["sample-size-plan-draft.json"]
+    assert receipt["calculation"]["analyzable_n_per_group"] == 63
+    assert receipt["specification_sha256"]
+    assert result["artifacts"]["protocol-draft.json"]["sample_size_plan"]["strategy"] == "practical_power"
+    assert "SAMPLE_SIZE_DECISION_MISMATCH" not in {
+        item["code"] for item in result["findings"]
+    }
+    conventional = scaffold_design({
+        **base,
+        "sample_size_plan": {
+            "strategy": "power",
+            "specification": {
+                "study_design": "independent_groups",
+                "smallest_effect_size_of_interest": 0.5,
+                "assumed_standard_deviation": 1.0, "alpha": 0.05,
+                "target_power": 0.8, "alternative": "greater",
+            },
+            "justification": "Conventional null-rejection power.",
+        },
+    })
+    assert "SAMPLE_SIZE_DECISION_MISMATCH" in {
+        item["code"] for item in conventional["findings"]
+    }
+    premature = scaffold_design({
+        **base,
+        "sample_size_plan": {
+            **practical,
+            "target_hypothesis_id": "invented-hypothesis",
+            "target_measurement_id": "invented-measurement",
+            "measurement_unit": "points",
+        },
+    })
+    assert "SAMPLE_SIZE_TARGET_PREMATURE" in {
+        item["code"] for item in premature["findings"]
+    }
+    invalid = scaffold_design({
+        **base,
+        "sample_size_plan": {
+            **practical,
+            "specification": {**practical["specification"], "target_power": 1.0},
+        },
+    })
+    assert invalid["artifacts"]["sample-size-plan-draft.json"]["status"] == "unresolved"
+    assert "SAMPLE_SIZE_PLAN_INVALID" in {item["code"] for item in invalid["findings"]}
+
+
+@pytest.mark.parametrize(
+    ("brief_changes", "plan_changes", "expected_code"),
+    [
+        ({"analysis_design": "paired"}, {}, "SAMPLE_SIZE_DESIGN_MISMATCH"),
+        ({"minimum_analyzable_units": 64}, {}, "SAMPLE_SIZE_INFORMATION_MISMATCH"),
+        ({"maximum_excluded_fraction": 0.1}, {"anticipated_attrition_fraction": 0.2}, "SAMPLE_SIZE_ATTRITION_MISMATCH"),
+        ({"multiplicity_alpha": 0.01}, {}, "SAMPLE_SIZE_ALPHA_MISMATCH"),
+        ({"confidence_level": 0.90}, {}, "SAMPLE_SIZE_CONFIDENCE_MISMATCH"),
+        ({"smallest_effect_size_of_interest": 0.25}, {}, "SAMPLE_SIZE_EFFECT_THRESHOLD_MISMATCH"),
+        ({"multiplicity_method": "holm"}, {}, "SAMPLE_SIZE_MULTIPLICITY_MISMATCH"),
+    ],
+)
+def test_guided_planning_must_match_the_rest_of_the_design(
+    brief_changes, plan_changes, expected_code,
+):
+    specification = {
+        "study_design": "independent_groups",
+        "smallest_effect_size_of_interest": 0.5,
+        "assumed_true_effect": 1.0, "assumed_standard_deviation": 1.0,
+        "alpha": 0.05, "confidence_level": 0.95,
+        "target_power": 0.8, "alternative": "positive",
+        **plan_changes,
+    }
+    brief = {
+        "title": "Coherence fixture", "question": "Does A improve score?",
+        "decision": "Choose A or B", "study_type": "correlational",
+        "outcome": "score", "unit_of_observation": "unit", "human_participants": False,
+        "expected_effect_direction": "positive", "analysis_design": "independent_groups",
+        "minimum_analyzable_units": 63, "maximum_excluded_fraction": 0.1,
+        "multiplicity_method": "single_test", "multiplicity_alpha": 0.05,
+        "confidence_level": 0.95, "smallest_effect_size_of_interest": 0.5,
+        **brief_changes,
+        "sample_size_plan": {
+            "strategy": "practical_power", "specification": specification,
+            "justification": "Power the registered practical-significance decision.",
+        },
+    }
+    assert expected_code in {item["code"] for item in scaffold_design(brief)["findings"]}
+
+
+def test_scaffold_emits_typed_measurement_draft_and_rejects_incompatible_analysis():
+    base = {
+        "title": "Scale fixture", "question": "Does condition change response?",
+        "decision": "Choose a condition", "outcome": "response category",
+        "outcome_unit": "category", "unit_of_observation": "participant",
+        "human_participants": False, "analysis_design": "independent_groups",
+    }
+    invalid = scaffold_design({
+        **base, "outcome_scale": "ordinal",
+        "outcome_admissible_values": ["worse", "same", "better"],
+        "primary_analysis_family": "mean_difference",
+    })
+    assert "ANALYSIS_SCALE_INCOMPATIBLE" in {
+        item["code"] for item in invalid["findings"]
+    }
+    valid = scaffold_design({
+        **base, "outcome_scale": "ordinal",
+        "outcome_admissible_values": ["worse", "same", "better"],
+        "outcome_missing_value_codes": ["not_recorded"],
+        "primary_analysis_family": "custom_reviewed",
+    })
+    measurement = valid["artifacts"]["measurement-definition-draft.json"]
+    assert measurement["scale_type"] == "ordinal"
+    assert measurement["admissible_values"] == ["worse", "same", "better"]
+    assert measurement["missing_value_codes"] == ["not_recorded"]
+    assert measurement["analysis_family"] == "custom_reviewed"
+    assert "ANALYSIS_SCALE_INCOMPATIBLE" not in {
+        item["code"] for item in valid["findings"]
+    }
+
+
+def test_scaffold_rejects_invalid_binary_and_numeric_domains():
+    base = {
+        "title": "Domain fixture", "question": "Question", "decision": "Decision",
+        "outcome": "response", "outcome_unit": "response units",
+        "unit_of_observation": "unit", "human_participants": False,
+        "primary_analysis_family": "descriptive",
+    }
+    binary = scaffold_design({
+        **base, "outcome_scale": "binary",
+        "outcome_admissible_values": ["yes", "no", "unknown"],
+    })
+    assert "BINARY_DOMAIN_INVALID" in {item["code"] for item in binary["findings"]}
+    count = scaffold_design({
+        **base, "outcome_scale": "count", "outcome_valid_min": -1,
+        "outcome_valid_max": 10,
+    })
+    assert "COUNT_RANGE_INVALID" in {item["code"] for item in count["findings"]}
+
+
+def test_confirmatory_scaffold_binds_estimand_contrast_null_and_support_rule():
+    base = {
+        "title": "Inference fixture", "question": "Is the outcome associated with group?",
+        "decision": "Interpret the association", "study_type": "correlational",
+        "outcome": "score", "outcome_unit": "points", "unit_of_observation": "unit",
+        "human_participants": False, "population": "Eligible units", "setting": "Lab",
+        "effect_scale": "mean difference", "conclusion_time_window": "Day 7",
+        "smallest_effect_size_of_interest": 1.0,
+        "non_supporting_direction": "inconclusive",
+        "higher_level_conclusions_unsupported": ["No causal conclusion"],
+    }
+    incomplete = scaffold_design(base)
+    assert "INFERENCE_COMMITMENT_INCOMPLETE" in {
+        item["code"] for item in incomplete["findings"]
+    }
+    complete = scaffold_design({
+        **base, "primary_estimand": "Population mean score difference, A minus B.",
+        "contrast_definition": "A minus B", "contrast_groups": ["A", "B"],
+        "expected_effect_direction": "positive",
+        "null_value": 0.0, "support_rule": "interval_excludes_null",
+        "confidence_level": 0.95,
+    })
+    commitment = complete["artifacts"]["analysis-commitment-draft.json"]
+    assert commitment["primary_estimand"].startswith("Population mean")
+    assert commitment["contrast_definition"] == "A minus B"
+    assert commitment["null_value"] == 0.0
+    assert "INFERENCE_COMMITMENT_INCOMPLETE" not in {
+        item["code"] for item in complete["findings"]
+    }
+    conflict = scaffold_design({
+        **base, "primary_estimand": "Mean difference", "contrast_definition": "A minus B",
+        "contrast_groups": ["A", "B"],
+        "expected_effect_direction": "equivalence", "null_value": 0.0,
+        "support_rule": "interval_excludes_null", "confidence_level": 0.90,
+    })
+    assert "EQUIVALENCE_RULE_CONFLICT" in {item["code"] for item in conflict["findings"]}
+    malformed = scaffold_design({
+        **base, "primary_estimand": "Mean difference", "contrast_definition": "A minus A",
+        "contrast_groups": ["A", "A"], "expected_effect_direction": "positive",
+        "null_value": 0.0, "support_rule": "interval_excludes_null",
+        "confidence_level": 0.95,
+    })
+    assert "CONTRAST_GROUPS_INVALID" in {item["code"] for item in malformed["findings"]}
+
+
+def test_scaffold_carries_reviewable_information_and_attrition_thresholds():
+    brief = {"title": "Fixture", "question": "Question", "decision": "Decision",
+             "outcome": "Score", "unit_of_observation": "unit", "human_participants": False}
+    missing = scaffold_design(brief)
+    codes = {item["code"] for item in missing["findings"]}
+    assert {
+        "MINIMUM_ANALYZABLE_UNITS_MISSING", "MAXIMUM_EXCLUDED_FRACTION_MISSING",
+        "MAXIMUM_GROUP_EXCLUSION_DIFFERENCE_MISSING",
+    } <= codes
+    planned = scaffold_design({**brief, "minimum_analyzable_units": 20,
+                               "maximum_excluded_fraction": 0.1,
+                               "maximum_group_excluded_fraction_difference": 0.05,
+                               "missingness_assumption": "Unavailable outcomes do not materially distort the contrast.",
+                               "missingness_assessment_plan": "Inspect total and group-specific patterns.",
+                               "missingness_failure_response": "Stop primary interpretation.",
+                               "missingness_assessment_kind": "empirical_diagnostic",
+                               "missingness_assessment_gate_id": "missingness-assessed"})
+    codes = {item["code"] for item in planned["findings"]}
+    assert "MINIMUM_ANALYZABLE_UNITS_MISSING" not in codes
+    assert "MAXIMUM_EXCLUDED_FRACTION_MISSING" not in codes
+    assert "MAXIMUM_GROUP_EXCLUSION_DIFFERENCE_MISSING" not in codes
+    assert "MISSINGNESS_ASSESSMENT_INCOMPLETE" not in codes
+    dictionary = planned["artifacts"]["data-dictionary-draft.json"]
+    assert dictionary["minimum_analyzable_units"] == 20
+    assert dictionary["maximum_excluded_fraction"] == 0.1
+    assert dictionary["maximum_group_excluded_fraction_difference"] == 0.05
+    assert dictionary["missingness_assessment"]["missingness_assessment_gate_id"] == "missingness-assessed"
+    assert "missingness-assessed" in planned["artifacts"]["protocol-draft.json"]["quality_requirements"]
+
+
+@pytest.mark.parametrize("study_type", ["causal", "correlational", "exploratory", "descriptive"])
+def test_assignment_plan_does_not_satisfy_masking_review(study_type):
+    brief = {"title": "Synthetic masking fixture", "question": "Question", "decision": "Decision",
+             "outcome": "Score", "unit_of_observation": "unit", "study_type": study_type,
+             "randomization_plan": "Seeded random assignment", "human_participants": False}
+    result = scaffold_design(brief)
+    assert "BLINDING_UNRESOLVED" in {item["code"] for item in result["findings"]}
+    plan = "Collection cannot be masked; condition labels are withheld from the outcome assessor and analyst until the analysis is locked."
+    revised = scaffold_design({**brief, "blinding_plan": plan})
+    assert "BLINDING_UNRESOLVED" not in {item["code"] for item in revised["findings"]}
+    assert revised["artifacts"]["protocol-draft.json"]["blinding_plan"] == plan
+    assert revised["status"] != "approved"
+
+
+def test_omitted_human_scope_is_not_nonhuman_clearance():
+    brief = {"title": "Fixture", "question": "Question", "decision": "Decision",
+             "outcome": "Outcome", "outcome_unit": "units", "unit_of_observation": "unit"}
+    unresolved = scaffold_design(brief)
+    assert unresolved["status"] == "blocked"
+    assert unresolved["artifacts"]["protocol-draft.json"]["human_subjects"] is None
+    assert "HUMAN_SCOPE_UNRESOLVED" in {item["code"] for item in unresolved["findings"]}
+    nonhuman = scaffold_design({**brief, "human_participants": False})
+    assert nonhuman["status"] == "review_required"
+    assert nonhuman["artifacts"]["protocol-draft.json"]["human_subjects"] is False
+    human = scaffold_design({**brief, "human_participants": True})
+    assert human["status"] == "blocked"
+    assert "HUMAN_REVIEW_REQUIRED" in {item["code"] for item in human["findings"]}
+
+
+def test_human_review_receipt_alone_does_not_clear_design() -> None:
+    brief = {
+        "title": "Fixture", "question": "Question", "decision": "Decision",
+        "outcome": "Outcome", "unit_of_observation": "participant",
+        "human_participants": True, "independent_review": True,
+        "independent_review_receipt": "IRB-001",
+    }
+    codes = {item["code"] for item in scaffold_design(brief)["findings"]}
+    assert "HUMAN_REVIEW_RECEIPT_MISSING" not in codes
+    assert {
+        "HUMAN_REVIEW_DECISION_MISSING", "HUMAN_REVIEWER_ROLE_MISSING",
+        "HUMAN_REVIEW_TIME_MISSING", "HUMAN_REVIEW_SCOPE_MISSING",
+        "HUMAN_REVIEW_DIGEST_MISSING",
+    } <= codes
+
+
+def test_conditional_human_review_requires_recorded_conditions() -> None:
+    brief = {
+        "title": "Fixture", "question": "Question", "decision": "Decision",
+        "outcome": "Outcome", "unit_of_observation": "participant",
+        "human_participants": True, "independent_review": True,
+        "independent_review_receipt": "IRB-001",
+        "independent_review_decision": "approved_with_conditions",
+        "independent_reviewer_role": "Institutional review board",
+        "independent_reviewed_at": "2026-09-04T01:00:00Z",
+        "independent_review_scope": "Protocol and consent materials",
+        "independent_review_artifact_locator": "review/decision.pdf",
+        "independent_review_artifact_sha256": "b" * 64,
+    }
+    result = scaffold_design(brief)
+    assert "HUMAN_REVIEW_CONDITIONS_MISSING" in {item["code"] for item in result["findings"]}
+
+
+@pytest.mark.parametrize("field", ["question", "consent_plan", "independent_review_receipt", "study_type", "analysis_commitment"])
+@pytest.mark.parametrize("value", [None, True, 42, {}, []])
+def test_malformed_answers_do_not_satisfy_design_review(field, value):
+    brief = {"title": "Synthetic fixture", "question": "Question", "decision": "Decision",
+             "outcome": "Outcome", "unit_of_observation": "pot", field: value}
+    with pytest.raises(ValueError, match=f"field {field} must be a string"):
+        scaffold_design(brief)
+
+
+@pytest.mark.parametrize("field", ["controls", "confounds", "exclusions"])
+def test_blank_list_entries_do_not_count_as_design_content(field):
+    brief = {"title": "Synthetic fixture", "question": "Question", "decision": "Decision",
+             "outcome": "Outcome", "unit_of_observation": "pot", field: [" "]}
+    with pytest.raises(ValueError, match="non-blank strings"):
+        scaffold_design(brief)
+
+
+def test_design_audit_blocks_declared_pseudoreplication(tmp_path: Path, capsys) -> None:
+    brief = {"title": "Synthetic design fixture", "question": "Does condition change height?",
+             "decision": "Compare conditions", "outcome": "height", "outcome_unit": "mm",
+             "unit_of_observation": "pot-day", "independent_unit": "pot", "unit_id_column": "pot_id",
+             "repeated_measures": True, "analysis_design": "independent_groups", "human_participants": False}
+    path = tmp_path / "brief.json"
+    path.write_text(json.dumps(brief))
+    assert main(["--json", "design", "scaffold", "--brief-file", str(path)]) == 0
+    result = json.loads(capsys.readouterr().out)["result"]
+    assert result["status"] == "blocked"
+    assert "PSEUDOREPLICATION_RISK" in {item["code"] for item in result["findings"]}
+    dictionary = result["artifacts"]["data-dictionary-draft.json"]
+    assert dictionary["independent_unit"] == "pot"
+    assert dictionary["repeated_measures"] is True
+    columns = {item["name"]: item for item in dictionary["proposed_columns"]}
+    assert columns["observation_id"]["role"] == "row_identity"
+    assert columns["pot_id"]["role"] == "independent_unit_identity"
+    assert "not a new identifier" in columns["pot_id"]["constraint"]
+    collection = result["artifacts"]["collection-plan.md"]
+    assert "Repeated observations retain the same unit ID" in collection
+    assert "not an executable collection validator" in collection
+    brief["analysis_design"] = "repeated_measures"
+    brief["unit_analysis_plan"] = "Model repeated pot-day rows by pot ID with a prespecified time effect."
+    path.write_text(json.dumps(brief))
+    assert main(["--json", "design", "scaffold", "--brief-file", str(path)]) == 0
+    result = json.loads(capsys.readouterr().out)["result"]
+    assert result["status"] == "review_required"
+    assert "DEPENDENCE_METHOD_REVIEW" in {item["code"] for item in result["findings"]}
 
 
 def test_human_causal_scaffold_fails_closed_until_safeguards_exist(tmp_path: Path, capsys) -> None:
@@ -18,24 +808,171 @@ def test_human_causal_scaffold_fails_closed_until_safeguards_exist(tmp_path: Pat
     payload = json.loads(capsys.readouterr().out)["result"]
     assert payload["status"] == "blocked"
     codes = {finding["code"] for finding in payload["findings"]}
-    assert {"HUMAN_CONSENT_MISSING", "HUMAN_PRIVACY_MISSING", "HUMAN_REVIEW_REQUIRED", "CAUSAL_COMPARISON_MISSING"} <= codes
+    assert {"HUMAN_CONSENT_MISSING", "HUMAN_PRIVACY_MISSING", "HUMAN_REVIEW_REQUIRED", "CAUSAL_COMPARISON_MISSING",
+            "HUMAN_VULNERABILITY_PLAN_MISSING", "HUMAN_DATA_SECURITY_MISSING",
+            "HUMAN_INCIDENTAL_FINDINGS_MISSING"} <= codes
     assert payload["artifacts"]["hypothesis-proposal.json"]["generated_by"] == "guided_experiment_scaffold"
 
 
 def test_complete_nonhuman_scaffold_remains_review_only(tmp_path: Path, capsys) -> None:
     brief = tmp_path / "brief.json"
     brief.write_text(json.dumps({
-        "title": "Seedling light trial", "question": "Does blue light change seedling height?", "decision": "Choose a greenhouse light.",
-        "study_type": "causal", "intervention": "blue light", "comparison": "white light", "outcome": "height", "outcome_unit": "millimetres",
+        "title": "Seedling light trial", "question": "Does blue light change seedling height?", "decision": "Choose a greenhouse light.", "human_participants": False,
+        "study_type": "causal", "assignment_type": "randomized", "intervention": "blue light", "comparison": "white light", "outcome": "height", "outcome_unit": "millimetres",
+        "primary_estimand": "Mean final height under blue light minus white light.",
+        "contrast_definition": "blue light minus white light",
+        "contrast_groups": ["blue light", "white light"],
+        "group_data_column": "light_condition",
+        "expected_effect_direction": "two_sided", "null_value": 0.0,
+        "support_rule": "interval_excludes_null", "confidence_level": 0.95,
         "unit_of_observation": "independent pot", "sampling_plan": "Randomly sample pots from one tray.", "randomization_plan": "Randomize pots to light.",
         "controls": ["White-light control"], "confounds": ["Tray position"], "calibration_plan": "Verify light meter against a reference.",
-        "measurement_validity": "Measure a marked stem with a calibrated ruler.", "analysis_commitment": "Estimate mean difference with a confidence interval.", "stopping_rule": "20 pots per arm.", "exclusions": [],
-    }), encoding="utf-8")
+            "control_measurements": [_control_measurement("White-light control")],
+            "measurement_validity": "Measure a marked stem with a calibrated ruler.", "analysis_commitment": "Estimate mean difference with a confidence interval.", "stopping_rule": "20 pots per arm.", "exclusions": [],
+            "measurement_validity_checks": [_validity_check()],
+            "measurement_observable": "Mean marked-stem height in millimetres per eligible pot.",
+            "measurement_input_condition": "All eligible pots at the registered final visit.",
+            "measurement_parameter_values": {"ruler_resolution": "1 mm", "readings": "2"},
+            "measurement_evaluation_point": "Seven days after assignment.",
+            "measurement_convention": "Positive height is upward from the marked stem origin.",
+            "measurement_aggregation": "Mean of two blinded readings per pot.",
+            "measurement_tolerance": "Paired readings must agree within 2 mm.",
+            "measurement_expected_behavior": "Retain every valid reading regardless of treatment direction.",
+            "measurement_temporal_role": "post_exposure",
+            "outcome_data_column": "height_mm",
+            "population": "Eligible seedlings from the registered tray population.",
+            "setting": "The registered greenhouse bay.",
+            "effect_scale": "Mean height difference",
+            "conclusion_time_window": "The registered final measurement day.",
+            "smallest_effect_size_of_interest": 5.0,
+            "non_supporting_direction": "inconclusive",
+            "higher_level_conclusions_unsupported": [
+                "No mechanism or generalization beyond the registered greenhouse setting."
+            ],
+        }), encoding="utf-8")
     assert main(["--json", "design", "scaffold", "--brief-file", str(brief)]) == 0
     payload = json.loads(capsys.readouterr().out)["result"]
     assert payload["status"] == "review_required"
     assert "REVIEW REQUIRED" in payload["artifacts"]["protocol-draft.json"]["hypotheses_tested"][0]
     assert payload["artifacts"]["protocol-draft.json"]["measurement_custody_requirements"]
+    measurement = payload["artifacts"]["measurement-definition-draft.json"]
+    assert measurement["observable"].startswith("Mean marked-stem height")
+    assert measurement["parameter_values"]["ruler_resolution"] == "1 mm"
+    assert measurement["temporal_role"] == "post_exposure"
+    assert "MEASUREMENT_CONTRACT_INCOMPLETE" not in {
+        item["code"] for item in payload["findings"]
+    }
+    assert "CAUSAL_GRAPH_UNRESOLVED" in {item["code"] for item in payload["findings"]}
+    assert payload["artifacts"]["causal-identification-audit.json"]["status"] == "unresolved"
+
+
+def test_causal_scaffold_blocks_open_backdoor_and_carries_passing_audit() -> None:
+    base = {
+        "title": "Causal fixture", "question": "Does treatment change outcome?",
+        "decision": "Choose treatment", "study_type": "causal", "intervention": "treatment",
+        "comparison": "control", "outcome": "outcome", "unit_of_observation": "unit",
+        "human_participants": False, "confounds": ["baseline"],
+    }
+    graph = {
+        "nodes": [{"id": "treatment", "observed": True}, {"id": "outcome", "observed": True},
+                  {"id": "baseline", "observed": True}],
+        "edges": [{"cause": "baseline", "effect": "treatment"},
+                  {"cause": "baseline", "effect": "outcome"},
+                  {"cause": "treatment", "effect": "outcome"}],
+        "exposure": "treatment", "outcome": "outcome", "proposed_adjustment_set": [],
+        "assignment_type": "observational",
+        "assumptions": [{
+                "category": category,
+                "statement": f"Synthetic {category} assumption.",
+                "assessment_kind": "design_record_review",
+                "assessment_plan": f"Assess {category} before interpretation.",
+            "failure_response": f"Stop causal interpretation if {category} fails.",
+            "assessment_gate_id": f"causal-{category}-assessed",
+        } for category in (
+            "positivity", "consistency", "interference", "temporal_order",
+            "measurement_validity", "selection_bias", "exchangeability",
+        )],
+        "causal_estimand": {
+            "target_hypothesis_id": "[REVIEW REQUIRED] bind the reviewed hypothesis",
+            "description": "Mean outcome under treatment minus control at day 7.",
+            "population": "Eligible study units.",
+            "exposure_strategies": ["assign treatment", "assign control"],
+            "outcome_variable": "outcome",
+            "time_zero": "At assignment.",
+            "outcome_time": "Seven days after assignment.",
+            "contrast": "Treatment minus control.",
+            "summary_measure": "Population mean difference.",
+            "intercurrent_events_policy": "Retain assigned units and disclose missing outcomes.",
+        },
+    }
+    blocked = scaffold_design({**base, "causal_identification": graph})
+    assert blocked["status"] == "blocked"
+    assert "CAUSAL_OPEN_BACKDOOR_PATH" in {item["code"] for item in blocked["findings"]}
+    reviewed = scaffold_design({
+        **base, "causal_identification": {**graph, "proposed_adjustment_set": ["baseline"]}
+    })
+    assert "CAUSAL_GRAPH_UNRESOLVED" not in {item["code"] for item in reviewed["findings"]}
+    audit = reviewed["artifacts"]["causal-identification-audit.json"]
+    assert audit["backdoor_criterion_satisfied"] is True
+    assert audit["minimal_observed_adjustment_sets"] == [["baseline"]]
+    protocol = reviewed["artifacts"]["protocol-draft.json"]
+    assert protocol["protocol_kind"] == "observational"
+    assert "assignment: observational; exposure: treatment" in protocol["methodology"]
+    incomplete_graph = {
+        **graph,
+        "proposed_adjustment_set": ["baseline"],
+        "assumptions": graph["assumptions"][:-1],
+    }
+    incomplete = scaffold_design({**base, "causal_identification": incomplete_graph})
+    assert "CAUSAL_ASSUMPTIONS_INCOMPLETE" in {
+        item["code"] for item in incomplete["findings"]
+    }
+    assert incomplete["status"] == "blocked"
+    omitted = scaffold_design({
+        **base, "confounds": ["baseline", "site"],
+        "causal_identification": {**graph, "proposed_adjustment_set": ["baseline"]},
+    })
+    assert "CAUSAL_CONFOUND_NOT_IN_GRAPH" in {item["code"] for item in omitted["findings"]}
+    assert omitted["status"] == "blocked"
+
+
+def test_causal_intent_does_not_determine_assignment_mechanism() -> None:
+    base = {
+        "title": "Assignment fixture", "question": "Does exposure change outcome?",
+        "decision": "Choose a strategy", "study_type": "causal",
+        "outcome": "outcome", "unit_of_observation": "unit",
+        "comparison": "control", "human_participants": False,
+    }
+    unresolved = scaffold_design(base)
+    assert "REVIEW REQUIRED" in unresolved["artifacts"]["protocol-draft.json"]["protocol_kind"]
+    assert "CAUSAL_ASSIGNMENT_TYPE_UNRESOLVED" in {
+        item["code"] for item in unresolved["findings"]
+    }
+    randomized = scaffold_design({
+        **base, "assignment_type": "randomized", "intervention": "assigned treatment",
+        "randomization_plan": "Use the frozen seeded assignment schedule.",
+    })
+    assert randomized["artifacts"]["protocol-draft.json"]["protocol_kind"] == "experimental"
+    observational = scaffold_design({
+        **base, "assignment_type": "observational",
+        "exposure_definition": "Exposure recorded before outcome follow-up.",
+    })
+    assert observational["artifacts"]["protocol-draft.json"]["protocol_kind"] == "observational"
+    assert "CAUSAL_INTERVENTION_MISSING" not in {
+        item["code"] for item in observational["findings"]
+    }
+    graph = {
+        "nodes": [{"id": "exposure", "observed": True}, {"id": "outcome", "observed": True}],
+        "edges": [{"cause": "exposure", "effect": "outcome"}],
+        "exposure": "exposure", "outcome": "outcome", "proposed_adjustment_set": [],
+        "assignment_type": "observational", "assumptions": [],
+    }
+    conflicted = scaffold_design({
+        **base, "assignment_type": "randomized", "intervention": "treatment",
+        "causal_identification": graph,
+    })
+    assert "CAUSAL_ASSIGNMENT_CONFLICT" in {item["code"] for item in conflicted["findings"]}
+    assert "REVIEW REQUIRED" in conflicted["artifacts"]["protocol-draft.json"]["protocol_kind"]
 
 
 def test_human_scaffold_requires_review_receipt_not_only_boolean(tmp_path: Path, capsys) -> None:

@@ -5,6 +5,10 @@ from typing import Any, Callable
 
 
 AnalysisRunner = Callable[[dict[str, Any], list[dict[str, str]]], dict[str, Any]]
+InstrumentInspector = Callable[[bytes, dict[str, Any]], dict[str, Any]]
+INFERENCE_LEVELS = frozenset({
+    "computation_only", "descriptive", "association", "design_conditional_effect",
+})
 
 
 @dataclass(frozen=True)
@@ -14,10 +18,33 @@ class AnalysisMethod:
     description: str
     required_spec_fields: tuple[str, ...]
     runner: AnalysisRunner = field(repr=False, compare=False)
+    maximum_claim_ceiling: str = "Execution establishes only the returned calculation on the hashed input under the declared method; it does not validate a scientific claim."
+    maximum_inference_level: str = "computation_only"
 
     def describe(self) -> dict[str, Any]:
         value = asdict(self)
         value.pop("runner", None)
+        value["required_spec_fields"] = list(self.required_spec_fields)
+        return value
+
+
+@dataclass(frozen=True)
+class InstrumentAdapter:
+    adapter_id: str
+    title: str
+    description: str
+    supported_media_types: tuple[str, ...]
+    required_config_fields: tuple[str, ...]
+    inspector: InstrumentInspector = field(repr=False, compare=False)
+    optional_config_fields: tuple[str, ...] = ()
+
+    def describe(self) -> dict[str, Any]:
+        value = asdict(self)
+        value.pop("inspector", None)
+        value["supported_media_types"] = list(self.supported_media_types)
+        value["required_config_fields"] = list(self.required_config_fields)
+        value["optional_config_fields"] = list(self.optional_config_fields)
+        value["authority"] = "acquisition_metadata_proposal_only"
         return value
 
 
@@ -29,6 +56,7 @@ class AddonManifest:
     discipline: str
     description: str
     methods: tuple[AnalysisMethod, ...] = ()
+    instrument_adapters: tuple[InstrumentAdapter, ...] = ()
     capabilities: tuple[str, ...] = ()
     protocol_kinds: tuple[str, ...] = ()
     dataset_media_types: tuple[str, ...] = ()
@@ -42,6 +70,9 @@ class AddonManifest:
             "discipline": self.discipline,
             "description": self.description,
             "methods": [method.describe() for method in self.methods],
+            "instrument_adapters": [
+                adapter.describe() for adapter in self.instrument_adapters
+            ],
             "capabilities": list(self.capabilities),
             "protocol_kinds": list(self.protocol_kinds),
             "dataset_media_types": list(self.dataset_media_types),

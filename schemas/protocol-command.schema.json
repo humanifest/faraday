@@ -4,6 +4,198 @@
   "title": "Research protocol command",
   "description": "A domain-neutral protocol. Kind-specific freeze gates are enforced by the application service.",
   "type": "object",
+  "$defs": {
+    "causalIdentification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "edges", "exposure", "outcome", "proposed_adjustment_set", "assignment_type", "assumptions", "causal_estimand"],
+      "properties": {
+        "nodes": {
+          "type": "array", "minItems": 2,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["id", "observed"],
+            "properties": {
+              "id": {"type": "string", "pattern": "\\S"},
+              "observed": {"type": "boolean"}
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["cause", "effect"],
+            "properties": {
+              "cause": {"type": "string", "pattern": "\\S"},
+              "effect": {"type": "string", "pattern": "\\S"}
+            }
+          }
+        },
+        "exposure": {"type": "string", "pattern": "\\S"},
+        "outcome": {"type": "string", "pattern": "\\S"},
+        "proposed_adjustment_set": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "pattern": "\\S"}
+        },
+        "assignment_type": {"enum": ["observational", "randomized"]},
+        "causal_estimand": {
+          "type": "object", "additionalProperties": false,
+          "required": ["target_hypothesis_id", "description", "population", "exposure_strategies", "outcome_variable", "time_zero", "outcome_time", "contrast", "summary_measure", "intercurrent_events_policy"],
+          "properties": {
+            "target_hypothesis_id": {"type": "string", "pattern": "\\S"},
+            "description": {"type": "string", "pattern": "\\S"},
+            "population": {"type": "string", "pattern": "\\S"},
+            "exposure_strategies": {"type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "pattern": "\\S"}},
+            "outcome_variable": {"type": "string", "pattern": "\\S"},
+            "time_zero": {"type": "string", "pattern": "\\S"},
+            "outcome_time": {"type": "string", "pattern": "\\S"},
+            "contrast": {"type": "string", "pattern": "\\S"},
+            "summary_measure": {"type": "string", "pattern": "\\S"},
+            "intercurrent_events_policy": {"type": "string", "pattern": "\\S"}
+          }
+        },
+        "assumptions": {
+          "type": "array", "minItems": 7, "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["category", "statement", "assessment_kind", "assessment_plan", "failure_response", "assessment_gate_id"],
+            "properties": {
+              "category": {"enum": ["allocation_integrity", "consistency", "exchangeability", "interference", "measurement_validity", "positivity", "selection_bias", "temporal_order"]},
+              "statement": {"type": "string", "pattern": "\\S"},
+              "assessment_kind": {"enum": ["empirical_diagnostic", "design_record_review", "external_validation", "substantive_judgment"]},
+              "assessment_plan": {"type": "string", "pattern": "\\S"},
+              "failure_response": {"type": "string", "pattern": "\\S"},
+              "assessment_gate_id": {"type": "string", "pattern": "\\S"}
+            }
+          }
+        }
+      }
+    },
+    "controlDefinition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["control_id", "registered_control", "family", "purpose", "expected_behavior", "evaluation_gate_id"],
+      "properties": {
+        "control_id": {"type": "string", "minLength": 1},
+        "registered_control": {"type": "string", "minLength": 1},
+        "family": {"enum": ["positive", "negative", "sham", "replay", "random_time", "adversarial", "reference", "other"]},
+        "purpose": {"type": "string", "minLength": 1},
+        "expected_behavior": {"type": "string", "minLength": 1},
+        "evaluation_gate_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "calibrationCriterion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["criterion_id", "calibration_id", "quantity", "unit", "rationale"],
+      "properties": {
+        "criterion_id": {"type": "string", "minLength": 1},
+        "calibration_id": {"type": "string", "minLength": 1},
+        "quantity": {"type": "string", "minLength": 1},
+        "unit": {"type": "string", "minLength": 1},
+        "rationale": {"type": "string", "minLength": 1},
+        "lower_bound": {"type": ["number", "null"]},
+        "upper_bound": {"type": ["number", "null"]}
+      },
+      "anyOf": [
+        {"required": ["lower_bound"], "properties": {"lower_bound": {"type": "number"}}},
+        {"required": ["upper_bound"], "properties": {"upper_bound": {"type": "number"}}}
+      ]
+    },
+    "measurementValidityCheck": {
+      "type": "object", "additionalProperties": false,
+      "required": ["check_id", "measurement_id", "evidence_type", "validity_claim", "assessment_plan", "acceptance_criterion", "failure_response", "assessment_gate_id"],
+      "properties": {
+        "check_id": {"type": "string", "pattern": "\\S"},
+        "measurement_id": {"type": "string", "pattern": "\\S"},
+        "evidence_type": {"enum": ["criterion", "convergent", "discriminant", "known_groups", "test_retest", "inter_rater", "content", "calibration", "other"]},
+        "validity_claim": {"type": "string", "pattern": "\\S"},
+        "assessment_plan": {"type": "string", "pattern": "\\S"},
+        "acceptance_criterion": {"type": "string", "pattern": "\\S"},
+        "failure_response": {"type": "string", "pattern": "\\S"},
+        "assessment_gate_id": {"type": "string", "pattern": "\\S"}
+      }
+    },
+    "analysisContract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["primary_hypothesis_id", "primary_measurement_id", "method", "outcome_column", "group_column", "groups", "estimand", "missing_data_policy", "assignment_type", "effect_estimate_path", "uncertainty_path", "null_value", "support_rule", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "missingness_assumption", "missingness_assessment_plan", "missingness_failure_response", "missingness_assessment_kind", "missingness_assessment_gate_id"],
+      "properties": {
+        "primary_hypothesis_id": {"type": "string", "minLength": 1},
+        "primary_measurement_id": {"type": "string", "minLength": 1},
+        "method": {"type": "string", "minLength": 1},
+        "outcome_column": {"type": "string", "minLength": 1},
+        "group_column": {"type": "string", "minLength": 1},
+        "groups": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 2, "maxItems": 2, "uniqueItems": true},
+        "estimand": {"type": "string", "minLength": 1},
+        "contrast_definition": {"type": "string", "minLength": 1},
+        "contrast_groups": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 2, "maxItems": 2, "uniqueItems": true},
+        "missing_data_policy": {"const": "complete_case"}
+        ,"assignment_type": {"enum": ["observational", "randomized_between_units", "nonrandomized", "not_applicable"]}
+        ,"allocation_sha256": {"type": "string", "pattern": "^([0-9a-f]{64})?$"}
+        ,"effect_estimate_path": {"type": "string", "pattern": "^/"}
+        ,"uncertainty_path": {"type": "string", "pattern": "^/"}
+        ,"null_value": {"type": "number"}
+        ,"support_rule": {"enum": ["point_direction", "interval_excludes_null", "interval_within_equivalence_margin"]}
+        ,"confidence_level": {"type": ["number", "null"], "exclusiveMinimum": 0, "exclusiveMaximum": 1}
+        ,"minimum_analyzable_units": {"type": "integer", "minimum": 2}
+        ,"maximum_excluded_fraction": {"type": "number", "minimum": 0, "exclusiveMaximum": 1}
+        ,"maximum_group_excluded_fraction_difference": {"type": "number", "minimum": 0, "maximum": 1}
+        ,"missingness_assumption": {"type": "string", "pattern": "\\S"}
+        ,"missingness_assessment_plan": {"type": "string", "pattern": "\\S"}
+        ,"missingness_failure_response": {"type": "string", "pattern": "\\S"}
+        ,"missingness_assessment_kind": {"enum": ["empirical_diagnostic", "design_record_review", "external_validation", "substantive_judgment"]}
+        ,"missingness_assessment_gate_id": {"type": "string", "pattern": "\\S"}
+        ,"adjustment_columns": {"type": "array", "items": {"type": "string", "pattern": "\\S"}, "uniqueItems": true}
+      }
+    },
+    "analysisFamilyMember": {
+      "type": "object", "additionalProperties": false,
+      "required": ["member_id", "source_step_id", "hypothesis_id", "outcome", "measurement_id"],
+      "properties": {
+        "member_id": {"type": "string", "pattern": "\\S"},
+        "source_step_id": {"type": "string", "pattern": "\\S"},
+        "hypothesis_id": {"type": "string", "pattern": "\\S"},
+        "outcome": {"type": "string", "pattern": "\\S"},
+        "measurement_id": {"type": "string", "pattern": "\\S"}
+      }
+    },
+    "analysisStepContract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["step_id", "role", "method", "specification_sha256", "implementation_sha256", "depends_on"],
+      "properties": {
+        "step_id": {"type": "string", "pattern": "\\S"},
+        "role": {"enum": ["primary_estimate", "confirmatory_test", "exploratory_analysis", "diagnostic", "sensitivity", "multiplicity"]},
+        "method": {"type": "string", "pattern": "\\S"},
+        "specification_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "implementation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "depends_on": {"type": "array", "items": {"type": "string", "pattern": "\\S"}, "uniqueItems": true},
+        "hypothesis_id": {"type": "string"},
+        "outcome": {"type": "string"},
+        "measurement_id": {"type": "string"},
+        "p_value_path": {"type": "string"},
+        "family_id": {"type": "string"},
+        "family_members": {"type": "array", "items": {"$ref": "#/$defs/analysisFamilyMember"}},
+        "alpha": {"type": ["number", "null"], "exclusiveMinimum": 0, "exclusiveMaximum": 1}
+      }
+    },
+    "conclusionContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_hypothesis_id", "decision_rule", "smallest_effect_size_of_interest", "effect_scale", "effect_unit", "population", "setting", "time_window", "non_supporting_direction", "permitted_claim_level", "higher_level_conclusions_unsupported"],
+      "properties": {
+        "primary_hypothesis_id": {"type": "string", "pattern": "\\S"},
+        "decision_rule": {"enum": ["interval_and_practical_significance", "adjusted_primary_rejection_and_interval_and_practical_significance", "equivalence_interval_within_margin"]},
+        "smallest_effect_size_of_interest": {"type": "number", "minimum": 0},
+        "effect_scale": {"type": "string", "pattern": "\\S"},
+        "effect_unit": {"type": "string", "pattern": "\\S"},
+        "population": {"type": "string", "pattern": "\\S"},
+        "setting": {"type": "string", "pattern": "\\S"},
+        "time_window": {"type": "string", "pattern": "\\S"},
+        "non_supporting_direction": {"enum": ["inconclusive", "weakens"]},
+        "permitted_claim_level": {"enum": ["measurement_validity", "statistical_association", "causal_direction"]},
+        "higher_level_conclusions_unsupported": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "\\S"}}
+      }
+    }
+  },
   "required": [
     "experiment_id", "title", "analysis_mode", "hypotheses_tested",
     "primary_outcome", "protocol_kind", "methodology", "quality_requirements",
@@ -12,6 +204,75 @@
     "analysis_code_hash"
   ],
   "properties": {
+    "human_subjects": {"type": "boolean"},
+    "consent_plan": {"type": "string"},
+    "withdrawal_plan": {"type": "string"},
+    "privacy_plan": {"type": "string"},
+    "retention_deletion_plan": {"type": "string"},
+    "risk_assessment": {"type": "string"},
+    "causal_claim": {"type": "boolean"},
+    "causal_identification": {
+      "anyOf": [
+        {"type": "object", "maxProperties": 0},
+        {"$ref": "#/$defs/causalIdentification"}
+      ]
+    },
+    "vulnerable_population_plan": {"type": "string"},
+    "data_security_plan": {"type": "string"},
+    "incidental_findings_plan": {"type": "string"},
+    "independent_review_receipt": {"type": "string"},
+    "independent_review_decision": {"enum": ["", "approved", "approved_with_conditions", "not_approved", "pending", "withdrawn"]},
+    "independent_reviewer_role": {"type": "string"},
+    "independent_reviewed_at": {"type": "string"},
+    "independent_review_scope": {"type": "string"},
+    "independent_review_artifact_locator": {"type": "string"},
+    "independent_review_artifact_sha256": {"type": "string", "pattern": "^([0-9a-f]{64})?$"},
+    "independent_review_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "measurement_custody_requirements": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "calibration_acceptance_criteria": {"type": "array", "items": {"$ref": "#/$defs/calibrationCriterion"}},
+    "measurement_definitions": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "allOf": [{
+          "if": {"required": ["data_column"], "properties": {"data_column": {"minLength": 1}}},
+          "then": {
+            "required": ["scale_type", "unit", "admissible_values", "valid_min", "valid_max", "missing_value_codes"],
+            "properties": {
+              "scale_type": {"enum": ["binary", "nominal", "ordinal", "interval", "ratio", "count", "time_to_event"]},
+              "unit": {"minLength": 1}
+            }
+          }
+        }],
+        "required": ["measurement_id", "role", "registered_target", "observable", "input_condition", "parameter_values", "evaluation_point", "convention", "aggregation", "tolerance", "expected_behavior"],
+        "properties": {
+          "measurement_id": {"type": "string"},
+          "role": {"enum": ["primary", "secondary", "control", "exposure", "covariate"]},
+          "registered_target": {"type": "string"},
+          "observable": {"type": "string"},
+          "input_condition": {"type": "string"},
+          "parameter_values": {"type": "object", "additionalProperties": {"type": "string"}},
+          "evaluation_point": {"type": "string"},
+          "convention": {"type": "string"},
+          "aggregation": {"type": "string"},
+          "tolerance": {"type": "string"},
+          "expected_behavior": {"type": "string"}
+          ,"data_column": {"type": "string"}
+          ,"temporal_role": {"enum": ["", "pre_exposure", "at_exposure", "post_exposure", "time_varying", "not_applicable"]}
+          ,"scale_type": {"enum": ["", "binary", "nominal", "ordinal", "interval", "ratio", "count", "time_to_event"]}
+          ,"unit": {"type": "string"}
+          ,"admissible_values": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+          ,"valid_min": {"type": ["number", "null"]}
+          ,"valid_max": {"type": ["number", "null"]}
+          ,"missing_value_codes": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+        }
+      }
+    },
+    "measurement_validity_checks": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/measurementValidityCheck"}
+    },
+    "control_definitions": {"type": "array", "items": {"$ref": "#/$defs/controlDefinition"}},
     "experiment_id": {"type": "string", "minLength": 1},
     "title": {"type": "string", "minLength": 1},
     "analysis_mode": {"enum": ["exploratory", "confirmatory", "replication"]},
@@ -26,11 +287,53 @@
     "success_conditions": {"type": "array", "items": {"type": "string"}, "minItems": 1},
     "environment_requirements": {"type": "array", "items": {"type": "string"}},
     "secondary_outcomes": {"type": "array", "items": {"type": "string"}},
+    "confirmatory_outcomes": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "exploratory_outcomes": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "multiplicity_method": {"enum": ["", "single_test", "holm", "exploratory_only"]},
+    "multiplicity_alpha": {"type": ["number", "null"], "exclusiveMinimum": 0, "exclusiveMaximum": 1},
     "independent_variables": {"type": "array", "items": {"type": "string"}},
     "randomization_plan": {"type": "string"},
     "blinding_plan": {"type": "string"},
     "sampling_unit": {"type": "string"},
+    "analysis_specification_sha256": {"type": "string", "pattern": "^([0-9a-f]{64})?$"},
+    "analysis_contract": {"anyOf": [{"$ref": "#/$defs/analysisContract"}, {"type": "null"}]},
+    "analysis_steps": {"type": "array", "items": {"$ref": "#/$defs/analysisStepContract"}},
+    "conclusion_contract": {"anyOf": [{"$ref": "#/$defs/conclusionContract"}, {"type": "null"}]},
+    "independent_unit": {"type": "string"},
+    "repeated_measures": {"type": ["boolean", "null"]},
+    "analysis_design": {"enum": ["", "independent_groups", "paired", "clustered", "repeated_measures", "descriptive"]},
+    "unit_analysis_plan": {"type": "string"},
+    "unit_id_column": {"type": "string"},
     "sample_size_or_stopping_rule": {"type": "string", "minLength": 1},
+    "sample_size_plan": {
+      "anyOf": [
+        {"type": "object", "maxProperties": 0},
+        {
+          "type": "object",
+          "required": ["strategy", "specification", "justification"],
+          "properties": {
+            "strategy": {"enum": ["power", "practical_power", "precision", "equivalence_power"]},
+            "target_hypothesis_id": {"type": "string", "pattern": "\\S"},
+            "target_measurement_id": {"type": "string", "pattern": "\\S"},
+            "measurement_unit": {"type": "string", "pattern": "\\S"},
+            "specification": {"type": "object"},
+            "justification": {"type": "string", "pattern": "\\S"},
+            "planning_version": {"enum": [1, 2]},
+            "specification_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "planning_target_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "calculation": {"type": "object"},
+            "scope": {"type": "string", "pattern": "\\S"},
+            "scientific_interpretation_verified": {"const": false}
+          },
+          "dependentRequired": {
+            "target_hypothesis_id": ["target_measurement_id", "measurement_unit"],
+            "target_measurement_id": ["target_hypothesis_id", "measurement_unit"],
+            "measurement_unit": ["target_hypothesis_id", "target_measurement_id"]
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "inclusion_rules": {"type": "array", "items": {"type": "string"}},
     "exclusion_rules": {"type": "array", "items": {"type": "string"}},
     "sensor_requirements": {"type": "array", "items": {"type": "string"}},
@@ -47,5 +350,28 @@
     "external_anchor": {"type": ["string", "null"]},
     "random_seed_commitment": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": ["secondary_outcomes"],
+        "properties": {"secondary_outcomes": {"minItems": 1}}
+      },
+      "then": {
+        "required": ["confirmatory_outcomes", "exploratory_outcomes", "multiplicity_method", "multiplicity_alpha"]
+      }
+    },
+    {
+      "if": {
+        "required": ["causal_claim"],
+        "properties": {"causal_claim": {"const": true}}
+      },
+      "then": {
+        "required": ["causal_identification"],
+        "properties": {
+          "causal_identification": {"$ref": "#/$defs/causalIdentification"}
+        }
+      }
+    }
+  ]
 }

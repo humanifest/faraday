@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import fields, replace
 import hashlib
 import json
 from pathlib import Path
@@ -12,9 +13,12 @@ from research_machine.application.commands import (
     CreateProtocol,
     ProposeHypothesis,
     RecordEvidence,
+    RecordEvidenceStatusEvent,
     RecordRun,
 )
 from research_machine.application.service import ResearchService
+from research_machine.application.rigor import audit_research_state
+from research_machine.reporting.synthesis import build_synthesis
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     AnalysisMode,
@@ -75,6 +79,9 @@ def _prepared_run(root: Path):
         )
     )
     protocol = service.freeze_protocol(draft.protocol_id)
+    output = root / "result.json"
+    output.write_text('{"checker":"passed"}\n', encoding="utf-8")
+    output_sha256 = hashlib.sha256(output.read_bytes()).hexdigest()
     run = service.record_run(
         RecordRun(
             protocol_id=protocol.protocol_id,
@@ -82,17 +89,98 @@ def _prepared_run(root: Path):
             completed_at="2026-09-02T12:02:00Z",
             analysis_code_hash="a" * 64,
             environment_hash="b" * 64,
-            output_artifacts=[DatasetArtifact("result.json", "c" * 64)],
+            output_artifacts=[DatasetArtifact(
+                "result.json", output_sha256, output.stat().st_size,
+                "application/json",
+            )],
+            artifact_root=str(root),
             quality_gates=[
                 QualityGateResult(
                     gate_id="checker",
                     status=QualityGateStatus.PASSED,
                     summary="Candidate passed and invalid control failed.",
+                    details={"evidence_sha256": output_sha256},
                 )
             ],
+            metadata={"protocol_deviation_disclosure": {
+                "status": "no_deviations_declared", "deviations": [],
+            }},
         )
     )
     return service, hypothesis, run
+
+
+def test_rigor_reports_missed_precision_without_marking_run_invalid(tmp_path) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path)
+    repository = service.repository
+    inquiry_id = repository.resolve_inquiry_id(None)
+    protocol = service.get_protocol(run.protocol_id)
+    precision_protocol = replace(
+        protocol, sample_size_plan={"strategy": "precision"},
+    )
+    observed_run = replace(run, metadata={
+        **run.metadata,
+        "sample_size_plan_check": {
+            "status": "passed",
+            "precision_achievement": {
+                "status": "not_met", "target_half_width": 1.0,
+                "observed_half_width": 1.5,
+            },
+            "attrition_achievement": {
+                "status": "exceeded_assumption",
+                "anticipated_attrition_fraction": 0.1,
+                "observed_excluded_fraction": 0.15,
+                "observed_excluded_fraction_by_group": {"a": 0.1, "b": 0.2},
+            },
+            "variance_assumption": {
+                "status": "exceeded_registered_tolerance",
+                "observed_to_assumed_ratio": 1.5,
+                "maximum_registered_ratio": 1.25,
+                "assumed_standard_deviation": 2.0,
+                "observed_pooled_standard_deviation": 3.0,
+                "measurement_unit": "fixture units",
+                "adequacy_threshold_registered": True,
+            },
+        },
+    })
+    inquiry = repository.load_inquiry(inquiry_id)
+    claims = repository.load_claims(inquiry_id)
+    evidence = repository.list_evidence(inquiry_id)
+    datasets = repository.list_datasets(inquiry_id)
+    audit = audit_research_state(
+        inquiry=inquiry, claims=claims,
+        hypotheses=[hypothesis], evidence=evidence, datasets=datasets,
+        protocols=[precision_protocol], runs=[observed_run],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "RUN_PRECISION_TARGET_NOT_MET"
+    )
+    assert finding.entity_id == run.run_id
+    assert "observed half-width 1.5 against target 1" in finding.remediation
+    attrition_finding = next(
+        item for item in audit.findings
+        if item.code == "RUN_ATTRITION_EXCEEDED_PLANNING_ASSUMPTION"
+    )
+    assert "observed excluded fraction 0.15 against anticipated 0.1" in attrition_finding.remediation
+    variance_finding = next(
+        item for item in audit.findings
+        if item.code == "RUN_VARIANCE_EXCEEDED_REGISTERED_TOLERANCE"
+    )
+    assert "ratio 1.5 against registered maximum 1.25" in variance_finding.remediation
+    assert observed_run.status.value == "completed"
+    assert observed_run.scientific_evidence_eligible is True
+    synthesis = build_synthesis(
+        inquiry, [], claims, [hypothesis], evidence, datasets,
+        [precision_protocol], [observed_run], [], [], audit, [],
+    )
+    assert "Precision target: not_met; target half-width 1.0" in synthesis
+    assert "evidence eligible: yes" in synthesis
+    assert "A missed target does not erase the result or imply invalidity." in synthesis
+    assert "Attrition assumption: exceeded_assumption" in synthesis
+    assert "Variability assumption: exceeded_registered_tolerance" in synthesis
+    assert "Registered maximum ratio 1.25." in synthesis
+    assert "a planning miss does not erase the result or imply invalidity." in synthesis
 
 
 def _classified_evidence(hypothesis_id: str, run_id: str, **overrides):
@@ -117,6 +205,110 @@ def _classified_evidence(hypothesis_id: str, run_id: str, **overrides):
     }
     values.update(overrides)
     return RecordEvidence(**values)
+
+
+def _status_command(
+    evidence_id: str, root: Path, name: str, status: str, **overrides
+) -> RecordEvidenceStatusEvent:
+    artifact = root / name
+    artifact.write_text(f"{status} review for {evidence_id}", encoding="utf-8")
+    values = {
+        "evidence_id": evidence_id,
+        "status": status,
+        "effective_at": "2026-09-02T12:00:00Z",
+        "reason": f"Independent review classified this evidence as {status}.",
+        "review_artifact_locator": name,
+        "review_artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+        "review_artifact_root": str(root),
+    }
+    values.update(overrides)
+    return RecordEvidenceStatusEvent(**values)
+
+
+def test_append_only_retraction_removes_evidence_from_current_rigor_not_history(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path / "workspace")
+    evidence = service.record_evidence(
+        _classified_evidence(hypothesis.hypothesis_id, run.run_id)
+    )
+    assert service.audit_rigor().capabilities["controlled_benchmark"] is True
+    review_root = tmp_path / "reviews"
+    review_root.mkdir()
+    event = service.record_evidence_status_event(
+        _status_command(evidence.evidence_id, review_root, "retraction.txt", "retracted")
+    )
+    assert event.sequence == 1
+    assert service.list_evidence()[0].evidence_id == evidence.evidence_id
+    synthesis = service.build_synthesis()["content"]
+    assert "current status: retracted" in synthesis
+    assert "Currently contributing evidence records: 0" in synthesis
+    assert "Evidence correction and retraction history" in synthesis
+    assert service.audit_rigor().capabilities["controlled_benchmark"] is False
+    (review_root / "retraction.txt").write_text("review bytes changed", encoding="utf-8")
+    with pytest.raises(ValidationError, match="no longer matches its integrity receipt"):
+        service.build_synthesis()
+
+
+def test_evidence_status_chain_requires_exact_predecessor_and_retraction_is_terminal(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path / "workspace")
+    evidence = service.record_evidence(
+        _classified_evidence(hypothesis.hypothesis_id, run.run_id)
+    )
+    review_root = tmp_path / "reviews"
+    review_root.mkdir()
+    qualified = service.record_evidence_status_event(
+        _status_command(evidence.evidence_id, review_root, "qualified.txt", "qualified")
+    )
+    with pytest.raises(ValidationError, match="exact latest"):
+        service.record_evidence_status_event(
+            _status_command(evidence.evidence_id, review_root, "bad.txt", "active")
+        )
+    retracted = service.record_evidence_status_event(
+        _status_command(
+            evidence.evidence_id,
+            review_root,
+            "retracted.txt",
+            "retracted",
+            supersedes_event_id=qualified.event_id,
+        )
+    )
+    assert retracted.sequence == 2
+    with pytest.raises(ValidationError, match="terminal"):
+        service.record_evidence_status_event(
+            _status_command(
+                evidence.evidence_id,
+                review_root,
+                "reinstate.txt",
+                "active",
+                supersedes_event_id=retracted.event_id,
+            )
+        )
+
+
+def test_evidence_status_reads_fail_closed_on_semantic_chain_tampering(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service, hypothesis, run = _prepared_run(workspace)
+    evidence = service.record_evidence(
+        _classified_evidence(hypothesis.hypothesis_id, run.run_id)
+    )
+    review_root = tmp_path / "reviews"
+    review_root.mkdir()
+    event = service.record_evidence_status_event(
+        _status_command(evidence.evidence_id, review_root, "qualified.txt", "qualified")
+    )
+    event_file = next(workspace.rglob(f"{event.event_id}.json"))
+    tampered = json.loads(event_file.read_text(encoding="utf-8"))
+    tampered["sequence"] = 3
+    event_file.write_text(json.dumps(tampered), encoding="utf-8")
+    with pytest.raises(ValidationError, match="contiguous from 1"):
+        service.list_evidence_status_events()
+    with pytest.raises(ValidationError, match="contiguous from 1"):
+        service.audit_rigor()
 
 
 def test_new_evidence_requires_scope_ceiling_and_classification(tmp_path: Path) -> None:
@@ -330,6 +522,41 @@ def test_audit_and_synthesis_publish_a_conservative_ceiling(tmp_path: Path) -> N
     assert "independent_replication: absent" in synthesis
 
 
+def test_retrospectively_amended_evidence_cannot_raise_prospective_ceiling(tmp_path: Path) -> None:
+    service, hypothesis, predecessor_run = _prepared_run(tmp_path)
+    predecessor = service.get_protocol(predecessor_run.protocol_id)
+    values = {field.name: getattr(predecessor, field.name) for field in fields(CreateProtocol)}
+    amendment = service.amend_protocol(
+        predecessor.protocol_id, CreateProtocol(**values), "Changed after inspecting output",
+        "after_analysis", "full_data_seen",
+    )
+    frozen = service.freeze_protocol(amendment.protocol_id)
+    amended_output = tmp_path / "amended.json"
+    amended_output.write_text('{"checker":"passed"}\n', encoding="utf-8")
+    amended_sha256 = hashlib.sha256(amended_output.read_bytes()).hexdigest()
+    run = service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id, started_at="2026-09-02T12:03:00Z",
+        completed_at="2026-09-02T12:04:00Z", analysis_code_hash="a" * 64,
+        environment_hash="b" * 64, output_artifacts=[DatasetArtifact(
+            "amended.json", amended_sha256, amended_output.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(gate_id="checker", status=QualityGateStatus.PASSED,
+                                         summary="Amended checker passed.",
+                                         details={"evidence_sha256": amended_sha256})],
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
+    service.record_evidence(_classified_evidence(hypothesis.hypothesis_id, run.run_id))
+    audit = service.audit_rigor()
+    assert audit.capabilities["controlled_benchmark"] is True
+    assert audit.conclusion_ceiling == "retrospectively amended evidence only; prospective confirmation required"
+    assert any(item.code == "EVIDENCE_FROM_RETROSPECTIVE_OR_EXPOSED_AMENDMENT"
+               for item in audit.findings)
+
+
 def test_independent_replication_requires_clean_room_attestation(
     tmp_path: Path,
 ) -> None:
@@ -356,6 +583,9 @@ def test_independent_replication_requires_clean_room_attestation(
     )
     protocol = author.freeze_protocol(draft.protocol_id)
     replicator = _service(tmp_path, actor="replicator")
+    incomplete_output = tmp_path / "replication.json"
+    incomplete_output.write_text('{"reproduced":true}\n', encoding="utf-8")
+    incomplete_sha256 = hashlib.sha256(incomplete_output.read_bytes()).hexdigest()
     incomplete_replication = replicator.record_run(
         RecordRun(
             protocol_id=protocol.protocol_id,
@@ -363,15 +593,25 @@ def test_independent_replication_requires_clean_room_attestation(
             completed_at="2026-09-02T12:04:00Z",
             analysis_code_hash="d" * 64,
             environment_hash="e" * 64,
-            output_artifacts=[DatasetArtifact("replication.json", "f" * 64)],
+            output_artifacts=[DatasetArtifact(
+                "replication.json", incomplete_sha256,
+                incomplete_output.stat().st_size, "application/json",
+            )],
+            artifact_root=str(tmp_path),
             quality_gates=[
                 QualityGateResult(
                     gate_id="replication-check",
                     status=QualityGateStatus.PASSED,
                     summary="Independent implementation reproduced the result.",
+                    details={"evidence_sha256": incomplete_sha256},
                 )
             ],
-            metadata={"replicates_run_id": original.run_id},
+            metadata={
+                "replicates_run_id": original.run_id,
+                "protocol_deviation_disclosure": {
+                    "status": "no_deviations_declared", "deviations": [],
+                },
+            },
         )
     )
     with pytest.raises(
@@ -476,10 +716,14 @@ def test_independent_replication_requires_clean_room_attestation(
                     gate_id="replication-check",
                     status=QualityGateStatus.PASSED,
                     summary="Clean-room implementation reproduced the result.",
+                    details={"evidence_sha256": hashlib.sha256(result_path.read_bytes()).hexdigest()},
                 )
             ],
             metadata={
                 "replicates_run_id": original.run_id,
+                "protocol_deviation_disclosure": {
+                    "status": "no_deviations_declared", "deviations": [],
+                },
                 "replication_independence": {
                     "design": "clean_room",
                     "independence_dimensions": ["executor", "implementation"],

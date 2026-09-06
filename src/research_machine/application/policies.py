@@ -1,19 +1,32 @@
 from collections.abc import Sequence
+from datetime import datetime
 import math
 import re
+from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     ActionCandidate,
     ActionLane,
     AnalysisMode,
+    AnalysisContract,
+    AnalysisFamilyMember,
+    AnalysisStepContract,
+    CalibrationCriterion,
+    ConclusionContract,
+    Claim,
+    ClaimLevel,
     DatasetManifest,
     DatasetArtifact,
+    ControlDefinition,
+    CONTROL_FAMILIES,
     EvidenceDirection,
     ExperimentProtocol,
     Hypothesis,
     HypothesisWorkflowState,
     MeasurementDefinition,
+    MeasurementValidityCheck,
+    MEASUREMENT_TEMPORAL_ROLES,
     MeasurementRole,
     ProtocolKind,
     ProtocolStatus,
@@ -25,6 +38,7 @@ from research_machine.domain.models import (
 )
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_INDEPENDENT_REVIEW_DECISIONS = {"approved", "approved_with_conditions"}
 
 
 def require_sha256(value: str, field_name: str) -> str:
@@ -71,7 +85,19 @@ def normalize_confidence(value: float | None) -> float | None:
     return normalized
 
 
+def _reject_review_placeholders(value: object, path: str) -> None:
+    if isinstance(value, str) and "[review required]" in value.casefold():
+        raise ValidationError(f"unresolved scaffold placeholder in {path}; replace it with reviewed scientific content")
+    if isinstance(value, dict):
+        for key, child in value.items():
+            _reject_review_placeholders(child, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _reject_review_placeholders(child, f"{path}[{index}]")
+
+
 def validate_hypothesis_activation(hypothesis: Hypothesis) -> None:
+    _reject_review_placeholders(hypothesis.to_dict(), "hypothesis")
     if hypothesis.workflow_state not in {
         HypothesisWorkflowState.UNREVIEWED,
         HypothesisWorkflowState.PENDING_REVIEW,
@@ -95,6 +121,7 @@ def validate_hypothesis_activation(hypothesis: Hypothesis) -> None:
 
 
 def validate_hypothesis_staging(hypothesis: Hypothesis) -> None:
+    _reject_review_placeholders(hypothesis.to_dict(), "hypothesis")
     if hypothesis.workflow_state not in {
         HypothesisWorkflowState.UNREVIEWED,
         HypothesisWorkflowState.PARKED,
@@ -188,6 +215,171 @@ def validate_evidence_annotations(
     )
 
 
+def validate_result_direction(
+    *, expected_direction: str, evidence_direction: EvidenceDirection, effect: Any,
+    uncertainty: Any, null_value: float, support_rule: str,
+    equivalence_margin: float | None = None,
+) -> str:
+    if expected_direction not in {"positive", "negative", "two_sided", "equivalence"}:
+        raise ValidationError(
+            "execution-backed primary hypothesis expected_effect_direction must be positive, negative, two_sided, or equivalence"
+        )
+    if isinstance(effect, bool) or not isinstance(effect, (int, float)) or not math.isfinite(float(effect)):
+        raise ValidationError("registered primary effect estimate must be a finite number")
+    if not isinstance(uncertainty, dict):
+        raise ValidationError("registered uncertainty must be a confidence-interval object")
+    try:
+        lower, upper, level = uncertainty["lower"], uncertainty["upper"], uncertainty["level"]
+    except KeyError as exc:
+        raise ValidationError("registered confidence interval requires lower, upper, and level") from exc
+    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) for value in (lower, upper, level)):
+        raise ValidationError("registered confidence interval values must be finite numbers")
+    if lower > effect or effect > upper or not 0 < level < 1:
+        raise ValidationError("registered confidence interval must contain the effect and use a level between zero and one")
+    if evidence_direction is not EvidenceDirection.SUPPORTS:
+        return "not_directionally_assertive"
+    if expected_direction == "equivalence":
+        if (
+            isinstance(equivalence_margin, bool)
+            or not isinstance(equivalence_margin, (int, float))
+            or not math.isfinite(float(equivalence_margin))
+            or float(equivalence_margin) <= 0
+        ):
+            raise ValidationError("equivalence support requires a frozen positive finite margin")
+        if support_rule != "interval_within_equivalence_margin":
+            raise ValidationError("equivalence support requires the frozen interval-within-margin rule")
+        margin = float(equivalence_margin)
+        if not (lower > null_value - margin and upper < null_value + margin):
+            raise ValidationError(
+                "supporting equivalence evidence interval is not wholly within the frozen margin"
+            )
+        return "confidence_interval_wholly_within_registered_equivalence_margin"
+    if expected_direction == "positive" and effect <= null_value:
+        raise ValidationError("supporting evidence contradicts the frozen positive effect direction")
+    if expected_direction == "negative" and effect >= null_value:
+        raise ValidationError("supporting evidence contradicts the frozen negative effect direction")
+    if expected_direction == "two_sided" and effect == null_value:
+        raise ValidationError("supporting evidence equals the frozen null value")
+    if support_rule == "interval_excludes_null":
+        supports = (
+            lower > null_value if expected_direction == "positive" else
+            upper < null_value if expected_direction == "negative" else
+            upper < null_value or lower > null_value
+        )
+        if not supports:
+            raise ValidationError("supporting evidence does not satisfy the frozen interval-excludes-null rule")
+        return "confidence_interval_excludes_registered_null_in_expected_direction"
+    return "point_estimate_direction_consistent; uncertainty still governs inference"
+
+
+def adjudicate_conclusion_contract(
+    *, conclusion: ConclusionContract, analysis: AnalysisContract,
+    hypothesis: Hypothesis, effect: Any, uncertainty: Any,
+    adjusted_primary_rejects: bool | None = None,
+) -> dict[str, Any]:
+    """Apply one frozen study-level decision policy without authoring prose."""
+    if isinstance(effect, bool) or not isinstance(effect, (int, float)) or not math.isfinite(float(effect)):
+        raise ValidationError("conclusion adjudication requires a finite numeric estimate")
+    if not isinstance(uncertainty, dict):
+        raise ValidationError("conclusion adjudication requires a confidence interval")
+    try:
+        lower = float(uncertainty["lower"])
+        upper = float(uncertainty["upper"])
+        level = float(uncertainty["level"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValidationError("conclusion adjudication requires finite confidence bounds and level") from exc
+    if (
+        not all(math.isfinite(value) for value in (lower, upper, level))
+        or lower > float(effect) or float(effect) > upper or not 0 < level < 1
+    ):
+        raise ValidationError("conclusion adjudication requires a coherent confidence interval")
+    null = float(analysis.null_value)
+    expected = hypothesis.expected_effect_direction
+    if expected not in {"positive", "negative", "two_sided", "equivalence"}:
+        raise ValidationError("conclusion adjudication requires a frozen expected effect direction")
+    threshold = float(conclusion.smallest_effect_size_of_interest)
+    equivalence = conclusion.decision_rule == "equivalence_interval_within_margin"
+    if equivalence:
+        if expected != "equivalence":
+            raise ValidationError("equivalence conclusion requires an equivalence hypothesis")
+        if adjusted_primary_rejects is not None:
+            raise ValidationError("direct equivalence rule cannot receive a multiplicity decision")
+        within_margin = lower > null - threshold and upper < null + threshold
+        return {
+            "decision_rule": conclusion.decision_rule,
+            "adjudicated_evidence_direction": (
+                EvidenceDirection.SUPPORTS.value
+                if within_margin else conclusion.non_supporting_direction.value
+            ),
+            "criteria": {
+                "equivalence_margin": threshold,
+                "lower_equivalence_bound": null - threshold,
+                "upper_equivalence_bound": null + threshold,
+                "registered_interval_within_equivalence_margin": within_margin,
+                "absence_not_inferred_from_nonsignificance": True,
+            },
+            "scope": {
+                "population": conclusion.population, "setting": conclusion.setting,
+                "time_window": conclusion.time_window,
+                "effect_scale": conclusion.effect_scale,
+                "effect_unit": conclusion.effect_unit,
+            },
+            "permitted_claim_level": conclusion.permitted_claim_level.value,
+            "higher_level_conclusions_unsupported": list(
+                conclusion.higher_level_conclusions_unsupported
+            ),
+        }
+    interval_supports = (
+        lower > null if expected == "positive" else
+        upper < null if expected == "negative" else
+        upper < null or lower > null
+    )
+    practically_significant = (
+        lower >= null + threshold if expected == "positive" else
+        upper <= null - threshold if expected == "negative" else
+        lower >= null + threshold or upper <= null - threshold
+    )
+    requires_adjustment = (
+        conclusion.decision_rule
+        == "adjusted_primary_rejection_and_interval_and_practical_significance"
+    )
+    if requires_adjustment and type(adjusted_primary_rejects) is not bool:
+        raise ValidationError("adjusted conclusion rule requires the frozen primary family decision")
+    if not requires_adjustment and adjusted_primary_rejects is not None:
+        raise ValidationError("direct conclusion rule cannot receive a multiplicity decision")
+    supports = interval_supports and practically_significant and (
+        adjusted_primary_rejects is True if requires_adjustment else True
+    )
+    return {
+        "decision_rule": conclusion.decision_rule,
+        "adjudicated_evidence_direction": (
+            EvidenceDirection.SUPPORTS.value
+            if supports else conclusion.non_supporting_direction.value
+        ),
+        "criteria": {
+            **(
+                {"adjusted_primary_rejects": adjusted_primary_rejects}
+                if requires_adjustment else {}
+            ),
+            "registered_interval_supports_expected_direction": interval_supports,
+            "smallest_effect_size_of_interest": threshold,
+            "practical_significance_satisfied": practically_significant,
+            "practical_significance_requires_confidence_bound": True,
+        },
+        "scope": {
+            "population": conclusion.population,
+            "setting": conclusion.setting,
+            "time_window": conclusion.time_window,
+            "effect_scale": conclusion.effect_scale,
+            "effect_unit": conclusion.effect_unit,
+        },
+        "permitted_claim_level": conclusion.permitted_claim_level.value,
+        "higher_level_conclusions_unsupported": list(
+            conclusion.higher_level_conclusions_unsupported
+        ),
+    }
+
+
 def validate_validation_tag_context(
     *,
     tags: Sequence[ValidationTag],
@@ -198,8 +390,18 @@ def validate_validation_tag_context(
     datasets: Sequence[DatasetManifest],
     controls_passed: Sequence[str],
     replicated_run: ResearchRun | None,
+    claim: Claim | None = None,
 ) -> None:
     tag_set = set(tags)
+
+    if (
+        claim is not None
+        and claim.level is ClaimLevel.CAUSAL_DIRECTION
+        and ValidationTag.CAUSAL_ESTIMATE not in tag_set
+    ):
+        raise ValidationError(
+            "evidence attached to a causal-direction claim requires the causal_estimate validation tag"
+        )
 
     def require_eligible_run(tag: ValidationTag) -> ResearchRun:
         if run is None or not run.scientific_evidence_eligible:
@@ -395,6 +597,45 @@ def validate_validation_tag_context(
         if any(dataset.synthetic for dataset in datasets):
             raise ValidationError("empirical_test cannot use synthetic data")
 
+    if ValidationTag.CAUSAL_ESTIMATE in tag_set:
+        current = require_eligible_run(ValidationTag.CAUSAL_ESTIMATE)
+        if claim is None or claim.level is not ClaimLevel.CAUSAL_DIRECTION:
+            raise ValidationError(
+                "causal_estimate requires evidence attached to an exact causal-direction claim"
+            )
+        if ValidationTag.EMPIRICAL_TEST not in tag_set:
+            raise ValidationError("causal_estimate also requires the empirical_test tag")
+        if exploratory or current.analysis_mode is AnalysisMode.EXPLORATORY:
+            raise ValidationError("causal_estimate requires confirmatory or replication evidence")
+        if protocol is None or not protocol.causal_claim:
+            raise ValidationError("causal_estimate requires a frozen causal protocol")
+        causal_estimand = protocol.causal_identification_audit.get("causal_estimand")
+        if (
+            not isinstance(causal_estimand, dict)
+            or causal_estimand.get("target_hypothesis_id") != hypothesis.hypothesis_id
+        ):
+            raise ValidationError(
+                "causal_estimate hypothesis must match the frozen causal estimand target"
+            )
+        if protocol.analysis_contract is None:
+            raise ValidationError("causal_estimate requires a frozen analysis contract")
+        if (
+            protocol.causal_identification_audit.get("assignment_type")
+            == "observational"
+            and protocol.analysis_contract.adjustment_columns
+            != protocol.causal_identification_audit.get("proposed_adjustment_set")
+        ):
+            raise ValidationError(
+                "causal_estimate analysis covariates do not match the frozen adjustment set"
+            )
+        handoff = current.metadata.get("execution_handoff")
+        if not isinstance(handoff, dict) or not isinstance(handoff.get("result"), dict):
+            raise ValidationError("causal_estimate requires a verified execution handoff")
+        if handoff["result"].get("maximum_inference_level") != "design_conditional_effect":
+            raise ValidationError(
+                "executed method does not permit a design-conditional effect estimate"
+            )
+
 
 def validate_dataset_artifacts(
     artifacts: Sequence[DatasetArtifact],
@@ -437,9 +678,453 @@ def validate_dataset_artifacts(
     return normalized
 
 
+def validate_planning_inference_coherence(
+    *, sample_size_plan: dict[str, Any], analysis_contract: AnalysisContract,
+    expected_direction: str, multiplicity_alpha: float | None,
+    measurement_unit: str,
+    smallest_effect_size_of_interest: float | None,
+    maximum_excluded_fraction: float,
+    multiplicity_method: str = "single_test",
+) -> None:
+    """Require prospective planning assumptions to match registered inference."""
+    if sample_size_plan.get("target_hypothesis_id") != analysis_contract.primary_hypothesis_id:
+        raise ValidationError(
+            "sample_size_plan target_hypothesis_id must match the analysis contract"
+        )
+    if sample_size_plan.get("target_measurement_id") != analysis_contract.primary_measurement_id:
+        raise ValidationError(
+            "sample_size_plan target_measurement_id must match the analysis contract"
+        )
+    if sample_size_plan.get("measurement_unit") != measurement_unit:
+        raise ValidationError(
+            "sample_size_plan measurement_unit must match the primary measurement"
+        )
+    if analysis_contract.method != "independent_mean_difference_ci":
+        raise ValidationError(
+            "two-group sample_size_plan requires analysis_contract.method independent_mean_difference_ci"
+        )
+    calculation = sample_size_plan["calculation"]
+    anticipated_attrition = calculation["anticipated_attrition_fraction"]
+    if anticipated_attrition > float(maximum_excluded_fraction):
+        raise ValidationError(
+            "sample_size_plan anticipated attrition exceeds the analysis contract maximum excluded fraction"
+        )
+    strategy = sample_size_plan["strategy"]
+    if strategy == "precision":
+        if analysis_contract.confidence_level is None:
+            raise ValidationError(
+                "a precision sample_size_plan requires analysis_contract.confidence_level"
+            )
+        if float(analysis_contract.confidence_level) != calculation["confidence_level"]:
+            raise ValidationError(
+                "precision sample_size_plan confidence level must match the analysis contract"
+            )
+        return
+    if strategy == "equivalence_power":
+        if expected_direction != "equivalence":
+            raise ValidationError(
+                "equivalence_power sample_size_plan requires an equivalence hypothesis"
+            )
+        if multiplicity_method != "single_test":
+            raise ValidationError(
+                "equivalence_power supports only a direct single-test decision"
+            )
+        if multiplicity_alpha is None or float(multiplicity_alpha) != calculation["alpha"]:
+            raise ValidationError(
+                "equivalence_power sample_size_plan alpha must match the protocol multiplicity_alpha"
+            )
+        if smallest_effect_size_of_interest is None or (
+            float(smallest_effect_size_of_interest)
+            != calculation["equivalence_margin"]
+        ):
+            raise ValidationError(
+                "equivalence_power margin must match the conclusion contract"
+            )
+        if (
+            analysis_contract.confidence_level is None
+            or float(analysis_contract.confidence_level)
+            != calculation["confidence_level"]
+        ):
+            raise ValidationError(
+                "equivalence_power confidence level must match the analysis contract"
+            )
+        return
+    if strategy == "power":
+        raise ValidationError(
+            "ordinary difference-test power cannot govern practical-significance conclusions; use practical_power"
+        )
+    if expected_direction not in {"positive", "negative", "two_sided"}:
+        raise ValidationError(
+            "practical_power requires a directional primary hypothesis"
+        )
+    if calculation["alternative"] != expected_direction:
+        raise ValidationError(
+            "practical_power alternative must match the primary hypothesis expected direction"
+        )
+    if multiplicity_method != "single_test":
+        raise ValidationError(
+            "practical_power supports only a direct single-test decision"
+        )
+    if multiplicity_alpha is None or float(multiplicity_alpha) != calculation["alpha"]:
+        raise ValidationError(
+            "practical_power alpha must match the protocol multiplicity_alpha"
+        )
+    if smallest_effect_size_of_interest is None or float(
+        smallest_effect_size_of_interest
+    ) != calculation["smallest_effect_size_of_interest"]:
+        raise ValidationError(
+            "practical_power smallest effect must match the conclusion contract"
+        )
+    if analysis_contract.confidence_level is None or float(
+        analysis_contract.confidence_level
+    ) != calculation["confidence_level"]:
+        raise ValidationError(
+            "practical_power confidence level must match the analysis contract"
+        )
+
+
+def validate_equivalence_design_coherence(
+    *, analysis_contract: AnalysisContract,
+    conclusion_contract: ConclusionContract | None,
+    expected_direction: str, multiplicity_method: str,
+    multiplicity_alpha: float | None,
+) -> None:
+    """Bind equivalence intent, margin rule, and TOST-compatible interval level."""
+    equivalence = expected_direction == "equivalence"
+    if equivalence != (
+        analysis_contract.support_rule == "interval_within_equivalence_margin"
+    ):
+        raise ValidationError(
+            "equivalence hypothesis and analysis support rule must be declared together"
+        )
+    if equivalence != (
+        conclusion_contract is not None
+        and conclusion_contract.decision_rule == "equivalence_interval_within_margin"
+    ):
+        raise ValidationError(
+            "equivalence hypothesis and conclusion decision rule must be declared together"
+        )
+    if not equivalence:
+        return
+    if multiplicity_method != "single_test":
+        raise ValidationError(
+            "equivalence currently requires multiplicity_method single_test"
+        )
+    if (
+        multiplicity_alpha is None
+        or analysis_contract.confidence_level is None
+        or not math.isclose(
+            float(analysis_contract.confidence_level),
+            1 - 2 * float(multiplicity_alpha), rel_tol=0.0, abs_tol=1e-12,
+        )
+    ):
+        raise ValidationError(
+            "equivalence confidence level must equal one minus twice the frozen alpha"
+        )
+
+
+def assess_precision_achievement(
+    sample_size_plan: dict[str, Any], uncertainty: Any,
+) -> dict[str, Any]:
+    """Compare an executed interval with a frozen precision target."""
+    if sample_size_plan.get("strategy") != "precision":
+        return {"status": "not_applicable", "reason": "not a precision plan"}
+    target = sample_size_plan["calculation"]["target_half_width"]
+    if not isinstance(uncertainty, dict):
+        return {
+            "status": "unverified", "target_half_width": target,
+            "reason": "no verified primary confidence interval was available",
+        }
+    lower = uncertainty.get("lower")
+    upper = uncertainty.get("upper")
+    if any(
+        isinstance(value, bool) or not isinstance(value, (int, float))
+        or not math.isfinite(float(value)) for value in (lower, upper)
+    ) or float(lower) > float(upper):
+        return {
+            "status": "unverified", "target_half_width": target,
+            "reason": "verified primary uncertainty was not a finite ordered interval",
+        }
+    observed = (float(upper) - float(lower)) / 2
+    return {
+        "status": "met" if observed <= target else "not_met",
+        "target_half_width": target,
+        "observed_half_width": observed,
+        "measurement_unit": sample_size_plan.get("measurement_unit"),
+        "scientific_interpretation_verified": False,
+    }
+
+
+def assess_attrition_achievement(
+    sample_size_plan: dict[str, Any], information_check: Any,
+) -> dict[str, Any]:
+    """Compare observed exclusions with the prospective attrition assumption."""
+    anticipated = sample_size_plan["calculation"]["anticipated_attrition_fraction"]
+    if not isinstance(information_check, dict) or information_check.get("status") != "passed":
+        return {
+            "status": "unverified",
+            "anticipated_attrition_fraction": anticipated,
+            "reason": "no passed registered information check was available",
+        }
+    observed = information_check["observed_excluded_fraction"]
+    return {
+        "status": (
+            "within_assumption" if observed <= anticipated
+            else "exceeded_assumption"
+        ),
+        "anticipated_attrition_fraction": anticipated,
+        "observed_excluded_fraction": observed,
+        "registered_maximum_excluded_fraction": information_check[
+            "registered_maximum_excluded_fraction"
+        ],
+        "observed_excluded_fraction_by_group": information_check[
+            "observed_excluded_fraction_by_group"
+        ],
+        "observed_group_excluded_fraction_difference": information_check[
+            "observed_group_excluded_fraction_difference"
+        ],
+        "registered_maximum_group_excluded_fraction_difference": information_check[
+            "registered_maximum_group_excluded_fraction_difference"
+        ],
+        "scientific_interpretation_verified": False,
+    }
+
+
+def assess_variance_assumption(
+    sample_size_plan: dict[str, Any], observed_standard_deviation: Any,
+) -> dict[str, Any]:
+    """Expose observed variability without inventing an adequacy threshold."""
+    assumed = sample_size_plan["calculation"]["assumed_standard_deviation"]
+    if (
+        isinstance(observed_standard_deviation, bool)
+        or not isinstance(observed_standard_deviation, (int, float))
+        or not math.isfinite(float(observed_standard_deviation))
+        or float(observed_standard_deviation) < 0
+    ):
+        return {
+            "status": "unverified", "assumed_standard_deviation": assumed,
+            "reason": "verified primary analysis did not expose a finite observed standard deviation",
+        }
+    observed = float(observed_standard_deviation)
+    ratio = observed / assumed
+    maximum_ratio = sample_size_plan["calculation"].get(
+        "maximum_observed_to_assumed_sd_ratio"
+    )
+    return {
+        "status": (
+            "observed_no_preregistered_tolerance" if maximum_ratio is None
+            else "within_registered_tolerance" if ratio <= maximum_ratio
+            else "exceeded_registered_tolerance"
+        ),
+        "assumed_standard_deviation": assumed,
+        "observed_pooled_standard_deviation": observed,
+        "observed_to_assumed_ratio": ratio,
+        "maximum_registered_ratio": maximum_ratio,
+        "measurement_unit": sample_size_plan.get("measurement_unit"),
+        "adequacy_threshold_registered": maximum_ratio is not None,
+        "scientific_interpretation_verified": False,
+    }
+
+
 def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
+    _reject_review_placeholders(protocol.to_dict(), "protocol")
     if protocol.status is not ProtocolStatus.DRAFT:
         raise ValidationError("only draft protocols can be frozen")
+    if not isinstance(protocol.causal_claim, bool):
+        raise ValidationError("causal_claim must be true or false")
+    if protocol.causal_claim:
+        from research_machine.design.causal import audit_causal_identification
+
+        if not protocol.causal_identification:
+            raise ValidationError(
+                "causal protocols require a causal identification specification"
+            )
+        causal_audit = audit_causal_identification(protocol.causal_identification)
+        violation_codes = [item["code"] for item in causal_audit["violations"]]
+        if violation_codes:
+            raise ValidationError(
+                "causal identification is blocked by: " + ", ".join(violation_codes)
+            )
+        if (
+            protocol.protocol_kind is ProtocolKind.OBSERVATIONAL
+            and causal_audit["assignment_type"] != "observational"
+        ):
+            raise ValidationError(
+                "observational causal protocols require observational graph assignment"
+            )
+        if (
+            causal_audit["assignment_type"] == "observational"
+            and causal_audit["backdoor_criterion_satisfied"] is not True
+        ):
+            raise ValidationError(
+                "observational causal protocols must satisfy the backdoor criterion"
+            )
+        if protocol.causal_identification_audit != causal_audit:
+            raise ValidationError(
+                "causal_identification_audit must exactly match the deterministic audit of the supplied graph"
+            )
+        causal_estimand = causal_audit["causal_estimand"]
+        if causal_estimand["target_hypothesis_id"] not in protocol.hypotheses_tested:
+            raise ValidationError(
+                "causal estimand target_hypothesis_id must name a tested hypothesis"
+            )
+        if (
+            protocol.analysis_contract is not None
+            and protocol.analysis_contract.primary_hypothesis_id
+            != causal_estimand["target_hypothesis_id"]
+        ):
+            raise ValidationError(
+                "causal estimand and analysis contract must select the same primary hypothesis"
+            )
+        if (
+            protocol.analysis_contract is not None
+            and protocol.analysis_contract.estimand != causal_estimand["description"]
+        ):
+            raise ValidationError(
+                "causal estimand description must match the frozen analysis contract estimand"
+            )
+        if (
+            causal_audit["assignment_type"] == "observational"
+            and protocol.analysis_contract is not None
+            and protocol.analysis_contract.adjustment_columns
+            != causal_audit["proposed_adjustment_set"]
+        ):
+            raise ValidationError(
+                "observational causal analysis adjustment_columns must exactly match "
+                "the audited proposed_adjustment_set"
+            )
+        if protocol.analysis_contract is not None and (
+            protocol.analysis_contract.group_column != causal_audit["exposure"]
+            or protocol.analysis_contract.outcome_column != causal_audit["outcome"]
+        ):
+            raise ValidationError(
+                "causal analysis group and outcome columns must exactly match the audited "
+                "exposure and outcome nodes"
+            )
+        missing_assessment_gates = sorted({
+            item["assessment_gate_id"]
+            for item in causal_audit["assumption_register"]
+        } - set(protocol.quality_requirements))
+        if missing_assessment_gates:
+            raise ValidationError(
+                "causal assumption assessment gates must be protocol quality requirements: "
+                + ", ".join(missing_assessment_gates)
+            )
+    elif protocol.causal_identification or protocol.causal_identification_audit:
+        raise ValidationError("causal identification requires causal_claim true")
+    empirical = protocol.protocol_kind in {ProtocolKind.OBSERVATIONAL, ProtocolKind.EXPERIMENTAL}
+    if empirical or protocol.independent_unit or protocol.repeated_measures is not None or protocol.analysis_design:
+        if not protocol.independent_unit.strip() or type(protocol.repeated_measures) is not bool or protocol.analysis_design not in {"independent_groups", "paired", "clustered", "repeated_measures", "descriptive"}:
+            raise ValidationError("structured design requires independent_unit, boolean repeated_measures, and a supported analysis_design")
+        if protocol.repeated_measures and protocol.analysis_design == "independent_groups":
+            raise ValidationError("repeated observations cannot use an independent-groups analysis; review dependence or preregister unit-level aggregation")
+        if (protocol.repeated_measures or protocol.analysis_design in {"paired", "clustered", "repeated_measures"}) and not protocol.unit_analysis_plan.strip():
+            raise ValidationError("paired, clustered, or repeated observations require a unit_analysis_plan defining how rows map to the independent-unit estimand")
+        if protocol.analysis_specification_sha256 and not protocol.unit_id_column.strip():
+            raise ValidationError("protocols with a pinned analysis specification require a unit_id_column")
+        if empirical and protocol.analysis_specification_sha256 and protocol.analysis_contract is None:
+            raise ValidationError("empirical protocols with a pinned analysis specification require an analysis_contract")
+    if protocol.analysis_contract is not None:
+        contract = protocol.analysis_contract
+        if not isinstance(contract, AnalysisContract):
+            raise ValidationError("analysis_contract must be an AnalysisContract")
+        for name in ("primary_hypothesis_id", "primary_measurement_id", "method", "outcome_column", "group_column", "estimand", "missing_data_policy", "assignment_type", "effect_estimate_path", "uncertainty_path", "missingness_assumption", "missingness_assessment_plan", "missingness_failure_response", "missingness_assessment_kind", "missingness_assessment_gate_id"):
+            require_text(getattr(contract, name), f"analysis_contract.{name}")
+        if contract.missingness_assessment_kind not in {
+            "empirical_diagnostic", "design_record_review", "external_validation",
+            "substantive_judgment",
+        }:
+            raise ValidationError(
+                "analysis_contract.missingness_assessment_kind is unsupported"
+            )
+        if contract.missingness_assessment_gate_id not in protocol.quality_requirements:
+            raise ValidationError(
+                "analysis_contract.missingness_assessment_gate_id must name a required quality gate"
+            )
+        occupied_gate_ids = {
+            control.evaluation_gate_id for control in protocol.control_definitions
+        }
+        if protocol.causal_claim:
+            occupied_gate_ids.update(
+                item["assessment_gate_id"]
+                for item in protocol.causal_identification_audit.get(
+                    "assumption_register", []
+                )
+            )
+        if contract.missingness_assessment_gate_id in occupied_gate_ids:
+            raise ValidationError(
+                "analysis_contract.missingness_assessment_gate_id must be dedicated "
+                "and cannot also evaluate a control or causal assumption"
+            )
+        for name in ("effect_estimate_path", "uncertainty_path"):
+            if not getattr(contract, name).startswith("/"):
+                raise ValidationError(f"analysis_contract.{name} must be an absolute JSON Pointer")
+        if contract.effect_estimate_path == contract.uncertainty_path:
+            raise ValidationError("analysis contract effect and uncertainty selectors must be distinct")
+        if isinstance(contract.null_value, bool) or not isinstance(contract.null_value, (int, float)) or not math.isfinite(float(contract.null_value)):
+            raise ValidationError("analysis_contract.null_value must be a finite number")
+        if contract.support_rule not in {
+            "point_direction", "interval_excludes_null",
+            "interval_within_equivalence_margin",
+        }:
+            raise ValidationError("analysis_contract.support_rule is unsupported")
+        if contract.confidence_level is not None and (
+            isinstance(contract.confidence_level, bool)
+            or not isinstance(contract.confidence_level, (int, float))
+            or not math.isfinite(float(contract.confidence_level))
+            or not 0 < float(contract.confidence_level) < 1
+        ):
+            raise ValidationError(
+                "analysis_contract.confidence_level must be finite and strictly between zero and one"
+            )
+        if type(contract.minimum_analyzable_units) is not int or contract.minimum_analyzable_units < 2:
+            raise ValidationError("analysis_contract.minimum_analyzable_units must be an integer of at least two")
+        if (isinstance(contract.maximum_excluded_fraction, bool)
+                or not isinstance(contract.maximum_excluded_fraction, (int, float))
+                or not math.isfinite(float(contract.maximum_excluded_fraction))
+                or not 0 <= float(contract.maximum_excluded_fraction) < 1):
+            raise ValidationError("analysis_contract.maximum_excluded_fraction must be in [0, 1)")
+        if (
+            isinstance(contract.maximum_group_excluded_fraction_difference, bool)
+            or not isinstance(
+                contract.maximum_group_excluded_fraction_difference, (int, float)
+            )
+            or not math.isfinite(
+                float(contract.maximum_group_excluded_fraction_difference)
+            )
+            or not 0 <= float(
+                contract.maximum_group_excluded_fraction_difference
+            ) <= 1
+        ):
+            raise ValidationError(
+                "analysis_contract.maximum_group_excluded_fraction_difference "
+                "must be in [0, 1]"
+            )
+        if contract.primary_hypothesis_id not in protocol.hypotheses_tested:
+            raise ValidationError("analysis_contract.primary_hypothesis_id must name a tested hypothesis")
+        groups = require_unique_text_list(contract.groups, "analysis_contract.groups")
+        if len(groups) != 2:
+            raise ValidationError("analysis_contract.groups must contain exactly two distinct levels")
+        require_unique_text_list(
+            contract.adjustment_columns, "analysis_contract.adjustment_columns"
+        )
+        if contract.missing_data_policy != "complete_case":
+            raise ValidationError("analysis_contract currently supports only complete_case missing-data handling")
+        allowed_assignment_types = {"observational", "randomized_between_units", "nonrandomized", "not_applicable"}
+        if contract.assignment_type not in allowed_assignment_types:
+            raise ValidationError("analysis_contract.assignment_type is unsupported")
+        if protocol.protocol_kind is ProtocolKind.OBSERVATIONAL and contract.assignment_type != "observational":
+            raise ValidationError("observational protocols require assignment_type observational")
+        if protocol.protocol_kind is ProtocolKind.EXPERIMENTAL and contract.assignment_type == "observational":
+            raise ValidationError("experimental protocols cannot use assignment_type observational")
+        if contract.assignment_type == "randomized_between_units":
+            require_sha256(contract.allocation_sha256, "analysis_contract.allocation_sha256")
+            if protocol.repeated_measures:
+                raise ValidationError("randomized_between_units currently requires one observed row per independent unit")
+        elif contract.allocation_sha256:
+            raise ValidationError("allocation_sha256 is only valid for randomized_between_units assignment")
+        if not protocol.measurement_definitions:
+            raise ValidationError("analysis_contract requires typed measurement_definitions")
     missing: list[str] = []
     required_text = {
         "experiment_id": protocol.experiment_id,
@@ -469,6 +1154,261 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 "blinding_plan": protocol.blinding_plan,
             }
         )
+    secondary_outcomes = require_unique_text_list(
+        protocol.secondary_outcomes, "secondary_outcomes"
+    )
+    outcome_names = [require_text(protocol.primary_outcome, "primary_outcome"), *secondary_outcomes]
+    if len({item.casefold() for item in outcome_names}) != len(outcome_names):
+        raise ValidationError(
+            "primary_outcome and secondary_outcomes must be distinct ignoring case"
+        )
+    multiplicity_plan_supplied = bool(
+        protocol.confirmatory_outcomes
+        or protocol.exploratory_outcomes
+        or protocol.multiplicity_method
+        or protocol.multiplicity_alpha is not None
+    )
+    if secondary_outcomes or multiplicity_plan_supplied:
+        confirmatory = require_unique_text_list(
+            protocol.confirmatory_outcomes, "confirmatory_outcomes"
+        )
+        exploratory = require_unique_text_list(
+            protocol.exploratory_outcomes, "exploratory_outcomes"
+        )
+        if set(confirmatory) & set(exploratory):
+            raise ValidationError(
+                "confirmatory_outcomes and exploratory_outcomes must be disjoint"
+            )
+        if set(confirmatory) | set(exploratory) != set(outcome_names):
+            raise ValidationError(
+                "typed multiplicity outcomes must exactly partition the primary and secondary outcomes"
+            )
+        if protocol.analysis_mode is AnalysisMode.EXPLORATORY:
+            if confirmatory or exploratory != outcome_names:
+                raise ValidationError(
+                    "exploratory protocols must classify every outcome as exploratory in registered order"
+                )
+            if protocol.multiplicity_method != "exploratory_only" or protocol.multiplicity_alpha is not None:
+                raise ValidationError(
+                    "exploratory outcome plans require multiplicity_method exploratory_only and no alpha"
+                )
+        else:
+            if protocol.primary_outcome not in confirmatory:
+                raise ValidationError(
+                    "confirmatory and replication protocols must classify the primary outcome as confirmatory"
+                )
+            expected_method = "single_test" if len(confirmatory) == 1 else "holm"
+            if protocol.multiplicity_method != expected_method:
+                raise ValidationError(
+                    f"typed multiplicity plan for {len(confirmatory)} confirmatory outcome(s) requires {expected_method}"
+                )
+            if (
+                isinstance(protocol.multiplicity_alpha, bool)
+                or not isinstance(protocol.multiplicity_alpha, (int, float))
+                or not math.isfinite(float(protocol.multiplicity_alpha))
+                or not 0 < float(protocol.multiplicity_alpha) < 1
+            ):
+                raise ValidationError(
+                    "typed confirmatory multiplicity plan requires a finite alpha strictly between zero and one"
+                )
+    if any(not isinstance(item, AnalysisStepContract) for item in protocol.analysis_steps):
+        raise ValidationError("analysis_steps must contain AnalysisStepContract values")
+    if protocol.analysis_steps:
+        step_ids: list[str] = []
+        steps_by_id: dict[str, AnalysisStepContract] = {}
+        for index, step in enumerate(protocol.analysis_steps):
+            prefix = f"analysis_steps[{index}]"
+            step_id = require_text(step.step_id, f"{prefix}.step_id")
+            if step_id in steps_by_id:
+                raise ValidationError(f"duplicate analysis step_id: {step_id}")
+            if step.role not in {"primary_estimate", "confirmatory_test", "exploratory_analysis", "diagnostic", "sensitivity", "multiplicity"}:
+                raise ValidationError(f"{prefix}.role is unsupported")
+            require_text(step.method, f"{prefix}.method")
+            require_sha256(step.specification_sha256, f"{prefix}.specification_sha256")
+            require_sha256(step.implementation_sha256, f"{prefix}.implementation_sha256")
+            dependencies = require_unique_text_list(step.depends_on, f"{prefix}.depends_on")
+            if step_id in dependencies:
+                raise ValidationError(f"{prefix} cannot depend on itself")
+            step_ids.append(step_id)
+            steps_by_id[step_id] = step
+        unknown_dependencies = sorted({
+            dependency for step in protocol.analysis_steps for dependency in step.depends_on
+            if dependency not in steps_by_id
+        })
+        if unknown_dependencies:
+            raise ValidationError(
+                "analysis steps reference unknown dependencies: " + ", ".join(unknown_dependencies)
+            )
+        visiting: set[str] = set()
+        visited: set[str] = set()
+        def visit(step_id: str) -> None:
+            if step_id in visiting:
+                raise ValidationError("analysis_steps dependency graph must be acyclic")
+            if step_id in visited:
+                return
+            visiting.add(step_id)
+            for dependency in steps_by_id[step_id].depends_on:
+                visit(dependency)
+            visiting.remove(step_id)
+            visited.add(step_id)
+        for step_id in step_ids:
+            visit(step_id)
+
+        measurement_by_id = {
+            item.measurement_id: item for item in protocol.measurement_definitions
+        }
+        source_steps = [
+            step for step in protocol.analysis_steps
+            if step.role in {"primary_estimate", "confirmatory_test", "exploratory_analysis"}
+        ]
+        for step in source_steps:
+            require_text(step.hypothesis_id, f"analysis step {step.step_id} hypothesis_id")
+            require_text(step.outcome, f"analysis step {step.step_id} outcome")
+            require_text(step.measurement_id, f"analysis step {step.step_id} measurement_id")
+            if step.hypothesis_id not in protocol.hypotheses_tested:
+                raise ValidationError(
+                    f"analysis step {step.step_id} hypothesis_id is not tested by the protocol"
+                )
+            measurement = measurement_by_id.get(step.measurement_id)
+            if measurement is None or measurement.registered_target != step.outcome:
+                raise ValidationError(
+                    f"analysis step {step.step_id} measurement must exactly bind its outcome"
+                )
+            if step.role == "primary_estimate" and step.outcome != protocol.primary_outcome:
+                raise ValidationError(
+                    f"analysis step {step.step_id} primary_estimate must bind the primary outcome"
+                )
+            if step.role == "confirmatory_test":
+                if step.outcome not in protocol.confirmatory_outcomes:
+                    raise ValidationError(
+                        f"analysis step {step.step_id} confirmatory_test must bind a confirmatory outcome"
+                    )
+                if not step.p_value_path.startswith("/"):
+                    raise ValidationError(
+                        f"analysis step {step.step_id} confirmatory_test requires an absolute p_value_path"
+                    )
+            elif step.p_value_path:
+                raise ValidationError(
+                    f"analysis step {step.step_id} p_value_path is reserved for confirmatory_test"
+                )
+        if protocol.analysis_contract is not None:
+            primary_steps = [step for step in source_steps if step.role == "primary_estimate"]
+            if len(primary_steps) != 1:
+                raise ValidationError("analysis_steps require exactly one primary_estimate step")
+            primary_step = primary_steps[0]
+            if (
+                primary_step.method != protocol.analysis_contract.method
+                or primary_step.specification_sha256 != protocol.analysis_specification_sha256
+                or primary_step.implementation_sha256 != protocol.analysis_code_hash
+                or primary_step.hypothesis_id != protocol.analysis_contract.primary_hypothesis_id
+                or primary_step.measurement_id != protocol.analysis_contract.primary_measurement_id
+                or primary_step.outcome != protocol.primary_outcome
+            ):
+                raise ValidationError(
+                    "primary analysis step must exactly match the frozen primary analysis contract"
+                )
+        multiplicity_steps = [
+            step for step in protocol.analysis_steps if step.role == "multiplicity"
+        ]
+        if protocol.multiplicity_method == "holm":
+            if len(multiplicity_steps) != 1:
+                raise ValidationError("Holm protocols require exactly one multiplicity analysis step")
+            step = multiplicity_steps[0]
+            if step.method != "holm_adjustment" or not step.family_id.strip():
+                raise ValidationError(
+                    "Holm multiplicity step requires method holm_adjustment and a family_id"
+                )
+            if step.alpha != protocol.multiplicity_alpha:
+                raise ValidationError("Holm multiplicity step alpha must match the protocol alpha")
+            if any(not isinstance(item, AnalysisFamilyMember) for item in step.family_members):
+                raise ValidationError("multiplicity family_members must be typed values")
+            member_ids = [require_text(item.member_id, "family member_id") for item in step.family_members]
+            if len(set(member_ids)) != len(member_ids):
+                raise ValidationError("multiplicity family member_id values must be unique")
+            members_by_source = {item.source_step_id: item for item in step.family_members}
+            if len(members_by_source) != len(step.family_members):
+                raise ValidationError("multiplicity family must use each source step exactly once")
+            confirmatory_sources = [
+                source for source in source_steps if source.role == "confirmatory_test"
+            ]
+            expected_source_ids = {source.step_id for source in confirmatory_sources}
+            if set(step.depends_on) != expected_source_ids or set(members_by_source) != expected_source_ids:
+                raise ValidationError(
+                    "Holm multiplicity dependencies and family members must exactly cover confirmatory source steps"
+                )
+            if {source.outcome for source in confirmatory_sources} != set(protocol.confirmatory_outcomes):
+                raise ValidationError(
+                    "analysis source steps must exactly cover every confirmatory outcome"
+                )
+            for source in confirmatory_sources:
+                member = members_by_source[source.step_id]
+                if (
+                    member.hypothesis_id != source.hypothesis_id
+                    or member.outcome != source.outcome
+                    or member.measurement_id != source.measurement_id
+                ):
+                    raise ValidationError(
+                        "multiplicity family member must exactly match its source analysis step"
+                    )
+        elif multiplicity_steps:
+            raise ValidationError("multiplicity analysis steps require a Holm protocol plan")
+    elif protocol.multiplicity_method == "holm":
+        raise ValidationError("Holm protocols require a frozen multi-step analysis workflow")
+    conclusion = protocol.conclusion_contract
+    conclusion_required = bool(
+        empirical and protocol.analysis_contract is not None
+        and protocol.analysis_mode in {AnalysisMode.CONFIRMATORY, AnalysisMode.REPLICATION}
+    )
+    if conclusion_required and conclusion is not None:
+        if not isinstance(conclusion, ConclusionContract):
+            raise ValidationError("conclusion_contract must be a typed ConclusionContract")
+        if protocol.analysis_contract is None:
+            raise ValidationError("conclusion_contract requires an analysis_contract")
+        if conclusion.primary_hypothesis_id != protocol.analysis_contract.primary_hypothesis_id:
+            raise ValidationError("conclusion_contract must bind the primary analysis hypothesis")
+        allowed_decision_rules = (
+            {"adjusted_primary_rejection_and_interval_and_practical_significance"}
+            if protocol.multiplicity_method == "holm"
+            else {"interval_and_practical_significance", "equivalence_interval_within_margin"}
+        )
+        if conclusion.decision_rule not in allowed_decision_rules:
+            raise ValidationError("conclusion_contract decision_rule disagrees with the multiplicity plan")
+        threshold = conclusion.smallest_effect_size_of_interest
+        if (
+            isinstance(threshold, bool) or not isinstance(threshold, (int, float))
+            or not math.isfinite(float(threshold)) or float(threshold) < 0
+        ):
+            raise ValidationError("smallest_effect_size_of_interest must be a finite non-negative number")
+        if conclusion.decision_rule == "equivalence_interval_within_margin" and float(threshold) <= 0:
+            raise ValidationError("equivalence conclusion requires a positive finite margin")
+        for field_name in ("effect_scale", "effect_unit", "population", "setting", "time_window"):
+            require_text(getattr(conclusion, field_name), f"conclusion_contract.{field_name}")
+        primary_measurements = [
+            item for item in protocol.measurement_definitions
+            if item.measurement_id == protocol.analysis_contract.primary_measurement_id
+        ]
+        if len(primary_measurements) != 1 or conclusion.effect_unit != primary_measurements[0].unit:
+            raise ValidationError("conclusion_contract effect_unit must match the primary measurement unit")
+        if conclusion.non_supporting_direction not in {
+            EvidenceDirection.INCONCLUSIVE, EvidenceDirection.WEAKENS,
+        }:
+            raise ValidationError("conclusion_contract non_supporting_direction must be inconclusive or weakens")
+        required_level = (
+            ClaimLevel.CAUSAL_DIRECTION if protocol.causal_claim
+            else ClaimLevel.STATISTICAL_ASSOCIATION
+        )
+        if conclusion.permitted_claim_level is not required_level:
+            raise ValidationError(
+                "conclusion_contract permitted_claim_level disagrees with the protocol causal scope"
+            )
+        unsupported = require_unique_text_list(
+            conclusion.higher_level_conclusions_unsupported,
+            "conclusion_contract.higher_level_conclusions_unsupported",
+        )
+        if not unsupported:
+            raise ValidationError("conclusion_contract must name unsupported higher-level conclusions")
+    elif conclusion is not None:
+        raise ValidationError("conclusion_contract currently requires a confirmatory empirical analysis contract")
     for name, value in required_text.items():
         if not isinstance(value, str) or not value.strip():
             missing.append(name)
@@ -478,11 +1418,37 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         missing.append("quality_requirements")
     if not protocol.controls:
         missing.append("controls")
+    if empirical and not protocol.control_definitions:
+        missing.append("control_definitions")
     if (
         not protocol.sample_size_or_stopping_rule.strip()
         and "sample_size_or_stopping_rule" not in missing
     ):
         missing.append("sample_size_or_stopping_rule")
+    if protocol.sample_size_plan:
+        from research_machine.design.precision import (
+            build_sample_size_planning_receipt,
+        )
+        recomputed_plan = build_sample_size_planning_receipt(
+            protocol.sample_size_plan
+        )
+        if recomputed_plan != protocol.sample_size_plan:
+            raise ValidationError(
+                "sample_size_plan does not reproduce its deterministic calculation"
+            )
+        if protocol.analysis_design and protocol.analysis_design != "independent_groups":
+            raise ValidationError(
+                "two-group sample_size_plan conflicts with protocol analysis_design"
+            )
+        if (
+            protocol.analysis_contract is not None
+            and protocol.analysis_contract.minimum_analyzable_units is not None
+            and protocol.analysis_contract.minimum_analyzable_units
+            != recomputed_plan["calculation"]["analyzable_n_per_group"]
+        ):
+            raise ValidationError(
+                "analysis_contract minimum_analyzable_units must equal the sample_size_plan analyzable_n_per_group"
+            )
     if not protocol.failure_conditions:
         missing.append("failure_conditions")
     if not protocol.safety_constraints:
@@ -496,11 +1462,49 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             "privacy_plan",
             "retention_deletion_plan",
             "risk_assessment",
+            "vulnerable_population_plan",
+            "data_security_plan",
+            "incidental_findings_plan",
             "independent_review_receipt",
+            "independent_review_decision",
+            "independent_reviewer_role",
+            "independent_reviewed_at",
+            "independent_review_scope",
+            "independent_review_artifact_locator",
+            "independent_review_artifact_sha256",
         ):
             value = getattr(protocol, field)
             if not isinstance(value, str) or not value.strip():
                 missing.append(field)
+        if protocol.independent_review_decision and protocol.independent_review_decision not in _INDEPENDENT_REVIEW_DECISIONS:
+            raise ValidationError(
+                "independent_review_decision must be approved or approved_with_conditions"
+            )
+        if protocol.independent_reviewed_at:
+            try:
+                reviewed_at = datetime.fromisoformat(
+                    protocol.independent_reviewed_at.replace("Z", "+00:00")
+                )
+            except ValueError as exc:
+                raise ValidationError(
+                    "independent_reviewed_at must be an RFC 3339 timestamp"
+                ) from exc
+            if reviewed_at.tzinfo is None:
+                raise ValidationError(
+                    "independent_reviewed_at must include a timezone offset"
+                )
+        if protocol.independent_review_artifact_sha256:
+            require_sha256(
+                protocol.independent_review_artifact_sha256,
+                "independent_review_artifact_sha256",
+            )
+        conditions = require_unique_text_list(
+            protocol.independent_review_conditions, "independent_review_conditions"
+        )
+        if protocol.independent_review_decision == "approved_with_conditions" and not conditions:
+            raise ValidationError(
+                "independent_review_conditions must record every condition of conditional approval"
+            )
     if not protocol.expected_outputs:
         missing.append("expected_outputs")
     if not protocol.success_conditions:
@@ -509,14 +1513,106 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         raise ValidationError("quality_requirements must not contain duplicates")
     if protocol.measurement_definitions:
         validate_measurement_contract(protocol)
+    if protocol.measurement_validity_checks:
+        check_ids: set[str] = set()
+        gate_ids: set[str] = set()
+        measurement_ids = {
+            item.measurement_id for item in protocol.measurement_definitions
+        }
+        occupied_gate_ids = {
+            item.evaluation_gate_id for item in protocol.control_definitions
+        }
+        if protocol.analysis_contract is not None:
+            occupied_gate_ids.add(
+                protocol.analysis_contract.missingness_assessment_gate_id
+            )
+        if protocol.causal_identification:
+            occupied_gate_ids.update(
+                item["assessment_gate_id"]
+                for item in protocol.causal_identification.get("assumptions", [])
+            )
+        occupied_gate_ids.discard("")
+        for check in protocol.measurement_validity_checks:
+            if not isinstance(check, MeasurementValidityCheck):
+                raise ValidationError(
+                    "measurement_validity_checks must contain MeasurementValidityCheck values"
+                )
+            for name, value in check.to_dict().items():
+                require_text(value, f"measurement validity check {name}")
+            if check.evidence_type not in {
+                "criterion", "convergent", "discriminant", "known_groups",
+                "test_retest", "inter_rater", "content", "calibration", "other",
+            }:
+                raise ValidationError("unsupported measurement validity evidence_type")
+            if check.check_id in check_ids:
+                raise ValidationError("measurement validity check IDs must be unique")
+            if check.assessment_gate_id in gate_ids:
+                raise ValidationError("measurement validity assessment gates must be unique")
+            if check.measurement_id not in measurement_ids:
+                raise ValidationError(
+                    "measurement validity check must bind an exact protocol measurement_id"
+                )
+            if check.assessment_gate_id not in protocol.quality_requirements:
+                raise ValidationError(
+                    "measurement validity assessment gate must be a required protocol quality gate"
+                )
+            if check.assessment_gate_id in occupied_gate_ids:
+                raise ValidationError(
+                    "measurement validity assessment gate must be dedicated and cannot be reused for controls, causal assumptions, or missingness"
+                )
+            check_ids.add(check.check_id)
+            gate_ids.add(check.assessment_gate_id)
+    if conclusion_required and conclusion is None:
+        raise ValidationError(
+            "confirmatory empirical analyses require a typed conclusion_contract"
+        )
+    if protocol.control_definitions:
+        control_ids: set[str] = set()
+        targets: set[str] = set()
+        for control in protocol.control_definitions:
+            if not isinstance(control, ControlDefinition):
+                raise ValidationError("control_definitions must contain ControlDefinition objects")
+            for name, value in control.to_dict().items():
+                require_text(value, f"control definition {name}")
+            if control.family not in CONTROL_FAMILIES:
+                raise ValidationError("unsupported control family")
+            if control.control_id in control_ids or control.registered_control in targets:
+                raise ValidationError("duplicate control definition ID or registered control")
+            control_ids.add(control.control_id)
+            targets.add(control.registered_control)
+            if control.evaluation_gate_id not in protocol.quality_requirements:
+                raise ValidationError("control evaluation gate must be a required protocol quality gate")
+        if targets != set(protocol.controls):
+            raise ValidationError("control definitions must cover exactly the registered controls")
     if len(set(protocol.measurement_custody_requirements)) != len(
         protocol.measurement_custody_requirements
     ):
         raise ValidationError("measurement_custody_requirements must not contain duplicates")
     for gate_id in protocol.measurement_custody_requirements:
         require_text(gate_id, "measurement_custody_requirements item")
+    criteria_ids: set[str] = set()
+    calibration_ids: set[str] = set()
+    for criterion in protocol.calibration_acceptance_criteria:
+        if not isinstance(criterion, CalibrationCriterion):
+            raise ValidationError("calibration_acceptance_criteria must contain CalibrationCriterion values")
+        for name in ("criterion_id", "calibration_id", "quantity", "unit", "rationale"):
+            require_text(getattr(criterion, name), f"calibration criterion {name}")
+        if criterion.criterion_id in criteria_ids or criterion.calibration_id in calibration_ids:
+            raise ValidationError("calibration criterion and calibration IDs must be unique")
+        criteria_ids.add(criterion.criterion_id)
+        calibration_ids.add(criterion.calibration_id)
+        bounds = (criterion.lower_bound, criterion.upper_bound)
+        if all(value is None for value in bounds):
+            raise ValidationError("calibration criterion requires a lower_bound or upper_bound")
+        for value in bounds:
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value))):
+                raise ValidationError("calibration criterion bounds must be finite numbers or null")
+        if criterion.lower_bound is not None and criterion.upper_bound is not None and criterion.lower_bound > criterion.upper_bound:
+            raise ValidationError("calibration criterion lower_bound must not exceed upper_bound")
     if protocol.calibration_requirements and not protocol.measurement_custody_requirements:
         missing.append("measurement_custody_requirements")
+    if protocol.measurement_custody_requirements and not protocol.calibration_acceptance_criteria:
+        missing.append("calibration_acceptance_criteria")
     if (
         protocol.protocol_kind
         in {
@@ -531,6 +1627,8 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             "protocol cannot be frozen until it defines: " + ", ".join(missing)
         )
     require_sha256(protocol.analysis_code_hash, "analysis_code_hash")
+    if protocol.analysis_specification_sha256:
+        require_sha256(protocol.analysis_specification_sha256, "analysis_specification_sha256")
     if protocol.random_seed_commitment:
         require_sha256(protocol.random_seed_commitment, "random_seed_commitment")
 
@@ -576,6 +1674,72 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
         for name, value in definition.parameter_values.items():
             require_text(name, f"{prefix}.parameter_values key")
             require_text(value, f"{prefix}.parameter_values[{name!r}]")
+        if (
+            definition.temporal_role
+            and definition.temporal_role not in MEASUREMENT_TEMPORAL_ROLES
+        ):
+            raise ValidationError(
+                f"{prefix}.temporal_role must be a supported temporal role"
+            )
+        if definition.data_column:
+            if definition.scale_type not in {
+                "binary", "nominal", "ordinal", "interval", "ratio", "count",
+                "time_to_event",
+            }:
+                raise ValidationError(
+                    f"{prefix}.scale_type must classify every executable data column"
+                )
+            require_text(definition.unit, f"{prefix}.unit")
+            for field_name in ("admissible_values", "missing_value_codes"):
+                values = getattr(definition, field_name)
+                if not isinstance(values, list):
+                    raise ValidationError(f"{prefix}.{field_name} must be a list")
+                normalized = [
+                    require_text(item, f"{prefix}.{field_name} item") for item in values
+                ]
+                if len(set(normalized)) != len(normalized):
+                    raise ValidationError(f"{prefix}.{field_name} must contain unique values")
+            if set(definition.admissible_values) & set(definition.missing_value_codes):
+                raise ValidationError(
+                    f"{prefix} missing-value codes cannot also be admissible observations"
+                )
+            bounds = (definition.valid_min, definition.valid_max)
+            for field_name, bound in zip(("valid_min", "valid_max"), bounds):
+                if bound is not None and (
+                    isinstance(bound, bool)
+                    or not isinstance(bound, (int, float))
+                    or not math.isfinite(float(bound))
+                ):
+                    raise ValidationError(f"{prefix}.{field_name} must be finite or null")
+            if all(bound is not None for bound in bounds) and definition.valid_min > definition.valid_max:
+                raise ValidationError(f"{prefix}.valid_min cannot exceed valid_max")
+            categorical = definition.scale_type in {"binary", "nominal", "ordinal"}
+            if categorical:
+                if not definition.admissible_values:
+                    raise ValidationError(
+                        f"{prefix}.admissible_values must enumerate the registered categorical domain"
+                    )
+                if definition.scale_type == "binary" and len(definition.admissible_values) != 2:
+                    raise ValidationError(
+                        f"{prefix}.binary measurements require exactly two admissible_values"
+                    )
+                if any(bound is not None for bound in bounds):
+                    raise ValidationError(
+                        f"{prefix} categorical measurements cannot use numeric validity bounds"
+                    )
+            elif definition.admissible_values:
+                raise ValidationError(
+                    f"{prefix} numeric measurements must use validity bounds, not categorical admissible_values"
+                )
+            if definition.scale_type in {"ratio", "count", "time_to_event"}:
+                if definition.valid_min is not None and definition.valid_min < 0:
+                    raise ValidationError(
+                        f"{prefix}.{definition.scale_type} valid_min cannot be negative"
+                    )
+            if definition.scale_type == "count":
+                for bound in bounds:
+                    if bound is not None and not float(bound).is_integer():
+                        raise ValidationError(f"{prefix}.count validity bounds must be integers")
         observed_targets.append((definition.role, target))
 
     expected_targets = (
@@ -583,13 +1747,114 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
         + [(MeasurementRole.SECONDARY, item) for item in protocol.secondary_outcomes]
         + [(MeasurementRole.CONTROL, item) for item in protocol.controls]
     )
+    if protocol.causal_claim and protocol.analysis_contract is not None:
+        causal_audit = protocol.causal_identification_audit
+        expected_targets += [
+            (MeasurementRole.EXPOSURE, causal_audit["exposure"]),
+            *[
+                (MeasurementRole.COVARIATE, item)
+                for item in causal_audit["proposed_adjustment_set"]
+            ],
+        ]
     if sorted((role.value, target) for role, target in observed_targets) != sorted(
         (role.value, target) for role, target in expected_targets
     ):
         raise ValidationError(
             "measurement_definitions must define exactly one measurement for the "
-            "primary outcome, every secondary outcome, and every registered control"
+            "primary outcome, every secondary outcome, every registered control, "
+            "and every required causal exposure and adjustment covariate"
         )
+    if protocol.analysis_contract is not None:
+        matches = [
+            item for item in definitions
+            if item.measurement_id == protocol.analysis_contract.primary_measurement_id
+        ]
+        if len(matches) != 1:
+            raise ValidationError("analysis_contract.primary_measurement_id must name exactly one measurement definition")
+        primary = matches[0]
+        if primary.role is not MeasurementRole.PRIMARY or primary.registered_target != protocol.primary_outcome:
+            raise ValidationError("analysis contract must select the registered primary-outcome measurement")
+        if require_text(primary.data_column, "primary measurement data_column") != protocol.analysis_contract.outcome_column:
+            raise ValidationError("primary measurement data_column does not match analysis_contract.outcome_column")
+        numeric_outcome_scales = {"binary", "interval", "ratio", "count"}
+        if protocol.analysis_contract.method in {
+            "independent_mean_difference_ci", "paired_mean_difference_ci",
+            "adjusted_linear_effect",
+        } and primary.scale_type not in numeric_outcome_scales:
+            raise ValidationError(
+                "registered mean or linear-effect analysis requires a binary, interval, ratio, or count primary measurement scale"
+            )
+        if protocol.causal_claim:
+            exposure = [
+                item for item in definitions if item.role is MeasurementRole.EXPOSURE
+            ]
+            covariates = [
+                item for item in definitions if item.role is MeasurementRole.COVARIATE
+            ]
+            if require_text(
+                exposure[0].data_column, "exposure measurement data_column"
+            ) != protocol.analysis_contract.group_column:
+                raise ValidationError(
+                    "exposure measurement data_column does not match analysis_contract.group_column"
+                )
+            if exposure[0].scale_type not in {"binary", "nominal"}:
+                raise ValidationError(
+                    "grouped causal analysis requires a binary or nominal exposure scale"
+                )
+            if exposure[0].admissible_values != protocol.analysis_contract.groups:
+                raise ValidationError(
+                    "exposure admissible_values must exactly match analysis_contract.groups in contrast order"
+                )
+            if primary.temporal_role != "post_exposure":
+                raise ValidationError(
+                    "causal primary-outcome measurement temporal_role must be post_exposure"
+                )
+            if exposure[0].temporal_role != "at_exposure":
+                raise ValidationError(
+                    "causal exposure measurement temporal_role must be at_exposure"
+                )
+            invalid_covariate_timing = [
+                item.registered_target for item in covariates
+                if item.temporal_role != "pre_exposure"
+            ]
+            if invalid_covariate_timing:
+                raise ValidationError(
+                    "causal adjustment covariate measurements must have temporal_role "
+                    "pre_exposure: " + ", ".join(invalid_covariate_timing)
+                )
+            invalid_covariate_scales = [
+                item.registered_target for item in covariates
+                if item.scale_type not in numeric_outcome_scales
+            ]
+            if invalid_covariate_scales:
+                raise ValidationError(
+                    "adjusted linear covariates require binary, interval, ratio, or count scales: "
+                    + ", ".join(invalid_covariate_scales)
+                )
+            covariate_columns = {
+                item.registered_target: require_text(
+                    item.data_column,
+                    f"covariate measurement {item.measurement_id} data_column",
+                )
+                for item in covariates
+            }
+            expected_columns = {
+                item: item for item in protocol.analysis_contract.adjustment_columns
+            }
+            if covariate_columns != expected_columns:
+                raise ValidationError(
+                    "causal covariate measurement data_columns must exactly map each "
+                    "adjustment target to its frozen analysis column"
+                )
+            modeled_columns = [
+                primary.data_column,
+                exposure[0].data_column,
+                *[item.data_column for item in covariates],
+            ]
+            if len(modeled_columns) != len(set(modeled_columns)):
+                raise ValidationError(
+                    "causal outcome, exposure, and covariate measurements must use distinct data columns"
+                )
 
 
 def validate_quality_gates(

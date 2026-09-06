@@ -8,6 +8,7 @@ from research_machine.domain.models import (
     CrossLaneLesson,
     DatasetManifest,
     EvidenceRecord,
+    EvidenceStatusEvent,
     ExperimentProtocol,
     Hypothesis,
     Inquiry,
@@ -54,6 +55,14 @@ class WorkspaceRepository(Protocol):
     def save_evidence(self, inquiry_id: str, evidence: EvidenceRecord) -> None: ...
 
     def list_evidence(self, inquiry_id: str) -> list[EvidenceRecord]: ...
+
+    def save_evidence_status_event(
+        self, inquiry_id: str, event: EvidenceStatusEvent
+    ) -> None: ...
+
+    def list_evidence_status_events(
+        self, inquiry_id: str, evidence_id: str | None = None
+    ) -> list[EvidenceStatusEvent]: ...
 
     def save_dataset(self, inquiry_id: str, dataset: DatasetManifest) -> None: ...
 

@@ -37,6 +37,51 @@ def make_service(root: Path) -> ResearchService:
     )
 
 
+def test_unreferenced_claims_and_hypotheses_reject_scientific_content_drift(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Seals", "Do records drift?", "seals"))
+    claim = service.add_claim(AddClaim(
+        statement="The instrument measures the registered construct.",
+        level=ClaimLevel.MEASUREMENT_VALIDITY,
+        scope="The registered instrument configuration.",
+    ))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="The registered signal differs from the null process.",
+        observable_prediction="The bounded signal statistic changes.",
+        null_model="The bounded signal statistic does not change.",
+        falsification_conditions=["The registered statistic remains in the null region."],
+    ))
+    service.show_inquiry()
+
+    claims_path = tmp_path / "inquiries" / "seals" / "claims.json"
+    claims_bytes = claims_path.read_bytes()
+    claims = json.loads(claims_bytes)
+    claims[0]["statement"] = "A substituted measurement proposition."
+    claims_path.write_text(json.dumps(claims), encoding="utf-8")
+    with pytest.raises(ValidationError, match=f"claim {claim.claim_id} scientific content"):
+        service.show_inquiry()
+    claims_path.write_bytes(claims_bytes)
+
+    hypothesis_path = (
+        tmp_path
+        / "inquiries"
+        / "seals"
+        / "drafts"
+        / "hypotheses"
+        / f"{hypothesis.hypothesis_id}.json"
+    )
+    hypothesis_value = json.loads(hypothesis_path.read_text())
+    hypothesis_value["null_model"] = "A substituted null model."
+    hypothesis_path.write_text(json.dumps(hypothesis_value), encoding="utf-8")
+    with pytest.raises(
+        ValidationError, match=f"hypothesis {hypothesis.hypothesis_id} scientific content"
+    ):
+        service.list_hypotheses()
+
+
 def test_complete_inquiry_loop_preserves_rejected_hypotheses(tmp_path: Path) -> None:
     service = make_service(tmp_path)
     service.init_workspace()

@@ -97,6 +97,7 @@ class ValidationTag(StrEnum):
     KNOWN_RESULT_REPRODUCTION = "known_result_reproduction"
     NOVEL_PREDICTION = "novel_prediction"
     EMPIRICAL_TEST = "empirical_test"
+    CAUSAL_ESTIMATE = "causal_estimate"
 
 
 class DatasetRole(StrEnum):
@@ -131,6 +132,13 @@ class MeasurementRole(StrEnum):
     PRIMARY = "primary"
     SECONDARY = "secondary"
     CONTROL = "control"
+    EXPOSURE = "exposure"
+    COVARIATE = "covariate"
+
+
+MEASUREMENT_TEMPORAL_ROLES = (
+    "pre_exposure", "at_exposure", "post_exposure", "time_varying", "not_applicable",
+)
 
 
 class QualityGateStatus(StrEnum):
@@ -227,6 +235,7 @@ class Claim(Serializable):
     created_at: str
     parent_claims: list[str] = field(default_factory=list)
     scope: str = ""
+    scientific_content_sha256: str = ""
     epistemic_layer: ClaimEpistemicLayer = ClaimEpistemicLayer.UNRESOLVED
     disposition: ClaimDisposition = ClaimDisposition.UNRESOLVED
     confidence: float | None = None
@@ -245,6 +254,7 @@ class Claim(Serializable):
             created_at=value["created_at"],
             parent_claims=list(value.get("parent_claims", [])),
             scope=value.get("scope", ""),
+            scientific_content_sha256=value.get("scientific_content_sha256", ""),
             epistemic_layer=ClaimEpistemicLayer(
                 value.get("epistemic_layer", ClaimEpistemicLayer.UNRESOLVED)
             ),
@@ -275,6 +285,8 @@ class Hypothesis(Serializable):
     competing_models: list[str] = field(default_factory=list)
     causal_direction: str = ""
     primary_estimand: str = ""
+    contrast_definition: str = ""
+    contrast_groups: list[str] = field(default_factory=list)
     expected_effect_direction: str = ""
     time_window: str = ""
     covariates: list[str] = field(default_factory=list)
@@ -283,6 +295,7 @@ class Hypothesis(Serializable):
     support_conditions: list[str] = field(default_factory=list)
     boundary_conditions: list[str] = field(default_factory=list)
     required_replications: int | None = None
+    scientific_content_sha256: str = ""
     workflow_state: HypothesisWorkflowState = HypothesisWorkflowState.UNREVIEWED
     evidence_assessment: EvidenceAssessment = EvidenceAssessment.UNASSESSED
     replication_state: ReplicationState = ReplicationState.UNTESTED
@@ -328,7 +341,14 @@ class EvidenceRecord(Serializable):
     controls_failed: list[str] = field(default_factory=list)
     higher_level_conclusions_unsupported: list[str] = field(default_factory=list)
     validation_tags: list[ValidationTag] = field(default_factory=list)
+    measurement_validity_check_ids: list[str] = field(default_factory=list)
+    analysis_output_sha256: str = ""
+    effect_estimate_path: str = ""
+    uncertainty_path: str = ""
+    analysis_claim_ceiling: str = ""
+    result_direction_check: str = "not_applicable"
     exploratory: bool = True
+    admission_checks: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "EvidenceRecord":
@@ -391,12 +411,145 @@ class MeasurementDefinition(Serializable):
     aggregation: str
     tolerance: str
     expected_behavior: str
+    data_column: str = ""
+    temporal_role: str = ""
+    scale_type: str = ""
+    unit: str = ""
+    admissible_values: list[str] = field(default_factory=list)
+    valid_min: float | None = None
+    valid_max: float | None = None
+    missing_value_codes: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "MeasurementDefinition":
         copied = dict(value)
         copied["role"] = MeasurementRole(copied["role"])
         return cls(**copied)
+
+
+@dataclass(frozen=True)
+class ControlDefinition(Serializable):
+    control_id: str
+    registered_control: str
+    family: str
+    purpose: str
+    expected_behavior: str
+    evaluation_gate_id: str
+
+
+@dataclass(frozen=True)
+class CalibrationCriterion(Serializable):
+    criterion_id: str
+    calibration_id: str
+    quantity: str
+    unit: str
+    rationale: str
+    lower_bound: float | None = None
+    upper_bound: float | None = None
+
+
+@dataclass(frozen=True)
+class MeasurementValidityCheck(Serializable):
+    check_id: str
+    measurement_id: str
+    evidence_type: str
+    validity_claim: str
+    assessment_plan: str
+    acceptance_criterion: str
+    failure_response: str
+    assessment_gate_id: str
+
+
+@dataclass(frozen=True)
+class AnalysisContract(Serializable):
+    primary_hypothesis_id: str
+    primary_measurement_id: str
+    method: str
+    outcome_column: str
+    group_column: str
+    groups: list[str]
+    estimand: str
+    missing_data_policy: str
+    assignment_type: str
+    effect_estimate_path: str
+    uncertainty_path: str
+    null_value: float
+    support_rule: str
+    minimum_analyzable_units: int | None = None
+    maximum_excluded_fraction: float | None = None
+    maximum_group_excluded_fraction_difference: float | None = None
+    allocation_sha256: str = ""
+    adjustment_columns: list[str] = field(default_factory=list)
+    missingness_assumption: str = ""
+    missingness_assessment_plan: str = ""
+    missingness_failure_response: str = ""
+    missingness_assessment_kind: str = ""
+    missingness_assessment_gate_id: str = ""
+    confidence_level: float | None = None
+    contrast_definition: str = ""
+    contrast_groups: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class AnalysisFamilyMember(Serializable):
+    member_id: str
+    source_step_id: str
+    hypothesis_id: str
+    outcome: str
+    measurement_id: str
+
+
+@dataclass(frozen=True)
+class AnalysisStepContract(Serializable):
+    step_id: str
+    role: str
+    method: str
+    specification_sha256: str
+    implementation_sha256: str
+    depends_on: list[str] = field(default_factory=list)
+    hypothesis_id: str = ""
+    outcome: str = ""
+    measurement_id: str = ""
+    p_value_path: str = ""
+    family_id: str = ""
+    family_members: list[AnalysisFamilyMember] = field(default_factory=list)
+    alpha: float | None = None
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "AnalysisStepContract":
+        copied = dict(value)
+        copied["family_members"] = [
+            item if isinstance(item, AnalysisFamilyMember) else AnalysisFamilyMember(**item)
+            for item in copied.get("family_members", [])
+        ]
+        return cls(**copied)
+
+
+@dataclass(frozen=True)
+class ConclusionContract(Serializable):
+    primary_hypothesis_id: str
+    decision_rule: str
+    smallest_effect_size_of_interest: float
+    effect_scale: str
+    effect_unit: str
+    population: str
+    setting: str
+    time_window: str
+    non_supporting_direction: EvidenceDirection
+    permitted_claim_level: ClaimLevel
+    higher_level_conclusions_unsupported: list[str]
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "ConclusionContract":
+        copied = dict(value)
+        copied["non_supporting_direction"] = EvidenceDirection(
+            copied["non_supporting_direction"]
+        )
+        copied["permitted_claim_level"] = ClaimLevel(copied["permitted_claim_level"])
+        return cls(**copied)
+
+
+CONTROL_FAMILIES = ("positive", "negative", "sham", "replay", "random_time", "adversarial", "reference", "other")
 
 
 @dataclass(frozen=True)
@@ -411,27 +564,47 @@ class ExperimentProtocol(Serializable):
     primary_outcome: str
     created_at: str
     created_by: str
+    hypothesis_commitments: dict[str, str] = field(default_factory=dict)
     protocol_kind: ProtocolKind = ProtocolKind.EXPERIMENTAL
     methodology: str = ""
     inputs_required: list[str] = field(default_factory=list)
     quality_requirements: list[str] = field(default_factory=list)
     controls: list[str] = field(default_factory=list)
+    control_definitions: list[ControlDefinition] = field(default_factory=list)
     measurement_definitions: list[MeasurementDefinition] = field(
+        default_factory=list
+    )
+    measurement_validity_checks: list[MeasurementValidityCheck] = field(
         default_factory=list
     )
     expected_outputs: list[str] = field(default_factory=list)
     success_conditions: list[str] = field(default_factory=list)
     environment_requirements: list[str] = field(default_factory=list)
     secondary_outcomes: list[str] = field(default_factory=list)
+    confirmatory_outcomes: list[str] = field(default_factory=list)
+    exploratory_outcomes: list[str] = field(default_factory=list)
+    multiplicity_method: str = ""
+    multiplicity_alpha: float | None = None
     independent_variables: list[str] = field(default_factory=list)
     randomization_plan: str = ""
     blinding_plan: str = ""
     sampling_unit: str = ""
+    independent_unit: str = ""
+    repeated_measures: bool | None = None
+    analysis_design: str = ""
+    unit_analysis_plan: str = ""
+    unit_id_column: str = ""
+    analysis_specification_sha256: str = ""
+    analysis_contract: AnalysisContract | None = None
+    analysis_steps: list[AnalysisStepContract] = field(default_factory=list)
+    conclusion_contract: ConclusionContract | None = None
     sample_size_or_stopping_rule: str = ""
+    sample_size_plan: dict[str, Any] = field(default_factory=dict)
     inclusion_rules: list[str] = field(default_factory=list)
     exclusion_rules: list[str] = field(default_factory=list)
     sensor_requirements: list[str] = field(default_factory=list)
     calibration_requirements: list[str] = field(default_factory=list)
+    calibration_acceptance_criteria: list[CalibrationCriterion] = field(default_factory=list)
     measurement_custody_requirements: list[str] = field(default_factory=list)
     clock_accuracy_requirement: str = ""
     preprocessing_pipeline: str = ""
@@ -439,6 +612,9 @@ class ExperimentProtocol(Serializable):
     control_windows: list[str] = field(default_factory=list)
     multiple_testing_policy: str = ""
     missing_data_policy: str = ""
+    causal_claim: bool = False
+    causal_identification: dict[str, Any] = field(default_factory=dict)
+    causal_identification_audit: dict[str, Any] = field(default_factory=dict)
     failure_conditions: list[str] = field(default_factory=list)
     safety_constraints: list[str] = field(default_factory=list)
     human_subjects: bool = False
@@ -447,7 +623,18 @@ class ExperimentProtocol(Serializable):
     privacy_plan: str = ""
     retention_deletion_plan: str = ""
     risk_assessment: str = ""
+    vulnerable_population_plan: str = ""
+    data_security_plan: str = ""
+    incidental_findings_plan: str = ""
     independent_review_receipt: str = ""
+    independent_review_decision: str = ""
+    independent_reviewer_role: str = ""
+    independent_reviewed_at: str = ""
+    independent_review_scope: str = ""
+    independent_review_artifact_locator: str = ""
+    independent_review_artifact_sha256: str = ""
+    independent_review_conditions: list[str] = field(default_factory=list)
+    independent_review_verification: dict[str, Any] = field(default_factory=dict)
     analysis_code_hash: str = ""
     status: ProtocolStatus = ProtocolStatus.DRAFT
     protocol_hash: str | None = None
@@ -456,10 +643,38 @@ class ExperimentProtocol(Serializable):
     random_seed_commitment: str | None = None
     supersedes_protocol_id: str | None = None
     amendment_reason: str | None = None
+    amendment_timing: str | None = None
+    evidence_exposure: str | None = None
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "ExperimentProtocol":
         copied = dict(value)
+        copied["control_definitions"] = [
+            item if isinstance(item, ControlDefinition) else ControlDefinition(**item)
+            for item in copied.get("control_definitions", [])
+        ]
+        copied["calibration_acceptance_criteria"] = [
+            item if isinstance(item, CalibrationCriterion) else CalibrationCriterion(**item)
+            for item in copied.get("calibration_acceptance_criteria", [])
+        ]
+        copied["measurement_validity_checks"] = [
+            item if isinstance(item, MeasurementValidityCheck) else MeasurementValidityCheck(**item)
+            for item in copied.get("measurement_validity_checks", [])
+        ]
+        if copied.get("analysis_contract") is not None and not isinstance(copied["analysis_contract"], AnalysisContract):
+            copied["analysis_contract"] = AnalysisContract(
+                **{"primary_hypothesis_id": "", "primary_measurement_id": "", "assignment_type": "", "effect_estimate_path": "", "uncertainty_path": "", "null_value": 0.0, "support_rule": "", "confidence_level": None, "minimum_analyzable_units": None, "maximum_excluded_fraction": None, "maximum_group_excluded_fraction_difference": None, "allocation_sha256": "", "missingness_assumption": "", "missingness_assessment_plan": "", "missingness_failure_response": "", "missingness_assessment_kind": "", "missingness_assessment_gate_id": "", **copied["analysis_contract"]}
+            )
+        copied["analysis_steps"] = [
+            item if isinstance(item, AnalysisStepContract) else AnalysisStepContract.from_dict(item)
+            for item in copied.get("analysis_steps", [])
+        ]
+        if copied.get("conclusion_contract") is not None and not isinstance(
+            copied["conclusion_contract"], ConclusionContract
+        ):
+            copied["conclusion_contract"] = ConclusionContract.from_dict(
+                copied["conclusion_contract"]
+            )
         copied["analysis_mode"] = AnalysisMode(copied["analysis_mode"])
         copied["status"] = ProtocolStatus(copied.get("status", ProtocolStatus.DRAFT))
         copied["protocol_kind"] = ProtocolKind(
@@ -687,4 +902,50 @@ class CrossLaneLesson(Serializable):
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "CrossLaneLesson":
+        return cls(**value)
+
+
+@dataclass(frozen=True)
+class EthicsReviewEvent(Serializable):
+    event_id: str
+    sequence: int
+    protocol_id: str
+    protocol_hash: str
+    status: str
+    effective_at: str
+    expires_at: str | None
+    reason: str
+    review_artifact_locator: str
+    review_artifact_sha256: str
+    supersedes_event_id: str | None
+    created_at: str
+    created_by: str
+    artifact_integrity: dict[str, Any]
+    conclusion_ceiling: str
+    review_artifact_root: str = ""
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "EthicsReviewEvent":
+        return cls(**value)
+
+
+@dataclass(frozen=True)
+class EvidenceStatusEvent(Serializable):
+    event_id: str
+    sequence: int
+    evidence_id: str
+    status: str
+    effective_at: str
+    reason: str
+    review_artifact_locator: str
+    review_artifact_sha256: str
+    supersedes_event_id: str | None
+    created_at: str
+    created_by: str
+    artifact_integrity: dict[str, Any]
+    conclusion_ceiling: str
+    review_artifact_root: str = ""
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "EvidenceStatusEvent":
         return cls(**value)

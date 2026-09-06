@@ -21,6 +21,8 @@ from research_machine.domain.models import (
     CrossLaneLesson,
     DatasetManifest,
     EvidenceRecord,
+    EvidenceStatusEvent,
+    EthicsReviewEvent,
     ExperimentProtocol,
     Hypothesis,
     HypothesisWorkflowState,
@@ -94,6 +96,8 @@ class FileSystemRepository:
             "recommendations",
             "cross_lane_lessons",
             "evidence",
+            "ethics_review_events",
+            "evidence_status_events",
             "reports",
         ):
             (directory / relative).mkdir(parents=True, exist_ok=True)
@@ -229,6 +233,31 @@ class FileSystemRepository:
             EvidenceRecord.from_dict(self._read_json(path))
             for path in sorted(directory.glob("*.json"))
         ]
+
+    def save_evidence_status_event(
+        self, inquiry_id: str, event: EvidenceStatusEvent
+    ) -> None:
+        self._validate_id(event.event_id, "evidence status event_id")
+        directory = self._inquiry_dir(inquiry_id) / "evidence_status_events"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{event.event_id}.json"
+        if path.exists():
+            raise ConflictError(f"evidence status event {event.event_id} already exists")
+        self._atomic_json(path, event.to_dict())
+
+    def list_evidence_status_events(
+        self, inquiry_id: str, evidence_id: str | None = None
+    ) -> list[EvidenceStatusEvent]:
+        directory = self._inquiry_dir(inquiry_id) / "evidence_status_events"
+        if not directory.is_dir():
+            return []
+        events = [
+            EvidenceStatusEvent.from_dict(self._read_json(path))
+            for path in sorted(directory.glob("*.json"))
+        ]
+        if evidence_id is not None:
+            events = [item for item in events if item.evidence_id == evidence_id]
+        return sorted(events, key=lambda item: (item.evidence_id, item.sequence))
 
     def save_dataset(self, inquiry_id: str, dataset: DatasetManifest) -> None:
         self._validate_id(dataset.dataset_id, "dataset_id")
@@ -373,6 +402,31 @@ class FileSystemRepository:
             for path in sorted(directory.glob("*.json"))
         ]
         return sorted(lessons, key=lambda item: (item.created_at, item.lesson_id))
+
+    def save_ethics_review_event(
+        self, inquiry_id: str, event: EthicsReviewEvent
+    ) -> None:
+        self._validate_id(event.event_id, "ethics review event_id")
+        directory = self._inquiry_dir(inquiry_id) / "ethics_review_events"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{event.event_id}.json"
+        if path.exists():
+            raise ConflictError(f"ethics review event {event.event_id} already exists")
+        self._atomic_json(path, event.to_dict())
+
+    def list_ethics_review_events(
+        self, inquiry_id: str, protocol_id: str | None = None
+    ) -> list[EthicsReviewEvent]:
+        directory = self._inquiry_dir(inquiry_id) / "ethics_review_events"
+        if not directory.is_dir():
+            return []
+        events = [
+            EthicsReviewEvent.from_dict(self._read_json(path))
+            for path in sorted(directory.glob("*.json"))
+        ]
+        if protocol_id is not None:
+            events = [item for item in events if item.protocol_id == protocol_id]
+        return sorted(events, key=lambda item: item.sequence)
 
     def write_report(self, inquiry_id: str, name: str, content: str) -> str:
         if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,95}", name):

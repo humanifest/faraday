@@ -7,7 +7,12 @@ from collections.abc import Iterable
 from importlib.metadata import entry_points
 from pathlib import Path
 
-from research_machine.addons.models import AddonManifest, AnalysisMethod
+from research_machine.addons.models import (
+    AddonManifest,
+    AnalysisMethod,
+    InstrumentAdapter,
+    INFERENCE_LEVELS,
+)
 from research_machine.domain.errors import NotFoundError, ValidationError
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
@@ -19,6 +24,9 @@ class AddonRegistry:
     def __init__(self) -> None:
         self._addons: dict[str, AddonManifest] = {}
         self._methods: dict[str, tuple[AddonManifest, AnalysisMethod]] = {}
+        self._instrument_adapters: dict[
+            str, tuple[AddonManifest, InstrumentAdapter]
+        ] = {}
 
     def register(self, manifest: AddonManifest) -> None:
         self._validate(manifest)
@@ -30,9 +38,17 @@ class AddonRegistry:
                 raise ValidationError(
                     f"duplicate analysis method {method.method_id}; already provided by {owner}"
                 )
+        for adapter in manifest.instrument_adapters:
+            if adapter.adapter_id in self._instrument_adapters:
+                owner = self._instrument_adapters[adapter.adapter_id][0].addon_id
+                raise ValidationError(
+                    f"duplicate instrument adapter {adapter.adapter_id}; already provided by {owner}"
+                )
         self._addons[manifest.addon_id] = manifest
         for method in manifest.methods:
             self._methods[method.method_id] = (manifest, method)
+        for adapter in manifest.instrument_adapters:
+            self._instrument_adapters[adapter.adapter_id] = (manifest, adapter)
 
     def list(self) -> list[AddonManifest]:
         return [self._addons[key] for key in sorted(self._addons)]
@@ -48,6 +64,14 @@ class AddonRegistry:
             return self._methods[method_id]
         except KeyError as exc:
             raise NotFoundError(f"analysis method not found: {method_id}") from exc
+
+    def resolve_instrument_adapter(
+        self, adapter_id: str
+    ) -> tuple[AddonManifest, InstrumentAdapter]:
+        try:
+            return self._instrument_adapters[adapter_id]
+        except KeyError as exc:
+            raise NotFoundError(f"instrument adapter not found: {adapter_id}") from exc
 
     @staticmethod
     def _validate(manifest: AddonManifest) -> None:
@@ -65,7 +89,57 @@ class AddonRegistry:
                 raise ValidationError(f"duplicate method in add-on: {method.method_id}")
             if not method.title.strip() or not method.description.strip():
                 raise ValidationError(f"method metadata is incomplete: {method.method_id}")
+            if (not isinstance(method.maximum_claim_ceiling, str)
+                    or not method.maximum_claim_ceiling.strip()):
+                raise ValidationError(
+                    f"method maximum_claim_ceiling must be non-blank text: {method.method_id}"
+                )
+            if method.maximum_inference_level not in INFERENCE_LEVELS:
+                raise ValidationError(
+                    f"method maximum_inference_level is unsupported: {method.method_id}"
+                )
             seen.add(method.method_id)
+        adapter_ids: set[str] = set()
+        for adapter in manifest.instrument_adapters:
+            if not _IDENTIFIER.fullmatch(adapter.adapter_id):
+                raise ValidationError(
+                    "instrument adapter id must be a stable lowercase identifier: "
+                    f"{adapter.adapter_id}"
+                )
+            if adapter.adapter_id in adapter_ids:
+                raise ValidationError(
+                    f"duplicate instrument adapter in add-on: {adapter.adapter_id}"
+                )
+            if not adapter.title.strip() or not adapter.description.strip():
+                raise ValidationError(
+                    f"instrument adapter metadata is incomplete: {adapter.adapter_id}"
+                )
+            if not adapter.supported_media_types or any(
+                not isinstance(value, str) or not value.strip()
+                for value in adapter.supported_media_types
+            ):
+                raise ValidationError(
+                    f"instrument adapter supported_media_types are required: {adapter.adapter_id}"
+                )
+            if len(set(adapter.required_config_fields)) != len(
+                adapter.required_config_fields
+            ) or any(
+                not isinstance(value, str) or not value.strip()
+                for value in adapter.required_config_fields
+            ):
+                raise ValidationError(
+                    f"instrument adapter required_config_fields are invalid: {adapter.adapter_id}"
+                )
+            if len(set(adapter.optional_config_fields)) != len(
+                adapter.optional_config_fields
+            ) or any(
+                not isinstance(value, str) or not value.strip()
+                for value in adapter.optional_config_fields
+            ) or set(adapter.optional_config_fields) & set(adapter.required_config_fields):
+                raise ValidationError(
+                    f"instrument adapter optional_config_fields are invalid: {adapter.adapter_id}"
+                )
+            adapter_ids.add(adapter.adapter_id)
 
 
 def default_registry(*, include_installed: bool = True) -> AddonRegistry:

@@ -1,0 +1,72 @@
+"""Evidence maps join synthetic review artifacts without authorizing conclusions."""
+import hashlib
+import json
+
+import pytest
+
+from research_machine.domain.errors import ValidationError
+from research_machine.interfaces.cli import main
+from research_machine.literature.evidence_map import create_evidence_map
+
+
+def write_json(path, value):
+    encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+    path.write_bytes(encoded)
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def chain(tmp_path, bias_judgment="some_concerns"):
+    extraction = tmp_path / "extraction.json"
+    extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded", "snapshot_id": "snap",
+        "source_reviews": [{"source_id": "s1", "records": [{"extraction_id": "e1", "study_id": "study-1",
+            "claim_text": "Synthetic claim", "epistemic_layer": "inferred", "result_direction": "mixed", "uncertainty": "fixture"}]}]})
+    verification = tmp_path / "verification.json"
+    verification_sha = write_json(verification, {"citation_verification_version": 1, "status": "citation_review_recorded",
+        "extraction_sha256": extraction_sha, "assessments": [{"extraction_id": "e1", "study_id": "study-1",
+            "source_id": "s1", "verdict": "supported"}]})
+    bias = tmp_path / "bias.json"
+    bias_sha = write_json(bias, {"bias_assessment_version": 1, "status": "bias_assessment_recorded",
+        "citation_verification_sha256": verification_sha,
+        "assessments": [{"study_id": "study-1", "overall_judgment": bias_judgment}]})
+    reconciliation = tmp_path / "reconciliation.json"
+    reconciliation_sha = write_json(reconciliation, {"study_reconciliation_version": 1,
+        "status": "study_identities_reconciled", "bias_assessment_sha256": bias_sha,
+        "studies": [{"study_id": "study-1"}]})
+    return extraction, verification, bias, reconciliation, reconciliation_sha
+
+
+def test_evidence_map_cli_verifies_chain_and_bounds_claim(tmp_path, capsys):
+    extraction, verification, bias, reconciliation, digest = chain(tmp_path)
+    output = tmp_path / "map"
+    assert main(["--json", "literature", "evidence-map", "--extraction-file", str(extraction),
+        "--citation-verification-file", str(verification), "--bias-assessment-file", str(bias),
+        "--study-reconciliation-file", str(reconciliation),
+        "--expected-study-reconciliation-sha256", digest, "--output", str(output)]) == 0
+    result = json.loads(capsys.readouterr().out)["result"]
+    assert result["claims"][0]["interpretive_ceiling"] == "qualified_source_claim"
+    assert result["conclusion_authorized"] is False
+    assert result["scientific_evidence_eligible"] is False
+    with pytest.raises(ValidationError, match="already exists"):
+        create_evidence_map(extraction, verification, bias, reconciliation, digest, output)
+
+
+@pytest.mark.parametrize("failure", ["terminal-hash", "extraction-link", "verification-link", "bias-link", "unresolved", "coverage"])
+def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
+    extraction, verification, bias, reconciliation, digest = chain(tmp_path)
+    if failure == "terminal-hash": digest = "0" * 64
+    elif failure == "extraction-link":
+        value = json.loads(verification.read_text()); value["extraction_sha256"] = "0" * 64; write_json(verification, value)
+    elif failure == "verification-link":
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = "0" * 64; write_json(bias, value)
+    elif failure == "bias-link":
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = "0" * 64; digest = write_json(reconciliation, value)
+    elif failure == "unresolved":
+        value = json.loads(reconciliation.read_text()); value["status"] = "review_required"; digest = write_json(reconciliation, value)
+    elif failure == "coverage":
+        value = json.loads(verification.read_text()); value["assessments"] = []; verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    output = tmp_path / "map"
+    with pytest.raises(ValidationError):
+        create_evidence_map(extraction, verification, bias, reconciliation, digest, output)
+    assert not output.exists()

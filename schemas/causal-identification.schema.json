@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/causal-identification.schema.json",
+  "title": "Causal identification audit specification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nodes", "edges", "exposure", "outcome", "proposed_adjustment_set", "assignment_type", "assumptions", "causal_estimand"],
+  "properties": {
+    "nodes": {
+      "type": "array", "minItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "observed"],
+        "properties": {
+          "id": {"type": "string", "pattern": "\\S"},
+          "observed": {"type": "boolean"}
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["cause", "effect"],
+        "properties": {
+          "cause": {"type": "string", "pattern": "\\S"},
+          "effect": {"type": "string", "pattern": "\\S"}
+        }
+      }
+    },
+    "exposure": {"type": "string", "pattern": "\\S"},
+    "outcome": {"type": "string", "pattern": "\\S"},
+    "proposed_adjustment_set": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "pattern": "\\S"}
+    },
+    "assignment_type": {"enum": ["observational", "randomized"]},
+    "causal_estimand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["target_hypothesis_id", "description", "population", "exposure_strategies", "outcome_variable", "time_zero", "outcome_time", "contrast", "summary_measure", "intercurrent_events_policy"],
+      "properties": {
+        "target_hypothesis_id": {"type": "string", "pattern": "\\S"},
+        "description": {"type": "string", "pattern": "\\S"},
+        "population": {"type": "string", "pattern": "\\S"},
+        "exposure_strategies": {"type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "pattern": "\\S"}},
+        "outcome_variable": {"type": "string", "pattern": "\\S"},
+        "time_zero": {"type": "string", "pattern": "\\S"},
+        "outcome_time": {"type": "string", "pattern": "\\S"},
+        "contrast": {"type": "string", "pattern": "\\S"},
+        "summary_measure": {"type": "string", "pattern": "\\S"},
+        "intercurrent_events_policy": {"type": "string", "pattern": "\\S"}
+      }
+    },
+    "assumptions": {
+      "type": "array", "minItems": 7, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["category", "statement", "assessment_kind", "assessment_plan", "failure_response", "assessment_gate_id"],
+        "properties": {
+          "category": {"enum": ["allocation_integrity", "consistency", "exchangeability", "interference", "measurement_validity", "positivity", "selection_bias", "temporal_order"]},
+          "statement": {"type": "string", "pattern": "\\S"},
+          "assessment_kind": {"enum": ["empirical_diagnostic", "design_record_review", "external_validation", "substantive_judgment"]},
+          "assessment_plan": {"type": "string", "pattern": "\\S"},
+          "failure_response": {"type": "string", "pattern": "\\S"},
+          "assessment_gate_id": {"type": "string", "pattern": "\\S"}
+        }
+      }
+    }
+  }
+}

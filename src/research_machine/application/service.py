@@ -6,6 +6,7 @@ import re
 import uuid
 from dataclasses import replace
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable
 
 from research_machine.application.commands import (
@@ -17,6 +18,8 @@ from research_machine.application.commands import (
     RecommendActionPortfolio,
     RecommendNextAction,
     RecordCrossLaneLesson,
+    RecordEthicsReviewEvent,
+    RecordEvidenceStatusEvent,
     RecordEvidence,
     RecordRun,
     RegisterDataset,
@@ -33,10 +36,12 @@ from research_machine.application.policies import (
     require_unique_text_list,
     require_sha256,
     validate_action_candidates,
+    adjudicate_conclusion_contract,
     validate_action_lanes,
     validate_cross_lane_lesson,
     validate_dataset_artifacts,
     validate_evidence_annotations,
+    validate_result_direction,
     validate_evidence_target,
     validate_hypothesis_activation,
     validate_hypothesis_staging,
@@ -56,10 +61,19 @@ from research_machine.domain.models import (
     CrossLaneLesson,
     ClaimDisposition,
     ClaimEpistemicLayer,
+    ClaimLevel,
+    DatasetArtifact,
+    AnalysisContract,
+    AnalysisStepContract,
+    CalibrationCriterion,
+    ConclusionContract,
     DatasetManifest,
     DatasetRole,
     EvidenceAssessment,
+    EvidenceDirection,
     EvidenceRecord,
+    EvidenceStatusEvent,
+    EthicsReviewEvent,
     ExperimentProtocol,
     Hypothesis,
     HypothesisWorkflowState,
@@ -78,6 +92,7 @@ from research_machine.domain.models import (
 )
 from research_machine.ports.repository import WorkspaceRepository
 from research_machine.reporting.synthesis import build_synthesis
+from research_machine.replication.package import export_replication_package
 from research_machine.selection import rank_actions, rank_actions_by_lane
 
 
@@ -90,6 +105,72 @@ def _slugify(value: str) -> str:
     return slug or "inquiry"
 
 
+def _validate_protocol_deviation_disclosure(value: Any) -> dict[str, Any]:
+    """Validate an execution disclosure without judging its substantive impact."""
+    if value is None:
+        return {
+            "status": "legacy_not_declared",
+            "deviations": [],
+            "automatic_evidence_eligible": False,
+        }
+    if not isinstance(value, dict) or set(value) != {"status", "deviations"}:
+        raise ValidationError(
+            "protocol_deviation_disclosure requires exactly status and deviations"
+        )
+    status = value["status"]
+    if status not in {"no_deviations_declared", "deviations_declared"}:
+        raise ValidationError("protocol deviation disclosure status is invalid")
+    deviations = value["deviations"]
+    if not isinstance(deviations, list):
+        raise ValidationError("protocol deviation disclosure deviations must be an array")
+    if (status == "no_deviations_declared") != (not deviations):
+        raise ValidationError("protocol deviation disclosure status disagrees with deviations")
+    required = {
+        "deviation_id", "stage", "frozen_commitment", "actual_method", "reason",
+        "timing", "potential_impact", "corrective_action", "evidence_sha256",
+        "evidence_location",
+    }
+    allowed_timing = {
+        "before_execution", "during_execution", "after_execution_before_results",
+        "after_results_seen", "unknown",
+    }
+    allowed_impact = {"none", "minor", "potentially_material", "invalidating", "unknown"}
+    seen: set[str] = set()
+    normalized: list[dict[str, Any]] = []
+    for item in deviations:
+        if not isinstance(item, dict) or set(item) != required:
+            raise ValidationError("each protocol deviation must contain the exact documented fields")
+        deviation_id = require_text(item["deviation_id"], "deviation_id")
+        if deviation_id in seen:
+            raise ValidationError(f"duplicate protocol deviation_id: {deviation_id}")
+        seen.add(deviation_id)
+        if item["timing"] not in allowed_timing:
+            raise ValidationError(f"protocol deviation {deviation_id} timing is invalid")
+        if item["potential_impact"] not in allowed_impact:
+            raise ValidationError(f"protocol deviation {deviation_id} potential_impact is invalid")
+        normalized.append({
+            "deviation_id": deviation_id,
+            "stage": require_text(item["stage"], "deviation stage"),
+            "frozen_commitment": require_text(item["frozen_commitment"], "frozen commitment"),
+            "actual_method": require_text(item["actual_method"], "actual method"),
+            "reason": require_text(item["reason"], "deviation reason"),
+            "timing": item["timing"],
+            "potential_impact": item["potential_impact"],
+            "corrective_action": require_text(item["corrective_action"], "corrective action"),
+            "evidence_sha256": require_sha256(item["evidence_sha256"], "deviation evidence_sha256"),
+            "evidence_location": require_text(item["evidence_location"], "deviation evidence_location"),
+        })
+    return {
+        "status": status,
+        "deviations": normalized,
+        "automatic_evidence_eligible": status == "no_deviations_declared",
+        "interpretation_boundary": (
+            "A no-deviation declaration is an unauthenticated execution assertion, not proof of adherence. "
+            "Any declared departure requires separate scientific review and cannot automatically support evidence."
+        ),
+    }
+
+
 def _sha256_json(value: dict[str, Any]) -> str:
     content = json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
@@ -97,8 +178,169 @@ def _sha256_json(value: dict[str, Any]) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def _resolve_json_pointer(value: Any, pointer: str, field_name: str) -> Any:
+    pointer = require_text(pointer, field_name)
+    if pointer == "":
+        return value
+    if not pointer.startswith("/"):
+        raise ValidationError(f"{field_name} must be an absolute JSON Pointer")
+    current = value
+    for raw_token in pointer[1:].split("/"):
+        token = raw_token.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, dict) and token in current:
+            current = current[token]
+        elif isinstance(current, list) and token.isdigit() and int(token) < len(current):
+            current = current[int(token)]
+        else:
+            raise ValidationError(f"{field_name} does not resolve in the verified analysis result")
+    return current
+
+
+def _strict_json_artifact(path: Path, field_name: str) -> Any:
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"non-finite JSON number: {value}")
+
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON object key: {key}")
+            result[key] = value
+        return result
+
+    try:
+        return json.loads(
+            path.read_bytes(),
+            parse_constant=reject_constant,
+            object_pairs_hook=reject_duplicates,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ValidationError(f"{field_name} cites invalid JSON evidence: {exc}") from exc
+
+
+def _verify_json_artifact_location(
+    outputs: list[DatasetArtifact],
+    artifact_root: str | None,
+    digest: str,
+    location: str,
+    field_name: str,
+) -> bool:
+    """Resolve a location when its already hash-verified artifact is JSON."""
+    if artifact_root is None:
+        return False
+    artifact = next((item for item in outputs if item.sha256 == digest), None)
+    if artifact is None:
+        return False
+    is_json = (
+        artifact.media_type.lower().split(";", 1)[0].strip() == "application/json"
+        or Path(artifact.locator).suffix.lower() == ".json"
+    )
+    if not is_json:
+        return False
+    _resolve_json_pointer(
+        _strict_json_artifact(Path(artifact_root) / artifact.locator, field_name),
+        location,
+        field_name,
+    )
+    return True
+
+
+def _canonical_result_value(value: Any) -> str:
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("selected analysis result is not finite canonical JSON") from exc
+
+
+def _result_selection_sha256(value: Any) -> str:
+    try:
+        content = (json.dumps(
+            value, sort_keys=True, indent=2, ensure_ascii=False, allow_nan=False
+        ) + "\n").encode()
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("selected analysis result is not finite JSON") from exc
+    return hashlib.sha256(content).hexdigest()
+
+
 def _protocol_commitment(protocol: ExperimentProtocol) -> str:
     payload = protocol.to_dict()
+    if not protocol.hypothesis_commitments:
+        payload.pop("hypothesis_commitments", None)
+    if not protocol.sample_size_plan:
+        payload.pop("sample_size_plan", None)
+    if not protocol.control_definitions:
+        payload.pop("control_definitions", None)
+    if not protocol.calibration_acceptance_criteria:
+        payload.pop("calibration_acceptance_criteria", None)
+    if not protocol.analysis_specification_sha256:
+        payload.pop("analysis_specification_sha256", None)
+    if not protocol.causal_claim:
+        payload.pop("causal_claim", None)
+    if not protocol.causal_identification:
+        payload.pop("causal_identification", None)
+    if not protocol.causal_identification_audit:
+        payload.pop("causal_identification_audit", None)
+    if protocol.analysis_contract is None:
+        payload.pop("analysis_contract", None)
+    else:
+        for field_name in ("primary_hypothesis_id", "primary_measurement_id", "assignment_type", "effect_estimate_path", "uncertainty_path", "allocation_sha256", "missingness_assumption", "missingness_assessment_plan", "missingness_failure_response", "missingness_assessment_kind", "missingness_assessment_gate_id"):
+            if not getattr(protocol.analysis_contract, field_name):
+                payload["analysis_contract"].pop(field_name, None)
+        if not protocol.analysis_contract.support_rule:
+            payload["analysis_contract"].pop("support_rule", None)
+            payload["analysis_contract"].pop("null_value", None)
+        for field_name in (
+            "confidence_level",
+            "minimum_analyzable_units", "maximum_excluded_fraction",
+            "maximum_group_excluded_fraction_difference",
+        ):
+            if getattr(protocol.analysis_contract, field_name) is None:
+                payload["analysis_contract"].pop(field_name, None)
+        if not protocol.analysis_contract.adjustment_columns:
+            payload["analysis_contract"].pop("adjustment_columns", None)
+    if not protocol.analysis_steps:
+        payload.pop("analysis_steps", None)
+    for field_name in (
+        "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_method",
+        "multiplicity_alpha",
+    ):
+        if not getattr(protocol, field_name):
+            payload.pop(field_name, None)
+    for definition in payload.get("measurement_definitions", []):
+        if not definition.get("data_column"):
+            definition.pop("data_column", None)
+        for field_name in ("scale_type", "unit", "admissible_values", "missing_value_codes"):
+            if not definition.get(field_name):
+                definition.pop(field_name, None)
+        for field_name in ("valid_min", "valid_max"):
+            if definition.get(field_name) is None:
+                definition.pop(field_name, None)
+    for field_name in (
+        "unit_analysis_plan",
+        "unit_id_column",
+        "independent_review_decision",
+        "independent_reviewer_role",
+        "independent_reviewed_at",
+        "independent_review_scope",
+        "independent_review_artifact_locator",
+        "independent_review_artifact_sha256",
+        "vulnerable_population_plan",
+        "data_security_plan",
+        "incidental_findings_plan",
+    ):
+        if not getattr(protocol, field_name):
+            payload.pop(field_name, None)
+    if not protocol.independent_review_conditions:
+        payload.pop("independent_review_conditions", None)
+    payload.pop("independent_review_verification", None)
+    if protocol.amendment_timing is None:
+        payload.pop("amendment_timing", None)
+    if protocol.evidence_exposure is None:
+        payload.pop("evidence_exposure", None)
+    # Preserve commitments created before structured dependence declarations.
+    if protocol.independent_unit == "" and protocol.repeated_measures is None and protocol.analysis_design == "":
+        for name in ("independent_unit", "repeated_measures", "analysis_design"):
+            payload.pop(name, None)
     for field_name in (
         "status",
         "protocol_hash",
@@ -335,27 +577,129 @@ class ResearchService:
 
     def show_inquiry(self, inquiry_id: str | None = None) -> dict[str, Any]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        ethics_events = self._validated_ethics_review_events(resolved)
+        datasets = self.repository.list_datasets(resolved)
+        protocols = self.repository.list_protocols(resolved)
+        runs = self.repository.list_runs(resolved)
+        evidence = self.repository.list_evidence(resolved)
+        hypotheses = self.repository.list_hypotheses(resolved)
+        claims = self.repository.load_claims(resolved)
+        from research_machine.application.claim_integrity import (
+            validate_claim_scientific_commitment,
+        )
+        for claim in claims:
+            validate_claim_scientific_commitment(claim)
+        from research_machine.application.hypothesis_integrity import (
+            validate_hypothesis_scientific_commitment,
+        )
+        for hypothesis in hypotheses:
+            validate_hypothesis_scientific_commitment(hypothesis)
+        protocols_by_id = {item.protocol_id: item for item in protocols}
+        hypotheses_by_id = {item.hypothesis_id: item for item in hypotheses}
+        from research_machine.application.hypothesis_integrity import (
+            validate_protocol_hypothesis_commitments,
+        )
+        for protocol in protocols:
+            if protocol.status is ProtocolStatus.FROZEN:
+                if (
+                    not protocol.protocol_hash
+                    or _protocol_commitment(protocol) != protocol.protocol_hash
+                ):
+                    raise ValidationError(
+                        f"frozen protocol {protocol.protocol_id} no longer matches its commitment"
+                    )
+                validate_protocol_hypothesis_commitments(protocol, hypotheses_by_id)
+        from research_machine.application.ethics import (
+            reverify_ethics_condition_discharge,
+        )
+        for dataset in datasets:
+            from research_machine.application.dataset_integrity import (
+                validate_dataset_payload_commitment,
+            )
+            validate_dataset_payload_commitment(dataset)
+            if (
+                dataset.role in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
+                and not dataset.synthetic
+            ):
+                from research_machine.application.dataset_integrity import (
+                    reverify_dataset_artifacts,
+                )
+            protocol = protocols_by_id.get(dataset.protocol_id or "")
+            if (
+                dataset.role in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
+                and not dataset.synthetic
+            ):
+                if protocol is None:
+                    raise ValidationError(
+                        f"verified dataset {dataset.dataset_id} references an unknown protocol"
+                    )
+                reverify_dataset_artifacts(dataset, protocol)
+            if "ethics_condition_verification" in dataset.metadata and protocol is None:
+                raise ValidationError(
+                    f"condition-verified dataset {dataset.dataset_id} references an unknown protocol"
+                )
+            if "ethics_condition_verification" in dataset.metadata:
+                assert protocol is not None
+                reverify_ethics_condition_discharge(protocol, dataset)
+            if protocol is not None and protocol.measurement_custody_requirements:
+                from research_machine.measurement.custody import (
+                    reverify_dataset_measurement_custody,
+                )
+                reverify_dataset_measurement_custody(protocol, dataset)
+        from research_machine.application.run_integrity import (
+            reverify_run_artifacts,
+            validate_run_payload_commitment,
+        )
+        for run in runs:
+            validate_run_payload_commitment(run)
+            if not run.scientific_evidence_eligible:
+                continue
+            protocol = protocols_by_id.get(run.protocol_id)
+            if (
+                protocol is None
+                or run.protocol_hash != protocol.protocol_hash
+                or _protocol_commitment(protocol) != protocol.protocol_hash
+            ):
+                raise ValidationError(
+                    f"evidence-eligible run {run.run_id} no longer matches its frozen protocol"
+                )
+            run_datasets = [
+                self.repository.find_dataset(resolved, dataset_id)
+                for dataset_id in run.dataset_ids
+            ]
+            self._validate_run_datasets(protocol, run_datasets)
+            reverify_run_artifacts(run)
+        from research_machine.application.evidence_admission import (
+            validate_evidence_admission_receipts,
+        )
+        validate_evidence_admission_receipts(
+            evidence, claims, runs, protocols, datasets, ethics_events
+        )
         return {
             "inquiry": self.repository.load_inquiry(resolved).to_dict(),
             "questions": [
                 item.to_dict() for item in self.repository.load_questions(resolved)
             ],
             "claims": [
-                item.to_dict() for item in self.repository.load_claims(resolved)
+                item.to_dict() for item in claims
             ],
             "hypotheses": [
-                item.to_dict() for item in self.repository.list_hypotheses(resolved)
+                item.to_dict() for item in hypotheses
             ],
             "evidence": [
-                item.to_dict() for item in self.repository.list_evidence(resolved)
+                item.to_dict() for item in evidence
+            ],
+            "evidence_status_events": [
+                item.to_dict()
+                for item in self.list_evidence_status_events(resolved)
             ],
             "datasets": [
-                item.to_dict() for item in self.repository.list_datasets(resolved)
+                item.to_dict() for item in datasets
             ],
             "protocols": [
-                item.to_dict() for item in self.repository.list_protocols(resolved)
+                item.to_dict() for item in protocols
             ],
-            "runs": [item.to_dict() for item in self.repository.list_runs(resolved)],
+            "runs": [item.to_dict() for item in runs],
             "recommendations": [
                 item.to_dict()
                 for item in self.repository.list_recommendations(resolved)
@@ -364,6 +708,78 @@ class ResearchService:
                 item.to_dict()
                 for item in self.repository.list_cross_lane_lessons(resolved)
             ],
+            "ethics_review_events": [
+                item.to_dict()
+                for item in ethics_events
+            ],
+        }
+
+    def _validated_ethics_review_events(
+        self, inquiry_id: str
+    ) -> list[EthicsReviewEvent]:
+        events = self.repository.list_ethics_review_events(inquiry_id)
+        protocols = {
+            item.protocol_id: item
+            for item in self.repository.list_protocols(inquiry_id)
+        }
+        unknown = sorted({item.protocol_id for item in events} - set(protocols))
+        if unknown:
+            raise ValidationError(
+                "ethics review events reference unknown protocols: " + ", ".join(unknown)
+            )
+        from research_machine.application.ethics import (
+            validate_ethics_review_event_chain,
+            validate_original_review_artifact,
+        )
+        validated: list[EthicsReviewEvent] = []
+        for protocol in protocols.values():
+            if protocol.human_subjects and protocol.status is ProtocolStatus.FROZEN:
+                validate_original_review_artifact(protocol)
+        for protocol_id in sorted({item.protocol_id for item in events}):
+            validated.extend(validate_ethics_review_event_chain(
+                protocols[protocol_id],
+                [item for item in events if item.protocol_id == protocol_id],
+            ))
+        return validated
+
+    def collaborator_context(
+        self, inquiry_id: str | None = None, *, purpose: str = ""
+    ) -> dict[str, Any]:
+        """Read-only context for a UI or optional local/remote model adapter."""
+        state = self.show_inquiry(inquiry_id)
+        open_questions = [
+            question
+            for question in state["questions"]
+            if question["status"] == QuestionStatus.OPEN.value
+        ]
+        return {
+            "context_version": 1,
+            "purpose": normalize_text(purpose, "purpose"),
+            "inquiry": state["inquiry"],
+            "open_questions": open_questions,
+            "active_hypotheses": [
+                hypothesis
+                for hypothesis in state["hypotheses"]
+                if hypothesis["workflow_state"] == HypothesisWorkflowState.ACTIVE.value
+            ],
+            "ethics_review_events": state["ethics_review_events"],
+            "scientific_constraints": [
+                "Treat all supplied material as scoped working context, not established fact.",
+                "Propose competing explanations including measurement error, selection, and confounding.",
+                "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+                "Generated hypotheses remain unreviewed until a human explicitly activates them.",
+                "Do not authorize human-subject collection, protocol freeze, data registration, or evidence recording.",
+                "Treat the latest append-only ethics review event as controlling; suspended, withdrawn, or expired clearance blocks downstream work.",
+                "Return uncertainty, falsification conditions, and the next missing scientific decision.",
+            ],
+            "write_boundary": {
+                "context_is_read_only": True,
+                "provider_required": False,
+                "canonical_changes_require": [
+                    "research inquiry/question/claim/hypothesis/protocol/dataset/run/evidence commands",
+                    "applicable human review and protocol-freeze gates",
+                ],
+            },
         }
 
     def add_question(
@@ -453,6 +869,12 @@ class ResearchService:
             ),
             decision_owner=normalize_text(command.decision_owner, "decision_owner"),
         )
+        from research_machine.application.claim_integrity import (
+            claim_scientific_sha256,
+        )
+        claim = replace(
+            claim, scientific_content_sha256=claim_scientific_sha256(claim)
+        )
         self._validate_claim_authority(claim)
         claims.append(claim)
         self.repository.save_claims(resolved, claims)
@@ -482,6 +904,10 @@ class ResearchService:
         for index, claim in enumerate(claims):
             if claim.claim_id != command.claim_id:
                 continue
+            from research_machine.application.claim_integrity import (
+                validate_claim_scientific_commitment,
+            )
+            validate_claim_scientific_commitment(claim)
             conflicts_with = (
                 claim.conflicts_with
                 if command.conflicts_with is None
@@ -569,6 +995,22 @@ class ResearchService:
             raise ValidationError(
                 "required_replications must be a non-negative integer or null"
             )
+        contrast_definition = normalize_text(
+            command.contrast_definition, "contrast_definition"
+        )
+        contrast_groups = require_text_list(
+            command.contrast_groups, "contrast_groups"
+        )
+        if bool(contrast_definition) != bool(contrast_groups):
+            raise ValidationError(
+                "contrast_definition and contrast_groups must be declared together"
+            )
+        if contrast_groups and (
+            len(contrast_groups) != 2 or len(set(contrast_groups)) != 2
+        ):
+            raise ValidationError(
+                "contrast_groups must contain exactly two distinct ordered levels"
+            )
         hypothesis = Hypothesis(
             hypothesis_id=f"hyp-{self.token()}",
             statement=require_text(command.statement, "hypothesis statement"),
@@ -591,6 +1033,8 @@ class ResearchService:
             primary_estimand=normalize_text(
                 command.primary_estimand, "primary_estimand"
             ),
+            contrast_definition=contrast_definition,
+            contrast_groups=contrast_groups,
             expected_effect_direction=normalize_text(
                 command.expected_effect_direction, "expected_effect_direction"
             ),
@@ -610,6 +1054,13 @@ class ResearchService:
             ),
             required_replications=command.required_replications,
         )
+        from research_machine.application.hypothesis_integrity import (
+            hypothesis_scientific_sha256,
+        )
+        hypothesis = replace(
+            hypothesis,
+            scientific_content_sha256=hypothesis_scientific_sha256(hypothesis),
+        )
         self.repository.save_hypothesis(resolved, hypothesis)
         self._event(
             resolved,
@@ -625,6 +1076,10 @@ class ResearchService:
     ) -> Hypothesis:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         hypothesis = self.repository.find_hypothesis(resolved, hypothesis_id)
+        from research_machine.application.hypothesis_integrity import (
+            validate_hypothesis_scientific_commitment,
+        )
+        validate_hypothesis_scientific_commitment(hypothesis)
         validate_hypothesis_activation(hypothesis)
         activated = replace(
             hypothesis,
@@ -651,6 +1106,10 @@ class ResearchService:
     ) -> Hypothesis:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         hypothesis = self.repository.find_hypothesis(resolved, hypothesis_id)
+        from research_machine.application.hypothesis_integrity import (
+            validate_hypothesis_scientific_commitment,
+        )
+        validate_hypothesis_scientific_commitment(hypothesis)
         validate_hypothesis_staging(hypothesis)
         normalized_confidence = require_text(confidence, "confidence")
         if normalized_confidence != "high":
@@ -684,6 +1143,10 @@ class ResearchService:
     ) -> Hypothesis:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         hypothesis = self.repository.find_hypothesis(resolved, command.hypothesis_id)
+        from research_machine.application.hypothesis_integrity import (
+            validate_hypothesis_scientific_commitment,
+        )
+        validate_hypothesis_scientific_commitment(hypothesis)
         if hypothesis.workflow_state is HypothesisWorkflowState.RETIRED:
             raise ConflictError(
                 f"hypothesis {command.hypothesis_id} is already retired"
@@ -725,7 +1188,24 @@ class ResearchService:
         self, inquiry_id: str | None = None, state: str | None = None
     ) -> list[Hypothesis]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        return self.repository.list_hypotheses(resolved, state)
+        hypotheses = self.repository.list_hypotheses(resolved, state)
+        from research_machine.application.hypothesis_integrity import (
+            validate_hypothesis_scientific_commitment,
+        )
+        for hypothesis in hypotheses:
+            validate_hypothesis_scientific_commitment(hypothesis)
+        return hypotheses
+
+    def get_hypothesis(
+        self, hypothesis_id: str, inquiry_id: str | None = None
+    ) -> Hypothesis:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        hypothesis = self.repository.find_hypothesis(resolved, hypothesis_id)
+        from research_machine.application.hypothesis_integrity import (
+            validate_hypothesis_scientific_commitment,
+        )
+        validate_hypothesis_scientific_commitment(hypothesis)
+        return hypothesis
 
     def register_dataset(
         self, command: RegisterDataset, inquiry_id: str | None = None
@@ -737,6 +1217,26 @@ class ResearchService:
             raise ValidationError("synthetic must be true or false")
         if not isinstance(command.metadata, dict):
             raise ValidationError("metadata must be an object")
+        if "measurement_custody_verification" in command.metadata:
+            raise ValidationError(
+                "measurement_custody_verification is service-generated and cannot be supplied"
+            )
+        if "dataset_artifact_verification" in command.metadata:
+            raise ValidationError(
+                "dataset_artifact_verification is service-generated and cannot be supplied"
+            )
+        if "dataset_payload_sha256" in command.metadata:
+            raise ValidationError(
+                "dataset_payload_sha256 is service-generated and cannot be supplied"
+            )
+        if "ethics_condition_verification" in command.metadata:
+            raise ValidationError(
+                "ethics_condition_verification is service-generated and cannot be supplied"
+            )
+        if "ethics_review_status_check" in command.metadata:
+            raise ValidationError(
+                "ethics_review_status_check is service-generated and cannot be supplied"
+            )
         artifacts = validate_dataset_artifacts(command.artifacts)
         source_ids = require_text_list(command.source_dataset_ids, "source_dataset_ids")
         if len(set(source_ids)) != len(source_ids):
@@ -783,15 +1283,133 @@ class ResearchService:
                     f"dataset role {command.role.value} does not match protocol mode "
                     f"{protocol.analysis_mode.value}"
                 )
-            if protocol.measurement_custody_requirements:
-                validate_measurement_custody(
-                    command.metadata.get("measurement_custody"),
-                    protocol.measurement_custody_requirements,
-                )
+            if command.role in protected_roles:
+                cross_protocol_sources = [
+                    source.dataset_id
+                    for source in sources
+                    if source.protocol_id != protocol.protocol_id
+                ]
+                if cross_protocol_sources:
+                    raise ValidationError(
+                        "protected dataset lineage must remain bound to the exact same "
+                        "frozen protocol; cross-protocol sources: "
+                        + ", ".join(cross_protocol_sources)
+                    )
         elif command.role in protected_roles:
             raise ValidationError(
                 f"{command.role.value} datasets require a frozen protocol"
             )
+
+        custody_requirements = protocol.measurement_custody_requirements if protocol else []
+        dataset_metadata = dict(command.metadata)
+        if command.role in protected_roles and not command.synthetic:
+            if command.artifact_root is None:
+                raise ValidationError(
+                    f"non-synthetic {command.role.value} datasets require artifact_root "
+                    "so registered observation bytes are verified"
+                )
+            from research_machine.application.dataset_integrity import (
+                verify_dataset_artifacts,
+            )
+            dataset_metadata["dataset_artifact_verification"] = verify_dataset_artifacts(
+                artifacts,
+                command.artifact_root,
+                actor=self.actor,
+                verified_at=self.clock(),
+                protocol_hash=protocol.protocol_hash if protocol else None,
+            )
+        elif command.artifact_root is not None:
+            raise ValidationError(
+                "artifact_root is only accepted for non-synthetic confirmatory or replication datasets"
+            )
+        if protocol and protocol.human_subjects:
+            from research_machine.application.ethics import evaluate_ethics_clearance
+            dataset_metadata["ethics_review_status_check"] = evaluate_ethics_clearance(
+                protocol,
+                self.repository.list_ethics_review_events(resolved, protocol.protocol_id),
+                _parse_aware_timestamp(self.clock(), "dataset registration time"),
+            )
+            discharge = command.metadata.get("ethics_condition_discharge")
+            if protocol.independent_review_decision == "approved_with_conditions":
+                if command.ethics_artifact_root is None:
+                    raise ValidationError(
+                        "conditionally approved human-subject data require ethics_artifact_root"
+                    )
+                from research_machine.application.ethics import (
+                    verify_ethics_condition_discharge,
+                )
+                dataset_metadata["ethics_condition_verification"] = (
+                    verify_ethics_condition_discharge(
+                        discharge,
+                        protocol,
+                        command.ethics_artifact_root,
+                        actor=self.actor,
+                        verified_at=self.clock(),
+                    )
+                )
+            elif discharge is not None or command.ethics_artifact_root is not None:
+                raise ValidationError(
+                    "unconditional human-subject approval must not invent a condition discharge"
+                )
+        if custody_requirements or "measurement_custody" in command.metadata:
+            custody = validate_measurement_custody(
+                command.metadata.get("measurement_custody"), custody_requirements,
+                protocol.calibration_acceptance_criteria if protocol else (),
+            )
+            covered = {item["source_output_sha256"] for item in custody["derived_observations"]}
+            if {artifact.sha256 for artifact in artifacts} != covered:
+                raise ValidationError(
+                    "measurement custody derived observations must cover exactly "
+                    "the registered dataset artifact hashes"
+                )
+            if custody_requirements and command.custody_artifact_root is None:
+                raise ValidationError(
+                    "protected measurement custody requires custody_artifact_root so raw, "
+                    "transformation implementation, derived-output, and supporting-evidence bytes are verified at registration"
+                )
+            if command.custody_artifact_root is not None:
+                custody_artifacts = validate_dataset_artifacts([
+                    DatasetArtifact(
+                        locator=item["locator"],
+                        sha256=item["sha256"],
+                        size_bytes=item.get("size_bytes"),
+                    )
+                    for item in [
+                        *custody["raw_sources"], *custody["evidence_artifacts"],
+                        *({"locator": item["implementation_locator"], "sha256": item["implementation_sha256"]}
+                          for item in custody["transformations"]),
+                        *({"locator": item["output_locator"], "sha256": item["output_sha256"]}
+                          for item in custody["transformations"]),
+                    ]
+                ])
+                report = verify_run_artifacts(
+                    custody_artifacts,
+                    artifact_root=command.custody_artifact_root,
+                    actor=self.actor,
+                    analysis_code_hash="",
+                    run_metadata={},
+                    attestation_schema_path=None,
+                    expected_attestation_schema_sha256=None,
+                )
+                if report.status != "passed":
+                    raise ValidationError(
+                        "custody artifact verification failed: "
+                        + ", ".join(item["code"] for item in report.findings)
+                    )
+                dataset_metadata["measurement_custody_verification"] = {
+                    "verification_version": 1,
+                    "verified_at": self.clock(),
+                    "verified_by": self.actor,
+                    "custody_artifact_root": str(
+                        Path(command.custody_artifact_root).expanduser().resolve()
+                    ),
+                    "custody_receipt_sha256": _sha256_json(custody),
+                    "protocol_hash": protocol.protocol_hash if protocol else None,
+                    "required_gate_ids": list(custody_requirements),
+                    "artifact_integrity": report.to_dict(),
+                    "scope": "raw-source, transformation implementation, derived-output, and supporting-evidence bytes under the supplied local artifact root",
+                    "scientific_interpretation_verified": False,
+                }
 
         existing_digests = {
             artifact.sha256: dataset
@@ -828,7 +1446,17 @@ class ResearchService:
             quality_attestations=require_text_list(
                 command.quality_attestations, "quality_attestations"
             ),
-            metadata=dict(command.metadata),
+            metadata=dataset_metadata,
+        )
+        from research_machine.application.dataset_integrity import (
+            dataset_payload_sha256,
+        )
+        dataset = replace(
+            dataset,
+            metadata={
+                **dataset.metadata,
+                "dataset_payload_sha256": dataset_payload_sha256(dataset),
+            },
         )
         self.repository.save_dataset(resolved, dataset)
         self._event(
@@ -843,6 +1471,24 @@ class ResearchService:
     def list_datasets(self, inquiry_id: str | None = None) -> list[DatasetManifest]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         return self.repository.list_datasets(resolved)
+
+    def export_replication_package(
+        self,
+        protocol_id: str,
+        output: str,
+        inquiry_id: str | None = None,
+        *,
+        include_locators: bool = False,
+    ) -> dict[str, Any]:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        return export_replication_package(
+            self.repository.find_protocol(resolved, protocol_id),
+            self.repository.list_datasets(resolved),
+            self.repository.list_runs(resolved),
+            self.repository.list_ethics_review_events(resolved, protocol_id),
+            Path(output),
+            include_locators=include_locators,
+        )
 
     def create_protocol(
         self, command: CreateProtocol, inquiry_id: str | None = None
@@ -871,12 +1517,89 @@ class ResearchService:
         inquiry_id: str | None = None,
         *,
         external_anchor: str | None = None,
+        review_artifact_root: str | None = None,
     ) -> ExperimentProtocol:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         protocol = self.repository.find_protocol(resolved, protocol_id)
+        if not isinstance(protocol.causal_claim, bool):
+            raise ValidationError("causal_claim must be true or false")
+        if protocol.causal_claim:
+            from research_machine.design.causal import audit_causal_identification
+            if not protocol.causal_identification:
+                raise ValidationError("causal protocol freeze requires causal_identification")
+            causal_audit = audit_causal_identification(protocol.causal_identification)
+            if causal_audit["violations"]:
+                raise ValidationError(
+                    "causal identification audit is blocked: "
+                    + ", ".join(item["code"] for item in causal_audit["violations"])
+                )
+            if (protocol.protocol_kind is ProtocolKind.OBSERVATIONAL
+                    and causal_audit["assignment_type"] != "observational"):
+                raise ValidationError("observational causal protocols require observational identification")
+            if (causal_audit["assignment_type"] == "observational"
+                    and causal_audit["backdoor_criterion_satisfied"] is not True):
+                raise ValidationError("observational causal protocol does not satisfy the supplied backdoor criterion")
+            protocol = replace(protocol, causal_identification_audit=causal_audit)
+        elif protocol.causal_identification or protocol.causal_identification_audit:
+            raise ValidationError("causal identification requires causal_claim true")
         validate_protocol_freeze(protocol)
+        review_verification: dict[str, Any] = {}
+        if protocol.human_subjects:
+            if review_artifact_root is None:
+                raise ValidationError(
+                    "human-subject protocol freeze requires review_artifact_root for independent-review byte verification"
+                )
+            review_report = verify_run_artifacts(
+                [DatasetArtifact(
+                    locator=protocol.independent_review_artifact_locator,
+                    sha256=protocol.independent_review_artifact_sha256,
+                )],
+                artifact_root=review_artifact_root,
+                actor=self.actor,
+                analysis_code_hash="",
+                run_metadata={},
+                attestation_schema_path=None,
+                expected_attestation_schema_sha256=None,
+            )
+            if review_report.status != "passed":
+                raise ValidationError(
+                    "independent review artifact verification failed: "
+                    + ", ".join(item["code"] for item in review_report.findings)
+                )
+            reviewed_at = _parse_aware_timestamp(protocol.independent_reviewed_at, "independent_reviewed_at")
+            frozen_at = _parse_aware_timestamp(self.clock(), "protocol freeze time")
+            if reviewed_at > frozen_at:
+                raise ValidationError("independent review decision cannot postdate protocol freeze")
+            review_verification = {
+                "verification_version": 1,
+                "verified_at": frozen_at.isoformat(),
+                "verified_by": self.actor,
+                "review_artifact_root": str(
+                    Path(review_artifact_root).expanduser().resolve()
+                ),
+                "artifact_integrity": review_report.to_dict(),
+                "scope": "local independent-review artifact byte identity and internal chronology",
+                "reviewer_identity_authenticated": False,
+                "substantive_adequacy_verified": False,
+            }
+        primary_hypothesis: Hypothesis | None = None
+        causal_hypothesis: Hypothesis | None = None
+        tested_hypotheses: list[Hypothesis] = []
+        causal_estimand = (
+            protocol.causal_identification_audit.get("causal_estimand")
+            if protocol.causal_claim
+            else None
+        )
         for hypothesis_id in protocol.hypotheses_tested:
             hypothesis = self.repository.find_hypothesis(resolved, hypothesis_id)
+            tested_hypotheses.append(hypothesis)
+            if (
+                causal_estimand is not None
+                and hypothesis_id == causal_estimand["target_hypothesis_id"]
+            ):
+                causal_hypothesis = hypothesis
+            if protocol.analysis_contract is not None and hypothesis_id == protocol.analysis_contract.primary_hypothesis_id:
+                primary_hypothesis = hypothesis
             if hypothesis.workflow_state is HypothesisWorkflowState.ACTIVE:
                 continue
             if (
@@ -893,6 +1616,98 @@ class ResearchService:
                 f"protocol hypothesis {hypothesis_id} must be active or pending review "
                 "before freeze"
             )
+        if protocol.causal_claim:
+            if causal_hypothesis is None:
+                raise ValidationError("causal estimand target hypothesis is unavailable")
+            if not causal_hypothesis.primary_estimand.strip():
+                raise ValidationError(
+                    "causal estimand target hypothesis has no reviewed primary_estimand"
+                )
+            if causal_hypothesis.primary_estimand != causal_estimand["description"]:
+                raise ValidationError(
+                    "causal estimand description does not match the target hypothesis primary_estimand"
+                )
+        if protocol.analysis_contract is not None:
+            if primary_hypothesis is None:
+                raise ValidationError("analysis contract primary hypothesis is unavailable")
+            if not primary_hypothesis.primary_estimand.strip():
+                raise ValidationError("analysis contract primary hypothesis has no reviewed primary_estimand")
+            if primary_hypothesis.primary_estimand != protocol.analysis_contract.estimand:
+                raise ValidationError("analysis contract estimand does not match the primary hypothesis estimand")
+            if (
+                primary_hypothesis.contrast_definition
+                or protocol.analysis_contract.contrast_definition
+            ) and (
+                not primary_hypothesis.contrast_definition
+                or not protocol.analysis_contract.contrast_definition
+                or primary_hypothesis.contrast_definition
+                != protocol.analysis_contract.contrast_definition
+            ):
+                raise ValidationError(
+                    "analysis contract contrast_definition must exactly match the primary hypothesis contrast_definition"
+                )
+            hypothesis_groups = primary_hypothesis.contrast_groups
+            contract_groups = protocol.analysis_contract.contrast_groups
+            if (
+                hypothesis_groups or contract_groups
+                or primary_hypothesis.contrast_definition
+                or protocol.analysis_contract.contrast_definition
+            ):
+                if (
+                    len(hypothesis_groups) != 2
+                    or len(set(hypothesis_groups)) != 2
+                    or hypothesis_groups != contract_groups
+                    or contract_groups != protocol.analysis_contract.groups
+                ):
+                    raise ValidationError(
+                        "analysis contract contrast_groups must exactly match the primary hypothesis and executable group order"
+                    )
+            if primary_hypothesis.expected_effect_direction not in {
+                "positive", "negative", "two_sided", "equivalence",
+            }:
+                raise ValidationError(
+                    "analysis contract primary hypothesis must declare expected_effect_direction as positive, negative, two_sided, or equivalence"
+                )
+            from research_machine.application.policies import (
+                validate_equivalence_design_coherence,
+            )
+            validate_equivalence_design_coherence(
+                analysis_contract=protocol.analysis_contract,
+                conclusion_contract=protocol.conclusion_contract,
+                expected_direction=primary_hypothesis.expected_effect_direction,
+                multiplicity_method=protocol.multiplicity_method,
+                multiplicity_alpha=protocol.multiplicity_alpha,
+            )
+            if protocol.sample_size_plan:
+                from research_machine.application.policies import (
+                    validate_planning_inference_coherence,
+                )
+                validate_planning_inference_coherence(
+                    sample_size_plan=protocol.sample_size_plan,
+                    analysis_contract=protocol.analysis_contract,
+                    expected_direction=primary_hypothesis.expected_effect_direction,
+                    multiplicity_alpha=protocol.multiplicity_alpha,
+                    measurement_unit=next(
+                        item.unit for item in protocol.measurement_definitions
+                        if item.measurement_id
+                        == protocol.analysis_contract.primary_measurement_id
+                    ),
+                    smallest_effect_size_of_interest=(
+                        protocol.conclusion_contract.smallest_effect_size_of_interest
+                        if protocol.conclusion_contract is not None else None
+                    ),
+                    maximum_excluded_fraction=(
+                        protocol.analysis_contract.maximum_excluded_fraction
+                    ),
+                    multiplicity_method=protocol.multiplicity_method,
+                )
+        from research_machine.application.hypothesis_integrity import (
+            build_hypothesis_commitments,
+        )
+        protocol = replace(
+            protocol,
+            hypothesis_commitments=build_hypothesis_commitments(tested_hypotheses),
+        )
         anchor = (
             normalize_text(external_anchor, "external_anchor")
             if external_anchor is not None
@@ -904,6 +1719,7 @@ class ResearchService:
             protocol_hash=_protocol_commitment(protocol),
             registration_timestamp=self.clock(),
             external_anchor=anchor,
+            independent_review_verification=review_verification,
         )
         self.repository.freeze_protocol(resolved, frozen)
         self._event(
@@ -920,12 +1736,15 @@ class ResearchService:
         protocol_id: str,
         command: CreateProtocol,
         reason: str,
+        amendment_timing: str,
+        evidence_exposure: str,
         inquiry_id: str | None = None,
     ) -> ExperimentProtocol:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         predecessor = self.repository.find_protocol(resolved, protocol_id)
         if predecessor.status is not ProtocolStatus.FROZEN:
             raise ValidationError("only frozen protocols can be amended")
+        self._validate_frozen_protocol_integrity(resolved, predecessor)
         family = [
             item
             for item in self.repository.list_protocols(resolved)
@@ -937,6 +1756,10 @@ class ResearchService:
             )
         if command.experiment_id != predecessor.experiment_id:
             raise ValidationError("an amendment cannot change experiment_id")
+        if amendment_timing not in {"before_collection", "during_collection", "after_collection", "after_analysis", "unknown"}:
+            raise ValidationError("invalid protocol amendment_timing")
+        if evidence_exposure not in {"not_seen", "aggregate_seen", "full_data_seen", "unknown"}:
+            raise ValidationError("invalid protocol evidence_exposure")
         amended = self._build_protocol(
             resolved,
             command,
@@ -944,6 +1767,8 @@ class ResearchService:
             version=predecessor.version + 1,
             supersedes_protocol_id=predecessor.protocol_id,
             amendment_reason=require_text(reason, "amendment reason"),
+            amendment_timing=amendment_timing,
+            evidence_exposure=evidence_exposure,
         )
         self.repository.save_protocol(resolved, amended)
         self._event(
@@ -957,13 +1782,443 @@ class ResearchService:
 
     def list_protocols(self, inquiry_id: str | None = None) -> list[ExperimentProtocol]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        return self.repository.list_protocols(resolved)
+        protocols = self.repository.list_protocols(resolved)
+        for protocol in protocols:
+            if protocol.status is ProtocolStatus.FROZEN:
+                self._validate_frozen_protocol_integrity(resolved, protocol)
+        return protocols
 
     def get_protocol(
         self, protocol_id: str, inquiry_id: str | None = None
     ) -> ExperimentProtocol:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        return self.repository.find_protocol(resolved, protocol_id)
+        protocol = self.repository.find_protocol(resolved, protocol_id)
+        if protocol.status is ProtocolStatus.FROZEN:
+            self._validate_frozen_protocol_integrity(resolved, protocol)
+        return protocol
+
+    def _validate_frozen_protocol_integrity(
+        self, inquiry_id: str, protocol: ExperimentProtocol
+    ) -> None:
+        if not protocol.protocol_hash or _protocol_commitment(protocol) != protocol.protocol_hash:
+            raise ValidationError(
+                f"frozen protocol {protocol.protocol_id} no longer matches its commitment"
+            )
+        from research_machine.application.hypothesis_integrity import (
+            validate_protocol_hypothesis_commitments,
+        )
+        validate_protocol_hypothesis_commitments(
+            protocol,
+            {
+                hypothesis_id: self.repository.find_hypothesis(
+                    inquiry_id, hypothesis_id
+                )
+                for hypothesis_id in protocol.hypotheses_tested
+            },
+        )
+
+    def record_ethics_review_event(
+        self, command: RecordEthicsReviewEvent, inquiry_id: str | None = None
+    ) -> EthicsReviewEvent:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        protocol = self.repository.find_protocol(resolved, command.protocol_id)
+        if (protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash
+                or _protocol_commitment(protocol) != protocol.protocol_hash):
+            raise ValidationError("ethics review events require an intact frozen protocol")
+        if not protocol.human_subjects:
+            raise ValidationError("ethics review events require a human-subject protocol")
+        status = require_text(command.status, "ethics review status")
+        if status not in {"active", "suspended", "withdrawn", "expired"}:
+            raise ValidationError("ethics review status must be active, suspended, withdrawn, or expired")
+        created_at = self.clock()
+        created = _parse_aware_timestamp(created_at, "ethics review event creation time")
+        effective_at = require_text(command.effective_at, "effective_at")
+        effective = _parse_aware_timestamp(effective_at, "effective_at")
+        reviewed = _parse_aware_timestamp(protocol.independent_reviewed_at, "independent_reviewed_at")
+        if effective < reviewed:
+            raise ValidationError("ethics review event cannot predate the independent review")
+        if effective > created:
+            raise ValidationError("ethics review event cannot take effect in the future")
+        expires_at = require_text(command.expires_at, "expires_at") if command.expires_at is not None else None
+        if status == "active" and expires_at is not None:
+            if _parse_aware_timestamp(expires_at, "expires_at") <= effective:
+                raise ValidationError("active ethics clearance expires_at must follow effective_at")
+        elif status != "active" and expires_at is not None:
+            raise ValidationError("non-active ethics review events cannot declare expires_at")
+        from research_machine.application.ethics import validate_ethics_review_event_chain
+        prior = validate_ethics_review_event_chain(
+            protocol,
+            self.repository.list_ethics_review_events(resolved, protocol.protocol_id),
+        )
+        latest = prior[-1] if prior else None
+        if latest is None and command.supersedes_event_id is not None:
+            raise ValidationError("first ethics review event cannot supersede another event")
+        if latest is not None:
+            if command.supersedes_event_id != latest.event_id:
+                raise ValidationError("ethics review event must supersede the exact latest event")
+            if effective < _parse_aware_timestamp(latest.effective_at, "prior effective_at"):
+                raise ValidationError("ethics review event effective_at cannot move backward")
+        artifact_hash = require_sha256(command.review_artifact_sha256, "review_artifact_sha256")
+        report = verify_run_artifacts(
+            [DatasetArtifact(
+                locator=require_text(command.review_artifact_locator, "review_artifact_locator"),
+                sha256=artifact_hash,
+            )],
+            artifact_root=require_text(command.review_artifact_root, "review_artifact_root"),
+            actor=self.actor, analysis_code_hash="", run_metadata={},
+            attestation_schema_path=None, expected_attestation_schema_sha256=None,
+        )
+        if report.status != "passed":
+            raise ValidationError("ethics review event artifact verification failed: "
+                                  + ", ".join(item["code"] for item in report.findings))
+        event = EthicsReviewEvent(
+            event_id=command.event_id or f"ethics-{self.token()}",
+            sequence=len(prior) + 1,
+            protocol_id=protocol.protocol_id, protocol_hash=protocol.protocol_hash,
+            status=status, effective_at=effective_at, expires_at=expires_at,
+            reason=require_text(command.reason, "ethics review event reason"),
+            review_artifact_locator=command.review_artifact_locator,
+            review_artifact_sha256=artifact_hash,
+            review_artifact_root=str(
+                Path(command.review_artifact_root).expanduser().resolve()
+            ),
+            supersedes_event_id=command.supersedes_event_id,
+            created_at=created_at, created_by=self.actor,
+            artifact_integrity=report.to_dict(),
+            conclusion_ceiling=("Records local review-status evidence and blocks work when non-active; "
+                                "does not authenticate the reviewer or judge substantive adequacy."),
+        )
+        self.repository.save_ethics_review_event(resolved, event)
+        self._event(resolved, "ethics.review_status", "protocol", protocol.protocol_id, event.to_dict())
+        return event
+
+    def validate_analysis_execution(
+        self, protocol_id: str, specification: dict[str, Any],
+        unit_structure: dict[str, Any], implementation_sha256: str,
+        specification_sha256: str, dataset_id: str, input_sha256: str,
+        input_size_bytes: int, maximum_inference_level: str,
+        inquiry_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Route a protocol-bound executable to its frozen workflow contract."""
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        protocol = self.repository.find_protocol(resolved, protocol_id)
+        ethics_execution_check: dict[str, Any] = {}
+        if protocol.human_subjects:
+            from research_machine.application.ethics import (
+                evaluate_ethics_clearance,
+                validate_ethics_conditions_for_run,
+            )
+            dataset = self.repository.find_dataset(resolved, dataset_id)
+            checked_at = _parse_aware_timestamp(
+                self.clock(), "analysis execution ethics-check time"
+            )
+            ethics_execution_check = {
+                "review_status": evaluate_ethics_clearance(
+                    protocol,
+                    self.repository.list_ethics_review_events(
+                        resolved, protocol.protocol_id
+                    ),
+                    checked_at,
+                ),
+                "conditions": validate_ethics_conditions_for_run(
+                    protocol, [dataset], checked_at
+                ),
+                "checked_before_execution": True,
+            }
+        workflow_matches = [
+            step for step in protocol.analysis_steps
+            if step.specification_sha256 == specification_sha256
+            and step.method == specification.get("method")
+        ]
+        if len(workflow_matches) == 1 and workflow_matches[0].role == "confirmatory_test":
+            result = self.validate_confirmatory_test_design(
+                protocol_id, workflow_matches[0], specification, unit_structure,
+                implementation_sha256, dataset_id, input_sha256,
+                input_size_bytes, maximum_inference_level, inquiry_id,
+            )
+        elif specification.get("method") == "holm_adjustment":
+            result = self.validate_multiplicity_analysis_design(
+                protocol_id, specification, implementation_sha256,
+                specification_sha256, dataset_id, input_sha256,
+                input_size_bytes, maximum_inference_level, inquiry_id,
+            )
+        else:
+            result = self.validate_analysis_design(
+                protocol_id, specification, unit_structure, implementation_sha256,
+                specification_sha256, dataset_id, input_sha256, input_size_bytes,
+                maximum_inference_level, inquiry_id,
+            )
+        if ethics_execution_check:
+            result["ethics_execution_check"] = ethics_execution_check
+        return result
+
+    def validate_confirmatory_test_design(
+        self, protocol_id: str, step: AnalysisStepContract,
+        specification: dict[str, Any], unit_structure: dict[str, Any],
+        implementation_sha256: str, dataset_id: str, input_sha256: str,
+        input_size_bytes: int, maximum_inference_level: str,
+        inquiry_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Bind an outcome test to its frozen workflow, measurement, and data."""
+        protocol = self.get_protocol(protocol_id, inquiry_id)
+        if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
+            raise ValidationError("confirmatory-test execution requires a frozen protocol")
+        if _protocol_commitment(protocol) != protocol.protocol_hash:
+            raise ValidationError("frozen protocol content no longer matches its hash commitment")
+        if step not in protocol.analysis_steps or step.role != "confirmatory_test":
+            raise ValidationError("analysis step is not a frozen confirmatory_test")
+        if require_sha256(implementation_sha256, "implementation_sha256") != step.implementation_sha256:
+            raise ValidationError("confirmatory-test implementation does not match its frozen step")
+        measurements = [
+            item for item in protocol.measurement_definitions
+            if item.measurement_id == step.measurement_id
+        ]
+        if len(measurements) != 1 or specification.get("outcome_column") != measurements[0].data_column:
+            raise ValidationError("confirmatory-test outcome_column does not match its frozen measurement")
+        if specification.get("study_design") != protocol.analysis_design:
+            raise ValidationError("confirmatory-test study_design does not match the protocol")
+        contract = protocol.analysis_contract
+        if contract is None:
+            raise ValidationError("confirmatory-test execution requires the protocol comparison contract")
+        for field_name in ("group_column", "groups", "missing_data_policy"):
+            if specification.get(field_name) != getattr(contract, field_name):
+                raise ValidationError(
+                    f"confirmatory-test {field_name} does not match the frozen comparison contract"
+                )
+        if protocol.causal_claim and maximum_inference_level != "design_conditional_effect":
+            raise ValidationError("causal confirmatory tests require a design_conditional_effect method ceiling")
+        if not isinstance(unit_structure, dict) or unit_structure.get("unit_id_column") != protocol.unit_id_column:
+            raise ValidationError("confirmatory-test unit identity does not match the protocol")
+        if protocol.repeated_measures is False and unit_structure.get("repeated_unit_count") != 0:
+            raise ValidationError("confirmatory-test data repeat units despite the frozen design")
+        if contract.assignment_type == "randomized_between_units" and unit_structure.get("unit_group_allocation_sha256") != contract.allocation_sha256:
+            raise ValidationError("confirmatory-test allocation does not match the frozen randomization")
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        dataset = self.repository.find_dataset(resolved, dataset_id)
+        self._validate_run_datasets(protocol, [dataset])
+        digest = require_sha256(input_sha256, "input_sha256")
+        artifacts = [item for item in dataset.artifacts if item.sha256 == digest]
+        if not artifacts:
+            raise ValidationError("confirmatory-test input bytes do not match the registered dataset")
+        if type(input_size_bytes) is not int or input_size_bytes < 0:
+            raise ValidationError("input_size_bytes must be a non-negative integer")
+        if any(item.size_bytes is not None and item.size_bytes != input_size_bytes for item in artifacts):
+            raise ValidationError("confirmatory-test input size does not match the registered dataset")
+        return {
+            "protocol_id": protocol.protocol_id, "protocol_hash": protocol.protocol_hash,
+            "scope": "frozen_confirmatory_test_and_registered_input", "status": "passed",
+            "analysis_step_contract": step.to_dict(),
+            "analysis_specification_sha256": step.specification_sha256,
+            "executed_analysis_specification": dict(specification),
+            "measurement_contracts": [measurements[0].to_dict()],
+            "unit_structure": dict(unit_structure), "dataset_id": dataset.dataset_id,
+            "input_sha256": digest, "synthetic": dataset.synthetic,
+            "method_inference_check": {
+                "maximum_inference_level": maximum_inference_level,
+                "status": "passed",
+                "scope": "method ceiling retained; not evidence of causal validity",
+            },
+            "scientific_evidence_eligible": False,
+        }
+
+    def validate_multiplicity_analysis_design(
+        self, protocol_id: str, specification: dict[str, Any],
+        implementation_sha256: str, specification_sha256: str,
+        dataset_id: str, input_sha256: str, input_size_bytes: int,
+        maximum_inference_level: str, inquiry_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Bind Holm execution to an exact frozen workflow family and input."""
+        protocol = self.get_protocol(protocol_id, inquiry_id)
+        if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
+            raise ValidationError("multiplicity execution requires a frozen protocol")
+        if _protocol_commitment(protocol) != protocol.protocol_hash:
+            raise ValidationError("frozen protocol content no longer matches its hash commitment")
+        matches = [
+            step for step in protocol.analysis_steps
+            if step.role == "multiplicity" and step.method == "holm_adjustment"
+            and step.specification_sha256 == specification_sha256
+        ]
+        if len(matches) != 1:
+            raise ValidationError(
+                "Holm execution specification is not the unique frozen multiplicity step"
+            )
+        step = matches[0]
+        if require_sha256(implementation_sha256, "implementation_sha256") != step.implementation_sha256:
+            raise ValidationError("Holm implementation does not match the frozen analysis step")
+        if maximum_inference_level != "descriptive":
+            raise ValidationError("Holm adjustment must retain a descriptive inference ceiling")
+        expected_member_ids = [item.member_id for item in step.family_members]
+        if specification.get("family_hypothesis_ids") != expected_member_ids:
+            raise ValidationError(
+                "Holm family_hypothesis_ids do not match the frozen family members in order"
+            )
+        if specification.get("family_name") != step.family_id:
+            raise ValidationError("Holm family_name does not match the frozen family_id")
+        if specification.get("alpha") != step.alpha:
+            raise ValidationError("Holm alpha does not match the frozen analysis step")
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        dataset = self.repository.find_dataset(resolved, dataset_id)
+        self._validate_run_datasets(protocol, [dataset])
+        digest = require_sha256(input_sha256, "input_sha256")
+        artifacts = [item for item in dataset.artifacts if item.sha256 == digest]
+        if not artifacts:
+            raise ValidationError("Holm input bytes do not match the registered dataset")
+        if type(input_size_bytes) is not int or input_size_bytes < 0:
+            raise ValidationError("input_size_bytes must be a non-negative integer")
+        if any(item.size_bytes is not None and item.size_bytes != input_size_bytes for item in artifacts):
+            raise ValidationError("Holm input size does not match the registered dataset")
+        return {
+            "protocol_id": protocol.protocol_id,
+            "protocol_hash": protocol.protocol_hash,
+            "scope": "frozen_multiplicity_step_and_registered_input",
+            "status": "passed",
+            "analysis_step_contract": step.to_dict(),
+            "analysis_specification_sha256": specification_sha256,
+            "executed_analysis_specification": dict(specification),
+            "dataset_id": dataset.dataset_id,
+            "input_sha256": digest,
+            "synthetic": dataset.synthetic,
+            "dependency_status": "declared_not_execution_verified",
+            "dependency_notice": "Source-step identities are frozen, but this receipt does not yet verify their result receipts.",
+            "scientific_evidence_eligible": False,
+        }
+
+    def validate_analysis_design(
+        self, protocol_id: str, specification: dict[str, Any],
+        unit_structure: dict[str, Any],
+        implementation_sha256: str, specification_sha256: str,
+        dataset_id: str, input_sha256: str, input_size_bytes: int,
+        maximum_inference_level: str,
+        inquiry_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Read-only consistency check, not evidence or analysis-plan approval."""
+        protocol = self.get_protocol(protocol_id, inquiry_id)
+        if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
+            raise ValidationError("analysis design checks require a frozen protocol")
+        if _protocol_commitment(protocol) != protocol.protocol_hash:
+            raise ValidationError("frozen protocol content no longer matches its hash commitment")
+        if not protocol.analysis_design or protocol.repeated_measures is None or not protocol.independent_unit:
+            raise ValidationError("frozen protocol has no complete structured design declaration")
+        if specification.get("study_design") != protocol.analysis_design:
+            raise ValidationError("analysis study_design does not match the frozen protocol")
+        contract = protocol.analysis_contract
+        if contract is None:
+            raise ValidationError("frozen protocol has no semantic analysis contract")
+        from research_machine.addons.models import INFERENCE_LEVELS
+        if maximum_inference_level not in INFERENCE_LEVELS:
+            raise ValidationError("analysis method has an unsupported maximum_inference_level")
+        required_inference_level = (
+            "design_conditional_effect" if protocol.causal_claim else "not_causal"
+        )
+        if protocol.causal_claim and maximum_inference_level != "design_conditional_effect":
+            raise ValidationError(
+                "causal primary analysis requires a design_conditional_effect method ceiling"
+            )
+        comparisons = {
+            "method": contract.method,
+            "outcome_column": contract.outcome_column,
+            "group_column": contract.group_column,
+            "groups": contract.groups,
+            "covariate_columns": contract.adjustment_columns,
+            "estimand": contract.estimand,
+            "contrast_definition": contract.contrast_definition,
+            "missing_data_policy": contract.missing_data_policy,
+        }
+        for field_name, expected in comparisons.items():
+            observed = (
+                specification.get(field_name, [])
+                if field_name == "covariate_columns"
+                else specification.get(field_name, "")
+                if field_name == "contrast_definition"
+                else specification.get(field_name)
+            )
+            if observed != expected:
+                raise ValidationError(
+                    f"analysis {field_name} does not match the frozen analysis contract"
+                )
+        executed_semantics = {
+            "study_design": specification.get("study_design"),
+            **{
+                field_name: (
+                    specification.get(field_name, [])
+                    if field_name == "covariate_columns"
+                    else specification.get(field_name)
+                )
+                for field_name in comparisons
+            },
+            "contrast_groups": list(specification.get("groups", [])),
+        }
+        if not isinstance(unit_structure, dict) or unit_structure.get("unit_id_column") != protocol.unit_id_column:
+            raise ValidationError("analysis unit or pair column does not match the frozen protocol unit_id_column")
+        required_unit_fields = {"unit_id_column", "row_count", "unit_count", "repeated_unit_count",
+                                "minimum_observations_per_unit", "maximum_observations_per_unit",
+                                "row_to_unit_mapping_sha256", "unit_group_allocation_sha256"}
+        if set(unit_structure) != required_unit_fields:
+            raise ValidationError("analysis unit structure fields do not match the documented contract")
+        for field in ("row_count", "unit_count", "repeated_unit_count",
+                      "minimum_observations_per_unit", "maximum_observations_per_unit"):
+            value = unit_structure[field]
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValidationError("analysis unit structure counts must be non-negative integers")
+        require_sha256(unit_structure["row_to_unit_mapping_sha256"], "row_to_unit_mapping_sha256")
+        require_sha256(unit_structure["unit_group_allocation_sha256"], "unit_group_allocation_sha256")
+        if unit_structure["row_count"] < 1 or unit_structure["unit_count"] < 1:
+            raise ValidationError("analysis unit structure must contain observations and units")
+        if unit_structure["unit_count"] > unit_structure["row_count"]:
+            raise ValidationError("analysis unit count cannot exceed row count")
+        if unit_structure["repeated_unit_count"] > unit_structure["unit_count"]:
+            raise ValidationError("repeated unit count cannot exceed unit count")
+        if (unit_structure["minimum_observations_per_unit"] < 1
+                or unit_structure["maximum_observations_per_unit"] < unit_structure["minimum_observations_per_unit"]):
+            raise ValidationError("analysis unit observation-count bounds are inconsistent")
+        if ((unit_structure["unit_count"] == unit_structure["row_count"])
+                != (unit_structure["repeated_unit_count"] == 0)):
+            raise ValidationError("analysis unit repetition counts are internally inconsistent")
+        if protocol.repeated_measures is False and unit_structure["repeated_unit_count"]:
+            raise ValidationError("dataset repeats unit identifiers despite a no-repeated-measures protocol")
+        if protocol.analysis_design == "paired" and (
+            unit_structure["minimum_observations_per_unit"] != 2
+            or unit_structure["maximum_observations_per_unit"] != 2
+        ):
+            raise ValidationError("paired analysis requires exactly two observations per frozen unit identifier")
+        if contract.assignment_type == "randomized_between_units" and unit_structure["unit_group_allocation_sha256"] != contract.allocation_sha256:
+            raise ValidationError("observed unit-group allocation does not match the frozen randomized allocation")
+        if require_sha256(implementation_sha256, "implementation_sha256") != protocol.analysis_code_hash:
+            raise ValidationError("analysis implementation does not match the frozen protocol")
+        if not protocol.analysis_specification_sha256:
+            raise ValidationError("frozen protocol has no analysis specification commitment")
+        if require_sha256(specification_sha256, "specification_sha256") != protocol.analysis_specification_sha256:
+            raise ValidationError("analysis specification does not match the frozen protocol")
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        dataset = self.repository.find_dataset(resolved, dataset_id)
+        self._validate_run_datasets(protocol, [dataset])
+        digest = require_sha256(input_sha256, "input_sha256")
+        matches = [artifact for artifact in dataset.artifacts if artifact.sha256 == digest]
+        if not matches:
+            raise ValidationError("analysis input bytes do not match the registered dataset")
+        if type(input_size_bytes) is not int or input_size_bytes < 0:
+            raise ValidationError("input_size_bytes must be a non-negative integer")
+        if any(item.size_bytes is not None and item.size_bytes != input_size_bytes for item in matches):
+            raise ValidationError("analysis input size does not match the registered dataset")
+        return {"protocol_id": protocol.protocol_id, "protocol_hash": protocol.protocol_hash,
+                "scope": "design_code_specification_and_registered_input", "status": "passed",
+                "analysis_specification_sha256": specification_sha256,
+                "analysis_contract": contract.to_dict(),
+                "method_inference_check": {
+                    "required_inference_level": required_inference_level,
+                    "maximum_inference_level": maximum_inference_level,
+                    "status": "passed",
+                    "scope": "method capability combined with frozen protocol; not causal proof",
+                },
+                "executed_analysis_semantics": executed_semantics,
+                "measurement_contracts": [
+                    item.to_dict() for item in protocol.measurement_definitions
+                    if item.data_column
+                ],
+                "unit_structure": dict(unit_structure),
+                "dataset_id": dataset.dataset_id, "input_sha256": digest,
+                "synthetic": dataset.synthetic,
+                "scientific_evidence_eligible": False}
 
     def _prepare_run(
         self,
@@ -984,6 +2239,31 @@ class ResearchService:
             raise ValidationError(
                 "metadata.protocol_chronology is reserved for machine verification"
             )
+        if "ethics_condition_check" in command.metadata:
+            raise ValidationError(
+                "metadata.ethics_condition_check is reserved for machine verification"
+            )
+        if "ethics_review_status_check" in command.metadata:
+            raise ValidationError(
+                "metadata.ethics_review_status_check is reserved for machine verification"
+            )
+        for reserved in (
+            "run_artifact_root",
+            "run_attestation_schema_path",
+            "expected_attestation_schema_sha256",
+            "artifact_integrity_missing_for_evidence",
+            "run_payload_sha256",
+            "sample_size_plan_check",
+        ):
+            if reserved in command.metadata:
+                raise ValidationError(f"metadata.{reserved} is reserved for machine verification")
+        if (
+            "execution_handoff" in command.metadata
+            and "workflow_adjudication_handoff" in command.metadata
+        ):
+            raise ValidationError(
+                "a run cannot contain both execution and workflow adjudication handoffs"
+            )
         protocol = self.repository.find_protocol(resolved, command.protocol_id)
         if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
             raise ValidationError("runs require a frozen, hash-committed protocol")
@@ -991,13 +2271,42 @@ class ResearchService:
             raise ValidationError(
                 "frozen protocol content no longer matches its hash commitment"
             )
+        from research_machine.application.hypothesis_integrity import (
+            validate_protocol_hypothesis_commitments,
+        )
+        validate_protocol_hypothesis_commitments(
+            protocol,
+            {
+                hypothesis_id: self.repository.find_hypothesis(
+                    resolved, hypothesis_id
+                )
+                for hypothesis_id in protocol.hypotheses_tested
+            },
+        )
 
         analysis_code_hash = require_sha256(
             command.analysis_code_hash, "analysis_code_hash"
         )
-        if analysis_code_hash != protocol.analysis_code_hash:
+        allowed_analysis_hashes = {
+            protocol.analysis_code_hash,
+            *[step.implementation_sha256 for step in protocol.analysis_steps],
+        }
+        if analysis_code_hash not in allowed_analysis_hashes:
             raise ValidationError(
-                "run analysis_code_hash does not match the frozen protocol"
+                "run analysis_code_hash does not match any frozen protocol analysis step"
+            )
+        # A module-level implementation digest can legitimately be shared by
+        # several registered functions.  Hash equality therefore cannot tell a
+        # primary estimator from another workflow step.  Once a protocol has a
+        # frozen workflow, require the verified execution receipt to identify
+        # and bind every component (including the primary estimate).
+        if (
+            protocol.analysis_steps
+            and "execution_handoff" not in command.metadata
+            and "workflow_adjudication_handoff" not in command.metadata
+        ):
+            raise ValidationError(
+                "frozen workflow analyses require a verified execution_handoff"
             )
         environment_hash = require_sha256(command.environment_hash, "environment_hash")
         seed_reveal = (
@@ -1030,6 +2339,18 @@ class ResearchService:
             for dataset_id in dataset_ids
         ]
         self._validate_run_datasets(protocol, datasets)
+        from research_machine.application.ethics import (
+            evaluate_ethics_clearance,
+            validate_ethics_conditions_for_run,
+        )
+        ethics_review_status_check = evaluate_ethics_clearance(
+            protocol,
+            self.repository.list_ethics_review_events(resolved, protocol.protocol_id),
+            completed,
+        )
+        ethics_condition_check = validate_ethics_conditions_for_run(
+            protocol, datasets, completed
+        )
 
         outputs = validate_dataset_artifacts(command.output_artifacts)
         protocol_chronology = _protocol_chronology_receipt(
@@ -1069,8 +2390,501 @@ class ResearchService:
             if verify_artifacts
             else None
         )
+        verified_handoff: dict[str, Any] | None = None
+        execution_handoff = command.metadata.get("execution_handoff")
+        if execution_handoff is not None:
+            if not isinstance(execution_handoff, dict):
+                raise ValidationError("execution_handoff must be an object")
+            if command.artifact_root is None:
+                raise ValidationError("execution_handoff requires artifact_root for receipt and output verification")
+            try:
+                receipt_sha256 = execution_handoff["receipt_sha256"]
+            except KeyError as exc:
+                raise ValidationError("execution_handoff lacks receipt_sha256") from exc
+            from research_machine.addons.receipt import verify_execution_output
+            verified_handoff = verify_execution_output(
+                Path(command.artifact_root),
+                require_sha256(receipt_sha256, "execution_handoff.receipt_sha256"),
+            )
+            if verified_handoff != execution_handoff:
+                raise ValidationError("execution_handoff does not match the verified receipt and output bytes")
+            receipt = verified_handoff["receipt"]
+            binding = receipt.get("protocol_design_check")
+            if not isinstance(binding, dict) or binding.get("status") != "passed":
+                raise ValidationError("execution_handoff requires a passed protocol design binding")
+            if (
+                binding.get("protocol_id") != protocol.protocol_id
+                or binding.get("protocol_hash") != protocol.protocol_hash
+            ):
+                raise ValidationError("execution_handoff is bound to a different protocol")
+            if receipt.get("implementation", {}).get("sha256") != analysis_code_hash:
+                raise ValidationError("execution_handoff implementation disagrees with the run analysis_code_hash")
+            if dataset_ids != [binding.get("dataset_id")]:
+                raise ValidationError("execution_handoff run must use exactly its bound dataset")
+            receipt_output = receipt.get("output")
+            if not isinstance(receipt_output, dict) or not any(
+                artifact.locator == receipt_output.get("locator")
+                and artifact.sha256 == receipt_output.get("sha256")
+                and artifact.size_bytes == receipt_output.get("size_bytes")
+                for artifact in outputs
+            ):
+                raise ValidationError("execution_handoff run output does not exactly include the verified result")
+            try:
+                specification = (
+                    binding["executed_analysis_specification"]
+                    if "analysis_step_contract" in binding
+                    else binding["executed_analysis_semantics"]
+                )
+                canonical_binding = self.validate_analysis_execution(
+                    binding["protocol_id"], specification,
+                    binding.get("unit_structure", {}),
+                    receipt["implementation"]["sha256"],
+                    receipt["specification"]["sha256"], binding["dataset_id"],
+                    receipt["input"]["sha256"], receipt["input"]["size_bytes"],
+                    receipt["maximum_inference_level"], resolved,
+                )
+            except (KeyError, TypeError) as exc:
+                raise ValidationError("execution_handoff lacks required protocol binding fields") from exc
+            if canonical_binding != binding:
+                raise ValidationError("execution_handoff protocol binding disagrees with canonical records")
+            if "analysis_contract" in binding:
+                contract = protocol.analysis_contract
+                selection = receipt.get("registered_result_selection")
+                if contract is None or not isinstance(selection, dict):
+                    raise ValidationError("execution_handoff lacks registered result selection")
+                expected_selection = {
+                    "effect_estimate_path": contract.effect_estimate_path,
+                    "uncertainty_path": contract.uncertainty_path,
+                    "null_value": contract.null_value,
+                    "support_rule": contract.support_rule,
+                    "confidence_interval_validated": True,
+                    "registered_confidence_level": contract.confidence_level,
+                    "effect_estimate_sha256": _result_selection_sha256(_resolve_json_pointer(
+                        verified_handoff["result"], contract.effect_estimate_path,
+                        "effect_estimate_path",
+                    )),
+                    "uncertainty_sha256": _result_selection_sha256(_resolve_json_pointer(
+                        verified_handoff["result"], contract.uncertainty_path,
+                        "uncertainty_path",
+                    )),
+                }
+                if selection != expected_selection:
+                    raise ValidationError("execution_handoff registered result selection is invalid")
+                from research_machine.addons.execution import validate_registered_information
+                if receipt.get("registered_information_check") != validate_registered_information(
+                    verified_handoff["result"], contract.to_dict()
+                ):
+                    raise ValidationError("execution_handoff registered information check is invalid")
+        verified_adjudication: dict[str, Any] | None = None
+        adjudication_handoff = command.metadata.get("workflow_adjudication_handoff")
+        if adjudication_handoff is not None:
+            if not isinstance(adjudication_handoff, dict):
+                raise ValidationError("workflow_adjudication_handoff must be an object")
+            if command.artifact_root is None:
+                raise ValidationError("workflow_adjudication_handoff requires artifact_root")
+            try:
+                adjudication_receipt_sha256 = adjudication_handoff["receipt_sha256"]
+            except KeyError as exc:
+                raise ValidationError("workflow_adjudication_handoff lacks receipt_sha256") from exc
+            from research_machine.addons.workflow import verify_holm_adjudication
+            verified_adjudication = verify_holm_adjudication(
+                self, Path(command.artifact_root),
+                require_sha256(
+                    adjudication_receipt_sha256,
+                    "workflow_adjudication_handoff.receipt_sha256",
+                ),
+                resolved,
+            )
+            if verified_adjudication != adjudication_handoff:
+                raise ValidationError(
+                    "workflow_adjudication_handoff does not match recomputed canonical state"
+                )
+            adjudication = verified_adjudication["adjudication"]
+            if (
+                adjudication.get("protocol_id") != protocol.protocol_id
+                or adjudication.get("protocol_hash") != protocol.protocol_hash
+            ):
+                raise ValidationError("workflow adjudication is bound to a different protocol")
+            if analysis_code_hash != protocol.analysis_code_hash:
+                raise ValidationError("composite run must retain the frozen primary analysis hash")
+            if dataset_ids != [adjudication.get("observation_dataset_id")]:
+                raise ValidationError("composite run must use its adjudicated observation dataset")
+            adjudication_output = verified_adjudication["receipt"].get("output")
+            if not isinstance(adjudication_output, dict) or not any(
+                artifact.locator == adjudication_output.get("locator")
+                and artifact.sha256 == adjudication_output.get("sha256")
+                and artifact.size_bytes == adjudication_output.get("size_bytes")
+                for artifact in outputs
+            ):
+                raise ValidationError("composite run output does not exactly include the verified adjudication")
         gates = validate_quality_gates(command.quality_gates)
+        if verified_adjudication is not None:
+            from research_machine.addons.workflow import composite_quality_gates
+            expected_composite_gates = composite_quality_gates(
+                verified_adjudication["adjudication"],
+                verified_adjudication["receipt"]["output"]["sha256"],
+            )
+            if [gate.to_dict() for gate in gates] != expected_composite_gates:
+                raise ValidationError(
+                    "composite run quality gates must exactly equal the inherited canonical gate adjudication"
+                )
         gates_by_id = {gate.gate_id: gate for gate in gates}
+        output_hashes = {artifact.sha256 for artifact in outputs}
+        verified_gate_result = (
+            verified_handoff["result"] if verified_handoff is not None else
+            verified_adjudication["adjudication"] if verified_adjudication is not None else
+            None
+        )
+        verified_gate_output_sha256 = (
+            verified_handoff["receipt"]["output"]["sha256"] if verified_handoff is not None else
+            verified_adjudication["receipt"]["output"]["sha256"] if verified_adjudication is not None else
+            None
+        )
+        for gate in gates:
+            prerequisites = gate.details.get("prerequisite_gate_ids", [])
+            if not isinstance(prerequisites, list) or any(
+                not isinstance(item, str) or not item.strip() for item in prerequisites
+            ):
+                raise ValidationError(
+                    f"quality gate {gate.gate_id} prerequisite_gate_ids must be a list of non-blank gate IDs"
+                )
+            prerequisites = [item.strip() for item in prerequisites]
+            if len(set(prerequisites)) != len(prerequisites):
+                raise ValidationError(f"quality gate {gate.gate_id} has duplicate prerequisites")
+            if gate.gate_id in prerequisites:
+                raise ValidationError(f"quality gate {gate.gate_id} cannot require itself")
+            if gate.status is QualityGateStatus.PASSED:
+                evidence_sha256 = require_sha256(
+                    gate.details.get("evidence_sha256"),
+                    f"passed quality gate {gate.gate_id} evidence_sha256",
+                )
+                if evidence_sha256 not in output_hashes:
+                    raise ValidationError(
+                        f"passed quality gate {gate.gate_id} evidence_sha256 must reference a run output artifact"
+                    )
+                for prerequisite_id in prerequisites:
+                    prerequisite = gates_by_id.get(prerequisite_id)
+                    if prerequisite is None:
+                        raise ValidationError(
+                            f"passed quality gate {gate.gate_id} has an unknown prerequisite: {prerequisite_id}"
+                        )
+                    if prerequisite.status is not QualityGateStatus.PASSED:
+                        raise ValidationError(
+                            f"passed quality gate {gate.gate_id} requires prerequisite {prerequisite_id} to pass"
+                        )
+        controls_by_gate: dict[str, list[Any]] = {}
+        for control in protocol.control_definitions:
+            controls_by_gate.setdefault(control.evaluation_gate_id, []).append(control)
+        for gate_id, controls in controls_by_gate.items():
+            gate = gates_by_id.get(gate_id)
+            if gate is None or gate.status is not QualityGateStatus.PASSED:
+                continue  # Failed or absent evaluation remains an invalid run.
+            results = gate.details.get("control_results")
+            expected_control_ids = {control.control_id for control in controls}
+            if not isinstance(results, dict) or set(results) != expected_control_ids:
+                raise ValidationError(
+                    f"passed control gate {gate_id} requires exact evaluations for: "
+                    + ", ".join(sorted(expected_control_ids))
+                )
+            for control in controls:
+                evaluation = results[control.control_id]
+                required_fields = {
+                    "observed_behavior", "interpretation", "matches_expected",
+                    "evidence_sha256", "evidence_location",
+                }
+                if not isinstance(evaluation, dict) or set(evaluation) != required_fields:
+                    raise ValidationError(
+                        f"passed control gate requires an exact evaluation for {control.control_id}"
+                    )
+                require_text(evaluation["observed_behavior"], "control observed_behavior")
+                require_text(evaluation["interpretation"], "control interpretation")
+                require_text(evaluation["evidence_location"], "control evidence_location")
+                if type(evaluation["matches_expected"]) is not bool:
+                    raise ValidationError("control matches_expected must be a boolean")
+                digest = require_sha256(
+                    evaluation["evidence_sha256"], "control evidence_sha256"
+                )
+                if digest not in output_hashes:
+                    raise ValidationError(
+                        "control evaluation evidence must reference a run output artifact"
+                    )
+                if (
+                    verified_gate_result is not None
+                    and digest == verified_gate_output_sha256
+                ):
+                    location = evaluation["evidence_location"]
+                    if not location.startswith("/"):
+                        raise ValidationError(
+                            "control evidence in the verified analysis output requires "
+                            "an absolute JSON Pointer evidence_location"
+                        )
+                    _resolve_json_pointer(
+                        verified_gate_result, location,
+                        f"control {control.control_id} evidence_location",
+                    )
+        validity_checks_by_gate: dict[str, list[Any]] = {}
+        for check in protocol.measurement_validity_checks:
+            validity_checks_by_gate.setdefault(
+                check.assessment_gate_id, []
+            ).append(check)
+        for gate_id, checks in validity_checks_by_gate.items():
+            gate = gates_by_id.get(gate_id)
+            if gate is None or gate.status is QualityGateStatus.SKIPPED:
+                continue
+            results = gate.details.get("measurement_validity_results")
+            expected_check_ids = {check.check_id for check in checks}
+            if not isinstance(results, dict) or set(results) != expected_check_ids:
+                raise ValidationError(
+                    f"performed measurement validity gate {gate_id} requires exact results for: "
+                    + ", ".join(sorted(expected_check_ids))
+                )
+            for check in checks:
+                result = results[check.check_id]
+                required_fields = {
+                    "observed_diagnostic", "interpretation", "assessment_status",
+                    "evidence_type", "evidence_sha256", "evidence_location",
+                }
+                if not isinstance(result, dict) or set(result) != required_fields:
+                    raise ValidationError(
+                        f"measurement validity result for {check.check_id} must contain exactly the documented fields"
+                    )
+                for name in (
+                    "observed_diagnostic", "interpretation", "evidence_location",
+                ):
+                    require_text(result[name], f"measurement validity {name}")
+                if result["evidence_type"] != check.evidence_type:
+                    raise ValidationError(
+                        "measurement validity evidence_type does not match the frozen protocol"
+                    )
+                allowed_statuses = {
+                    "consistent_with_validity_claim", "contradicted_validity_claim",
+                    "inconclusive",
+                }
+                if result["assessment_status"] not in allowed_statuses:
+                    raise ValidationError(
+                        "measurement validity result has an unsupported assessment_status"
+                    )
+                expected_status = {
+                    QualityGateStatus.PASSED: "consistent_with_validity_claim",
+                    QualityGateStatus.WARNING: "inconclusive",
+                    QualityGateStatus.FAILED: "contradicted_validity_claim",
+                }[gate.status]
+                if result["assessment_status"] != expected_status:
+                    raise ValidationError(
+                        f"{gate.status.value} measurement validity gate requires {expected_status}"
+                    )
+                digest = require_sha256(
+                    result["evidence_sha256"],
+                    "measurement validity evidence_sha256",
+                )
+                if digest not in output_hashes:
+                    raise ValidationError(
+                        "measurement validity evidence must reference a run output artifact"
+                    )
+                location = result["evidence_location"]
+                location_verified = _verify_json_artifact_location(
+                    outputs,
+                    command.artifact_root,
+                    digest,
+                    location,
+                    f"measurement validity {check.check_id} evidence_location",
+                )
+                if (
+                    not location_verified
+                    and verified_gate_result is not None
+                    and digest == verified_gate_output_sha256
+                ):
+                    if not location.startswith("/"):
+                        raise ValidationError(
+                            "measurement validity evidence in the verified analysis output requires an absolute JSON Pointer evidence_location"
+                        )
+                    _resolve_json_pointer(
+                        verified_gate_result, location,
+                        f"measurement validity {check.check_id} evidence_location",
+                    )
+        contract = protocol.analysis_contract
+        if contract is not None and contract.missingness_assessment_gate_id:
+            gate = gates_by_id.get(contract.missingness_assessment_gate_id)
+            if gate is not None and gate.status is not QualityGateStatus.SKIPPED:
+                result = gate.details.get("missingness_assessment_result")
+                required_fields = {
+                    "observed_diagnostic", "interpretation", "assessment_status",
+                    "assessment_kind", "evidence_sha256", "evidence_location",
+                }
+                if not isinstance(result, dict) or set(result) != required_fields:
+                    raise ValidationError(
+                        "performed missingness assessment gate requires one exact result"
+                    )
+                require_text(
+                    result["observed_diagnostic"],
+                    "missingness assessment observed_diagnostic",
+                )
+                require_text(
+                    result["interpretation"], "missingness assessment interpretation"
+                )
+                require_text(
+                    result["evidence_location"],
+                    "missingness assessment evidence_location",
+                )
+                if result["assessment_kind"] != contract.missingness_assessment_kind:
+                    raise ValidationError(
+                        "missingness assessment_kind does not match the frozen analysis contract"
+                    )
+                allowed_statuses = {
+                    "consistent_with_assumption", "contradicted_assumption",
+                    "inconclusive",
+                }
+                if result["assessment_status"] not in allowed_statuses:
+                    raise ValidationError(
+                        "missingness assessment has an unsupported assessment_status"
+                    )
+                if (
+                    gate.status is QualityGateStatus.PASSED
+                    and result["assessment_status"] != "consistent_with_assumption"
+                ):
+                    raise ValidationError(
+                        "passed missingness assessment gate requires "
+                        "consistent_with_assumption"
+                    )
+                if (
+                    gate.status is QualityGateStatus.WARNING
+                    and result["assessment_status"] != "inconclusive"
+                ):
+                    raise ValidationError(
+                        "warning missingness assessment gate requires inconclusive"
+                    )
+                if (
+                    gate.status is QualityGateStatus.FAILED
+                    and result["assessment_status"] != "contradicted_assumption"
+                ):
+                    raise ValidationError(
+                        "failed missingness assessment gate requires "
+                        "contradicted_assumption"
+                    )
+                digest = require_sha256(
+                    result["evidence_sha256"],
+                    "missingness assessment evidence_sha256",
+                )
+                if digest not in output_hashes:
+                    raise ValidationError(
+                        "missingness assessment evidence must reference a run output artifact"
+                    )
+                if (
+                    verified_gate_result is not None
+                    and digest == verified_gate_output_sha256
+                ):
+                    location = result["evidence_location"]
+                    if not location.startswith("/"):
+                        raise ValidationError(
+                            "missingness evidence in the verified analysis output requires "
+                            "an absolute JSON Pointer evidence_location"
+                        )
+                    _resolve_json_pointer(
+                        verified_gate_result, location,
+                        "missingness assessment evidence_location",
+                    )
+        if protocol.causal_claim:
+            assumptions_by_gate: dict[str, list[dict[str, Any]]] = {}
+            for assumption in protocol.causal_identification_audit["assumption_register"]:
+                assumptions_by_gate.setdefault(
+                    assumption["assessment_gate_id"], []
+                ).append(assumption)
+            allowed_assessment_statuses = {
+                "consistent_with_assumption",
+                "contradicted_assumption",
+                "inconclusive",
+            }
+            for gate_id, assumptions in assumptions_by_gate.items():
+                gate = gates_by_id.get(gate_id)
+                if gate is None or gate.status is QualityGateStatus.SKIPPED:
+                    continue  # Missing or unperformed assessment remains an invalid run.
+                results = gate.details.get("causal_assumption_results")
+                expected_categories = {item["category"] for item in assumptions}
+                if not isinstance(results, dict) or set(results) != expected_categories:
+                    raise ValidationError(
+                        f"causal assessment gate {gate_id} requires exact results for: "
+                        + ", ".join(sorted(expected_categories))
+                    )
+                observed_statuses: set[str] = set()
+                for assumption in assumptions:
+                    result = results[assumption["category"]]
+                    required_fields = {
+                        "observed_diagnostic", "interpretation", "assessment_status",
+                        "assessment_kind", "evidence_sha256", "evidence_location",
+                    }
+                    if not isinstance(result, dict) or set(result) != required_fields:
+                        raise ValidationError(
+                            f"causal assessment gate requires an exact result for {assumption['category']}"
+                        )
+                    require_text(
+                        result["observed_diagnostic"],
+                        f"causal assumption {assumption['category']} observed_diagnostic",
+                    )
+                    require_text(
+                        result["interpretation"],
+                        f"causal assumption {assumption['category']} interpretation",
+                    )
+                    require_text(
+                        result["evidence_location"],
+                        f"causal assumption {assumption['category']} evidence_location",
+                    )
+                    expected_assessment_kind = assumption.get(
+                        "assessment_kind", "legacy_unclassified"
+                    )
+                    if result["assessment_kind"] != expected_assessment_kind:
+                        raise ValidationError(
+                            f"causal assumption {assumption['category']} assessment_kind "
+                            "does not match the frozen assumption register"
+                        )
+                    if result["assessment_status"] not in allowed_assessment_statuses:
+                        raise ValidationError(
+                            f"causal assumption {assumption['category']} has an unsupported assessment_status"
+                        )
+                    observed_statuses.add(result["assessment_status"])
+                    digest = require_sha256(
+                        result["evidence_sha256"],
+                        f"causal assumption {assumption['category']} evidence_sha256",
+                    )
+                    if digest not in output_hashes:
+                        raise ValidationError(
+                            "causal assumption assessment evidence must reference a run output artifact"
+                        )
+                    if (
+                        verified_gate_result is not None
+                        and digest == verified_gate_output_sha256
+                    ):
+                        location = result["evidence_location"]
+                        if not location.startswith("/"):
+                            raise ValidationError(
+                                "causal assumption evidence in the verified analysis output "
+                                "requires an absolute JSON Pointer evidence_location"
+                            )
+                        _resolve_json_pointer(
+                            verified_gate_result, location,
+                            f"causal assumption {assumption['category']} evidence_location",
+                        )
+                if gate.status is QualityGateStatus.PASSED and observed_statuses != {
+                    "consistent_with_assumption"
+                }:
+                    raise ValidationError(
+                        f"passed causal assessment gate {gate_id} requires every result "
+                        "to be consistent_with_assumption"
+                    )
+                if gate.status is QualityGateStatus.WARNING and (
+                    "contradicted_assumption" in observed_statuses
+                    or "inconclusive" not in observed_statuses
+                ):
+                    raise ValidationError(
+                        f"warning causal assessment gate {gate_id} requires at least one "
+                        "inconclusive result and no contradicted assumptions"
+                    )
+                if gate.status is QualityGateStatus.FAILED and (
+                    "contradicted_assumption" not in observed_statuses
+                ):
+                    raise ValidationError(
+                        f"failed causal assessment gate {gate_id} requires at least one "
+                        "contradicted_assumption result"
+                    )
         missing_gates = sorted(set(protocol.quality_requirements) - set(gates_by_id))
         required_gate_failure = any(
             gate.required and gate.status is not QualityGateStatus.PASSED
@@ -1090,6 +2904,153 @@ class ResearchService:
             )
         )
         synthetic = command.synthetic or any(dataset.synthetic for dataset in datasets)
+        workflow_component = verified_adjudication is None and bool(
+            protocol.multiplicity_method == "holm"
+            or (
+                verified_handoff
+                and isinstance(
+                    verified_handoff["receipt"].get("protocol_design_check"), dict
+                )
+                and "analysis_step_contract" in verified_handoff["receipt"]["protocol_design_check"]
+            )
+        )
+        deviation_disclosure = _validate_protocol_deviation_disclosure(
+            command.metadata.get("protocol_deviation_disclosure")
+        )
+        for deviation in deviation_disclosure["deviations"]:
+            digest = deviation["evidence_sha256"]
+            if digest not in output_hashes:
+                raise ValidationError(
+                    f"protocol deviation {deviation['deviation_id']} evidence must reference a run output artifact"
+                )
+            if verified_gate_result is not None and digest == verified_gate_output_sha256:
+                location = deviation["evidence_location"]
+                if not location.startswith("/"):
+                    raise ValidationError(
+                        "protocol deviation evidence in the verified analysis output requires an absolute JSON Pointer"
+                    )
+                _resolve_json_pointer(
+                    verified_gate_result,
+                    location,
+                    f"protocol deviation {deviation['deviation_id']} evidence_location",
+                )
+        sample_size_plan_check: dict[str, Any] = {
+            "status": "not_applicable",
+            "reason": "protocol has no machine-recomputed sample_size_plan",
+        }
+        sample_size_plan_allows_evidence = True
+        if protocol.sample_size_plan:
+            calculation = protocol.sample_size_plan["calculation"]
+            expected_analyzable = calculation["analyzable_n_per_group"]
+            information_check = (
+                verified_handoff["receipt"].get("registered_information_check")
+                if verified_handoff is not None
+                else verified_adjudication["adjudication"].get(
+                    "primary_estimate", {}
+                ).get("registered_information_check")
+                if verified_adjudication is not None
+                else None
+            )
+            execution_bound = bool(
+                protocol.analysis_contract is not None
+                and protocol.analysis_contract.minimum_analyzable_units
+                == expected_analyzable
+                and isinstance(information_check, dict)
+                and information_check.get("status") == "passed"
+                and information_check.get(
+                    "registered_minimum_analyzable_units"
+                )
+                == expected_analyzable
+                and information_check.get(
+                    "observed_minimum_analyzable_units"
+                )
+                >= expected_analyzable
+            )
+            primary_uncertainty = (
+                _resolve_json_pointer(
+                    verified_handoff["result"],
+                    protocol.analysis_contract.uncertainty_path,
+                    "analysis_contract.uncertainty_path",
+                )
+                if verified_handoff is not None
+                and protocol.analysis_contract is not None
+                and isinstance(
+                    verified_handoff["receipt"].get(
+                        "registered_result_selection"
+                    ), dict,
+                )
+                else verified_adjudication["adjudication"].get(
+                    "primary_estimate", {}
+                ).get("uncertainty")
+                if verified_adjudication is not None
+                else None
+            )
+            from research_machine.application.policies import (
+                assess_attrition_achievement, assess_precision_achievement,
+                assess_variance_assumption,
+            )
+            precision_achievement = assess_precision_achievement(
+                protocol.sample_size_plan, primary_uncertainty
+            )
+            attrition_achievement = assess_attrition_achievement(
+                protocol.sample_size_plan, information_check
+            )
+            observed_standard_deviation = (
+                verified_handoff["result"].get("result", {}).get(
+                    "pooled_within_group_standard_deviation"
+                )
+                if verified_handoff is not None
+                else verified_adjudication["adjudication"].get(
+                    "primary_estimate", {}
+                ).get("observed_pooled_standard_deviation")
+                if verified_adjudication is not None
+                else None
+            )
+            variance_assumption = assess_variance_assumption(
+                protocol.sample_size_plan, observed_standard_deviation
+            )
+            sample_size_plan_allows_evidence = execution_bound
+            sample_size_plan_check = {
+                "status": "passed" if execution_bound else "unbound",
+                "strategy": protocol.sample_size_plan["strategy"],
+                "target_hypothesis_id": protocol.sample_size_plan.get(
+                    "target_hypothesis_id"
+                ),
+                "target_measurement_id": protocol.sample_size_plan.get(
+                    "target_measurement_id"
+                ),
+                "measurement_unit": protocol.sample_size_plan.get(
+                    "measurement_unit"
+                ),
+                "planning_target_sha256": protocol.sample_size_plan.get(
+                    "planning_target_sha256"
+                ),
+                "specification_sha256": protocol.sample_size_plan[
+                    "specification_sha256"
+                ],
+                "required_analyzable_units_per_group": expected_analyzable,
+                "observed_minimum_analyzable_units_per_group": (
+                    information_check.get("observed_minimum_analyzable_units")
+                    if isinstance(information_check, dict)
+                    else None
+                ),
+                "anticipated_attrition_fraction": calculation[
+                    "anticipated_attrition_fraction"
+                ],
+                "registered_maximum_excluded_fraction": (
+                    protocol.analysis_contract.maximum_excluded_fraction
+                    if protocol.analysis_contract is not None else None
+                ),
+                "observed_excluded_fraction": (
+                    information_check.get("observed_excluded_fraction")
+                    if isinstance(information_check, dict) else None
+                ),
+                "precision_achievement": precision_achievement,
+                "attrition_achievement": attrition_achievement,
+                "variance_assumption": variance_assumption,
+                "execution_information_check_verified": execution_bound,
+                "scientific_interpretation_verified": False,
+            }
         run = ResearchRun(
             run_id=run_id,
             protocol_id=protocol.protocol_id,
@@ -1105,19 +3066,65 @@ class ResearchService:
             output_artifacts=outputs,
             quality_gates=gates,
             status=RunStatus.INVALID if invalid else RunStatus.COMPLETED,
-            scientific_evidence_eligible=not invalid and not synthetic,
+            scientific_evidence_eligible=(
+                not invalid
+                and not synthetic
+                and not workflow_component
+                and deviation_disclosure["automatic_evidence_eligible"]
+                and artifact_integrity is not None
+                and artifact_integrity.status == "passed"
+                and sample_size_plan_allows_evidence
+            ),
             summary=normalize_text(command.summary, "run summary"),
             synthetic=synthetic,
             metadata={
                 **dict(command.metadata),
+                "protocol_deviation_disclosure": deviation_disclosure,
                 "protocol_chronology": protocol_chronology,
+                "sample_size_plan_check": sample_size_plan_check,
+                **(
+                    {"ethics_review_status_check": ethics_review_status_check}
+                    if ethics_review_status_check
+                    else {}
+                ),
+                **(
+                    {"ethics_condition_check": ethics_condition_check}
+                    if ethics_condition_check
+                    else {}
+                ),
                 **({"missing_quality_gates": missing_gates} if missing_gates else {}),
                 **(
                     {"artifact_integrity": artifact_integrity.to_dict()}
                     if artifact_integrity is not None
                     else {}
                 ),
+                **(
+                    {"run_artifact_root": str(Path(command.artifact_root).expanduser().resolve())}
+                    if artifact_integrity is not None and command.artifact_root is not None
+                    else {}
+                ),
+                **(
+                    {"run_attestation_schema_path": str(Path(command.attestation_schema_path).expanduser().resolve())}
+                    if command.attestation_schema_path is not None
+                    else {}
+                ),
+                **(
+                    {"expected_attestation_schema_sha256": expected_attestation_schema_sha256}
+                    if expected_attestation_schema_sha256 is not None
+                    else {}
+                ),
+                **(
+                    {"artifact_integrity_missing_for_evidence": True}
+                    if artifact_integrity is None
+                    else {}
+                ),
+                **({"workflow_component_only": True} if workflow_component else {}),
             },
+        )
+        from research_machine.application.run_integrity import run_payload_sha256
+        run = replace(
+            run,
+            metadata={**run.metadata, "run_payload_sha256": run_payload_sha256(run)},
         )
         return run
 
@@ -1246,9 +3253,26 @@ class ResearchService:
             raise ValidationError(
                 "frozen protocol content no longer matches its hash commitment"
             )
+        causal_assumptions_by_gate: dict[str, list[dict[str, Any]]] = {}
+        if protocol.causal_claim:
+            for assumption in protocol.causal_identification_audit["assumption_register"]:
+                causal_assumptions_by_gate.setdefault(
+                    assumption["assessment_gate_id"], []
+                ).append(assumption)
+        validity_checks_by_gate: dict[str, list[Any]] = {}
+        for check in protocol.measurement_validity_checks:
+            validity_checks_by_gate.setdefault(
+                check.assessment_gate_id, []
+            ).append(check)
+        missingness_gate_id = (
+            protocol.analysis_contract.missingness_assessment_gate_id
+            if protocol.analysis_contract is not None
+            else ""
+        )
         return {
             "schema_version": 1,
             "template_kind": "research-machine-run-record-v1",
+            "control_plan": [control.to_dict() for control in protocol.control_definitions],
             "template_only": True,
             "would_append_event": False,
             "protocol_hash": protocol.protocol_hash,
@@ -1271,24 +3295,153 @@ class ResearchService:
                         "status": "skipped",
                         "summary": "<replace with the observed gate result>",
                         "required": True,
-                        "details": {},
+                        "details": {
+                            "evidence_sha256": "<hash of a listed run output artifact>",
+                            "prerequisite_gate_ids": [],
+                            **({"control_results": {
+                            control.control_id: {
+                                "observed_behavior": "",
+                                "interpretation": "",
+                                "matches_expected": None,
+                                "evidence_sha256": "<hash of a listed run output artifact>",
+                                "evidence_location": "<exact table, figure, section, record range, or JSON Pointer within that artifact>",
+                            }
+                            for control in protocol.control_definitions
+                            if control.evaluation_gate_id == gate_id
+                        }} if any(control.evaluation_gate_id == gate_id for control in protocol.control_definitions) else {}),
+                            **({"causal_assumption_results": {
+                                assumption["category"]: {
+                                    "observed_diagnostic": "",
+                                    "interpretation": "",
+                                    "assessment_kind": assumption.get(
+                                        "assessment_kind", "legacy_unclassified"
+                                    ),
+                                    "assessment_status": "<consistent_with_assumption if passed; inconclusive if warning; contradicted_assumption if failed>",
+                                    "evidence_sha256": "<hash of a listed run output artifact>",
+                                    "evidence_location": "<exact table, figure, section, record range, or JSON Pointer within that artifact>",
+                                }
+                                for assumption in causal_assumptions_by_gate[gate_id]
+                            }} if gate_id in causal_assumptions_by_gate else {}),
+                            **({"missingness_assessment_result": {
+                                "observed_diagnostic": "",
+                                "interpretation": "",
+                                "assessment_kind": protocol.analysis_contract.missingness_assessment_kind,
+                                "assessment_status": "<consistent_with_assumption if passed; inconclusive if warning; contradicted_assumption if failed>",
+                                "evidence_sha256": "<hash of a listed run output artifact>",
+                                "evidence_location": "<exact table, figure, section, record range, or JSON Pointer within that artifact>",
+                            }} if gate_id == missingness_gate_id else {}),
+                            **({"measurement_validity_results": {
+                                check.check_id: {
+                                    "observed_diagnostic": "",
+                                    "interpretation": "",
+                                    "assessment_status": "<consistent_with_validity_claim if passed; inconclusive if warning; contradicted_validity_claim if failed>",
+                                    "evidence_type": check.evidence_type,
+                                    "evidence_sha256": "<hash of a listed run output artifact>",
+                                    "evidence_location": "<exact table, figure, section, record range, or JSON Pointer within that artifact>",
+                                }
+                                for check in validity_checks_by_gate[gate_id]
+                            }} if gate_id in validity_checks_by_gate else {}),
+                        },
                     }
                     for gate_id in protocol.quality_requirements
                 ],
                 "summary": "",
                 "synthetic": False,
-                "metadata": {},
+                "metadata": {
+                    "protocol_deviation_disclosure": {
+                        "status": "no_deviations_declared",
+                        "deviations": [],
+                    }
+                },
             },
             "instructions": [
                 "Replace every angle-bracket placeholder with observed provenance.",
                 "Add at least one output artifact with its real hash.",
                 "Set every gate status from observed output; skipped or failed required gates make the run invalid.",
+                "Every passed gate must cite one listed output artifact by details.evidence_sha256; declare prerequisite_gate_ids when its interpretation depends on other gates.",
+                "For control evaluations, record observed behavior and interpretation separately from the frozen expectation; never copy an expectation as an observation.",
+                "For every causal-assumption assessment, identify the exact location within its cited output artifact; when citing the verified analysis result, use an absolute JSON Pointer that resolves in that result.",
+                "For every performed measurement-validity check, record the observed diagnostic separately from interpretation, use the frozen evidence type, and cite the exact output location; a passed gate requires consistent_with_validity_claim, not proof of validity.",
+                "Explicitly disclose every departure from the frozen protocol. A declared departure remains recordable but blocks automatic scientific-evidence eligibility.",
                 "Run `research run preflight --record-file ...` before `research run record`.",
             ],
             "conclusion_ceiling": (
                 "Template generation only. No execution, result, run, or ledger "
                 "event is created."
             ),
+        }
+
+    def measurement_custody_template(
+        self, protocol_id: str, inquiry_id: str | None = None
+    ) -> dict[str, Any]:
+        """Return a review-only custody skeleton derived from a frozen protocol."""
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        protocol = self.repository.find_protocol(resolved, protocol_id)
+        if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
+            raise ValidationError("measurement custody templates require a frozen protocol")
+        if _protocol_commitment(protocol) != protocol.protocol_hash:
+            raise ValidationError("frozen protocol content no longer matches its hash commitment")
+        if not protocol.measurement_custody_requirements:
+            raise ValidationError("protocol has no frozen measurement custody requirements")
+        calibrations = [{
+            "calibration_id": criterion.calibration_id,
+            "criterion_id": criterion.criterion_id,
+            "reference": "<reference artifact or standard>",
+            "performed_at": "<ISO-8601 timestamp with UTC offset>",
+            "result": "<observed calibration result, not the expected result>",
+            "status": "<passed only if the frozen numeric bound is met>",
+            "observed_value": "<finite numeric value>",
+            "observed_unit": criterion.unit,
+            "evidence_sha256": "<hash of a listed evidence artifact>",
+        } for criterion in protocol.calibration_acceptance_criteria]
+        return {
+            "schema_version": 1,
+            "template_kind": "research-machine-measurement-custody-v1",
+            "template_only": True,
+            "would_register_dataset": False,
+            "protocol_id": protocol.protocol_id,
+            "protocol_hash": protocol.protocol_hash,
+            "frozen_calibration_criteria": [
+                criterion.to_dict() for criterion in protocol.calibration_acceptance_criteria
+            ],
+            "receipt": {
+                "receipt_id": "<stable custody receipt ID>",
+                "raw_sources": [{"locator": "<path below the custody artifact root>",
+                    "sha256": "<64 lowercase hexadecimal characters>",
+                    "captured_at": "<ISO-8601 timestamp with UTC offset>",
+                    "acquisition_method": "<instrument or acquisition procedure>"}],
+                "transformations": [{"transformation_id": "<stable transformation ID>",
+                    "version": "<transformation version>",
+                    "performed_at": "<ISO-8601 timestamp with UTC offset>",
+                    "implementation_locator": "<implementation path below artifact root>",
+                    "implementation_sha256": "<implementation SHA-256>",
+                    "input_sha256": "<raw or prior transformation output SHA-256>",
+                    "output_locator": "<derived output path below artifact root>",
+                    "output_sha256": "<derived output SHA-256>"}],
+                "calibrations": calibrations,
+                "quality_gates": [{"gate_id": gate_id, "status": "skipped",
+                    "evaluated_at": "<ISO-8601 timestamp with UTC offset>",
+                    "summary": "<observed gate result>",
+                    "evidence_sha256": "<hash of a listed evidence artifact>",
+                    "prerequisite_calibration_ids": [],
+                    "prerequisite_artifact_sha256s": []}
+                    for gate_id in protocol.measurement_custody_requirements],
+                "derived_observations": [{"observation_id": "<stable observation ID>",
+                    "definition": "<exact derived observation definition>",
+                    "derived_at": "<ISO-8601 timestamp with UTC offset>",
+                    "source_output_sha256": "<transformation output SHA-256>",
+                    "quality_gate_ids": []}],
+                "evidence_artifacts": [{"locator": "<path below the custody artifact root>",
+                    "sha256": "<64 lowercase hexadecimal characters>"}],
+            },
+            "instructions": [
+                "This is a review-only template; it records no dataset and asserts no gate pass.",
+                "Replace every angle-bracket placeholder from observed files and events.",
+                "Do not copy expected calibration behavior into observed result fields.",
+                "List exact calibration and artifact prerequisites for each gate and exact clearing gates for each derived observation.",
+                "Validate with measurement validate --artifact-root before protected dataset registration.",
+            ],
+            "conclusion_ceiling": "Template generation only. No custody claim, dataset, evidence, or ledger event is created.",
         }
 
     def list_runs(self, inquiry_id: str | None = None) -> list[ResearchRun]:
@@ -1472,13 +3625,80 @@ class ResearchService:
         dataset = None
         datasets: list[DatasetManifest] = []
         analysis_id = normalize_text(command.analysis_id, "analysis_id")
+        effect_estimate = normalize_text(command.effect_estimate, "effect_estimate")
+        uncertainty_input = normalize_text(command.uncertainty, "uncertainty")
+        analysis_output_sha256 = normalize_text(command.analysis_output_sha256, "analysis_output_sha256")
+        effect_estimate_path = normalize_text(command.effect_estimate_path, "effect_estimate_path")
+        uncertainty_path = normalize_text(command.uncertainty_path, "uncertainty_path")
+        analysis_claim_ceiling = ""
+        result_direction_check = "not_applicable"
+        evidence_created_at = self.clock()
+        admission_checks: dict[str, Any] = {}
+        composite_permitted_claim_level: ClaimLevel | None = None
+        composite_expected_scope = ""
         if command.run_id:
             run = self.repository.find_run(resolved, command.run_id)
+            from research_machine.application.run_integrity import (
+                validate_run_payload_commitment,
+            )
+            validate_run_payload_commitment(run)
             protocol = self.repository.find_protocol(resolved, run.protocol_id)
+            from research_machine.application.hypothesis_integrity import (
+                validate_protocol_hypothesis_commitments,
+            )
+            validate_protocol_hypothesis_commitments(
+                protocol,
+                {
+                    hypothesis_id: self.repository.find_hypothesis(
+                        resolved, hypothesis_id
+                    )
+                    for hypothesis_id in protocol.hypotheses_tested
+                },
+            )
             datasets = [
                 self.repository.find_dataset(resolved, dataset_id)
                 for dataset_id in run.dataset_ids
             ]
+            if run.protocol_hash != protocol.protocol_hash or _protocol_commitment(
+                protocol
+            ) != protocol.protocol_hash:
+                raise ValidationError(
+                    "evidence admission requires the run's exact frozen protocol commitment"
+                )
+            if run.scientific_evidence_eligible:
+                self._validate_run_datasets(protocol, datasets)
+                from research_machine.application.run_integrity import (
+                    reverify_run_artifacts,
+                )
+                current_run_integrity = reverify_run_artifacts(run)
+                from research_machine.application.ethics import (
+                    evaluate_ethics_clearance,
+                )
+                ethics_check = evaluate_ethics_clearance(
+                    protocol,
+                    self.repository.list_ethics_review_events(
+                        resolved, protocol.protocol_id
+                    ),
+                    _parse_aware_timestamp(
+                        evidence_created_at, "evidence admission time"
+                    ),
+                )
+                admission_checks = {
+                    "check_version": 1,
+                    "checked_at": evidence_created_at,
+                    "protocol_id": protocol.protocol_id,
+                    "protocol_hash": protocol.protocol_hash,
+                    "dataset_ids": list(run.dataset_ids),
+                    "dataset_current_bytes_status": (
+                        "verified" if datasets else "not_applicable"
+                    ),
+                    "run_output_current_bytes_verified": True,
+                    "run_artifact_set_sha256": current_run_integrity[
+                        "artifact_set_sha256"
+                    ],
+                    "ethics_review_status_check": ethics_check,
+                    "scientific_interpretation_verified": False,
+                }
             if command.hypothesis_id not in protocol.hypotheses_tested:
                 raise ValidationError(
                     f"protocol {protocol.protocol_id} does not test hypothesis "
@@ -1489,6 +3709,207 @@ class ResearchService:
                     "analysis_id must equal run_id when a run is used"
                 )
             analysis_id = run.run_id
+            handoff = run.metadata.get("execution_handoff")
+            if isinstance(handoff, dict):
+                try:
+                    output_sha256 = handoff["receipt"]["output"]["sha256"]
+                    verified_result = handoff["result"]
+                except (KeyError, TypeError) as exc:
+                    raise ValidationError("execution-backed run has an incomplete verified result handoff") from exc
+                if require_sha256(analysis_output_sha256, "analysis_output_sha256") != output_sha256:
+                    raise ValidationError("evidence analysis_output_sha256 does not match the recorded run output")
+                if protocol.analysis_contract is None:
+                    raise ValidationError("execution-backed evidence requires a frozen analysis contract")
+                if effect_estimate_path != protocol.analysis_contract.effect_estimate_path:
+                    raise ValidationError("effect_estimate_path does not match the frozen analysis contract")
+                if uncertainty_path != protocol.analysis_contract.uncertainty_path:
+                    raise ValidationError("uncertainty_path does not match the frozen analysis contract")
+                selected_effect_value = _resolve_json_pointer(
+                    verified_result, effect_estimate_path, "effect_estimate_path"
+                )
+                selected_effect = _canonical_result_value(selected_effect_value)
+                selected_uncertainty_value = _resolve_json_pointer(
+                    verified_result, uncertainty_path, "uncertainty_path"
+                )
+                selected_uncertainty = _canonical_result_value(selected_uncertainty_value)
+                if effect_estimate and effect_estimate != selected_effect:
+                    raise ValidationError("effect_estimate does not match its verified result selector")
+                if uncertainty_input and uncertainty_input != selected_uncertainty:
+                    raise ValidationError("uncertainty does not match its verified result selector")
+                effect_estimate = selected_effect
+                uncertainty_input = selected_uncertainty
+                analysis_claim_ceiling = require_text(
+                    verified_result.get("claim_ceiling"), "verified analysis claim_ceiling"
+                )
+                result_direction_check = validate_result_direction(
+                    expected_direction=hypothesis.expected_effect_direction,
+                    evidence_direction=command.direction,
+                    effect=selected_effect_value,
+                    uncertainty=selected_uncertainty_value,
+                    null_value=protocol.analysis_contract.null_value,
+                    support_rule=protocol.analysis_contract.support_rule,
+                    equivalence_margin=(
+                        protocol.conclusion_contract.smallest_effect_size_of_interest
+                        if protocol.conclusion_contract is not None else None
+                    ),
+                )
+                if (
+                    protocol.conclusion_contract is not None
+                    and run.scientific_evidence_eligible
+                ):
+                    direct_conclusion = adjudicate_conclusion_contract(
+                        conclusion=protocol.conclusion_contract,
+                        analysis=protocol.analysis_contract,
+                        hypothesis=hypothesis,
+                        effect=selected_effect_value,
+                        uncertainty=selected_uncertainty_value,
+                    )
+                    if command.direction.value != direct_conclusion[
+                        "adjudicated_evidence_direction"
+                    ]:
+                        raise ValidationError(
+                            "evidence direction must equal the frozen conclusion disposition"
+                        )
+                    direct_scope = direct_conclusion["scope"]
+                    expected_scope = (
+                        f"Population: {direct_scope['population']}; "
+                        f"Setting: {direct_scope['setting']}; "
+                        f"Time window: {direct_scope['time_window']}"
+                    )
+                    if normalize_text(command.scope, "scope") != expected_scope:
+                        raise ValidationError(
+                            "evidence scope must exactly retain the frozen conclusion population, setting, and time window"
+                        )
+                    if command.higher_level_conclusions_unsupported != direct_conclusion[
+                        "higher_level_conclusions_unsupported"
+                    ]:
+                        raise ValidationError(
+                            "evidence must exactly retain the frozen unsupported conclusions"
+                        )
+                    composite_expected_scope = expected_scope
+                    composite_permitted_claim_level = ClaimLevel(
+                        direct_conclusion["permitted_claim_level"]
+                    )
+                    result_direction_check += "; prospective_conclusion_contract_checked"
+            else:
+                composite_handoff = run.metadata.get("workflow_adjudication_handoff")
+                if isinstance(composite_handoff, dict):
+                    try:
+                        output_sha256 = composite_handoff["receipt"]["output"]["sha256"]
+                        verified_result = composite_handoff["adjudication"]
+                        primary_result = verified_result["primary_estimate"]
+                        family = verified_result["confirmatory_family"]
+                    except (KeyError, TypeError) as exc:
+                        raise ValidationError(
+                            "composite run has an incomplete verified adjudication handoff"
+                        ) from exc
+                    if require_sha256(
+                        analysis_output_sha256, "analysis_output_sha256"
+                    ) != output_sha256:
+                        raise ValidationError(
+                            "evidence analysis_output_sha256 does not match the composite run output"
+                        )
+                    if protocol.analysis_contract is None:
+                        raise ValidationError(
+                            "composite evidence requires a frozen analysis contract"
+                        )
+                    expected_effect_path = "/primary_estimate/effect_estimate"
+                    expected_uncertainty_path = "/primary_estimate/uncertainty"
+                    if effect_estimate_path != expected_effect_path:
+                        raise ValidationError(
+                            "effect_estimate_path must select the adjudicated primary estimate"
+                        )
+                    if uncertainty_path != expected_uncertainty_path:
+                        raise ValidationError(
+                            "uncertainty_path must select the adjudicated primary uncertainty"
+                        )
+                    selected_effect_value = _resolve_json_pointer(
+                        verified_result, effect_estimate_path, "effect_estimate_path"
+                    )
+                    selected_uncertainty_value = _resolve_json_pointer(
+                        verified_result, uncertainty_path, "uncertainty_path"
+                    )
+                    selected_effect = _canonical_result_value(selected_effect_value)
+                    selected_uncertainty = _canonical_result_value(selected_uncertainty_value)
+                    if effect_estimate and effect_estimate != selected_effect:
+                        raise ValidationError(
+                            "effect_estimate does not match the adjudicated primary estimate"
+                        )
+                    if uncertainty_input and uncertainty_input != selected_uncertainty:
+                        raise ValidationError(
+                            "uncertainty does not match the adjudicated primary uncertainty"
+                        )
+                    effect_estimate = selected_effect
+                    uncertainty_input = selected_uncertainty
+                    analysis_claim_ceiling = require_text(
+                        verified_result.get("claim_ceiling"),
+                        "workflow adjudication claim_ceiling",
+                    )
+                    result_direction_check = validate_result_direction(
+                        expected_direction=hypothesis.expected_effect_direction,
+                        evidence_direction=command.direction,
+                        effect=selected_effect_value,
+                        uncertainty=selected_uncertainty_value,
+                        null_value=protocol.analysis_contract.null_value,
+                        support_rule=protocol.analysis_contract.support_rule,
+                        equivalence_margin=(
+                            protocol.conclusion_contract.smallest_effect_size_of_interest
+                            if protocol.conclusion_contract is not None else None
+                        ),
+                    )
+                    primary_decisions = [
+                        item for item in family.get("decisions", [])
+                        if isinstance(item, dict)
+                        and item.get("hypothesis_id") == command.hypothesis_id
+                        and item.get("measurement_id") == protocol.analysis_contract.primary_measurement_id
+                        and item.get("outcome") == protocol.primary_outcome
+                    ] if isinstance(family, dict) else []
+                    if len(primary_decisions) != 1:
+                        raise ValidationError(
+                            "composite evidence lacks one exact adjusted primary decision"
+                        )
+                    if (
+                        command.direction is EvidenceDirection.SUPPORTS
+                        and primary_decisions[0].get("reject_at_alpha") is not True
+                    ):
+                        raise ValidationError(
+                            "supporting evidence requires rejection by the adjusted primary decision"
+                        )
+                    conclusion = verified_result.get("conclusion")
+                    if not isinstance(conclusion, dict):
+                        raise ValidationError("composite evidence lacks its frozen conclusion adjudication")
+                    if command.direction.value != conclusion.get("adjudicated_evidence_direction"):
+                        raise ValidationError(
+                            "evidence direction must equal the frozen composite conclusion disposition"
+                        )
+                    conclusion_scope = conclusion.get("scope")
+                    if not isinstance(conclusion_scope, dict):
+                        raise ValidationError("composite evidence lacks its frozen conclusion scope")
+                    expected_scope = (
+                        f"Population: {conclusion_scope.get('population')}; "
+                        f"Setting: {conclusion_scope.get('setting')}; "
+                        f"Time window: {conclusion_scope.get('time_window')}"
+                    )
+                    if normalize_text(command.scope, "scope") != expected_scope:
+                        raise ValidationError(
+                            "composite evidence scope must exactly retain the frozen conclusion population, setting, and time window"
+                        )
+                    composite_expected_scope = expected_scope
+                    try:
+                        composite_permitted_claim_level = ClaimLevel(
+                            conclusion["permitted_claim_level"]
+                        )
+                    except (KeyError, ValueError) as exc:
+                        raise ValidationError(
+                            "composite evidence has an invalid permitted claim level"
+                        ) from exc
+                    if command.higher_level_conclusions_unsupported != conclusion.get(
+                        "higher_level_conclusions_unsupported"
+                    ):
+                        raise ValidationError(
+                            "composite evidence must exactly retain the frozen unsupported conclusions"
+                        )
+                    result_direction_check += "; multiplicity_adjusted_primary_decision_checked"
             if command.dataset_id:
                 if command.dataset_id not in run.dataset_ids:
                     raise ValidationError(
@@ -1533,12 +3954,34 @@ class ResearchService:
                     "run is not eligible for scientific evidence; inspect its gates and "
                     "synthetic status"
                 )
+        claim = None
         if command.claim_id:
-            claim_ids = {
-                claim.claim_id for claim in self.repository.load_claims(resolved)
+            claims_by_id = {
+                item.claim_id: item for item in self.repository.load_claims(resolved)
             }
-            if command.claim_id not in claim_ids:
+            claim = claims_by_id.get(command.claim_id)
+            if claim is None:
                 raise NotFoundError(f"claim {command.claim_id} does not exist")
+        if composite_permitted_claim_level is not None:
+            if claim is None:
+                raise ValidationError(
+                    "composite evidence requires an exact claim bound by the conclusion contract"
+                )
+            if claim.level is not composite_permitted_claim_level:
+                raise ValidationError(
+                    "composite evidence claim level exceeds or differs from the frozen permitted level"
+                )
+            if claim.scope != composite_expected_scope:
+                raise ValidationError(
+                    "composite evidence claim scope must exactly match the frozen conclusion scope"
+                )
+        if admission_checks:
+            from research_machine.application.claim_integrity import (
+                claim_scientific_sha256,
+            )
+            admission_checks["claim_scientific_sha256"] = (
+                claim_scientific_sha256(claim) if claim is not None else None
+            )
         (
             scope,
             uncertainty,
@@ -1549,7 +3992,7 @@ class ResearchService:
         ) = validate_evidence_annotations(
             direction=command.direction,
             scope=command.scope,
-            uncertainty=command.uncertainty,
+            uncertainty=uncertainty_input,
             controls_passed=command.controls_passed,
             controls_failed=command.controls_failed,
             higher_level_conclusions_unsupported=(
@@ -1558,12 +4001,64 @@ class ResearchService:
             validation_tags=command.validation_tags,
         )
         replicated_run: ResearchRun | None = None
+        if run is not None and protocol is not None:
+            gates_by_id = {gate.gate_id: gate for gate in run.quality_gates}
+            expected_controls: set[str] = set()
+            unexpected_controls: set[str] = set()
+            for control in protocol.control_definitions:
+                gate = gates_by_id.get(control.evaluation_gate_id)
+                results = gate.details.get("control_results", {}) if gate else {}
+                evaluation = results.get(control.control_id, {}) if isinstance(results, dict) else {}
+                if isinstance(evaluation, dict):
+                    if evaluation.get("matches_expected") is True:
+                        expected_controls.add(control.registered_control)
+                    elif evaluation.get("matches_expected") is False:
+                        unexpected_controls.add(control.registered_control)
+            if protocol.control_definitions:
+                if len(set(controls_passed)) != len(controls_passed) or len(
+                    set(controls_failed)
+                ) != len(controls_failed):
+                    raise ValidationError(
+                        "evidence control disclosures must not contain duplicates"
+                    )
+                if set(controls_passed) != expected_controls or set(
+                    controls_failed
+                ) != unexpected_controls:
+                    raise ValidationError(
+                        "evidence controls_passed and controls_failed must exactly partition "
+                        "the frozen controls by their recorded run evaluations"
+                    )
         if run is not None:
             replicated_run_id = run.metadata.get("replicates_run_id")
             if replicated_run_id is not None:
                 replicated_run = self.repository.find_run(
                     resolved, require_text(replicated_run_id, "replicates_run_id")
                 )
+        measurement_validity_check_ids: list[str] = []
+        if run is not None and protocol is not None:
+            gates_by_id = {gate.gate_id: gate for gate in run.quality_gates}
+            for check in protocol.measurement_validity_checks:
+                gate = gates_by_id.get(check.assessment_gate_id)
+                results = (
+                    gate.details.get("measurement_validity_results", {})
+                    if gate is not None else {}
+                )
+                result = results.get(check.check_id) if isinstance(results, dict) else None
+                if (
+                    isinstance(result, dict)
+                    and result.get("assessment_status")
+                    == "consistent_with_validity_claim"
+                ):
+                    measurement_validity_check_ids.append(check.check_id)
+        if (
+            claim is not None
+            and claim.level is ClaimLevel.MEASUREMENT_VALIDITY
+            and command.direction is EvidenceDirection.SUPPORTS
+            and not measurement_validity_check_ids
+        ):
+            raise ValidationError(
+                "supporting evidence for a measurement-validity claim requires an exact frozen validity check with an artifact-bound consistent result"
+            )
         validate_validation_tag_context(
             tags=validation_tags,
             hypothesis=hypothesis,
@@ -1573,6 +4068,7 @@ class ResearchService:
             datasets=datasets,
             controls_passed=controls_passed,
             replicated_run=replicated_run,
+            claim=claim,
         )
         evidence = EvidenceRecord(
             evidence_id=f"evd-{self.token()}",
@@ -1582,21 +4078,39 @@ class ResearchService:
             summary=require_text(command.summary, "evidence summary"),
             dataset_id=dataset.dataset_id if dataset else command.dataset_id,
             analysis_id=analysis_id,
-            created_at=self.clock(),
+            created_at=evidence_created_at,
             protocol_id=protocol.protocol_id if protocol else None,
             run_id=run.run_id if run else None,
             scientific_evidence_eligible=(
                 run.scientific_evidence_eligible if run else False
             ),
-            effect_estimate=normalize_text(command.effect_estimate, "effect_estimate"),
+            effect_estimate=effect_estimate,
             uncertainty=uncertainty,
             scope=scope,
             controls_passed=controls_passed,
             controls_failed=controls_failed,
             higher_level_conclusions_unsupported=conclusion_ceiling,
             validation_tags=validation_tags,
+            measurement_validity_check_ids=measurement_validity_check_ids,
             exploratory=command.exploratory,
+            analysis_output_sha256=analysis_output_sha256,
+            effect_estimate_path=effect_estimate_path,
+            uncertainty_path=uncertainty_path,
+            analysis_claim_ceiling=analysis_claim_ceiling,
+            result_direction_check=result_direction_check,
+            admission_checks=admission_checks,
         )
+        if admission_checks:
+            from research_machine.application.evidence_admission import (
+                evidence_payload_sha256,
+            )
+            evidence = replace(
+                evidence,
+                admission_checks={
+                    **admission_checks,
+                    "evidence_payload_sha256": evidence_payload_sha256(evidence),
+                },
+            )
         self.repository.save_evidence(resolved, evidence)
         self._event(
             resolved,
@@ -1611,12 +4125,142 @@ class ResearchService:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         return self.repository.list_evidence(resolved)
 
+    def record_evidence_status_event(
+        self, command: RecordEvidenceStatusEvent, inquiry_id: str | None = None
+    ) -> EvidenceStatusEvent:
+        """Append an artifact-backed correction state without rewriting evidence."""
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        evidence = next(
+            (
+                item
+                for item in self.repository.list_evidence(resolved)
+                if item.evidence_id == command.evidence_id
+            ),
+            None,
+        )
+        if evidence is None:
+            raise NotFoundError(f"evidence {command.evidence_id} does not exist")
+        status = require_text(command.status, "evidence status")
+        if status not in {"active", "qualified", "withdrawn", "retracted"}:
+            raise ValidationError(
+                "evidence status must be active, qualified, withdrawn, or retracted"
+            )
+        created_at = self.clock()
+        created = _parse_aware_timestamp(created_at, "evidence status creation time")
+        effective_at = require_text(command.effective_at, "effective_at")
+        effective = _parse_aware_timestamp(effective_at, "effective_at")
+        evidence_created = _parse_aware_timestamp(evidence.created_at, "evidence created_at")
+        if effective < evidence_created:
+            raise ValidationError("evidence status event cannot predate its evidence")
+        if effective > created:
+            raise ValidationError("evidence status event cannot take effect in the future")
+        from research_machine.application.evidence_status import (
+            validate_evidence_status_event_chains,
+        )
+        all_evidence = self.repository.list_evidence(resolved)
+        all_events = self.repository.list_evidence_status_events(resolved)
+        chains = validate_evidence_status_event_chains(all_evidence, all_events)
+        prior = chains.get(evidence.evidence_id, [])
+        latest = prior[-1] if prior else None
+        if latest is None and command.supersedes_event_id is not None:
+            raise ValidationError("first evidence status event cannot supersede another event")
+        if latest is not None:
+            if latest.status == "retracted":
+                raise ValidationError("retracted evidence status is terminal")
+            if command.supersedes_event_id != latest.event_id:
+                raise ValidationError("evidence status event must supersede the exact latest event")
+            if effective < _parse_aware_timestamp(latest.effective_at, "prior effective_at"):
+                raise ValidationError("evidence status event effective_at cannot move backward")
+        artifact_hash = require_sha256(
+            command.review_artifact_sha256, "review_artifact_sha256"
+        )
+        report = verify_run_artifacts(
+            [DatasetArtifact(
+                locator=require_text(
+                    command.review_artifact_locator, "review_artifact_locator"
+                ),
+                sha256=artifact_hash,
+            )],
+            artifact_root=require_text(
+                command.review_artifact_root, "review_artifact_root"
+            ),
+            actor=self.actor,
+            analysis_code_hash="",
+            run_metadata={},
+            attestation_schema_path=None,
+            expected_attestation_schema_sha256=None,
+        )
+        if report.status != "passed":
+            raise ValidationError(
+                "evidence status artifact verification failed: "
+                + ", ".join(item["code"] for item in report.findings)
+            )
+        event = EvidenceStatusEvent(
+            event_id=command.event_id or f"evidence-status-{self.token()}",
+            sequence=len(prior) + 1,
+            evidence_id=evidence.evidence_id,
+            status=status,
+            effective_at=effective_at,
+            reason=require_text(command.reason, "evidence status reason"),
+            review_artifact_locator=command.review_artifact_locator,
+            review_artifact_sha256=artifact_hash,
+            review_artifact_root=str(
+                Path(command.review_artifact_root).expanduser().resolve()
+            ),
+            supersedes_event_id=command.supersedes_event_id,
+            created_at=created_at,
+            created_by=self.actor,
+            artifact_integrity=report.to_dict(),
+            conclusion_ceiling=(
+                "Append-only evidence interpretation status; preserves the original record "
+                "and verifies local review bytes without authenticating the reviewer or its judgment."
+            ),
+        )
+        self.repository.save_evidence_status_event(resolved, event)
+        self._event(
+            resolved,
+            "evidence.review_status",
+            "evidence",
+            evidence.evidence_id,
+            event.to_dict(),
+        )
+        return event
+
+    def list_evidence_status_events(
+        self, inquiry_id: str | None = None, *, evidence_id: str | None = None
+    ) -> list[EvidenceStatusEvent]:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        evidence = self.repository.list_evidence(resolved)
+        events = self.repository.list_evidence_status_events(resolved)
+        from research_machine.application.evidence_status import (
+            validate_evidence_status_event_chains,
+        )
+        validate_evidence_status_event_chains(evidence, events)
+        return [
+            event for event in events
+            if evidence_id is None or event.evidence_id == evidence_id
+        ]
+
+    def _currently_contributing_evidence(
+        self, inquiry_id: str, evidence: list[EvidenceRecord]
+    ) -> tuple[list[EvidenceRecord], list[EvidenceStatusEvent]]:
+        events = self.repository.list_evidence_status_events(inquiry_id)
+        from research_machine.application.evidence_status import (
+            currently_contributing_evidence,
+        )
+        contributing, _ = currently_contributing_evidence(evidence, events)
+        return contributing, events
+
     def build_synthesis(self, inquiry_id: str | None = None) -> dict[str, Any]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         inquiry = self.repository.load_inquiry(resolved)
         claims = self.repository.load_claims(resolved)
         hypotheses = self.repository.list_hypotheses(resolved)
         evidence = self.repository.list_evidence(resolved)
+        currently_contributing_evidence, evidence_status_events = (
+            self._currently_contributing_evidence(resolved, evidence)
+        )
         datasets = self.repository.list_datasets(resolved)
         protocols = self.repository.list_protocols(resolved)
         runs = self.repository.list_runs(resolved)
@@ -1624,7 +4268,7 @@ class ResearchService:
             inquiry=inquiry,
             claims=claims,
             hypotheses=hypotheses,
-            evidence=evidence,
+            evidence=currently_contributing_evidence,
             datasets=datasets,
             protocols=protocols,
             runs=runs,
@@ -1641,6 +4285,7 @@ class ResearchService:
             self.repository.list_recommendations(resolved),
             self.repository.list_cross_lane_lessons(resolved),
             rigor_audit,
+            evidence_status_events,
         )
         path = self.repository.write_report(resolved, "current-synthesis.md", content)
         updated = replace(inquiry, current_synthesis_path=path)
@@ -1661,11 +4306,15 @@ class ResearchService:
         fail_on: str = "never",
     ) -> RigorAudit:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
+        evidence, _ = self._currently_contributing_evidence(
+            resolved, self.repository.list_evidence(resolved)
+        )
         audit = audit_research_state(
             inquiry=self.repository.load_inquiry(resolved),
             claims=self.repository.load_claims(resolved),
             hypotheses=self.repository.list_hypotheses(resolved),
-            evidence=self.repository.list_evidence(resolved),
+            evidence=evidence,
             datasets=self.repository.list_datasets(resolved),
             protocols=self.repository.list_protocols(resolved),
             runs=self.repository.list_runs(resolved),
@@ -1714,6 +4363,11 @@ class ResearchService:
     def _validate_run_datasets(
         protocol: ExperimentProtocol, datasets: list[DatasetManifest]
     ) -> None:
+        from research_machine.application.dataset_integrity import (
+            validate_dataset_payload_commitment,
+        )
+        for dataset in datasets:
+            validate_dataset_payload_commitment(dataset)
         if any(
             dataset.protocol_id and dataset.protocol_id != protocol.protocol_id
             for dataset in datasets
@@ -1721,6 +4375,21 @@ class ResearchService:
             raise ValidationError(
                 "a run cannot use a protected dataset bound to another protocol"
             )
+        from research_machine.application.dataset_integrity import (
+            reverify_dataset_artifacts,
+        )
+        for dataset in datasets:
+            if (
+                dataset.role in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
+                and not dataset.synthetic
+            ):
+                reverify_dataset_artifacts(dataset, protocol)
+        if protocol.measurement_custody_requirements:
+            from research_machine.measurement.custody import (
+                reverify_dataset_measurement_custody,
+            )
+            for dataset in datasets:
+                reverify_dataset_measurement_custody(protocol, dataset)
         roles = {dataset.role for dataset in datasets}
         if protocol.analysis_mode is AnalysisMode.EXPLORATORY:
             forbidden = roles & {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
@@ -1766,9 +4435,15 @@ class ResearchService:
         version: int,
         supersedes_protocol_id: str | None = None,
         amendment_reason: str | None = None,
+        amendment_timing: str | None = None,
+        evidence_exposure: str | None = None,
     ) -> ExperimentProtocol:
         if not isinstance(command.analysis_mode, AnalysisMode):
             raise ValidationError("analysis_mode must be an AnalysisMode")
+        if not isinstance(command.causal_claim, bool):
+            raise ValidationError("causal_claim must be true or false")
+        if not isinstance(command.causal_identification, dict):
+            raise ValidationError("causal_identification must be an object")
         if not isinstance(command.protocol_kind, ProtocolKind):
             raise ValidationError("protocol_kind must be a ProtocolKind")
         hypotheses = require_text_list(command.hypotheses_tested, "hypotheses_tested")
@@ -1776,6 +4451,15 @@ class ResearchService:
             raise ValidationError("hypotheses_tested must not contain duplicates")
         for hypothesis_id in hypotheses:
             self.repository.find_hypothesis(inquiry_id, hypothesis_id)
+        if command.sample_size_plan:
+            from research_machine.design.precision import (
+                build_sample_size_planning_receipt,
+            )
+            sample_size_plan = build_sample_size_planning_receipt(
+                command.sample_size_plan
+            )
+        else:
+            sample_size_plan = {}
         protocol_id = f"{protocol_family_id}-v{version}"
         return ExperimentProtocol(
             protocol_id=protocol_id,
@@ -1797,7 +4481,9 @@ class ResearchService:
                 command.quality_requirements, "quality_requirements"
             ),
             controls=require_text_list(command.controls, "controls"),
+            control_definitions=list(command.control_definitions),
             measurement_definitions=list(command.measurement_definitions),
+            measurement_validity_checks=list(command.measurement_validity_checks),
             expected_outputs=require_text_list(
                 command.expected_outputs, "expected_outputs"
             ),
@@ -1810,6 +4496,16 @@ class ResearchService:
             secondary_outcomes=require_text_list(
                 command.secondary_outcomes, "secondary_outcomes"
             ),
+            confirmatory_outcomes=require_text_list(
+                command.confirmatory_outcomes, "confirmatory_outcomes"
+            ),
+            exploratory_outcomes=require_text_list(
+                command.exploratory_outcomes, "exploratory_outcomes"
+            ),
+            multiplicity_method=normalize_text(
+                command.multiplicity_method, "multiplicity_method"
+            ),
+            multiplicity_alpha=command.multiplicity_alpha,
             independent_variables=require_text_list(
                 command.independent_variables, "independent_variables"
             ),
@@ -1818,10 +4514,20 @@ class ResearchService:
             ),
             blinding_plan=normalize_text(command.blinding_plan, "blinding_plan"),
             sampling_unit=normalize_text(command.sampling_unit, "sampling_unit"),
+            independent_unit=normalize_text(command.independent_unit, "independent_unit"),
+            repeated_measures=command.repeated_measures,
+            analysis_design=normalize_text(command.analysis_design, "analysis_design"),
+            unit_analysis_plan=normalize_text(command.unit_analysis_plan, "unit_analysis_plan"),
+            unit_id_column=normalize_text(command.unit_id_column, "unit_id_column"),
+            analysis_specification_sha256=normalize_text(command.analysis_specification_sha256, "analysis_specification_sha256"),
+            analysis_contract=command.analysis_contract,
+            analysis_steps=list(command.analysis_steps),
+            conclusion_contract=command.conclusion_contract,
             sample_size_or_stopping_rule=normalize_text(
                 command.sample_size_or_stopping_rule,
                 "sample_size_or_stopping_rule",
             ),
+            sample_size_plan=sample_size_plan,
             inclusion_rules=require_text_list(
                 command.inclusion_rules, "inclusion_rules"
             ),
@@ -1834,6 +4540,7 @@ class ResearchService:
             calibration_requirements=require_text_list(
                 command.calibration_requirements, "calibration_requirements"
             ),
+            calibration_acceptance_criteria=list(command.calibration_acceptance_criteria),
             measurement_custody_requirements=require_text_list(
                 command.measurement_custody_requirements,
                 "measurement_custody_requirements",
@@ -1856,6 +4563,8 @@ class ResearchService:
             missing_data_policy=normalize_text(
                 command.missing_data_policy, "missing_data_policy"
             ),
+            causal_claim=command.causal_claim,
+            causal_identification=dict(command.causal_identification),
             failure_conditions=require_text_list(
                 command.failure_conditions, "failure_conditions"
             ),
@@ -1870,8 +4579,38 @@ class ResearchService:
                 command.retention_deletion_plan, "retention_deletion_plan"
             ),
             risk_assessment=normalize_text(command.risk_assessment, "risk_assessment"),
+            vulnerable_population_plan=normalize_text(
+                command.vulnerable_population_plan, "vulnerable_population_plan"
+            ),
+            data_security_plan=normalize_text(command.data_security_plan, "data_security_plan"),
+            incidental_findings_plan=normalize_text(
+                command.incidental_findings_plan, "incidental_findings_plan"
+            ),
             independent_review_receipt=normalize_text(
                 command.independent_review_receipt, "independent_review_receipt"
+            ),
+            independent_review_decision=normalize_text(
+                command.independent_review_decision, "independent_review_decision"
+            ),
+            independent_reviewer_role=normalize_text(
+                command.independent_reviewer_role, "independent_reviewer_role"
+            ),
+            independent_reviewed_at=normalize_text(
+                command.independent_reviewed_at, "independent_reviewed_at"
+            ),
+            independent_review_scope=normalize_text(
+                command.independent_review_scope, "independent_review_scope"
+            ),
+            independent_review_artifact_locator=normalize_text(
+                command.independent_review_artifact_locator,
+                "independent_review_artifact_locator",
+            ),
+            independent_review_artifact_sha256=normalize_text(
+                command.independent_review_artifact_sha256,
+                "independent_review_artifact_sha256",
+            ).lower(),
+            independent_review_conditions=require_text_list(
+                command.independent_review_conditions, "independent_review_conditions"
             ),
             analysis_code_hash=normalize_text(
                 command.analysis_code_hash, "analysis_code_hash"
@@ -1890,6 +4629,8 @@ class ResearchService:
             ),
             supersedes_protocol_id=supersedes_protocol_id,
             amendment_reason=amendment_reason,
+            amendment_timing=amendment_timing,
+            evidence_exposure=evidence_exposure,
         )
 
     def _event(

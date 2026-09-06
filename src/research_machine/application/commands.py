@@ -6,6 +6,10 @@ from research_machine.domain.models import (
     ActionCandidate,
     ActionLane,
     AnalysisMode,
+    AnalysisContract,
+    AnalysisStepContract,
+    ConclusionContract,
+    CalibrationCriterion,
     ClaimDisposition,
     ClaimEpistemicLayer,
     ClaimLevel,
@@ -13,12 +17,41 @@ from research_machine.domain.models import (
     DatasetRole,
     EvidenceDirection,
     MeasurementDefinition,
+    MeasurementValidityCheck,
+    ControlDefinition,
     ProtocolKind,
     QualityGateResult,
     RejectionType,
     SelectionWeights,
     ValidationTag,
 )
+
+
+@dataclass(frozen=True)
+class RecordEthicsReviewEvent:
+    protocol_id: str
+    status: str
+    effective_at: str
+    reason: str
+    review_artifact_locator: str
+    review_artifact_sha256: str
+    review_artifact_root: str
+    expires_at: str | None = None
+    supersedes_event_id: str | None = None
+    event_id: str | None = None
+
+
+@dataclass(frozen=True)
+class RecordEvidenceStatusEvent:
+    evidence_id: str
+    status: str
+    effective_at: str
+    reason: str
+    review_artifact_locator: str
+    review_artifact_sha256: str
+    review_artifact_root: str
+    supersedes_event_id: str | None = None
+    event_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +120,8 @@ class ProposeHypothesis:
     competing_models: list[str] = field(default_factory=list)
     causal_direction: str = ""
     primary_estimand: str = ""
+    contrast_definition: str = ""
+    contrast_groups: list[str] = field(default_factory=list)
     expected_effect_direction: str = ""
     time_window: str = ""
     covariates: list[str] = field(default_factory=list)
@@ -124,6 +159,9 @@ class RecordEvidence:
     higher_level_conclusions_unsupported: list[str] = field(default_factory=list)
     validation_tags: list[ValidationTag] = field(default_factory=list)
     exploratory: bool = True
+    analysis_output_sha256: str = ""
+    effect_estimate_path: str = ""
+    uncertainty_path: str = ""
 
 
 @dataclass(frozen=True)
@@ -139,6 +177,9 @@ class RegisterDataset:
     synthetic: bool = False
     quality_attestations: list[str] = field(default_factory=list)
     metadata: dict[str, object] = field(default_factory=dict)
+    artifact_root: str | None = None
+    custody_artifact_root: str | None = None
+    ethics_artifact_root: str | None = None
 
 
 @dataclass(frozen=True)
@@ -153,20 +194,37 @@ class CreateProtocol:
     inputs_required: list[str] = field(default_factory=list)
     quality_requirements: list[str] = field(default_factory=list)
     controls: list[str] = field(default_factory=list)
+    control_definitions: list[ControlDefinition] = field(default_factory=list)
     measurement_definitions: list[MeasurementDefinition] = field(default_factory=list)
+    measurement_validity_checks: list[MeasurementValidityCheck] = field(default_factory=list)
     expected_outputs: list[str] = field(default_factory=list)
     success_conditions: list[str] = field(default_factory=list)
     environment_requirements: list[str] = field(default_factory=list)
     secondary_outcomes: list[str] = field(default_factory=list)
+    confirmatory_outcomes: list[str] = field(default_factory=list)
+    exploratory_outcomes: list[str] = field(default_factory=list)
+    multiplicity_method: str = ""
+    multiplicity_alpha: float | None = None
     independent_variables: list[str] = field(default_factory=list)
     randomization_plan: str = ""
     blinding_plan: str = ""
     sampling_unit: str = ""
+    independent_unit: str = ""
+    repeated_measures: bool | None = None
+    analysis_design: str = ""
+    unit_analysis_plan: str = ""
+    unit_id_column: str = ""
+    analysis_specification_sha256: str = ""
+    analysis_contract: AnalysisContract | None = None
+    analysis_steps: list[AnalysisStepContract] = field(default_factory=list)
+    conclusion_contract: ConclusionContract | None = None
     sample_size_or_stopping_rule: str = ""
+    sample_size_plan: dict[str, object] = field(default_factory=dict)
     inclusion_rules: list[str] = field(default_factory=list)
     exclusion_rules: list[str] = field(default_factory=list)
     sensor_requirements: list[str] = field(default_factory=list)
     calibration_requirements: list[str] = field(default_factory=list)
+    calibration_acceptance_criteria: list[CalibrationCriterion] = field(default_factory=list)
     measurement_custody_requirements: list[str] = field(default_factory=list)
     clock_accuracy_requirement: str = ""
     preprocessing_pipeline: str = ""
@@ -174,6 +232,8 @@ class CreateProtocol:
     control_windows: list[str] = field(default_factory=list)
     multiple_testing_policy: str = ""
     missing_data_policy: str = ""
+    causal_claim: bool = False
+    causal_identification: dict[str, object] = field(default_factory=dict)
     failure_conditions: list[str] = field(default_factory=list)
     safety_constraints: list[str] = field(default_factory=list)
     human_subjects: bool = False
@@ -182,7 +242,17 @@ class CreateProtocol:
     privacy_plan: str = ""
     retention_deletion_plan: str = ""
     risk_assessment: str = ""
+    vulnerable_population_plan: str = ""
+    data_security_plan: str = ""
+    incidental_findings_plan: str = ""
     independent_review_receipt: str = ""
+    independent_review_decision: str = ""
+    independent_reviewer_role: str = ""
+    independent_reviewed_at: str = ""
+    independent_review_scope: str = ""
+    independent_review_artifact_locator: str = ""
+    independent_review_artifact_sha256: str = ""
+    independent_review_conditions: list[str] = field(default_factory=list)
     analysis_code_hash: str = ""
     external_anchor: str | None = None
     random_seed_commitment: str | None = None

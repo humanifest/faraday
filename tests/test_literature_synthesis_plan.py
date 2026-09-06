@@ -1,0 +1,77 @@
+"""Synthetic synthesis plans are commitments, not scientific evidence."""
+import hashlib
+import json
+
+import pytest
+
+from research_machine.domain.errors import ValidationError
+from research_machine.interfaces.cli import main
+from research_machine.literature.synthesis_plan import create_synthesis_plan
+
+
+def screening_file(tmp_path, status="screening_recorded"):
+    value = {"screening_version": 2, "status": status, "snapshot_id": "snap",
+        "decisions": [{"source_id": "s1", "decision": "include"},
+                      {"source_id": "s2", "decision": "exclude"}]}
+    encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+    path = tmp_path / "screening.json"
+    path.write_bytes(encoded)
+    return path, hashlib.sha256(encoded).hexdigest()
+
+
+def spec(synthesis_type="quantitative"):
+    return {"plan_id": "plan-1", "reviewer": "Planner", "research_question": "Fixture question?",
+        "primary_outcome": "Fixture outcome", "synthesis_type": synthesis_type,
+        "effect_measure": "standardized_mean_difference" if synthesis_type == "quantitative" else "not_applicable",
+        "contrast_definition": "experimental minus comparator" if synthesis_type == "quantitative" else "not_applicable",
+        "statistical_model": "random_effects" if synthesis_type == "quantitative" else "not_applicable",
+        "minimum_independent_studies": 2, "eligibility_policy": "All screened-in studies",
+        "missing_statistics_policy": "Do not impute; report unavailable",
+        "heterogeneity_policy": "Report tau squared and prediction interval",
+        "multiplicity_policy": "Primary outcome only; label all others exploratory",
+        "subgroup_analyses": [], "sensitivity_analyses": ["exclude_high_or_unclear_bias"],
+        "conclusion_rule": "Bound wording by uncertainty and risk of bias",
+        "deviation_policy": "Record and justify every deviation before execution"}
+
+
+def test_synthesis_plan_cli_freezes_complete_commitments_and_is_write_once(tmp_path, capsys):
+    screening, digest = screening_file(tmp_path)
+    spec_path = tmp_path / "spec.json"
+    spec_path.write_text(json.dumps(spec()))
+    output = tmp_path / "plan"
+    assert main(["--json", "literature", "plan-synthesis", "--screening-file", str(screening),
+        "--expected-screening-sha256", digest, "--spec-file", str(spec_path), "--output", str(output)]) == 0
+    result = json.loads(capsys.readouterr().out)["result"]
+    assert result["status"] == "synthesis_plan_frozen"
+    assert result["included_source_ids_at_freeze"] == ["s1"]
+    assert result["scientific_evidence_eligible"] is False
+    with pytest.raises(ValidationError, match="already exists"):
+        create_synthesis_plan(screening, digest, spec(), output)
+
+
+def test_qualitative_plan_rejects_quantitative_choices(tmp_path):
+    screening, digest = screening_file(tmp_path)
+    candidate = spec("qualitative")
+    candidate["statistical_model"] = "random_effects"
+    with pytest.raises(ValidationError, match="qualitative"):
+        create_synthesis_plan(screening, digest, candidate, tmp_path / "plan")
+
+
+@pytest.mark.parametrize("failure", ["hash", "screening", "no-included", "minimum", "sensitivity", "unknown-sensitivity", "same-model", "quant-effect", "quant-model"])
+def test_invalid_synthesis_plan_never_publishes(tmp_path, failure):
+    screening, digest = screening_file(tmp_path, "review_required" if failure == "screening" else "screening_recorded")
+    candidate = spec()
+    if failure == "hash": digest = "0" * 64
+    elif failure == "no-included":
+        value = json.loads(screening.read_text()); value["decisions"][0]["decision"] = "exclude"
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode(); screening.write_bytes(encoded); digest = hashlib.sha256(encoded).hexdigest()
+    elif failure == "minimum": candidate["minimum_independent_studies"] = True
+    elif failure == "sensitivity": candidate["sensitivity_analyses"] = []
+    elif failure == "unknown-sensitivity": candidate["sensitivity_analyses"] = ["try_something"]
+    elif failure == "same-model": candidate["sensitivity_analyses"] = ["alternate_random_effects"]
+    elif failure == "quant-effect": candidate["effect_measure"] = "not_applicable"
+    elif failure == "quant-model": candidate["statistical_model"] = "not_applicable"
+    output = tmp_path / "plan"
+    with pytest.raises(ValidationError):
+        create_synthesis_plan(screening, digest, candidate, output)
+    assert not output.exists()

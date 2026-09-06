@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/workflow-adjudication.schema.json",
+  "title": "Pinned composite Holm workflow adjudication manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["primary_estimate", "confirmatory_tests", "materialization", "multiplicity"],
+  "$defs": {
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step_id", "run_id", "execution_directory", "receipt_sha256"],
+      "properties": {
+        "step_id": {"type": "string", "pattern": "\\S"},
+        "run_id": {"type": "string", "pattern": "\\S"},
+        "execution_directory": {"type": "string", "pattern": "\\S"},
+        "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  },
+  "properties": {
+    "primary_estimate": {"$ref": "#/$defs/component"},
+    "confirmatory_tests": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/component"}
+    },
+    "materialization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directory", "receipt_sha256"],
+      "properties": {
+        "directory": {"type": "string", "pattern": "\\S"},
+        "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "multiplicity": {"$ref": "#/$defs/component"}
+  }
+}

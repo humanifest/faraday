@@ -49,6 +49,8 @@ def _conclusion_ceiling(capabilities: dict[str, bool]) -> str:
         return "replicated and reproduced result; no novel prediction"
     if not capabilities[ValidationTag.EMPIRICAL_TEST.value]:
         return "registered novel prediction; no empirical test"
+    if capabilities[ValidationTag.CAUSAL_ESTIMATE.value]:
+        return "scoped design-conditional causal estimate; no mechanism or out-of-scope generalization"
     return "scoped empirical result; not proof of a theory"
 
 
@@ -271,6 +273,7 @@ def audit_research_state(
     dataset_by_id = {item.dataset_id: item for item in datasets}
 
     tag_counts: Counter[str] = Counter()
+    prospective_tag_counts: Counter[str] = Counter()
     for record in evidence:
         if not record.scope.strip():
             add(
@@ -380,6 +383,7 @@ def audit_research_state(
                     datasets=record_datasets,
                     controls_passed=record.controls_passed,
                     replicated_run=replicated_run,
+                    claim=(claims_by_id.get(record.claim_id) if record.claim_id else None),
                 )
             except ResearchMachineError as exc:
                 add(
@@ -392,9 +396,39 @@ def audit_research_state(
                 )
             else:
                 tag_counts.update(tag.value for tag in record.validation_tags)
+                retrospective_protocol = bool(
+                    protocol is not None
+                    and protocol.supersedes_protocol_id is not None
+                    and (
+                        protocol.amendment_timing in {"after_collection", "after_analysis", "unknown"}
+                        or protocol.evidence_exposure in {"aggregate_seen", "full_data_seen", "unknown"}
+                    )
+                )
+                if retrospective_protocol:
+                    add(
+                        "EVIDENCE_FROM_RETROSPECTIVE_OR_EXPOSED_AMENDMENT",
+                        RigorSeverity.WARNING,
+                        "Evidence uses a retrospective, exposed, or uncertain protocol amendment and cannot raise prospective maturity.",
+                        entity_type="evidence", entity_id=record.evidence_id,
+                        remediation="Seek a new frozen prospective protocol and independent data; retain this result as amended evidence.",
+                    )
+                else:
+                    prospective_tag_counts.update(tag.value for tag in record.validation_tags)
 
     runs_by_protocol: Counter[str] = Counter(run.protocol_id for run in runs)
     for protocol in protocols:
+        if protocol.supersedes_protocol_id is not None:
+            retrospective = (protocol.amendment_timing in {"after_collection", "after_analysis", "unknown"}
+                             or protocol.evidence_exposure in {"aggregate_seen", "full_data_seen", "unknown"})
+            add(
+                "RETROSPECTIVE_OR_EXPOSED_PROTOCOL_AMENDMENT" if retrospective else "PROSPECTIVE_PROTOCOL_AMENDMENT_DISCLOSED",
+                RigorSeverity.WARNING if retrospective else RigorSeverity.INFO,
+                ("Protocol amendment occurred after collection/results or has uncertain timing/exposure; it cannot be treated as a prospective commitment."
+                 if retrospective else "Protocol amendment is declared before collection with no evidence exposure."),
+                entity_type="protocol", entity_id=protocol.protocol_id,
+                remediation=("Interpret affected analyses as amended or exploratory and retain the superseded protocol."
+                             if retrospective else "Freeze the new version before collection and retain the superseded protocol."),
+            )
         if protocol.status is not ProtocolStatus.FROZEN:
             continue
         if not protocol.quality_requirements:
@@ -441,6 +475,41 @@ def audit_research_state(
                 entity_id=protocol.protocol_id,
                 remediation="Require a stopping rule in the next protocol version.",
             )
+        if (
+            protocol.analysis_mode
+            in {AnalysisMode.CONFIRMATORY, AnalysisMode.REPLICATION}
+            and protocol.protocol_kind
+            in {ProtocolKind.OBSERVATIONAL, ProtocolKind.EXPERIMENTAL}
+            and protocol.measurement_definitions
+            and not protocol.measurement_validity_checks
+        ):
+            add(
+                "PROTECTED_EMPIRICAL_VALIDITY_PLAN_UNTYPED",
+                RigorSeverity.WARNING,
+                "Protected empirical protocol has typed measurements but no canonical prospective measurement-validity checks.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "In the next prospective protocol version, bind structured validity claims, acceptance criteria, failure responses, and dedicated gates; do not retroactively rewrite this frozen protocol."
+                ),
+            )
+        if (
+            protocol.analysis_mode
+            in {AnalysisMode.CONFIRMATORY, AnalysisMode.REPLICATION}
+            and protocol.protocol_kind
+            in {ProtocolKind.OBSERVATIONAL, ProtocolKind.EXPERIMENTAL}
+            and not protocol.sample_size_plan
+        ):
+            add(
+                "PROTECTED_EMPIRICAL_SAMPLE_SIZE_PLAN_UNVERIFIED",
+                RigorSeverity.WARNING,
+                "Protected empirical protocol has a prose stopping rule but no machine-recomputed precision or power receipt.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "In the next protocol version, bind a reviewed sample_size_plan or document why this design requires a different typed planning method."
+                ),
+            )
         if runs_by_protocol[protocol.protocol_id] == 0:
             add(
                 "FROZEN_PROTOCOL_NOT_EXECUTED",
@@ -452,7 +521,132 @@ def audit_research_state(
 
     invalid_runs = 0
     for run in runs:
+        disclosure = run.metadata.get("protocol_deviation_disclosure")
+        if not isinstance(disclosure, dict) or disclosure.get("status") == "legacy_not_declared":
+            add(
+                "RUN_PROTOCOL_DEVIATIONS_UNDECLARED",
+                RigorSeverity.WARNING,
+                "Run has no explicit protocol-deviation declaration and cannot be treated as evidence-eligible.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation="Record a new run with an explicit disclosure; never rewrite this historical run.",
+            )
+        elif disclosure.get("status") == "deviations_declared":
+            deviations = disclosure.get("deviations", [])
+            add(
+                "RUN_PROTOCOL_DEVIATIONS_DECLARED",
+                RigorSeverity.WARNING,
+                f"Run declares {len(deviations) if isinstance(deviations, list) else 0} departure(s) from its frozen protocol and requires separate scientific review.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation="Inspect every departure and its output-bound evidence; do not automatically promote this run to evidence.",
+            )
         protocol = protocol_by_id.get(run.protocol_id)
+        if protocol is not None and protocol.measurement_validity_checks:
+            gates_by_id = {item.gate_id: item for item in run.quality_gates}
+            for check in protocol.measurement_validity_checks:
+                gate = gates_by_id.get(check.assessment_gate_id)
+                results = (
+                    gate.details.get("measurement_validity_results", {})
+                    if gate is not None else {}
+                )
+                result = results.get(check.check_id) if isinstance(results, dict) else None
+                if not isinstance(result, dict):
+                    continue
+                status = result.get("assessment_status")
+                if status == "inconclusive":
+                    add(
+                        "MEASUREMENT_VALIDITY_INCONCLUSIVE",
+                        RigorSeverity.WARNING,
+                        f"Measurement validity check {check.check_id} was inconclusive; the run cannot support an unqualified measurement-validity claim.",
+                        entity_type="run", entity_id=run.run_id,
+                        remediation=check.failure_response,
+                    )
+                elif status == "contradicted_validity_claim":
+                    add(
+                        "MEASUREMENT_VALIDITY_CONTRADICTED",
+                        RigorSeverity.ERROR,
+                        f"Measurement validity check {check.check_id} contradicted its frozen validity claim.",
+                        entity_type="run", entity_id=run.run_id,
+                        remediation=check.failure_response,
+                    )
+        if (
+            protocol is not None
+            and protocol.sample_size_plan
+            and run.metadata.get("sample_size_plan_check", {}).get("status")
+            != "passed"
+        ):
+            add(
+                "RUN_SAMPLE_SIZE_PLAN_NOT_EXECUTION_BOUND",
+                RigorSeverity.WARNING,
+                "Run did not verify that its analysis satisfied the protocol-bound sample-size plan and cannot be scientific evidence.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation=(
+                    "Use a verified execution or workflow-adjudication receipt whose registered information check enforces the planned analyzable count per group."
+                ),
+            )
+        if (
+            protocol is not None
+            and run.metadata.get("sample_size_plan_check", {}).get(
+                "variance_assumption", {}
+            ).get("status") == "exceeded_registered_tolerance"
+        ):
+            variance = run.metadata["sample_size_plan_check"][
+                "variance_assumption"
+            ]
+            add(
+                "RUN_VARIANCE_EXCEEDED_REGISTERED_TOLERANCE",
+                RigorSeverity.WARNING,
+                "Run remains potentially admissible, but observed variability exceeded the prospectively registered planning tolerance.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation=(
+                    f"Report observed-to-assumed SD ratio {variance['observed_to_assumed_ratio']:.12g} "
+                    f"against registered maximum {variance['maximum_registered_ratio']:.12g}; do not describe the variance assumption as satisfied."
+                ),
+            )
+        if (
+            protocol is not None
+            and protocol.sample_size_plan.get("strategy") == "precision"
+            and run.metadata.get("sample_size_plan_check", {}).get(
+                "precision_achievement", {}
+            ).get("status") == "not_met"
+        ):
+            precision = run.metadata["sample_size_plan_check"][
+                "precision_achievement"
+            ]
+            add(
+                "RUN_PRECISION_TARGET_NOT_MET",
+                RigorSeverity.WARNING,
+                "Run is admissible evidence, but its observed confidence interval did not meet the frozen precision target.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation=(
+                    f"Report observed half-width {precision['observed_half_width']:.12g} "
+                    f"against target {precision['target_half_width']:.12g}; do not describe the planned precision as achieved."
+                ),
+            )
+        if (
+            protocol is not None
+            and run.metadata.get("sample_size_plan_check", {}).get(
+                "attrition_achievement", {}
+            ).get("status") == "exceeded_assumption"
+        ):
+            attrition = run.metadata["sample_size_plan_check"][
+                "attrition_achievement"
+            ]
+            add(
+                "RUN_ATTRITION_EXCEEDED_PLANNING_ASSUMPTION",
+                RigorSeverity.WARNING,
+                "Run remains potentially admissible, but observed exclusions exceeded the prospective attrition assumption.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation=(
+                    f"Report observed excluded fraction {attrition['observed_excluded_fraction']:.12g} "
+                    f"against anticipated {attrition['anticipated_attrition_fraction']:.12g}, including group-specific rates; do not describe attrition as within plan."
+                ),
+            )
         if protocol is not None and protocol.registration_timestamp:
             try:
                 run_started = datetime.fromisoformat(
@@ -573,11 +767,15 @@ def audit_research_state(
         add(
             "FAILED_OR_INELIGIBLE_RUNS_RETAINED",
             RigorSeverity.INFO,
-            f"{invalid_runs} failed, invalid, or synthetic runs remain visible.",
+            f"{invalid_runs} failed, invalid, synthetic, workflow-component, or deviation-restricted runs remain visible.",
         )
 
     capabilities = {tag.value: bool(tag_counts[tag.value]) for tag in ValidationTag}
     capabilities["classified_evidence"] = bool(sum(tag_counts.values()))
+    prospective_capabilities = {
+        tag.value: bool(prospective_tag_counts[tag.value]) for tag in ValidationTag
+    }
+    prospective_capabilities["classified_evidence"] = bool(sum(prospective_tag_counts.values()))
     for tag in (
         ValidationTag.INDEPENDENT_REPLICATION,
         ValidationTag.KNOWN_RESULT_REPRODUCTION,
@@ -624,7 +822,13 @@ def audit_research_state(
         structurally_valid=not any(
             item.severity is RigorSeverity.ERROR for item in findings
         ),
-        conclusion_ceiling=_conclusion_ceiling(capabilities),
+        conclusion_ceiling=(
+            _conclusion_ceiling(prospective_capabilities)
+            if prospective_capabilities["classified_evidence"]
+            else "retrospectively amended evidence only; prospective confirmation required"
+            if capabilities["classified_evidence"]
+            else _conclusion_ceiling(capabilities)
+        ),
         capabilities=capabilities,
         evidence_counts=evidence_counts,
         findings=findings,

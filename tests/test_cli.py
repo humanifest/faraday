@@ -590,6 +590,9 @@ def test_cli_records_general_protocol_run_and_next_action(
     )
     run_started = registered_at + timedelta(seconds=1)
     run_completed = registered_at + timedelta(seconds=2)
+    proof_output = tmp_path / "proof.json"
+    proof_output.write_text('{"proof":"accepted"}\n', encoding="utf-8")
+    proof_sha256 = hashlib.sha256(proof_output.read_bytes()).hexdigest()
     run_record = tmp_path / "run.json"
     run_record.write_text(
         json.dumps(
@@ -599,14 +602,25 @@ def test_cli_records_general_protocol_run_and_next_action(
                 "completed_at": run_completed.isoformat(),
                 "analysis_code_hash": "a" * 64,
                 "environment_hash": "b" * 64,
-                "output_artifacts": [{"locator": "proof.json", "sha256": "c" * 64}],
+                "output_artifacts": [{
+                    "locator": "proof.json",
+                    "sha256": proof_sha256,
+                    "size_bytes": proof_output.stat().st_size,
+                }],
                 "quality_gates": [
                     {
-                        "gate_id": "proof-check",
-                        "status": "passed",
-                        "summary": "The proof was independently replayed.",
-                    }
+                            "gate_id": "proof-check",
+                            "status": "passed",
+                            "summary": "The proof was independently replayed.",
+                            "details": {"evidence_sha256": proof_sha256},
+                        }
                 ],
+                "metadata": {
+                    "protocol_deviation_disclosure": {
+                        "status": "no_deviations_declared",
+                        "deviations": [],
+                    }
+                },
             }
         ),
         encoding="utf-8",
@@ -619,6 +633,8 @@ def test_cli_records_general_protocol_run_and_next_action(
                 "preflight",
                 "--record-file",
                 str(run_record),
+                "--artifact-root",
+                str(tmp_path),
             ]
         )
         == 0
@@ -644,6 +660,8 @@ def test_cli_records_general_protocol_run_and_next_action(
                 "preflight",
                 "--record-file",
                 str(invalid_record),
+                "--artifact-root",
+                str(tmp_path),
             ]
         )
         == 1
@@ -686,6 +704,8 @@ def test_cli_records_general_protocol_run_and_next_action(
                 str(run_record),
                 "--expect-record-sha256",
                 preflight["record_file_sha256"],
+                "--artifact-root",
+                str(tmp_path),
             ]
         )
         == 0

@@ -1,0 +1,129 @@
+"""Independent citation review without promoting literature claims to facts."""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import tempfile
+from typing import Any
+
+from research_machine.domain.errors import ValidationError
+from research_machine.literature.snapshot import _text
+
+
+_VERDICTS = {"supported", "partially_supported", "unsupported", "unclear"}
+
+
+def create_citation_verification(
+    extraction_path: Path,
+    expected_sha256: str,
+    review: dict[str, Any],
+    output: Path,
+) -> dict[str, Any]:
+    """Record an independent, exhaustive review of extracted source claims."""
+    try:
+        content = extraction_path.read_bytes()
+        extraction = json.loads(content)
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        raise ValidationError("could not read valid extraction JSON") from exc
+    digest = hashlib.sha256(content).hexdigest()
+    if digest != expected_sha256:
+        raise ValidationError("citation verification extraction does not match the expected SHA-256")
+    if (not isinstance(extraction, dict) or extraction.get("extraction_version") != 1
+            or extraction.get("status") != "extraction_recorded"):
+        raise ValidationError("citation verification requires a completed version 1 extraction")
+
+    extractor = _text(extraction.get("reviewer"), "extraction reviewer")
+    records: dict[str, dict[str, str]] = {}
+    source_reviews = extraction.get("source_reviews")
+    if not isinstance(source_reviews, list):
+        raise ValidationError("extraction source_reviews must be an array")
+    for source_review in source_reviews:
+        if not isinstance(source_review, dict):
+            raise ValidationError("extraction source review must be an object")
+        source_id = _text(source_review.get("source_id"), "extraction source_id")
+        source_records = source_review.get("records")
+        if not isinstance(source_records, list):
+            raise ValidationError("extraction records must be an array")
+        for record in source_records:
+            if not isinstance(record, dict):
+                raise ValidationError("extraction record must be an object")
+            extraction_id = _text(record.get("extraction_id"), "extraction_id")
+            if extraction_id in records:
+                raise ValidationError("extraction contains duplicate extraction_id")
+            records[extraction_id] = {
+                "source_id": source_id,
+                "study_id": _text(record.get("study_id"), "study_id"),
+                "claim_text": _text(record.get("claim_text"), "claim_text"),
+                "extracted_evidence_location": _text(
+                    record.get("evidence_location"), "extracted evidence_location"
+                ),
+            }
+    if not records:
+        raise ValidationError("citation verification requires at least one extracted claim")
+    if not isinstance(review, dict) or set(review) != {"reviewer", "assessments"}:
+        raise ValidationError("citation review requires exactly reviewer and assessments")
+    reviewer = _text(review["reviewer"], "citation reviewer")
+    if reviewer.strip().casefold() == extractor.strip().casefold():
+        raise ValidationError("citation reviewer must be independent of the extraction reviewer")
+    assessments = review["assessments"]
+    if not isinstance(assessments, list):
+        raise ValidationError("citation assessments must be an array")
+
+    by_id: dict[str, dict[str, Any]] = {}
+    required = {"extraction_id", "verdict", "checked_location", "rationale"}
+    for assessment in assessments:
+        if not isinstance(assessment, dict) or set(assessment) != required:
+            raise ValidationError(
+                "each citation assessment requires exactly extraction_id, verdict, checked_location, and rationale"
+            )
+        extraction_id = _text(assessment["extraction_id"], "citation extraction_id")
+        if extraction_id not in records:
+            raise ValidationError("citation assessment references an unknown extraction_id")
+        if extraction_id in by_id:
+            raise ValidationError("duplicate citation assessment")
+        verdict = assessment["verdict"]
+        if verdict not in _VERDICTS:
+            raise ValidationError("invalid citation verification verdict")
+        by_id[extraction_id] = {
+            "extraction_id": extraction_id,
+            **records[extraction_id],
+            "verdict": verdict,
+            "checked_location": _text(assessment["checked_location"], "checked_location").strip(),
+            "rationale": _text(assessment["rationale"], "citation rationale").strip(),
+        }
+    if set(by_id) != set(records):
+        raise ValidationError("citation assessments must cover exactly all extracted claims")
+
+    counts = {verdict: sum(item["verdict"] == verdict for item in by_id.values())
+              for verdict in sorted(_VERDICTS)}
+    requires_review = bool(counts["unsupported"] or counts["unclear"])
+    result = {
+        "citation_verification_version": 1,
+        "extraction_sha256": digest,
+        "snapshot_id": extraction.get("snapshot_id"),
+        "extraction_reviewer": extractor,
+        "citation_reviewer": reviewer,
+        "independent_review": True,
+        "assessments": [by_id[item] for item in sorted(by_id)],
+        "verdict_counts": counts,
+        "status": "review_required" if requires_review else "citation_review_recorded",
+        "scientific_evidence_eligible": False,
+        "limitations": [
+            "The machine binds an independent review to extraction bytes but does not interpret source text or authenticate either reviewer.",
+            "A supported verdict is a reviewer judgment, not proof that a claim is true, unbiased, reproducible, or applicable.",
+            "Risk-of-bias assessment, study-identity reconciliation, and quantitative synthesis remain separate gates.",
+        ],
+    }
+    root = output.expanduser().resolve()
+    if root.exists():
+        raise ValidationError("citation verification output already exists")
+    root.parent.mkdir(parents=True, exist_ok=True)
+    encoded = (json.dumps(result, sort_keys=True, indent=2, ensure_ascii=False, allow_nan=False) + "\n").encode()
+    with tempfile.TemporaryDirectory(prefix=".citation-verification-", dir=root.parent) as temporary:
+        staging = Path(temporary) / "citation-verification"
+        staging.mkdir()
+        (staging / "citation-verification.json").write_bytes(encoded)
+        os.replace(staging, root)
+    return {"path": str(root), "citation_verification_sha256": hashlib.sha256(encoded).hexdigest(), **result}

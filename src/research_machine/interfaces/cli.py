@@ -20,6 +20,8 @@ from research_machine.application.commands import (
     RecommendActionPortfolio,
     RecommendNextAction,
     RecordCrossLaneLesson,
+    RecordEthicsReviewEvent,
+    RecordEvidenceStatusEvent,
     RecordEvidence,
     RecordRun,
     RegisterDataset,
@@ -30,11 +32,30 @@ from research_machine.application.commands import (
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.design.scaffold import scaffold_design
-from research_machine.measurement.custody import validate_measurement_custody
+from research_machine.design.initializer import initialize_experiment_repository
+from research_machine.design.precision import (
+    plan_two_group_equivalence_power, plan_two_group_power,
+    plan_two_group_practical_power,
+    plan_two_group_precision,
+)
+from research_machine.design.randomization import generate_blocked_assignment
+from research_machine.design.causal import audit_causal_identification
+from research_machine.measurement.custody import (
+    create_measurement_custody_record,
+    validate_measurement_custody,
+    verify_measurement_custody_record,
+)
+from research_machine.literature.snapshot import create_snapshot
 from research_machine.domain.models import (
+    ControlDefinition,
     ActionCandidate,
     ActionLane,
     AnalysisMode,
+    AnalysisContract,
+    AnalysisFamilyMember,
+    AnalysisStepContract,
+    CalibrationCriterion,
+    ConclusionContract,
     ClaimDisposition,
     ClaimEpistemicLayer,
     ClaimLevel,
@@ -43,6 +64,7 @@ from research_machine.domain.models import (
     EvidenceDirection,
     HypothesisWorkflowState,
     MeasurementDefinition,
+    MeasurementValidityCheck,
     MeasurementRole,
     ProtocolKind,
     ProtocolStatus,
@@ -65,6 +87,8 @@ _PROPOSAL_FIELDS = {
     "competing_models",
     "causal_direction",
     "primary_estimand",
+    "contrast_definition",
+    "contrast_groups",
     "expected_effect_direction",
     "time_window",
     "covariates",
@@ -90,6 +114,7 @@ _DATASET_FIELDS = {
 }
 
 _PROTOCOL_FIELDS = {
+    "control_definitions",
     "experiment_id",
     "title",
     "analysis_mode",
@@ -101,19 +126,31 @@ _PROTOCOL_FIELDS = {
     "quality_requirements",
     "controls",
     "measurement_definitions",
+    "measurement_validity_checks",
     "expected_outputs",
     "success_conditions",
     "environment_requirements",
     "secondary_outcomes",
+    "confirmatory_outcomes",
+    "exploratory_outcomes",
+    "multiplicity_method",
+    "multiplicity_alpha",
     "independent_variables",
     "randomization_plan",
     "blinding_plan",
     "sampling_unit",
+    "independent_unit", "repeated_measures", "analysis_design", "unit_analysis_plan", "unit_id_column",
+    "analysis_specification_sha256",
+    "analysis_contract",
+    "analysis_steps",
+    "conclusion_contract",
     "sample_size_or_stopping_rule",
+    "sample_size_plan",
     "inclusion_rules",
     "exclusion_rules",
     "sensor_requirements",
     "calibration_requirements",
+    "calibration_acceptance_criteria",
     "measurement_custody_requirements",
     "clock_accuracy_requirement",
     "preprocessing_pipeline",
@@ -121,6 +158,8 @@ _PROTOCOL_FIELDS = {
     "control_windows",
     "multiple_testing_policy",
     "missing_data_policy",
+    "causal_claim",
+    "causal_identification",
     "failure_conditions",
     "safety_constraints",
     "human_subjects",
@@ -129,7 +168,17 @@ _PROTOCOL_FIELDS = {
     "privacy_plan",
     "retention_deletion_plan",
     "risk_assessment",
+    "vulnerable_population_plan",
+    "data_security_plan",
+    "incidental_findings_plan",
     "independent_review_receipt",
+    "independent_review_decision",
+    "independent_reviewer_role",
+    "independent_reviewed_at",
+    "independent_review_scope",
+    "independent_review_artifact_locator",
+    "independent_review_artifact_sha256",
+    "independent_review_conditions",
     "analysis_code_hash",
     "external_anchor",
     "random_seed_commitment",
@@ -324,6 +373,8 @@ def build_parser() -> argparse.ArgumentParser:
     propose.add_argument("--competing-model", action="append", default=None)
     propose.add_argument("--causal-direction")
     propose.add_argument("--primary-estimand")
+    propose.add_argument("--contrast-definition")
+    propose.add_argument("--contrast-group", action="append", default=None)
     propose.add_argument("--expected-effect-direction")
     propose.add_argument("--time-window")
     propose.add_argument("--covariate", action="append", default=None)
@@ -395,6 +446,21 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_register.add_argument(
         "--quality-attestation", action="append", default=None
     )
+    dataset_register.add_argument(
+        "--artifact-root",
+        type=Path,
+        help="Verify registered observation bytes before protected registration",
+    )
+    dataset_register.add_argument(
+        "--custody-artifact-root",
+        type=Path,
+        help="Verify custody raw-source and supporting-evidence bytes before protected registration",
+    )
+    dataset_register.add_argument(
+        "--ethics-artifact-root",
+        type=Path,
+        help="Verify evidence discharging conditional independent-review obligations",
+    )
     _add_inquiry_option(dataset_register)
     dataset_list = dataset_commands.add_parser("list")
     _add_inquiry_option(dataset_list)
@@ -409,11 +475,14 @@ def build_parser() -> argparse.ArgumentParser:
     protocol_freeze = protocol_commands.add_parser("freeze")
     protocol_freeze.add_argument("protocol_id")
     protocol_freeze.add_argument("--external-anchor")
+    protocol_freeze.add_argument("--review-artifact-root", type=Path)
     _add_inquiry_option(protocol_freeze)
     protocol_amend = protocol_commands.add_parser("amend")
     protocol_amend.add_argument("protocol_id")
     protocol_amend.add_argument("--spec-file", type=Path, required=True)
     protocol_amend.add_argument("--reason", required=True)
+    protocol_amend.add_argument("--timing", required=True, choices=("before_collection", "during_collection", "after_collection", "after_analysis", "unknown"))
+    protocol_amend.add_argument("--evidence-exposure", required=True, choices=("not_seen", "aggregate_seen", "full_data_seen", "unknown"))
     _add_inquiry_option(protocol_amend)
     protocol_show = protocol_commands.add_parser("show")
     protocol_show.add_argument("protocol_id")
@@ -524,7 +593,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     record.add_argument("--claim")
     record.add_argument("--effect-estimate", default="")
-    record.add_argument("--uncertainty", required=True)
+    record.add_argument("--uncertainty", default="")
+    record.add_argument("--analysis-output-sha256", default="")
+    record.add_argument("--effect-estimate-path", default="")
+    record.add_argument("--uncertainty-path", default="")
     record.add_argument("--scope", required=True)
     record.add_argument("--control-passed", action="append", default=[])
     record.add_argument("--control-failed", action="append", default=[])
@@ -546,6 +618,26 @@ def build_parser() -> argparse.ArgumentParser:
     _add_inquiry_option(record)
     evidence_list = evidence_commands.add_parser("list")
     _add_inquiry_option(evidence_list)
+    evidence_status = evidence_commands.add_parser(
+        "record-status",
+        help="Append an artifact-backed correction, withdrawal, or retraction status",
+    )
+    evidence_status.add_argument("--evidence", required=True)
+    evidence_status.add_argument(
+        "--status", required=True,
+        choices=["active", "qualified", "withdrawn", "retracted"],
+    )
+    evidence_status.add_argument("--effective-at", required=True)
+    evidence_status.add_argument("--reason", required=True)
+    evidence_status.add_argument("--review-artifact-locator", required=True)
+    evidence_status.add_argument("--review-artifact-sha256", required=True)
+    evidence_status.add_argument("--review-artifact-root", type=Path, required=True)
+    evidence_status.add_argument("--supersedes-event")
+    evidence_status.add_argument("--event-id")
+    _add_inquiry_option(evidence_status)
+    evidence_status_list = evidence_commands.add_parser("status-history")
+    evidence_status_list.add_argument("--evidence")
+    _add_inquiry_option(evidence_status_list)
 
     synthesis = groups.add_parser("synthesis", help="Build deterministic reports")
     synthesis_commands = synthesis.add_subparsers(dest="action", required=True)
@@ -570,21 +662,308 @@ def build_parser() -> argparse.ArgumentParser:
     analysis_run.add_argument("--spec-file", type=Path, required=True)
     analysis_run.add_argument("--data-file", type=Path, required=True)
     analysis_run.add_argument("--output", type=Path, required=True)
+    analysis_run.add_argument("--protocol", help="Check declared design and implementation against a frozen protocol")
+    analysis_run.add_argument("--dataset", help="Registered dataset whose artifact matches the input; required with --protocol")
+    _add_inquiry_option(analysis_run)
+    analysis_draft = analysis_commands.add_parser("run-draft", help="Build a review-only run draft from pinned execution output")
+    analysis_draft.add_argument("--execution-directory", type=Path, required=True)
+    analysis_draft.add_argument("--expected-receipt-sha256", required=True)
+    _add_inquiry_option(analysis_draft)
+    analysis_family = analysis_commands.add_parser(
+        "materialize-holm",
+        help="Verify frozen confirmatory-test receipts and materialize the exact Holm input family",
+    )
+    analysis_family.add_argument("--protocol", required=True)
+    analysis_family.add_argument("--manifest-file", type=Path, required=True)
+    analysis_family.add_argument("--expected-manifest-sha256", required=True)
+    analysis_family.add_argument("--output", type=Path, required=True)
+    _add_inquiry_option(analysis_family)
+    analysis_adjudicate = analysis_commands.add_parser(
+        "adjudicate-holm",
+        help="Verify the complete canonical Holm workflow and emit bounded study-level decisions",
+    )
+    analysis_adjudicate.add_argument("--protocol", required=True)
+    analysis_adjudicate.add_argument("--manifest-file", type=Path, required=True)
+    analysis_adjudicate.add_argument("--expected-manifest-sha256", required=True)
+    analysis_adjudicate.add_argument("--output", type=Path, required=True)
+    _add_inquiry_option(analysis_adjudicate)
+    adjudication_draft = analysis_commands.add_parser(
+        "adjudication-run-draft",
+        help="Build a reviewed canonical run draft from a verified composite workflow",
+    )
+    adjudication_draft.add_argument("--adjudication-directory", type=Path, required=True)
+    adjudication_draft.add_argument("--expected-receipt-sha256", required=True)
+    _add_inquiry_option(adjudication_draft)
 
     design = groups.add_parser("design", help="Create review-only experiment drafts and audit their structure")
     design_commands = design.add_subparsers(dest="action", required=True)
+    design_interview = design_commands.add_parser("interview", help="Answer plain-language questions without JSON or an LLM")
+    design_interview.add_argument("--output", type=Path, help="Explicitly create a separate local experiment repository with review-only drafts")
+    design_interview.add_argument("--revise-hypothesis", help="Record fresh interview answers as a new proposal descended from this hypothesis")
+    design_interview.add_argument("--inquiry", help="Inquiry containing the hypothesis to revise")
     design_scaffold = design_commands.add_parser("scaffold", help="Generate a review-only study scaffold from a plain JSON brief")
     design_scaffold.add_argument("--brief-file", type=Path, required=True)
+    design_revise = design_commands.add_parser("revise", help="Create a lineage-linked unreviewed proposal from a revised brief")
+    design_revise.add_argument("--brief-file", type=Path, required=True)
+    design_revise.add_argument("--hypothesis", required=True)
+    design_revise.add_argument("--reason", required=True)
+    design_revise.add_argument("--inquiry", help="Inquiry ID; defaults to the active inquiry")
+    design_initialize = design_commands.add_parser(
+        "initialize", help="Create an isolated local experiment repository from a review-only brief"
+    )
+    design_initialize.add_argument("--brief-file", type=Path, required=True)
+    design_initialize.add_argument("--output", type=Path, required=True)
+    design_initialize.add_argument(
+        "--no-git",
+        action="store_true",
+        help="Create the isolated experiment directory without initializing local Git",
+    )
+    design_precision = design_commands.add_parser(
+        "precision", help="Plan a pre-collection two-group precision target"
+    )
+    design_precision.add_argument("--spec-file", type=Path, required=True)
+    design_power = design_commands.add_parser(
+        "power", help="Plan a pre-collection two-group power target"
+    )
+    design_power.add_argument("--spec-file", type=Path, required=True)
+    design_practical_power = design_commands.add_parser(
+        "practical-power",
+        help="Power a confidence bound clearing a practical-effect threshold",
+    )
+    design_practical_power.add_argument("--spec-file", type=Path, required=True)
+    design_equivalence_power = design_commands.add_parser(
+        "equivalence-power",
+        help="Plan a pre-collection direct two-group equivalence power target",
+    )
+    design_equivalence_power.add_argument("--spec-file", type=Path, required=True)
+    design_randomize = design_commands.add_parser(
+        "randomize", help="Generate deterministic balanced block assignments without claiming concealment"
+    )
+    design_randomize.add_argument("--spec-file", type=Path, required=True)
+    design_identify = design_commands.add_parser(
+        "identify", help="Audit a supplied causal DAG and proposed adjustment set"
+    )
+    design_identify.add_argument("--spec-file", type=Path, required=True)
 
     measurement = groups.add_parser(
         "measurement", help="Validate raw-to-derived custody before data registration"
     )
     measurement_commands = measurement.add_subparsers(dest="action", required=True)
+    measurement_template = measurement_commands.add_parser(
+        "template", help="Create a review-only custody skeleton from a frozen protocol"
+    )
+    measurement_template.add_argument("--protocol", required=True)
+    measurement_template.add_argument("--inquiry", help="Inquiry ID; defaults to the active inquiry")
     measurement_validate = measurement_commands.add_parser(
         "validate", help="Validate a provider-free measurement custody receipt"
     )
     measurement_validate.add_argument("--receipt-file", type=Path, required=True)
     measurement_validate.add_argument("--require-gate", action="append", default=[])
+    measurement_validate.add_argument("--artifact-root", type=Path, help="Verify raw, transformation implementation, derived-output, and supporting-evidence files under this local directory")
+    measurement_record = measurement_commands.add_parser(
+        "record", help="Publish a write-once, protocol-bound custody verification record"
+    )
+    measurement_record.add_argument("--protocol", required=True)
+    measurement_record.add_argument("--inquiry", help="Inquiry ID; defaults to the active inquiry")
+    measurement_record.add_argument("--receipt-file", type=Path, required=True)
+    measurement_record.add_argument("--expected-receipt-sha256", required=True)
+    measurement_record.add_argument("--artifact-root", type=Path, required=True)
+    measurement_record.add_argument("--output", type=Path, required=True)
+    measurement_verify_record = measurement_commands.add_parser(
+        "verify-record", help="Recompute a custody record from trusted hashes and local bytes"
+    )
+    measurement_verify_record.add_argument("--protocol", required=True)
+    measurement_verify_record.add_argument("--inquiry", help="Inquiry ID; defaults to the active inquiry")
+    measurement_verify_record.add_argument("--record-file", type=Path, required=True)
+    measurement_verify_record.add_argument("--expected-record-sha256", required=True)
+    measurement_verify_record.add_argument("--receipt-file", type=Path, required=True)
+    measurement_verify_record.add_argument("--artifact-root", type=Path, required=True)
+    measurement_inspect = measurement_commands.add_parser(
+        "inspect-source", help="Run a bounded add-on instrument inspector over source bytes"
+    )
+    measurement_inspect.add_argument("--adapter", required=True)
+    measurement_inspect.add_argument("--source-file", type=Path, required=True)
+    measurement_inspect.add_argument("--media-type", required=True)
+    measurement_inspect.add_argument("--config-file", type=Path, required=True)
+    measurement_inspect.add_argument("--output", type=Path, required=True)
+    measurement_verify_inspection = measurement_commands.add_parser(
+        "verify-source-inspection",
+        help="Reproduce an instrument inspection from trusted record and current bytes",
+    )
+    measurement_verify_inspection.add_argument("--adapter", required=True)
+    measurement_verify_inspection.add_argument("--source-file", type=Path, required=True)
+    measurement_verify_inspection.add_argument("--media-type", required=True)
+    measurement_verify_inspection.add_argument("--config-file", type=Path, required=True)
+    measurement_verify_inspection.add_argument("--record-file", type=Path, required=True)
+    measurement_verify_inspection.add_argument("--expected-record-sha256", required=True)
+
+    ethics = groups.add_parser(
+        "ethics", help="Record append-only changes to human-subject review clearance"
+    )
+    ethics_commands = ethics.add_subparsers(dest="action", required=True)
+    ethics_status = ethics_commands.add_parser(
+        "record-status", help="Record an artifact-backed review status event"
+    )
+    ethics_status.add_argument("--protocol", required=True)
+    ethics_status.add_argument(
+        "--status", required=True,
+        choices=["active", "suspended", "withdrawn", "expired"],
+    )
+    ethics_status.add_argument("--effective-at", required=True)
+    ethics_status.add_argument("--expires-at")
+    ethics_status.add_argument("--reason", required=True)
+    ethics_status.add_argument("--review-artifact-locator", required=True)
+    ethics_status.add_argument("--review-artifact-sha256", required=True)
+    ethics_status.add_argument("--review-artifact-root", type=Path, required=True)
+    ethics_status.add_argument("--supersedes-event")
+    ethics_status.add_argument("--event-id")
+    _add_inquiry_option(ethics_status)
+
+    replication = groups.add_parser(
+        "replication", help="Prepare and inspect independent replication material"
+    )
+    replication_commands = replication.add_subparsers(dest="action", required=True)
+    replication_package = replication_commands.add_parser(
+        "package", help="Export a metadata-first package from a frozen protocol"
+    )
+    replication_package.add_argument("--protocol", required=True)
+    replication_package.add_argument("--output", type=Path, required=True)
+    replication_package.add_argument(
+        "--include-locators",
+        action="store_true",
+        help="Include artifact locator strings; default redacts potentially sensitive local paths",
+    )
+    _add_inquiry_option(replication_package)
+    replication_verify = replication_commands.add_parser(
+        "verify", help="Verify package files against an independently trusted manifest hash"
+    )
+    replication_verify.add_argument("--package", type=Path, required=True)
+    replication_verify.add_argument("--expected-manifest-sha256", required=True)
+
+    collaborator = groups.add_parser(
+        "collaborator", help="Export read-only, provider-neutral context for an app or model"
+    )
+    collaborator_commands = collaborator.add_subparsers(dest="action", required=True)
+    collaborator_context = collaborator_commands.add_parser(
+        "context", help="Emit constraints and inquiry state without calling a model"
+    )
+    collaborator_context.add_argument("--purpose", default="")
+    collaborator_context.add_argument(
+        "--output",
+        type=Path,
+        help="Write a hash-bound, write-once context snapshot directory",
+    )
+    _add_inquiry_option(collaborator_context)
+    collaborator_validate = collaborator_commands.add_parser(
+        "validate-proposal",
+        help="Validate an untrusted response without applying canonical changes",
+    )
+    collaborator_validate.add_argument("--context-file", type=Path, required=True)
+    collaborator_validate.add_argument("--expected-context-sha256", required=True)
+    collaborator_validate.add_argument("--proposal-file", type=Path, required=True)
+    collaborator_validate.add_argument("--output", type=Path, required=True)
+    collaborator_review = collaborator_commands.add_parser(
+        "review-proposal",
+        help="Adjudicate every suggestion without applying canonical changes",
+    )
+    collaborator_review.add_argument("--proposal-record-file", type=Path, required=True)
+    collaborator_review.add_argument(
+        "--expected-proposal-record-sha256", required=True
+    )
+    collaborator_review.add_argument("--review-file", type=Path, required=True)
+    collaborator_review.add_argument("--output", type=Path, required=True)
+
+    literature = groups.add_parser(
+        "literature", help="Create reproducible, hash-bound literature snapshots"
+    )
+    literature_commands = literature.add_subparsers(dest="action", required=True)
+    literature_snapshot = literature_commands.add_parser(
+        "snapshot", help="Snapshot a retained local set of discovered sources"
+    )
+    literature_snapshot.add_argument("--manifest-file", type=Path, required=True)
+    literature_snapshot.add_argument("--output", type=Path, required=True)
+    literature_screen = literature_commands.add_parser("screen", help="Record source-screening decisions against a pinned snapshot")
+    literature_screen.add_argument("--snapshot-file", type=Path, required=True)
+    literature_screen.add_argument("--expected-snapshot-sha256", required=True)
+    literature_screen.add_argument("--review-file", type=Path, required=True)
+    literature_screen.add_argument("--output", type=Path, required=True)
+    literature_extract = literature_commands.add_parser("extract", help="Record source-bound claims from a completed screening")
+    literature_extract.add_argument("--screening-file", type=Path, required=True)
+    literature_extract.add_argument("--expected-screening-sha256", required=True)
+    literature_extract.add_argument("--review-file", type=Path, required=True)
+    literature_extract.add_argument("--output", type=Path, required=True)
+    literature_verify = literature_commands.add_parser("verify-citations", help="Independently review every extracted claim against its cited location")
+    literature_verify.add_argument("--extraction-file", type=Path, required=True)
+    literature_verify.add_argument("--expected-extraction-sha256", required=True)
+    literature_verify.add_argument("--review-file", type=Path, required=True)
+    literature_verify.add_argument("--output", type=Path, required=True)
+    literature_bias = literature_commands.add_parser("assess-bias", help="Record independent study-level risk-of-bias judgments")
+    literature_bias.add_argument("--citation-verification-file", type=Path, required=True)
+    literature_bias.add_argument("--expected-citation-verification-sha256", required=True)
+    literature_bias.add_argument("--review-file", type=Path, required=True)
+    literature_bias.add_argument("--output", type=Path, required=True)
+    literature_reconcile = literature_commands.add_parser("reconcile-studies", help="Review whether source reports represent independent studies")
+    literature_reconcile.add_argument("--bias-assessment-file", type=Path, required=True)
+    literature_reconcile.add_argument("--expected-bias-assessment-sha256", required=True)
+    literature_reconcile.add_argument("--review-file", type=Path, required=True)
+    literature_reconcile.add_argument("--output", type=Path, required=True)
+    literature_map = literature_commands.add_parser("evidence-map", help="Join the verified literature chain under conservative claim ceilings")
+    literature_map.add_argument("--extraction-file", type=Path, required=True)
+    literature_map.add_argument("--citation-verification-file", type=Path, required=True)
+    literature_map.add_argument("--bias-assessment-file", type=Path, required=True)
+    literature_map.add_argument("--study-reconciliation-file", type=Path, required=True)
+    literature_map.add_argument("--expected-study-reconciliation-sha256", required=True)
+    literature_map.add_argument("--output", type=Path, required=True)
+    literature_plan = literature_commands.add_parser("plan-synthesis", help="Freeze synthesis choices against completed screening before extraction")
+    literature_plan.add_argument("--screening-file", type=Path, required=True)
+    literature_plan.add_argument("--expected-screening-sha256", required=True)
+    literature_plan.add_argument("--spec-file", type=Path, required=True)
+    literature_plan.add_argument("--output", type=Path, required=True)
+    literature_synthesize = literature_commands.add_parser("synthesize", help="Execute a bounded deterministic qualitative synthesis")
+    literature_synthesize.add_argument("--plan-file", type=Path, required=True)
+    literature_synthesize.add_argument("--expected-plan-sha256", required=True)
+    literature_synthesize.add_argument("--extraction-file", type=Path, required=True)
+    literature_synthesize.add_argument("--evidence-map-file", type=Path, required=True)
+    literature_synthesize.add_argument("--expected-evidence-map-sha256", required=True)
+    literature_synthesize.add_argument("--deviations-file", type=Path, required=True)
+    literature_synthesize.add_argument("--expected-deviations-sha256", required=True)
+    literature_synthesize.add_argument("--output", type=Path, required=True)
+    literature_effects = literature_commands.add_parser("prepare-effects", help="Record one plan-bound effect and variance per reconciled study")
+    literature_effects.add_argument("--plan-file", type=Path, required=True)
+    literature_effects.add_argument("--expected-plan-sha256", required=True)
+    literature_effects.add_argument("--extraction-file", type=Path, required=True)
+    literature_effects.add_argument("--evidence-map-file", type=Path, required=True)
+    literature_effects.add_argument("--expected-evidence-map-sha256", required=True)
+    literature_effects.add_argument("--review-file", type=Path, required=True)
+    literature_effects.add_argument("--output", type=Path, required=True)
+    literature_derive = literature_commands.add_parser("derive-effects", help="Recompute supported effects from source-reported arm summaries")
+    literature_derive.add_argument("--plan-file", type=Path, required=True)
+    literature_derive.add_argument("--expected-plan-sha256", required=True)
+    literature_derive.add_argument("--extraction-file", type=Path, required=True)
+    literature_derive.add_argument("--evidence-map-file", type=Path, required=True)
+    literature_derive.add_argument("--expected-evidence-map-sha256", required=True)
+    literature_derive.add_argument("--summaries-file", type=Path, required=True)
+    literature_derive.add_argument("--output", type=Path, required=True)
+    literature_verify_effects = literature_commands.add_parser("verify-effects", help="Independently check retained source summaries and effect arithmetic")
+    literature_verify_effects.add_argument("--effects-file", type=Path, required=True)
+    literature_verify_effects.add_argument("--expected-effects-sha256", required=True)
+    literature_verify_effects.add_argument("--review-file", type=Path, required=True)
+    literature_verify_effects.add_argument("--output", type=Path, required=True)
+    literature_pool = literature_commands.add_parser("pool-effects", help="Run plan-bound inverse-variance meta-analysis")
+    literature_pool.add_argument("--plan-file", type=Path, required=True)
+    literature_pool.add_argument("--expected-plan-sha256", required=True)
+    literature_pool.add_argument("--effects-file", type=Path, required=True)
+    literature_pool.add_argument("--expected-effects-sha256", required=True)
+    literature_pool.add_argument("--effect-verification-file", type=Path, required=True)
+    literature_pool.add_argument("--expected-effect-verification-sha256", required=True)
+    literature_pool.add_argument("--deviations-file", type=Path, required=True)
+    literature_pool.add_argument("--expected-deviations-sha256", required=True)
+    literature_pool.add_argument("--output", type=Path, required=True)
+    literature_deviations = literature_commands.add_parser("record-deviations", help="Disclose departures without rewriting a frozen synthesis plan")
+    literature_deviations.add_argument("--plan-file", type=Path, required=True)
+    literature_deviations.add_argument("--expected-plan-sha256", required=True)
+    literature_deviations.add_argument("--disclosure-file", type=Path, required=True)
+    literature_deviations.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -731,6 +1110,8 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         "success_conditions",
         "environment_requirements",
         "secondary_outcomes",
+        "confirmatory_outcomes",
+        "exploratory_outcomes",
         "independent_variables",
         "inclusion_rules",
         "exclusion_rules",
@@ -740,11 +1121,83 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         "control_windows",
         "failure_conditions",
         "safety_constraints",
+        "independent_review_conditions",
     }
     lists = {
         field: _json_text_list(spec.get(field, []), field) for field in list_fields
     }
     measurement_values = spec.get("measurement_definitions", [])
+    validity_values = spec.get("measurement_validity_checks", [])
+    control_values = spec.get("control_definitions", [])
+    calibration_values = spec.get("calibration_acceptance_criteria", [])
+    if not isinstance(calibration_values, list) or any(not isinstance(item, dict) for item in calibration_values):
+        raise ValueError("calibration_acceptance_criteria must be an array of objects")
+    try:
+        calibration_criteria = [CalibrationCriterion(**item) for item in calibration_values]
+    except TypeError as exc:
+        raise ValueError(f"invalid calibration criterion: {exc}") from exc
+    contract_value = spec.get("analysis_contract")
+    if contract_value is not None and not isinstance(contract_value, dict):
+        raise ValueError("analysis_contract must be an object")
+    try:
+        analysis_contract = AnalysisContract(**contract_value) if contract_value is not None else None
+    except TypeError as exc:
+        raise ValueError(f"invalid analysis contract: {exc}") from exc
+    conclusion_value = spec.get("conclusion_contract")
+    if conclusion_value is not None and not isinstance(conclusion_value, dict):
+        raise ValueError("conclusion_contract must be an object")
+    try:
+        conclusion_contract = (
+            ConclusionContract.from_dict(conclusion_value)
+            if conclusion_value is not None else None
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"invalid conclusion contract: {exc}") from exc
+    step_values = spec.get("analysis_steps", [])
+    if not isinstance(step_values, list) or any(not isinstance(item, dict) for item in step_values):
+        raise ValueError("analysis_steps must be an array of objects")
+    step_fields = {
+        "step_id", "role", "method", "specification_sha256",
+        "implementation_sha256", "depends_on", "hypothesis_id", "outcome",
+        "measurement_id", "family_id", "family_members", "alpha",
+        "p_value_path",
+    }
+    member_fields = {
+        "member_id", "source_step_id", "hypothesis_id", "outcome",
+        "measurement_id",
+    }
+    analysis_steps: list[AnalysisStepContract] = []
+    try:
+        for value in step_values:
+            unknown = sorted(set(value) - step_fields)
+            if unknown:
+                raise ValueError("unknown analysis step fields: " + ", ".join(unknown))
+            members = value.get("family_members", [])
+            if not isinstance(members, list) or any(not isinstance(item, dict) for item in members):
+                raise ValueError("analysis step family_members must be an array of objects")
+            if any(set(item) - member_fields for item in members):
+                raise ValueError("analysis family member contains unknown fields")
+            analysis_steps.append(AnalysisStepContract(
+                step_id=value["step_id"], role=value["role"], method=value["method"],
+                specification_sha256=value["specification_sha256"],
+                implementation_sha256=value["implementation_sha256"],
+                depends_on=value.get("depends_on", []),
+                hypothesis_id=value.get("hypothesis_id", ""),
+                outcome=value.get("outcome", ""),
+                measurement_id=value.get("measurement_id", ""),
+                p_value_path=value.get("p_value_path", ""),
+                family_id=value.get("family_id", ""),
+                family_members=[AnalysisFamilyMember(**item) for item in members],
+                alpha=value.get("alpha"),
+            ))
+    except (KeyError, TypeError) as exc:
+        raise ValueError(f"invalid analysis step contract: {exc}") from exc
+    if not isinstance(control_values, list) or any(not isinstance(item, dict) for item in control_values):
+        raise ValueError("control_definitions must be an array of objects")
+    try:
+        control_definitions = [ControlDefinition(**item) for item in control_values]
+    except TypeError as exc:
+        raise ValueError(f"invalid control definition: {exc}") from exc
     if not isinstance(measurement_values, list):
         raise ValueError("measurement_definitions must be an array")
     measurement_fields = {
@@ -759,6 +1212,14 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         "aggregation",
         "tolerance",
         "expected_behavior",
+        "data_column",
+        "temporal_role",
+        "scale_type",
+        "unit",
+        "admissible_values",
+        "valid_min",
+        "valid_max",
+        "missing_value_codes",
     }
     measurements: list[MeasurementDefinition] = []
     for value in measurement_values:
@@ -784,6 +1245,14 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
                     aggregation=value["aggregation"],
                     tolerance=value["tolerance"],
                     expected_behavior=value["expected_behavior"],
+                    data_column=value.get("data_column", ""),
+                    temporal_role=value.get("temporal_role", ""),
+                    scale_type=value.get("scale_type", ""),
+                    unit=value.get("unit", ""),
+                    admissible_values=value.get("admissible_values", []),
+                    valid_min=value.get("valid_min"),
+                    valid_max=value.get("valid_max"),
+                    missing_value_codes=value.get("missing_value_codes", []),
                 )
             )
         except KeyError as exc:
@@ -792,6 +1261,14 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             ) from exc
         except ValueError as exc:
             raise ValueError(f"invalid measurement role: {value.get('role')}") from exc
+    if not isinstance(validity_values, list) or any(
+        not isinstance(item, dict) for item in validity_values
+    ):
+        raise ValueError("measurement_validity_checks must be an array of objects")
+    try:
+        validity_checks = [MeasurementValidityCheck(**item) for item in validity_values]
+    except TypeError as exc:
+        raise ValueError(f"invalid measurement validity check: {exc}") from exc
     try:
         return CreateProtocol(
             experiment_id=spec["experiment_id"],
@@ -804,20 +1281,37 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             inputs_required=lists["inputs_required"],
             quality_requirements=lists["quality_requirements"],
             controls=lists["controls"],
+            control_definitions=control_definitions,
             measurement_definitions=measurements,
+            measurement_validity_checks=validity_checks,
             expected_outputs=lists["expected_outputs"],
             success_conditions=lists["success_conditions"],
             environment_requirements=lists["environment_requirements"],
             secondary_outcomes=lists["secondary_outcomes"],
+            confirmatory_outcomes=lists["confirmatory_outcomes"],
+            exploratory_outcomes=lists["exploratory_outcomes"],
+            multiplicity_method=spec.get("multiplicity_method", ""),
+            multiplicity_alpha=spec.get("multiplicity_alpha"),
             independent_variables=lists["independent_variables"],
             randomization_plan=spec.get("randomization_plan", ""),
             blinding_plan=spec.get("blinding_plan", ""),
             sampling_unit=spec.get("sampling_unit", ""),
+            independent_unit=spec.get("independent_unit", ""),
+            repeated_measures=spec.get("repeated_measures"),
+            analysis_design=spec.get("analysis_design", ""),
+            unit_analysis_plan=spec.get("unit_analysis_plan", ""),
+            unit_id_column=spec.get("unit_id_column", ""),
+            analysis_specification_sha256=spec.get("analysis_specification_sha256", ""),
+            analysis_contract=analysis_contract,
+            analysis_steps=analysis_steps,
+            conclusion_contract=conclusion_contract,
             sample_size_or_stopping_rule=spec.get("sample_size_or_stopping_rule", ""),
+            sample_size_plan=spec.get("sample_size_plan", {}),
             inclusion_rules=lists["inclusion_rules"],
             exclusion_rules=lists["exclusion_rules"],
             sensor_requirements=lists["sensor_requirements"],
             calibration_requirements=lists["calibration_requirements"],
+            calibration_acceptance_criteria=calibration_criteria,
             measurement_custody_requirements=lists["measurement_custody_requirements"],
             clock_accuracy_requirement=spec.get("clock_accuracy_requirement", ""),
             preprocessing_pipeline=spec.get("preprocessing_pipeline", ""),
@@ -825,6 +1319,8 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             control_windows=lists["control_windows"],
             multiple_testing_policy=spec.get("multiple_testing_policy", ""),
             missing_data_policy=spec.get("missing_data_policy", ""),
+            causal_claim=spec.get("causal_claim", False),
+            causal_identification=spec.get("causal_identification", {}),
             failure_conditions=lists["failure_conditions"],
             safety_constraints=lists["safety_constraints"],
             human_subjects=spec.get("human_subjects", False),
@@ -833,7 +1329,17 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             privacy_plan=spec.get("privacy_plan", ""),
             retention_deletion_plan=spec.get("retention_deletion_plan", ""),
             risk_assessment=spec.get("risk_assessment", ""),
+            vulnerable_population_plan=spec.get("vulnerable_population_plan", ""),
+            data_security_plan=spec.get("data_security_plan", ""),
+            incidental_findings_plan=spec.get("incidental_findings_plan", ""),
             independent_review_receipt=spec.get("independent_review_receipt", ""),
+            independent_review_decision=spec.get("independent_review_decision", ""),
+            independent_reviewer_role=spec.get("independent_reviewer_role", ""),
+            independent_reviewed_at=spec.get("independent_reviewed_at", ""),
+            independent_review_scope=spec.get("independent_review_scope", ""),
+            independent_review_artifact_locator=spec.get("independent_review_artifact_locator", ""),
+            independent_review_artifact_sha256=spec.get("independent_review_artifact_sha256", ""),
+            independent_review_conditions=lists["independent_review_conditions"],
             analysis_code_hash=spec.get("analysis_code_hash", ""),
             external_anchor=spec.get("external_anchor"),
             random_seed_commitment=spec.get("random_seed_commitment"),
@@ -1012,30 +1518,329 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             return [manifest.describe() for manifest in registry.list()]
         return registry.get(args.addon_id).describe()
 
+    if args.group == "analysis" and args.action == "run-draft":
+        from research_machine.addons.receipt import execution_run_draft
+        return execution_run_draft(service, args.execution_directory, args.expected_receipt_sha256, args.inquiry)
+
+    if args.group == "analysis" and args.action == "materialize-holm":
+        from research_machine.addons.workflow import materialize_holm_family
+        return materialize_holm_family(
+            service, args.protocol, args.manifest_file,
+            args.expected_manifest_sha256, args.output, args.inquiry,
+        )
+
+    if args.group == "analysis" and args.action == "adjudicate-holm":
+        from research_machine.addons.workflow import adjudicate_holm_workflow
+        return adjudicate_holm_workflow(
+            service, args.protocol, args.manifest_file,
+            args.expected_manifest_sha256, args.output, args.inquiry,
+        )
+
+    if args.group == "analysis" and args.action == "adjudication-run-draft":
+        from research_machine.addons.workflow import workflow_adjudication_run_draft
+        return workflow_adjudication_run_draft(
+            service, args.adjudication_directory,
+            args.expected_receipt_sha256, args.inquiry,
+        )
+
     if args.group == "analysis" and args.action == "run":
+        if bool(args.protocol) != bool(args.dataset):
+            raise ValueError("analysis --protocol and --dataset must be supplied together")
+        design_check = None
+        if args.protocol:
+            design_check = lambda spec, unit_structure, digest, spec_digest, input_digest, input_size, inference_level: service.validate_analysis_execution(
+                args.protocol, spec,
+                unit_structure,
+                digest, spec_digest, args.dataset, input_digest, input_size,
+                inference_level, args.inquiry
+            )
         return execute_analysis(
             registry=registry,
             spec_path=args.spec_file,
             data_path=args.data_file,
             output_dir=args.output,
+            design_check=design_check,
         )
 
-    if args.group == "design" and args.action == "scaffold":
+    if args.group == "design" and args.action == "interview":
+        from research_machine.design.interview import interview_design
+
+        if args.output is not None and args.revise_hypothesis:
+            raise ValueError("choose either a new experiment --output or --revise-hypothesis")
+        if args.inquiry and not args.revise_hypothesis:
+            raise ValueError("interview --inquiry requires --revise-hypothesis")
+        if args.revise_hypothesis:
+            state = service.show_inquiry(args.inquiry)
+            if args.revise_hypothesis not in {item["hypothesis_id"] for item in state["hypotheses"]}:
+                raise ValueError("revision hypothesis does not exist in the selected inquiry")
+            args.inquiry = state["inquiry"]["inquiry_id"]
+
+        def ask(prompt: str) -> str:
+            print(prompt, file=sys.stderr, flush=True)
+            try:
+                return input()
+            except (EOFError, KeyboardInterrupt) as exc:
+                raise ValueError("design interview cancelled; no experiment or revision was created") from exc
+
+        reason = ""
+        if args.revise_hypothesis:
+            while not reason:
+                reason = ask("Why are you revising this design? Describe any results that informed the change. [required]").strip()
+        result = interview_design(ask)
+        if args.revise_hypothesis:
+            from research_machine.design.revision import revise_design
+            result["revision"] = revise_design(
+                service, result["brief"], hypothesis_id=args.revise_hypothesis,
+                reason=reason, inquiry_id=args.inquiry,
+            )
+        if args.output is not None:
+            result["experiment"] = initialize_experiment_repository(result["brief"], args.output, actor=args.actor)
+        return result
+
+    if args.group == "design" and args.action in {"scaffold", "revise"}:
         brief = _read_json_object(
             args.brief_file,
             allowed_fields={
                 "title", "question", "decision", "study_type", "population", "setting",
-                "intervention", "outcome", "outcome_unit", "unit_of_observation",
+                "intervention", "exposure_definition", "assignment_type",
+                "outcome", "outcome_unit", "outcome_scale",
+                "outcome_admissible_values", "outcome_valid_min", "outcome_valid_max",
+                "outcome_missing_value_codes", "primary_analysis_family",
+                "primary_estimand", "contrast_definition", "expected_effect_direction",
+                "contrast_groups", "group_data_column",
+                "null_value", "support_rule", "confidence_level",
+                "measurement_observable", "measurement_input_condition", "measurement_parameter_values",
+                "measurement_evaluation_point", "measurement_convention",
+                "measurement_aggregation", "measurement_tolerance",
+                "measurement_expected_behavior", "measurement_temporal_role",
+                "outcome_data_column",
+                "measurement_validity_checks",
+                "secondary_measurements",
+                "control_measurements",
+                "causal_measurements",
+                "sample_size_plan",
+                "unit_of_observation",
                 "comparison", "sampling_plan", "randomization_plan", "blinding_plan",
                 "controls", "confounds", "calibration_plan", "measurement_validity",
                 "analysis_commitment", "stopping_rule", "human_participants", "consent_plan",
                 "privacy_plan", "withdrawal_plan", "retention_deletion_plan",
+                "vulnerable_population_plan", "data_security_plan", "incidental_findings_plan",
                 "independent_review", "independent_review_receipt",
-                "risk_description", "exclusions",
+                "independent_review_decision", "independent_reviewer_role",
+                "independent_reviewed_at", "independent_review_scope",
+                "independent_review_artifact_locator",
+                "independent_review_artifact_sha256", "independent_review_conditions",
+                "risk_description", "exclusions", "independent_unit", "repeated_measures", "analysis_design",
+                "observable_prediction", "null_model", "falsification_conditions",
+                "control_definitions", "sample_size_justification", "secondary_outcomes", "unit_analysis_plan",
+                "multiple_testing_policy", "minimum_analyzable_units", "maximum_excluded_fraction",
+                "maximum_group_excluded_fraction_difference",
+                "missingness_assumption", "missingness_assessment_plan",
+                "missingness_failure_response", "missingness_assessment_kind",
+                "missingness_assessment_gate_id",
+                "smallest_effect_size_of_interest", "effect_scale",
+                "conclusion_time_window", "non_supporting_direction",
+                "higher_level_conclusions_unsupported",
+                "unit_id_column",
+                "causal_identification",
             },
             label="design brief",
         )
+        if args.action == "revise":
+            from research_machine.design.revision import revise_design
+            return revise_design(service, brief, hypothesis_id=args.hypothesis,
+                                 reason=args.reason, inquiry_id=args.inquiry)
         return scaffold_design(brief)
+
+    if args.group == "design" and args.action == "initialize":
+        brief = _read_json_object(
+            args.brief_file,
+            allowed_fields={
+                "title", "question", "decision", "study_type", "population", "setting",
+                "intervention", "exposure_definition", "assignment_type",
+                "outcome", "outcome_unit", "outcome_scale",
+                "outcome_admissible_values", "outcome_valid_min", "outcome_valid_max",
+                "outcome_missing_value_codes", "primary_analysis_family",
+                "primary_estimand", "contrast_definition", "expected_effect_direction",
+                "contrast_groups", "group_data_column",
+                "null_value", "support_rule", "confidence_level",
+                "measurement_observable", "measurement_input_condition", "measurement_parameter_values",
+                "measurement_evaluation_point", "measurement_convention",
+                "measurement_aggregation", "measurement_tolerance",
+                "measurement_expected_behavior", "measurement_temporal_role",
+                "outcome_data_column",
+                "measurement_validity_checks",
+                "secondary_measurements",
+                "control_measurements",
+                "causal_measurements",
+                "sample_size_plan",
+                "unit_of_observation",
+                "comparison", "sampling_plan", "randomization_plan", "blinding_plan",
+                "controls", "confounds", "calibration_plan", "measurement_validity",
+                "analysis_commitment", "stopping_rule", "human_participants", "consent_plan",
+                "privacy_plan", "withdrawal_plan", "retention_deletion_plan",
+                "vulnerable_population_plan", "data_security_plan", "incidental_findings_plan",
+                "independent_review", "independent_review_receipt",
+                "independent_review_decision", "independent_reviewer_role",
+                "independent_reviewed_at", "independent_review_scope",
+                "independent_review_artifact_locator",
+                "independent_review_artifact_sha256", "independent_review_conditions",
+                "risk_description", "exclusions", "independent_unit", "repeated_measures", "analysis_design",
+                "observable_prediction", "null_model", "falsification_conditions",
+                "control_definitions", "sample_size_justification", "secondary_outcomes", "unit_analysis_plan",
+                "multiple_testing_policy", "minimum_analyzable_units", "maximum_excluded_fraction",
+                "maximum_group_excluded_fraction_difference",
+                "missingness_assumption", "missingness_assessment_plan",
+                "missingness_failure_response", "missingness_assessment_kind",
+                "missingness_assessment_gate_id",
+                "smallest_effect_size_of_interest", "effect_scale",
+                "conclusion_time_window", "non_supporting_direction",
+                "higher_level_conclusions_unsupported",
+                "unit_id_column",
+                "causal_identification",
+            },
+            label="design brief",
+        )
+        return initialize_experiment_repository(
+            brief,
+            args.output,
+            actor=args.actor,
+            initialize_git=not args.no_git,
+        )
+
+    if args.group == "design" and args.action == "precision":
+        spec, specification_sha256, specification_size = _read_json_object_and_hash(
+            args.spec_file,
+            allowed_fields={
+                "study_design",
+                "target_half_width",
+                "assumed_standard_deviation",
+                "confidence_level",
+                "anticipated_attrition_fraction",
+                "maximum_observed_to_assumed_sd_ratio",
+                "sensitivity_standard_deviations",
+            },
+            label="precision plan",
+        )
+        result = plan_two_group_precision(spec)
+        result["provenance"] = {
+            "scope": "precision_planning_input_snapshot",
+            "specification_sha256": specification_sha256,
+            "specification_size_bytes": specification_size,
+            "specification": spec,
+            "scientific_evidence_eligible": False,
+            "notice": "Binds the parsed input bytes only; does not preregister a study, validate assumptions, or authenticate a planning date.",
+        }
+        return result
+
+    if args.group == "design" and args.action == "power":
+        spec, specification_sha256, specification_size = _read_json_object_and_hash(
+            args.spec_file,
+            allowed_fields={
+                "study_design",
+                "smallest_effect_size_of_interest",
+                "assumed_standard_deviation",
+                "alpha",
+                "target_power",
+                "alternative",
+                "anticipated_attrition_fraction",
+                "maximum_observed_to_assumed_sd_ratio",
+                "sensitivity_effect_sizes",
+                "sensitivity_standard_deviations",
+            },
+            label="power plan",
+        )
+        result = plan_two_group_power(spec)
+        result["provenance"] = {
+            "scope": "power_planning_input_snapshot",
+            "specification_sha256": specification_sha256,
+            "specification_size_bytes": specification_size,
+            "specification": spec,
+            "scientific_evidence_eligible": False,
+            "notice": "Binds the parsed input bytes only; does not preregister a study, validate assumptions, authenticate a planning date, or guarantee achieved power.",
+        }
+        return result
+
+    if args.group == "design" and args.action == "equivalence-power":
+        spec, specification_sha256, specification_size = _read_json_object_and_hash(
+            args.spec_file,
+            allowed_fields={
+                "study_design", "equivalence_margin", "assumed_true_difference",
+                "assumed_standard_deviation", "alpha", "target_power",
+                "anticipated_attrition_fraction",
+                "maximum_observed_to_assumed_sd_ratio",
+                "sensitivity_true_differences", "sensitivity_standard_deviations",
+            },
+            label="equivalence power plan",
+        )
+        result = plan_two_group_equivalence_power(spec)
+        result["provenance"] = {
+            "scope": "equivalence_power_planning_input_snapshot",
+            "specification_sha256": specification_sha256,
+            "specification_size_bytes": specification_size,
+            "specification": spec,
+            "scientific_evidence_eligible": False,
+            "notice": "Binds parsed inputs only; does not preregister a study, validate assumptions, authenticate a planning date, or establish equivalence.",
+        }
+        return result
+
+    if args.group == "design" and args.action == "practical-power":
+        spec, specification_sha256, specification_size = _read_json_object_and_hash(
+            args.spec_file,
+            allowed_fields={
+                "study_design", "smallest_effect_size_of_interest",
+                "assumed_true_effect", "assumed_standard_deviation", "alpha",
+                "confidence_level", "target_power", "alternative",
+                "anticipated_attrition_fraction",
+                "maximum_observed_to_assumed_sd_ratio",
+                "sensitivity_true_effects", "sensitivity_standard_deviations",
+            },
+            label="practical-significance power plan",
+        )
+        result = plan_two_group_practical_power(spec)
+        result["provenance"] = {
+            "scope": "practical_power_planning_input_snapshot",
+            "specification_sha256": specification_sha256,
+            "specification_size_bytes": specification_size,
+            "specification": spec,
+            "scientific_evidence_eligible": False,
+            "notice": "Binds parsed inputs only; does not preregister a study, validate assumptions, authenticate a planning date, or establish practical significance.",
+        }
+        return result
+
+    if args.group == "design" and args.action == "identify":
+        spec, specification_sha256, specification_size = _read_json_object_and_hash(
+            args.spec_file,
+            allowed_fields={"nodes", "edges", "exposure", "outcome", "proposed_adjustment_set", "assignment_type", "assumptions", "causal_estimand"},
+            label="causal identification specification",
+        )
+        result = audit_causal_identification(spec)
+        result["provenance"] = {
+            "scope": "causal_identification_input_snapshot",
+            "specification": spec,
+            "specification_sha256": specification_sha256,
+            "specification_size_bytes": specification_size,
+            "scientific_evidence_eligible": False,
+            "notice": "Binds the supplied graph and assumption register; does not establish that either is true or register an analysis.",
+        }
+        return result
+
+    if args.group == "design" and args.action == "randomize":
+        spec, specification_sha256, specification_size = _read_json_object_and_hash(
+            args.spec_file, allowed_fields={"unit_ids", "groups", "block_size", "seed", "strata"},
+            label="randomization plan",
+        )
+        result = generate_blocked_assignment(spec)
+        result["provenance"] = {
+            "scope": "randomization_input_snapshot", "specification": spec,
+            "specification_sha256": specification_sha256,
+            "specification_size_bytes": specification_size,
+            "notice": "Binds the supplied specification bytes; it does not authenticate when unit order was fixed or assignments were implemented.",
+        }
+        return result
+
+    if args.group == "measurement" and args.action == "template":
+        return service.measurement_custody_template(args.protocol, args.inquiry)
 
     if args.group == "measurement" and args.action == "validate":
         receipt = _read_json_object(
@@ -1047,10 +1852,285 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                 "calibrations",
                 "quality_gates",
                 "derived_observations",
+                "evidence_artifacts",
             },
             label="measurement custody receipt",
         )
-        return {"status": "passed", "receipt": validate_measurement_custody(receipt, args.require_gate)}
+        validated = validate_measurement_custody(receipt, args.require_gate)
+        result = {"status": "passed", "receipt": validated,
+                  "verification_scope": "custody_reference_consistency",
+                  "scientific_evidence_eligible": False}
+        if args.artifact_root is not None:
+            from research_machine.application.artifact_integrity import verify_run_artifacts
+            from research_machine.application.policies import validate_dataset_artifacts
+            artifacts = validate_dataset_artifacts([
+                DatasetArtifact(locator=item["locator"], sha256=item["sha256"], size_bytes=item.get("size_bytes"))
+                for item in [
+                    *validated["raw_sources"], *validated["evidence_artifacts"],
+                    *({"locator": item["implementation_locator"], "sha256": item["implementation_sha256"]}
+                      for item in validated["transformations"]),
+                    *({"locator": item["output_locator"], "sha256": item["output_sha256"]}
+                      for item in validated["transformations"]),
+                ]
+            ])
+            report = verify_run_artifacts(
+                artifacts, artifact_root=str(args.artifact_root), actor=args.actor,
+                analysis_code_hash="", run_metadata={}, attestation_schema_path=None,
+                expected_attestation_schema_sha256=None,
+            )
+            if report.status != "passed":
+                raise ValueError("custody artifact verification failed: " + ", ".join(item["code"] for item in report.findings))
+            result["verification_scope"] = "custody_references_complete_transformation_chain_bytes"
+            result["artifact_integrity"] = report.to_dict()
+        return result
+
+    if args.group == "measurement" and args.action == "record":
+        # Template generation performs the same frozen-protocol commitment check
+        # used by the service before we publish an external write-once artifact.
+        service.measurement_custody_template(args.protocol, args.inquiry)
+        protocols = {
+            item.protocol_id: item for item in service.list_protocols(args.inquiry)
+        }
+        protocol = protocols.get(args.protocol)
+        if protocol is None:
+            raise ValueError(f"protocol {args.protocol} does not exist")
+        return create_measurement_custody_record(
+            args.receipt_file,
+            args.expected_receipt_sha256,
+            protocol,
+            args.artifact_root,
+            args.output,
+            actor=args.actor,
+        )
+
+    if args.group == "measurement" and args.action == "verify-record":
+        service.measurement_custody_template(args.protocol, args.inquiry)
+        protocols = {
+            item.protocol_id: item for item in service.list_protocols(args.inquiry)
+        }
+        protocol = protocols.get(args.protocol)
+        if protocol is None:
+            raise ValueError(f"protocol {args.protocol} does not exist")
+        return verify_measurement_custody_record(
+            args.record_file,
+            args.expected_record_sha256,
+            args.receipt_file,
+            protocol,
+            args.artifact_root,
+            actor=args.actor,
+        )
+
+    if args.group == "measurement" and args.action == "inspect-source":
+        from research_machine.measurement.instrument import inspect_instrument_source
+
+        manifest, adapter = registry.resolve_instrument_adapter(args.adapter)
+        config = _read_json_object(
+            args.config_file,
+            allowed_fields=set(adapter.required_config_fields)
+            | set(adapter.optional_config_fields),
+            label="instrument adapter config",
+        )
+        return inspect_instrument_source(
+            manifest, adapter, args.source_file, args.media_type, config, args.output
+        )
+
+    if args.group == "measurement" and args.action == "verify-source-inspection":
+        from research_machine.measurement.instrument import verify_instrument_inspection
+
+        manifest, adapter = registry.resolve_instrument_adapter(args.adapter)
+        config = _read_json_object(
+            args.config_file,
+            allowed_fields=set(adapter.required_config_fields)
+            | set(adapter.optional_config_fields),
+            label="instrument adapter config",
+        )
+        return verify_instrument_inspection(
+            manifest,
+            adapter,
+            args.source_file,
+            args.media_type,
+            config,
+            args.record_file,
+            args.expected_record_sha256,
+        )
+
+    if args.group == "ethics" and args.action == "record-status":
+        return service.record_ethics_review_event(
+            RecordEthicsReviewEvent(
+                protocol_id=args.protocol,
+                status=args.status,
+                effective_at=args.effective_at,
+                expires_at=args.expires_at,
+                reason=args.reason,
+                review_artifact_locator=args.review_artifact_locator,
+                review_artifact_sha256=args.review_artifact_sha256,
+                review_artifact_root=str(args.review_artifact_root),
+                supersedes_event_id=args.supersedes_event,
+                event_id=args.event_id,
+            ),
+            args.inquiry,
+        ).to_dict()
+
+    if args.group == "replication" and args.action == "verify":
+        from research_machine.replication.package import verify_replication_package
+        return verify_replication_package(args.package, args.expected_manifest_sha256)
+
+    if args.group == "replication" and args.action == "package":
+        return service.export_replication_package(
+            args.protocol,
+            str(args.output),
+            args.inquiry,
+            include_locators=args.include_locators,
+        )
+
+    if args.group == "collaborator" and args.action == "context":
+        context = service.collaborator_context(args.inquiry, purpose=args.purpose)
+        if args.output is None:
+            return context
+        from research_machine.collaboration.proposal import create_context_snapshot
+        return create_context_snapshot(context, args.output)
+
+    if args.group == "collaborator" and args.action == "validate-proposal":
+        from research_machine.collaboration.proposal import validate_collaborator_proposal
+        return validate_collaborator_proposal(
+            args.context_file,
+            args.expected_context_sha256,
+            args.proposal_file,
+            args.output,
+        )
+
+    if args.group == "collaborator" and args.action == "review-proposal":
+        from research_machine.collaboration.proposal import adjudicate_collaborator_proposal
+        return adjudicate_collaborator_proposal(
+            args.proposal_record_file,
+            args.expected_proposal_record_sha256,
+            args.review_file,
+            args.output,
+        )
+
+    if args.group == "literature" and args.action == "screen":
+        from research_machine.literature.screening import create_screening
+        review = _read_json_object(args.review_file, allowed_fields={"reviewer", "decisions"}, label="screening review")
+        return create_screening(args.snapshot_file, args.expected_snapshot_sha256, review, args.output)
+
+    if args.group == "literature" and args.action == "extract":
+        from research_machine.literature.extraction import create_extraction
+        review = _read_json_object(args.review_file, allowed_fields={"reviewer", "source_reviews"}, label="extraction review")
+        return create_extraction(args.screening_file, args.expected_screening_sha256, review, args.output)
+
+    if args.group == "literature" and args.action == "verify-citations":
+        from research_machine.literature.verification import create_citation_verification
+        review = _read_json_object(args.review_file, allowed_fields={"reviewer", "assessments"}, label="citation review")
+        return create_citation_verification(
+            args.extraction_file, args.expected_extraction_sha256, review, args.output
+        )
+
+    if args.group == "literature" and args.action == "assess-bias":
+        from research_machine.literature.bias import create_bias_assessment
+        review = _read_json_object(args.review_file, allowed_fields={"reviewer", "assessments"}, label="bias review")
+        return create_bias_assessment(
+            args.citation_verification_file,
+            args.expected_citation_verification_sha256,
+            review,
+            args.output,
+        )
+
+    if args.group == "literature" and args.action == "reconcile-studies":
+        from research_machine.literature.studies import create_study_reconciliation
+        review = _read_json_object(
+            args.review_file,
+            allowed_fields={"reviewer", "studies", "relationships"},
+            label="study reconciliation review",
+        )
+        return create_study_reconciliation(
+            args.bias_assessment_file,
+            args.expected_bias_assessment_sha256,
+            review,
+            args.output,
+        )
+
+    if args.group == "literature" and args.action == "evidence-map":
+        from research_machine.literature.evidence_map import create_evidence_map
+        return create_evidence_map(
+            args.extraction_file, args.citation_verification_file,
+            args.bias_assessment_file, args.study_reconciliation_file,
+            args.expected_study_reconciliation_sha256, args.output,
+        )
+
+    if args.group == "literature" and args.action == "plan-synthesis":
+        from research_machine.literature.synthesis_plan import create_synthesis_plan
+        specification = _read_json_object(
+            args.spec_file,
+            allowed_fields={
+                "plan_id", "reviewer", "research_question", "primary_outcome",
+                "synthesis_type", "effect_measure", "contrast_definition", "statistical_model",
+                "minimum_independent_studies", "eligibility_policy", "missing_statistics_policy",
+                "heterogeneity_policy", "multiplicity_policy", "subgroup_analyses",
+                "sensitivity_analyses", "conclusion_rule", "deviation_policy",
+            },
+            label="synthesis plan",
+        )
+        return create_synthesis_plan(
+            args.screening_file, args.expected_screening_sha256, specification, args.output
+        )
+
+    if args.group == "literature" and args.action == "synthesize":
+        from research_machine.literature.synthesis import execute_qualitative_synthesis
+        return execute_qualitative_synthesis(
+            args.plan_file, args.expected_plan_sha256, args.extraction_file,
+            args.evidence_map_file, args.expected_evidence_map_sha256,
+            args.deviations_file, args.expected_deviations_sha256, args.output,
+        )
+
+    if args.group == "literature" and args.action == "prepare-effects":
+        from research_machine.literature.effects import create_effect_records
+        review = _read_json_object(args.review_file, allowed_fields={"reviewer", "records"}, label="effect review")
+        return create_effect_records(
+            args.plan_file, args.expected_plan_sha256, args.extraction_file,
+            args.evidence_map_file, args.expected_evidence_map_sha256, review, args.output,
+        )
+
+    if args.group == "literature" and args.action == "derive-effects":
+        from research_machine.literature.effect_derivation import derive_effect_records
+        summaries = _read_json_object(args.summaries_file, allowed_fields={"reviewer", "records"}, label="effect summaries")
+        return derive_effect_records(
+            args.plan_file, args.expected_plan_sha256, args.extraction_file,
+            args.evidence_map_file, args.expected_evidence_map_sha256, summaries, args.output,
+        )
+
+    if args.group == "literature" and args.action == "verify-effects":
+        from research_machine.literature.effect_verification import create_effect_verification
+        review = _read_json_object(args.review_file, allowed_fields={"reviewer", "assessments"}, label="effect verification")
+        return create_effect_verification(args.effects_file, args.expected_effects_sha256, review, args.output)
+
+    if args.group == "literature" and args.action == "pool-effects":
+        from research_machine.literature.meta_analysis import execute_meta_analysis
+        return execute_meta_analysis(
+            args.plan_file, args.expected_plan_sha256,
+            args.effects_file, args.expected_effects_sha256,
+            args.effect_verification_file, args.expected_effect_verification_sha256,
+            args.deviations_file, args.expected_deviations_sha256, args.output,
+        )
+
+    if args.group == "literature" and args.action == "record-deviations":
+        from research_machine.literature.deviations import create_synthesis_deviations
+        disclosure = _read_json_object(
+            args.disclosure_file, allowed_fields={"reviewer", "deviations"},
+            label="synthesis deviation disclosure",
+        )
+        return create_synthesis_deviations(
+            args.plan_file, args.expected_plan_sha256, disclosure, args.output
+        )
+
+    if args.group == "literature" and args.action == "snapshot":
+        manifest = _read_json_object(
+            args.manifest_file,
+            allowed_fields={
+                "snapshot_id", "query", "inclusion_criteria", "exclusion_criteria", "sources"
+            },
+            label="literature snapshot",
+        )
+        return create_snapshot(manifest, args.output)
 
     if args.group == "workspace":
         if args.action == "init":
@@ -1166,6 +2246,12 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                 primary_estimand=_choose(
                     args.primary_estimand, proposal, "primary_estimand", ""
                 ),
+                contrast_definition=_choose(
+                    args.contrast_definition, proposal, "contrast_definition", ""
+                ),
+                contrast_groups=_choose_list(
+                    args.contrast_group, proposal, "contrast_groups"
+                ),
                 expected_effect_direction=_choose(
                     args.expected_effect_direction,
                     proposal,
@@ -1258,6 +2344,21 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                         "quality_attestations",
                     ),
                     metadata=manifest.get("metadata", {}),
+                    artifact_root=(
+                        str(args.artifact_root)
+                        if args.artifact_root is not None
+                        else None
+                    ),
+                    custody_artifact_root=(
+                        str(args.custody_artifact_root)
+                        if args.custody_artifact_root is not None
+                        else None
+                    ),
+                    ethics_artifact_root=(
+                        str(args.ethics_artifact_root)
+                        if args.ethics_artifact_root is not None
+                        else None
+                    ),
                 ),
                 args.inquiry,
             ).to_dict()
@@ -1272,11 +2373,13 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             if args.action == "create":
                 return service.create_protocol(protocol_command, args.inquiry).to_dict()
             return service.amend_protocol(
-                args.protocol_id, protocol_command, args.reason, args.inquiry
+                args.protocol_id, protocol_command, args.reason,
+                args.timing, args.evidence_exposure, args.inquiry
             ).to_dict()
         if args.action == "freeze":
             return service.freeze_protocol(
-                args.protocol_id, args.inquiry, external_anchor=args.external_anchor
+                args.protocol_id, args.inquiry, external_anchor=args.external_anchor,
+                review_artifact_root=(str(args.review_artifact_root) if args.review_artifact_root else None),
             ).to_dict()
         if args.action == "show":
             return service.get_protocol(args.protocol_id, args.inquiry).to_dict()
@@ -1388,9 +2491,34 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                         ValidationTag(value) for value in args.validation_tag
                     ],
                     exploratory=not args.confirmatory,
+                    analysis_output_sha256=args.analysis_output_sha256,
+                    effect_estimate_path=args.effect_estimate_path,
+                    uncertainty_path=args.uncertainty_path,
                 ),
                 args.inquiry,
             ).to_dict()
+        if args.action == "record-status":
+            return service.record_evidence_status_event(
+                RecordEvidenceStatusEvent(
+                    evidence_id=args.evidence,
+                    status=args.status,
+                    effective_at=args.effective_at,
+                    reason=args.reason,
+                    review_artifact_locator=args.review_artifact_locator,
+                    review_artifact_sha256=args.review_artifact_sha256,
+                    review_artifact_root=str(args.review_artifact_root),
+                    supersedes_event_id=args.supersedes_event,
+                    event_id=args.event_id,
+                ),
+                args.inquiry,
+            ).to_dict()
+        if args.action == "status-history":
+            return [
+                item.to_dict()
+                for item in service.list_evidence_status_events(
+                    args.inquiry, evidence_id=args.evidence
+                )
+            ]
         return [record.to_dict() for record in service.list_evidence(args.inquiry)]
 
     if args.group == "synthesis" and args.action == "build":

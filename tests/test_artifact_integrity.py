@@ -399,6 +399,7 @@ def test_run_preflight_rejects_unverified_replication_without_writing(
                 gate_id="replication-check",
                 status=QualityGateStatus.PASSED,
                 summary="The independent checks passed.",
+                details={"evidence_sha256": artifacts[0].sha256},
             )
         ],
         metadata=_metadata("run-original"),
@@ -444,6 +445,7 @@ def test_cli_rechecks_artifact_bytes_when_recording(
                         "gate_id": "replication-check",
                         "status": "passed",
                         "summary": "The independent checks passed.",
+                        "details": {"evidence_sha256": artifacts[0].sha256},
                     }
                 ],
                 "metadata": _metadata(target_run_id),
