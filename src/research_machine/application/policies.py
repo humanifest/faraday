@@ -932,6 +932,11 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         raise ValidationError("only draft protocols can be frozen")
     if not isinstance(protocol.causal_claim, bool):
         raise ValidationError("causal_claim must be true or false")
+    quality_requirement_ids = [
+        require_text(gate_id, "quality_requirements item").strip()
+        for gate_id in protocol.quality_requirements
+    ]
+    quality_requirement_set = set(quality_requirement_ids)
     if protocol.causal_claim:
         from research_machine.design.causal import audit_causal_identification
 
@@ -1004,7 +1009,7 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         missing_assessment_gates = sorted({
             item["assessment_gate_id"]
             for item in causal_audit["assumption_register"]
-        } - set(protocol.quality_requirements))
+        } - quality_requirement_set)
         if missing_assessment_gates:
             raise ValidationError(
                 "causal assumption assessment gates must be protocol quality requirements: "
@@ -1037,7 +1042,7 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             raise ValidationError(
                 "analysis_contract.missingness_assessment_kind is unsupported"
             )
-        if contract.missingness_assessment_gate_id not in protocol.quality_requirements:
+        if contract.missingness_assessment_gate_id not in quality_requirement_set:
             raise ValidationError(
                 "analysis_contract.missingness_assessment_gate_id must name a required quality gate"
             )
@@ -1509,7 +1514,7 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         missing.append("expected_outputs")
     if not protocol.success_conditions:
         missing.append("success_conditions")
-    if len(set(protocol.quality_requirements)) != len(protocol.quality_requirements):
+    if len(quality_requirement_set) != len(quality_requirement_ids):
         raise ValidationError("quality_requirements must not contain duplicates")
     if protocol.measurement_definitions:
         validate_measurement_contract(protocol)
@@ -1552,7 +1557,7 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 raise ValidationError(
                     "measurement validity check must bind an exact protocol measurement_id"
                 )
-            if check.assessment_gate_id not in protocol.quality_requirements:
+            if check.assessment_gate_id not in quality_requirement_set:
                 raise ValidationError(
                     "measurement validity assessment gate must be a required protocol quality gate"
                 )
@@ -1580,7 +1585,7 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 raise ValidationError("duplicate control definition ID or registered control")
             control_ids.add(control.control_id)
             targets.add(control.registered_control)
-            if control.evaluation_gate_id not in protocol.quality_requirements:
+            if control.evaluation_gate_id not in quality_requirement_set:
                 raise ValidationError("control evaluation gate must be a required protocol quality gate")
         if targets != set(protocol.controls):
             raise ValidationError("control definitions must cover exactly the registered controls")

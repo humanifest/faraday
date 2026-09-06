@@ -216,6 +216,15 @@ def test_measurement_custody_requirement_ids_are_unambiguous_at_freeze() -> None
         validate_protocol_freeze(protocol)
 
 
+def test_quality_requirement_ids_are_unambiguous_at_freeze() -> None:
+    protocol = replace(
+        _multi_step_protocol(),
+        quality_requirements=["integrity", "missingness-assessed", " integrity "],
+    )
+    with pytest.raises(ValidationError, match="quality_requirements"):
+        validate_protocol_freeze(protocol)
+
+
 def test_frozen_analysis_workflow_binds_primary_secondary_and_holm_family() -> None:
     validate_protocol_freeze(_multi_step_protocol())
 
