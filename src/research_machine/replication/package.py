@@ -21,6 +21,9 @@ from research_machine.domain.models import (
 )
 from research_machine.application.policies import require_text, validate_quality_gates
 from research_machine.application.protocol_integrity import protocol_commitment
+from research_machine.application.dataset_integrity import (
+    validate_dataset_payload_commitment,
+)
 from research_machine.application.run_integrity import validate_run_payload_commitment
 
 
@@ -169,6 +172,8 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 raise ValidationError("package run IDs disagree with unique run records")
             dataset_by_id = {item.dataset_id: item for item in datasets}
             for dataset in datasets:
+                if manifest.get("artifact_locator_policy") == "included":
+                    validate_dataset_payload_commitment(dataset)
                 if len(dataset.source_dataset_ids) != len(set(dataset.source_dataset_ids)):
                     raise ValidationError(
                         f"package dataset {dataset.dataset_id} repeats a lineage source"

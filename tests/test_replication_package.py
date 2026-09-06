@@ -9,6 +9,7 @@ from research_machine.application.commands import (
     CreateInquiry,
     CreateProtocol,
     ProposeHypothesis,
+    RegisterDataset,
     RecordRun,
 )
 from research_machine.application.service import ResearchService
@@ -69,6 +70,14 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
     ))
     frozen = service.freeze_protocol(protocol.protocol_id)
+    dataset = service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
     output = tmp_path / "result.json"
     output.write_text('{"result":"passed"}\n', encoding="utf-8")
     output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
@@ -226,6 +235,14 @@ def test_included_locator_package_replays_protocol_hash(tmp_path: Path) -> None:
         failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
     ))
     frozen = service.freeze_protocol(protocol.protocol_id)
+    dataset = service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
     output = tmp_path / "result.json"
     output.write_text('{"result":"passed"}\n', encoding="utf-8")
     output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
@@ -254,6 +271,25 @@ def test_included_locator_package_replays_protocol_hash(tmp_path: Path) -> None:
     )
     verify_replication_package(package, exported["package_manifest_sha256"])
 
+    datasets_path = package / "datasets.json"
+    datasets = json.loads(datasets_path.read_text())
+    assert datasets[0]["dataset_id"] == dataset.dataset_id
+    datasets[0]["name"] = "Tampered dataset identity"
+    datasets_path.write_text(json.dumps(datasets, indent=2, sort_keys=True) + "\n")
+    manifest_path = package / "package-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"]["datasets.json"] = hashlib.sha256(datasets_path.read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest))
+    commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="dataset .* payload"):
+        verify_replication_package(package, commitment)
+
+    package = tmp_path / "included-locators-protocol-package"
+    exported = service.export_replication_package(
+        frozen.protocol_id, str(package), include_locators=True
+    )
+    verify_replication_package(package, exported["package_manifest_sha256"])
     protocol_path = package / "protocol.json"
     protocol_record = json.loads(protocol_path.read_text())
     protocol_record["title"] = "Tampered after package export"
