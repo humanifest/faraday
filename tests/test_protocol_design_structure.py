@@ -200,6 +200,22 @@ def test_calibration_acceptance_ids_are_unambiguous_at_freeze() -> None:
         ))
 
 
+def test_measurement_custody_requirement_ids_are_unambiguous_at_freeze() -> None:
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        measurement_custody_requirements=["clock-sync", " clock-sync "],
+        calibration_acceptance_criteria=[
+            CalibrationCriterion(
+                "clock-residual", "clock", "absolute clock residual", "ms",
+                "Keep synchronization error below the registered event limit.",
+                lower_bound=0.0, upper_bound=1.0,
+            ),
+        ],
+    )
+    with pytest.raises(ValidationError, match="measurement_custody_requirements"):
+        validate_protocol_freeze(protocol)
+
+
 def test_frozen_analysis_workflow_binds_primary_secondary_and_holm_family() -> None:
     validate_protocol_freeze(_multi_step_protocol())
 

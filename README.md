@@ -851,9 +851,10 @@ gates that clear registration. Protected registration now also requires
 output locators, and Faraday verifies raw-source, implementation, derived-output,
 and supporting-evidence bytes. It persists the resulting integrity report, receipt hash, protocol hash,
 actor, and verification time inside the immutable dataset manifest.
-Stable calibration criterion, calibration, transformation, gate, and derived-
-observation IDs must be unique after trimming whitespace, so cosmetic padding
-cannot split one custody node into apparently separate provenance records.
+Stable required custody-gate, calibration criterion, calibration,
+transformation, gate, and derived-observation IDs must be unique after trimming
+whitespace, so cosmetic padding cannot split one custody node into apparently
+separate provenance records.
 Offset-aware transformation, gate-evaluation, and derived-observation times must
 also follow their declared input and calibration prerequisites. This establishes
 internal chronology, not an externally authenticated timestamp.

@@ -1584,12 +1584,12 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 raise ValidationError("control evaluation gate must be a required protocol quality gate")
         if targets != set(protocol.controls):
             raise ValidationError("control definitions must cover exactly the registered controls")
-    if len(set(protocol.measurement_custody_requirements)) != len(
-        protocol.measurement_custody_requirements
-    ):
+    custody_requirement_ids = [
+        require_text(gate_id, "measurement_custody_requirements item").strip()
+        for gate_id in protocol.measurement_custody_requirements
+    ]
+    if len(set(custody_requirement_ids)) != len(custody_requirement_ids):
         raise ValidationError("measurement_custody_requirements must not contain duplicates")
-    for gate_id in protocol.measurement_custody_requirements:
-        require_text(gate_id, "measurement_custody_requirements item")
     criteria_ids: set[str] = set()
     calibration_ids: set[str] = set()
     for criterion in protocol.calibration_acceptance_criteria:
