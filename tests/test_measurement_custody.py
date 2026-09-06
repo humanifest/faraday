@@ -339,7 +339,15 @@ def test_custody_rejects_calibration_that_does_not_match_frozen_criterion(field,
         validate_measurement_custody(receipt, ["clock-sync"], [_clock_criterion()])
 
 
-@pytest.mark.parametrize("section,key", [("transformations", "transformation_id"), ("derived_observations", "observation_id")])
+@pytest.mark.parametrize(
+    "section,key",
+    [
+        ("transformations", "transformation_id"),
+        ("calibrations", "calibration_id"),
+        ("quality_gates", "gate_id"),
+        ("derived_observations", "observation_id"),
+    ],
+)
 @pytest.mark.parametrize("padding", ["", " "])
 def test_custody_identifiers_are_unambiguous(section, key, padding):
     receipt = _receipt()
@@ -349,8 +357,12 @@ def test_custody_identifiers_are_unambiguous(section, key, padding):
         duplicate["version"] = "2"
         duplicate["input_sha256"] = "b" * 64
         duplicate["output_sha256"] = "d" * 64
-    else:
+    elif section == "derived_observations":
         duplicate["definition"] = "A different derived measurement"
+    elif section == "calibrations":
+        duplicate["reference"] = "A different traceable reference"
+    else:
+        duplicate["summary"] = "A different quality gate assessment"
     receipt[section].append(duplicate)
     with pytest.raises(ValidationError, match=f"{key} must be unique"):
         validate_measurement_custody(receipt)

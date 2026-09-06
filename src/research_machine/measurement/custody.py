@@ -146,9 +146,9 @@ def validate_measurement_custody(
         performed_at = _timestamp(item["performed_at"], "calibration.performed_at")
         if item.get("status") != "passed":
             raise ValidationError("measurement custody calibration status must be passed")
-        calibration_id = item["calibration_id"]
+        calibration_id = item["calibration_id"].strip()
         if calibration_id in calibration_ids:
-            raise ValidationError("duplicate calibration_id")
+            raise ValidationError("measurement custody calibration_id must be unique")
         calibration_ids.add(calibration_id)
         calibration_times[calibration_id] = performed_at
         require_evidence(item, "calibration")
@@ -178,9 +178,9 @@ def validate_measurement_custody(
     for item in gates:
         if not isinstance(item, dict):
             raise ValidationError("each measurement quality gate must be an object")
-        gate_id = _text(item.get("gate_id"), "quality gate gate_id")
+        gate_id = _text(item.get("gate_id"), "quality gate gate_id").strip()
         if gate_id in gate_ids:
-            raise ValidationError(f"duplicate measurement quality gate: {gate_id}")
+            raise ValidationError("measurement custody gate_id must be unique")
         gate_ids.add(gate_id)
         evaluated_at = _timestamp(item.get("evaluated_at"), f"quality gate {gate_id}.evaluated_at")
         require_evidence(item, f"quality gate {gate_id}")
