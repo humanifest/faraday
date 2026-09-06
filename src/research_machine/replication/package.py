@@ -20,6 +20,7 @@ from research_machine.domain.models import (
     QualityGateStatus,
 )
 from research_machine.application.policies import require_text, validate_quality_gates
+from research_machine.application.protocol_integrity import protocol_commitment
 
 
 def _strict_json_bytes(content: bytes, label: str) -> Any:
@@ -115,6 +116,14 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 != protocol.registration_timestamp
             ):
                 raise ValidationError("version-2 package protocol summary disagrees with protocol.json")
+            if manifest.get("artifact_locator_policy") == "included":
+                if (
+                    not protocol.protocol_hash
+                    or protocol_commitment(protocol) != protocol.protocol_hash
+                ):
+                    raise ValidationError(
+                        "package protocol content no longer matches its hash commitment"
+                    )
             ethics_value = _strict_json_bytes(
                 (root / "ethics-review-events.json").read_bytes(),
                 "ethics-review-events.json",

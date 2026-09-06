@@ -206,3 +206,41 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     with pytest.raises(ValidationError):
         verify_replication_package(package, commitment)
     assert service.verify_ledger()["valid"] is True
+
+
+def test_included_locator_package_replays_protocol_hash(tmp_path: Path) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL, methodology="Method", quality_requirements=["gate"],
+        controls=["control"], expected_outputs=["output"], success_conditions=["success"],
+        environment_requirements=["environment"], sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    package = tmp_path / "included-locators-package"
+    exported = service.export_replication_package(
+        frozen.protocol_id, str(package), include_locators=True
+    )
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    protocol_path = package / "protocol.json"
+    protocol_record = json.loads(protocol_path.read_text())
+    protocol_record["title"] = "Tampered after package export"
+    protocol_path.write_text(json.dumps(protocol_record, indent=2, sort_keys=True) + "\n")
+    manifest_path = package / "package-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"]["protocol.json"] = hashlib.sha256(protocol_path.read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest))
+    commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="protocol content"):
+        verify_replication_package(package, commitment)

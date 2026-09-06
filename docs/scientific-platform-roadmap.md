@@ -721,6 +721,9 @@ status, and evidence eligibility. The verifier applies the same nonblank,
 trimmed-unique identity rules to packaged protocol requirements, run gates, and
 run-gate prerequisites that canonical intake uses, closing package-only
 ambiguity before a package can be trusted independently.
+When a package includes locators, verification also recomputes the packaged
+protocol's frozen hash commitment from the unredacted protocol bytes; redacted
+packages preserve but cannot independently replay locator-bearing commitments.
 Export self-verifies before atomic publication.
 Version-1 packages remain verifiable.
 Export itself does not validate a replication

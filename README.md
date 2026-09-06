@@ -549,8 +549,11 @@ protocol-gate coverage, passed-gate output evidence, prerequisite satisfaction,
 run validity, and final scientific-evidence eligibility. Gate IDs and
 prerequisite references are normalized with the same nonblank, trimmed-unique
 rules used by canonical run intake, so malformed package metadata cannot survive
-independent verification. The exporter runs this verifier against its staging
-directory before atomically publishing a package.
+independent verification. Packages exported with `--include-locators` also
+replay the packaged protocol's frozen hash commitment from the unredacted
+protocol bytes; redacted packages preserve the original commitment but cannot
+independently replay locator-bearing hashes. The exporter runs this verifier
+against its staging directory before atomically publishing a package.
 
 ## Evidence corrections and retractions
 
