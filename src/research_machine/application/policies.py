@@ -1711,8 +1711,13 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
                     or not math.isfinite(float(bound))
                 ):
                     raise ValidationError(f"{prefix}.{field_name} must be finite or null")
-            if all(bound is not None for bound in bounds) and definition.valid_min > definition.valid_max:
-                raise ValidationError(f"{prefix}.valid_min cannot exceed valid_max")
+            if (
+                all(bound is not None for bound in bounds)
+                and definition.valid_min >= definition.valid_max
+            ):
+                raise ValidationError(
+                    f"{prefix}.valid_min must be strictly below valid_max"
+                )
             categorical = definition.scale_type in {"binary", "nominal", "ordinal"}
             if categorical:
                 if not definition.admissible_values:

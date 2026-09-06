@@ -403,8 +403,8 @@ step leaves the graph unresolved; the interview never fabricates causal
 structure.
 Scale-aware measurement-design delivery: the same provider-free paths now ask
 for the primary outcome's typed scale and analysis family, preserve categorical
-domains, numeric bounds, and missing-value encodings, and emit a review-only
-primary measurement-definition draft. The auditor rejects malformed or
+domains, strictly ordered numeric bounds, and missing-value encodings, and emit
+a review-only primary measurement-definition draft. The auditor rejects malformed or
 colliding domains, invalid ranges, and mean/linear estimators applied to
 nominal, ordinal, or time-to-event outcomes. Missing answers remain visible
 warnings; the scaffold never invents a scale or silently encodes categories as

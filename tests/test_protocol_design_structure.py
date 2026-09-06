@@ -922,7 +922,7 @@ def test_protocol_freeze_rejects_nested_scaffold_placeholder():
         validate_protocol_freeze(protocol)
 
 
-@pytest.mark.parametrize("failure", [None, "design", "implementation", "specification", "unpinned", "input", "size", "role", "unit", "wrong_unit_column", "duplicate_unit", "allocation", "information_minimum", "differential_exclusion", "value_domain", "contract_method", "contract_outcome", "contract_group", "contract_levels", "contract_covariates", "contract_missingness", "contract_estimand", "contract_contrast", "contract_hypothesis", "contract_measurement", "measurement_column", "measurement_scale", "measurement_unit", "measurement_domain", "contract_selector", "duplicate_selectors", "missing_result_selector"])
+@pytest.mark.parametrize("failure", [None, "design", "implementation", "specification", "unpinned", "input", "size", "role", "unit", "wrong_unit_column", "duplicate_unit", "allocation", "information_minimum", "differential_exclusion", "value_domain", "contract_method", "contract_outcome", "contract_group", "contract_levels", "contract_covariates", "contract_missingness", "contract_estimand", "contract_contrast", "contract_hypothesis", "contract_measurement", "measurement_column", "measurement_scale", "measurement_unit", "measurement_domain", "measurement_bounds", "contract_selector", "duplicate_selectors", "missing_result_selector"])
 @pytest.mark.parametrize("kind", [ProtocolKind.OBSERVATIONAL, ProtocolKind.EXPERIMENTAL])
 def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, failure, kind):
     from research_machine.addons.execution import _implementation_hash
@@ -957,6 +957,8 @@ def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, fai
         measurements[0] = replace(measurements[0], unit="")
     elif failure == "measurement_domain":
         measurements[0] = replace(measurements[0], missing_value_codes=["NA", "NA"])
+    elif failure == "measurement_bounds":
+        measurements[0] = replace(measurements[0], valid_min=10, valid_max=10)
     elif failure == "contract_outcome":
         measurements[0] = replace(measurements[0], data_column="other_outcome")
     allocation = [
@@ -1027,8 +1029,8 @@ def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, fai
             ),
             "quality_requirements": ["integrity", "missingness-assessed"],
     }))
-    if failure in {"contract_missingness", "contract_estimand", "contract_contrast", "contract_levels", "contract_hypothesis", "contract_measurement", "measurement_column", "measurement_scale", "measurement_unit", "measurement_domain", "contract_selector", "duplicate_selectors"}:
-        message = {"contract_missingness": "complete_case", "contract_estimand": "primary hypothesis estimand", "contract_contrast": "contrast_definition", "contract_levels": "contrast_groups", "contract_hypothesis": "tested hypothesis", "contract_measurement": "primary_measurement_id", "measurement_column": "data_column", "measurement_scale": "requires a binary, interval, ratio, or count", "measurement_unit": "unit must not be empty", "measurement_domain": "missing_value_codes must contain unique", "contract_selector": "absolute JSON Pointer", "duplicate_selectors": "must be distinct"}[failure]
+    if failure in {"contract_missingness", "contract_estimand", "contract_contrast", "contract_levels", "contract_hypothesis", "contract_measurement", "measurement_column", "measurement_scale", "measurement_unit", "measurement_domain", "measurement_bounds", "contract_selector", "duplicate_selectors"}:
+        message = {"contract_missingness": "complete_case", "contract_estimand": "primary hypothesis estimand", "contract_contrast": "contrast_definition", "contract_levels": "contrast_groups", "contract_hypothesis": "tested hypothesis", "contract_measurement": "primary_measurement_id", "measurement_column": "data_column", "measurement_scale": "requires a binary, interval, ratio, or count", "measurement_unit": "unit must not be empty", "measurement_domain": "missing_value_codes must contain unique", "measurement_bounds": "valid_min must be strictly below valid_max", "contract_selector": "absolute JSON Pointer", "duplicate_selectors": "must be distinct"}[failure]
         with pytest.raises(ValidationError, match=message):
             service.freeze_protocol(draft.protocol_id)
         return
