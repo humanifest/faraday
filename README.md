@@ -643,6 +643,9 @@ a compact `study_provenance` table for available and unavailable studies, so a
 pooled estimate cannot shed the reviewed claim boundary or hide studies with
 missing compatible statistics. The same table retains the independent
 source-transcription and arithmetic verification status for each effect record.
+Literature deviation declarations retain a compact snapshot of the frozen
+synthesis-plan commitments, and qualitative synthesis or quantitative pooling
+must match that snapshot before recording a result.
 
 ## Precision, difference-power, practical-power, and equivalence-power planning
 

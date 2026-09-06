@@ -33,6 +33,9 @@ def create_synthesis_deviations(
     if (not isinstance(plan, dict) or plan.get("synthesis_plan_version") != 1
             or plan.get("status") != "synthesis_plan_frozen"):
         raise ValidationError("synthesis deviations require a frozen version 1 plan")
+    synthesis_type = plan.get("synthesis_type")
+    if synthesis_type not in {"qualitative", "quantitative"}:
+        raise ValidationError("synthesis deviations require a plan with a supported synthesis_type")
     if not isinstance(disclosure, dict) or set(disclosure) != {"reviewer", "deviations"}:
         raise ValidationError("deviation disclosure requires exactly reviewer and deviations")
     reviewer = _text(disclosure["reviewer"], "deviation reviewer")
@@ -50,6 +53,8 @@ def create_synthesis_deviations(
             raise ValidationError("duplicate synthesis deviation_id")
         if item["stage"] not in _STAGES or item["timing"] not in _TIMINGS:
             raise ValidationError("invalid synthesis deviation stage or timing")
+        if synthesis_type == "qualitative" and item["stage"] == "effect_preparation":
+            raise ValidationError("qualitative synthesis deviations cannot use the effect_preparation stage")
         by_id[deviation_id] = {"deviation_id": deviation_id, "stage": item["stage"],
             "frozen_commitment": _text(item["frozen_commitment"], "frozen_commitment").strip(),
             "actual_method": _text(item["actual_method"], "actual_method").strip(),
@@ -61,6 +66,18 @@ def create_synthesis_deviations(
     elevated = bool(timing_counts["after_results_seen"] or timing_counts["unknown"])
     result = {"synthesis_deviations_version": 1, "synthesis_plan_sha256": digest,
         "plan_id": plan.get("plan_id"), "snapshot_id": plan.get("snapshot_id"),
+        "frozen_plan_commitments": {
+            "synthesis_type": synthesis_type,
+            "research_question": plan.get("research_question"),
+            "primary_outcome": plan.get("primary_outcome"),
+            "effect_measure": plan.get("effect_measure"),
+            "contrast_definition": plan.get("contrast_definition"),
+            "statistical_model": plan.get("statistical_model"),
+            "minimum_independent_studies": plan.get("minimum_independent_studies"),
+            "included_source_ids_at_freeze": plan.get("included_source_ids_at_freeze"),
+            "conclusion_rule": plan.get("conclusion_rule"),
+            "deviation_policy": plan.get("deviation_policy"),
+        },
         "reviewer": reviewer, "deviations": [by_id[item] for item in sorted(by_id)],
         "timing_counts": timing_counts,
         "status": ("no_deviations_declared" if not by_id else

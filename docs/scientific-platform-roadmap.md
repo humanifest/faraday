@@ -876,13 +876,16 @@ funnel asymmetry remain explicit.
 the frozen synthesis-plan hash. Each departure identifies its workflow stage,
 frozen commitment, actual method, reason, timing, impact, and corrective action.
 Changes after results were seen—or with unknown timing—force heightened review.
-The artifact cannot amend the plan, retroactively preregister a choice, raise a
-claim ceiling, or authenticate the researcher's account.
+The artifact also retains a compact frozen-plan commitment snapshot, and rejects
+synthesis-type-incompatible stages such as qualitative effect preparation. It
+cannot amend the plan, retroactively preregister a choice, raise a claim ceiling,
+or authenticate the researcher's account.
 Both qualitative synthesis and quantitative pooling now require this declaration,
 including an immutable `no_deviations_declared` artifact when none are reported.
-The declaration hash is embedded in the result. Retrospective or unknown-timing
-departures do not suppress computation, but force a deviation-review status and
-remain visible in the synthesis output.
+The declaration hash and frozen-plan snapshot are embedded in the result and
+checked against the supplied plan. Retrospective or unknown-timing departures do
+not suppress computation, but force a deviation-review status and remain visible
+in the synthesis output.
 
 Precision-planning delivery: `research design precision` requires a declared
 independent-groups design, a target interval half-width, an assumed standard

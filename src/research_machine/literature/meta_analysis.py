@@ -144,6 +144,14 @@ def execute_meta_analysis(
             or deviation_status not in {"no_deviations_declared", "prospective_deviations_recorded",
                                         "retrospective_or_uncertain_deviation_review_required"}):
         raise ValidationError("meta-analysis requires a valid deviation declaration bound to the plan")
+    frozen_deviation_plan = deviations.get("frozen_plan_commitments")
+    if not isinstance(frozen_deviation_plan, dict):
+        raise ValidationError("meta-analysis requires deviation-bound frozen plan commitments")
+    if (frozen_deviation_plan.get("synthesis_type") != "quantitative"
+            or frozen_deviation_plan.get("effect_measure") != plan.get("effect_measure")
+            or frozen_deviation_plan.get("statistical_model") != plan.get("statistical_model")
+            or frozen_deviation_plan.get("minimum_independent_studies") != plan.get("minimum_independent_studies")):
+        raise ValidationError("deviation-bound frozen plan commitments do not match the supplied plan")
     model = plan.get("statistical_model")
     if model not in {"fixed_effect", "random_effects"}:
         raise ValidationError("meta-analysis requires a supported frozen statistical model")
@@ -267,7 +275,9 @@ def execute_meta_analysis(
         "inputs": {"synthesis_plan_sha256": plan_sha, "effect_records_sha256": effects_sha,
                    "effect_verification_sha256": effect_verification_sha,
                    "synthesis_deviations_sha256": deviations_sha},
-        "deviation_status": deviation_status, "deviations": deviations.get("deviations"),
+        "deviation_status": deviation_status,
+        "deviation_plan_commitments": frozen_deviation_plan,
+        "deviations": deviations.get("deviations"),
         "plan_id": plan.get("plan_id"), "snapshot_id": plan.get("snapshot_id"),
         "effect_measure": plan.get("effect_measure"), "statistical_model": model,
         "available_study_count": len(available), "unavailable_studies": unavailable,

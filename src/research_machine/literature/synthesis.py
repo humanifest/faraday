@@ -52,6 +52,13 @@ def execute_qualitative_synthesis(
             or deviation_status not in {"no_deviations_declared", "prospective_deviations_recorded",
                                         "retrospective_or_uncertain_deviation_review_required"}):
         raise ValidationError("qualitative synthesis requires a valid deviation declaration bound to the plan")
+    frozen_deviation_plan = deviations.get("frozen_plan_commitments")
+    if not isinstance(frozen_deviation_plan, dict):
+        raise ValidationError("qualitative synthesis requires deviation-bound frozen plan commitments")
+    if (frozen_deviation_plan.get("synthesis_type") != "qualitative"
+            or frozen_deviation_plan.get("minimum_independent_studies") != plan.get("minimum_independent_studies")
+            or frozen_deviation_plan.get("conclusion_rule") != plan.get("conclusion_rule")):
+        raise ValidationError("deviation-bound frozen plan commitments do not match the supplied plan")
     if extraction.get("extraction_version") != 1 or extraction.get("status") != "extraction_recorded":
         raise ValidationError("qualitative synthesis requires a completed version 1 extraction")
     if extraction.get("screening_sha256") != plan.get("screening_sha256"):
@@ -126,6 +133,7 @@ def execute_qualitative_synthesis(
         "inputs": {"synthesis_plan_sha256": plan_sha, "extraction_sha256": extraction_sha,
                    "evidence_map_sha256": evidence_map_sha, "synthesis_deviations_sha256": deviations_sha},
         "deviation_status": deviation_status,
+        "deviation_plan_commitments": frozen_deviation_plan,
         "deviations": deviations.get("deviations"),
         "plan_id": plan.get("plan_id"), "snapshot_id": plan.get("snapshot_id"),
         "research_question": plan.get("research_question"),

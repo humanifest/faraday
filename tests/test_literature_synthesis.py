@@ -39,7 +39,12 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
         "snapshot_id": "snap", "inputs": {"extraction_sha256": extraction_sha}, "claims": [claim]})
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
-        "synthesis_plan_sha256": plan_sha, "status": "no_deviations_declared", "deviations": []})
+        "synthesis_plan_sha256": plan_sha, "status": "no_deviations_declared", "deviations": [],
+        "frozen_plan_commitments": {
+            "synthesis_type": synthesis_type,
+            "minimum_independent_studies": minimum,
+            "conclusion_rule": "Bound all wording",
+        }})
     return plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha
 
 
@@ -56,6 +61,7 @@ def test_qualitative_synthesis_cli_preserves_null_high_bias_claim_and_is_write_o
     assert result["interpretive_ceiling_counts"]["insufficient_for_conclusion"] == 1
     assert result["claims"][0]["citation_checked_location"] == "page 1"
     assert result["claims"][0]["bias_domain_judgments"][0]["judgment"] == "high"
+    assert result["deviation_plan_commitments"]["synthesis_type"] == "qualitative"
     assert result["publication_authorized"] is False
     assert "No automated substantive conclusion" in result["bounded_conclusion"]
     with pytest.raises(ValidationError, match="already exists"):
@@ -85,7 +91,7 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     assert result["inputs"]["synthesis_deviations_sha256"] == deviations_sha
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "map-hash", "quantitative", "screening", "map-link", "snapshot", "claim"])
+@pytest.mark.parametrize("failure", ["plan-hash", "map-hash", "quantitative", "screening", "map-link", "snapshot", "claim", "deviation-plan"])
 def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(tmp_path, synthesis_type="quantitative" if failure == "quantitative" else "qualitative")
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -98,6 +104,8 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
         value = json.loads(evidence_map.read_text()); value["snapshot_id"] = "other"; map_sha = write_json(evidence_map, value)
     elif failure == "claim":
         value = json.loads(evidence_map.read_text()); del value["claims"][0]["uncertainty"]; map_sha = write_json(evidence_map, value)
+    elif failure == "deviation-plan":
+        value = json.loads(deviations.read_text()); value["frozen_plan_commitments"]["minimum_independent_studies"] = 99; deviations_sha = write_json(deviations, value)
     output = tmp_path / "synthesis"
     with pytest.raises(ValidationError):
         execute_qualitative_synthesis(plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha, output)

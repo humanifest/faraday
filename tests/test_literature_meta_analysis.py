@@ -44,7 +44,13 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
               "checked_location": "results"}]})
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
-        "synthesis_plan_sha256": plan_sha, "status": "no_deviations_declared", "deviations": []})
+        "synthesis_plan_sha256": plan_sha, "status": "no_deviations_declared", "deviations": [],
+        "frozen_plan_commitments": {
+            "synthesis_type": "quantitative",
+            "effect_measure": "mean_difference",
+            "statistical_model": model,
+            "minimum_independent_studies": minimum,
+        }})
     return plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha
 
 
@@ -62,6 +68,7 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     assert result["standard_error"] == pytest.approx(2 ** -0.5)
     assert result["prediction_interval_95"] is None
     assert result["unavailable_studies"] == [{"reason": "Not reported", "study_id": "missing"}]
+    assert result["deviation_plan_commitments"]["statistical_model"] == "fixed_effect"
     assert result["study_provenance"] == [
         {"study_id": "s1", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-1"],
          "effect_verification": {"study_id": "s1", "source_values_match": True,
@@ -158,7 +165,7 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     assert result["deviations"] == value["deviations"]
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "bias", "claim-provenance", "verification-provenance", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "bias", "claim-provenance", "verification-provenance", "deviation-plan", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -181,6 +188,8 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(effects.read_text()); value["records"][0]["mapped_claims"] = []; effects_sha = write_json(effects, value)
     elif failure == "verification-provenance":
         value = json.loads(verification.read_text()); value["assessments"][0]["checked_location"] = ""; verification_sha = write_json(verification, value)
+    elif failure == "deviation-plan":
+        value = json.loads(deviations.read_text()); value["frozen_plan_commitments"]["statistical_model"] = "random_effects"; deviations_sha = write_json(deviations, value)
     elif failure == "unknown-sensitivity":
         value = json.loads(plan.read_text()); value["sensitivity_analyses"] = ["unknown"]; plan_sha = write_json(plan, value)
         value = json.loads(effects.read_text()); value["inputs"]["synthesis_plan_sha256"] = plan_sha; effects_sha = write_json(effects, value)
