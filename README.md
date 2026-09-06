@@ -550,8 +550,8 @@ run validity, and final scientific-evidence eligibility. Gate IDs and
 prerequisite references are normalized with the same nonblank, trimmed-unique
 rules used by canonical run intake, so malformed package metadata cannot survive
 independent verification. Packages exported with `--include-locators` also
-replay the packaged protocol's frozen hash commitment from the unredacted
-protocol bytes; redacted packages preserve the original commitment but cannot
+replay the packaged protocol and run frozen hash commitments from the unredacted
+bytes; redacted packages preserve the original commitments but cannot
 independently replay locator-bearing hashes. The exporter runs this verifier
 against its staging directory before atomically publishing a package.
 

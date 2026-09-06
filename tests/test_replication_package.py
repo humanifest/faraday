@@ -226,6 +226,28 @@ def test_included_locator_package_replays_protocol_hash(tmp_path: Path) -> None:
         failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
     ))
     frozen = service.freeze_protocol(protocol.protocol_id)
+    output = tmp_path / "result.json"
+    output.write_text('{"result":"passed"}\n', encoding="utf-8")
+    output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+    recorded = service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at="2026-09-07T02:00:00Z",
+        completed_at="2026-09-07T02:01:00Z",
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            "result.json", output_hash, output.stat().st_size, "application/json"
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "gate", QualityGateStatus.PASSED, "Synthetic package fixture passed.",
+            details={"evidence_sha256": output_hash},
+        )],
+        summary="Synthetic package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
     package = tmp_path / "included-locators-package"
     exported = service.export_replication_package(
         frozen.protocol_id, str(package), include_locators=True
@@ -243,4 +265,23 @@ def test_included_locator_package_replays_protocol_hash(tmp_path: Path) -> None:
     commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
 
     with pytest.raises(ValidationError, match="protocol content"):
+        verify_replication_package(package, commitment)
+
+    package = tmp_path / "included-locators-run-package"
+    exported = service.export_replication_package(
+        frozen.protocol_id, str(package), include_locators=True
+    )
+    verify_replication_package(package, exported["package_manifest_sha256"])
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    assert runs[0]["run_id"] == recorded.run_id
+    runs[0]["summary"] = "Tampered after package export"
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    manifest_path = package / "package-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest))
+    commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="run .* payload"):
         verify_replication_package(package, commitment)

@@ -21,6 +21,7 @@ from research_machine.domain.models import (
 )
 from research_machine.application.policies import require_text, validate_quality_gates
 from research_machine.application.protocol_integrity import protocol_commitment
+from research_machine.application.run_integrity import validate_run_payload_commitment
 
 
 def _strict_json_bytes(content: bytes, label: str) -> Any:
@@ -209,6 +210,8 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
             if reachable != set(dataset_by_id):
                 raise ValidationError("package contains datasets outside protocol lineage closure")
             for run in runs:
+                if manifest.get("artifact_locator_policy") == "included":
+                    validate_run_payload_commitment(run)
                 if run.protocol_id != protocol.protocol_id or run.protocol_hash != protocol.protocol_hash:
                     raise ValidationError(
                         f"package run {run.run_id} does not match the packaged frozen protocol"
