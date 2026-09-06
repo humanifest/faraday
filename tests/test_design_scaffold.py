@@ -439,6 +439,28 @@ def test_controls_require_exact_reproducible_measurement_coverage():
     }
 
 
+def test_controls_and_confounds_must_have_unique_scientific_labels():
+    base = {
+        "title": "Duplicate fixture", "question": "Question",
+        "decision": "Decision", "outcome": "score", "unit_of_observation": "unit",
+        "human_participants": False,
+    }
+    duplicated_controls = scaffold_design({
+        **base,
+        "controls": ["Blank sample", " blank sample "],
+    })
+    assert "CONTROL_DUPLICATE" in {
+        item["code"] for item in duplicated_controls["findings"]
+    }
+    duplicated_confounds = scaffold_design({
+        **base,
+        "confounds": ["Tray position", "tray POSITION"],
+    })
+    assert "CONFOUND_DUPLICATE" in {
+        item["code"] for item in duplicated_confounds["findings"]
+    }
+
+
 def test_stopping_count_does_not_supply_information_justification(tmp_path, capsys):
     brief = {"title": "Fixture", "question": "Question", "decision": "Decision", "outcome": "Score",
              "unit_of_observation": "unit", "stopping_rule": "Stop after 100 units", "human_participants": False}

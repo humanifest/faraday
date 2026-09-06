@@ -799,8 +799,16 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         add("CALIBRATION_UNRESOLVED", "warning", "No calibration or measurement-quality plan is recorded.", "Specify calibration, synchronization, missing-channel, or data-quality checks before collection.")
     if not _text_list(brief, "controls"):
         add("CONTROL_FAMILY_MISSING", "warning", "No positive, negative, sham, replay, or other control is planned.", "Choose the control family that could reveal a misleading measurement or procedure.")
+    controls = _text_list(brief, "controls")
+    normalized_controls = [item.strip().casefold() for item in controls]
+    if len(set(normalized_controls)) != len(normalized_controls):
+        add("CONTROL_DUPLICATE", "error", "Controls contain duplicate labels.", "Give each control one stable, unique name before assigning definitions, measurements, or gates.")
     if not _text_list(brief, "confounds"):
         add("CONFOUNDS_UNASSESSED", "warning", "No plausible confounders are recorded.", "List competing explanations and how each will be measured, blocked, or bounded.")
+    confounds = _text_list(brief, "confounds")
+    normalized_confounds = [item.strip().casefold() for item in confounds]
+    if len(set(normalized_confounds)) != len(normalized_confounds):
+        add("CONFOUND_DUPLICATE", "error", "Confounds contain duplicate labels.", "Give each competing explanation one stable, unique name so it can be measured, blocked, bounded, or represented in the causal graph.")
     if not str(brief.get("analysis_commitment", "")).strip():
         add("ANALYSIS_COMMITMENT_MISSING", "warning", "The analysis and estimand are not committed before collection.", "Specify the primary comparison, uncertainty method, exclusions, and multiplicity handling.")
     if not str(brief.get("stopping_rule", "")).strip():

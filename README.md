@@ -424,6 +424,9 @@ timing. Controls stored in dataset columns must carry a complete typed value
 domain; controls evaluated through retained artifacts may explicitly omit the
 column-specific fields. The interview and scaffold never treat a control-family
 label or expected behavior as proof that the control was reproducibly measured.
+The design auditor also rejects duplicate control and confound labels after
+case/whitespace normalization, so a repeated scientific role cannot receive
+multiple definitions, measurements, gates, or causal-graph meanings.
 
 Guided JSON briefs may also carry a supported `sample_size_plan`. Faraday
 recomputes the deterministic receipt and embeds the review copy in the protocol

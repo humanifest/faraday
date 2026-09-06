@@ -483,6 +483,9 @@ validation; artifact-evaluated controls may explicitly omit column-only scale,
 unit, range, and missing-code fields. The provider-free interview collects both
 forms and emits a separate control measurement-set draft. Expected behavior
 remains a prospective commitment, not evidence that the control passed.
+Control and confound labels are now checked for case/whitespace-normalized
+duplicates before downstream definitions, measurements, gates, or causal graph
+roles can treat one repeated label as multiple distinct scientific roles.
 Guided sample-size integration delivery: design briefs can carry any supported
 deterministic planning input or exact receipt. The scaffold recomputes it,
 retains the receipt in both the protocol and a dedicated review artifact, and
