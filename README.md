@@ -545,7 +545,9 @@ non-evidentiary replication contract, so a package cannot claim to include raw
 data, validate replication results, or authorize human-subject reuse by editing
 summary text. `INSTRUCTIONS.md` must match the same contract exactly, preventing
 the human-facing replication handoff from weakening those warnings while keeping
-file hashes internally consistent.
+file hashes internally consistent. Export and verification receipts report the
+package version and applied verification contract, so downstream clients can
+distinguish v1 file-integrity checks from v2 guardrail replay.
 It also reconstructs dataset lineage, rejects duplicate IDs, missing ancestors,
 cycles, and unrelated extras, requires manifest dataset/run IDs to match the
 records exactly, and verifies that every run binds the packaged protocol and

@@ -35,6 +35,10 @@ _V2_LIMITATIONS = [
 ]
 
 
+_V1_VERIFICATION_CONTRACT = "replication_package_v1_file_integrity"
+_V2_VERIFICATION_CONTRACT = "replication_package_v2_guardrails"
+
+
 _V2_INSTRUCTIONS = (
     "# Independent replication instructions\n\n"
     "This package contains frozen protocol and provenance metadata only. It does "
@@ -379,8 +383,15 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     )
     except (OSError, TypeError, ValueError) as exc:
         raise ValidationError(f"cannot verify replication package: {exc}") from exc
+    verification_contract = (
+        _V2_VERIFICATION_CONTRACT
+        if manifest["package_version"] == 2
+        else _V1_VERIFICATION_CONTRACT
+    )
     return {
         "status": "passed", "verification_scope": "package_file_integrity",
+        "package_version": manifest["package_version"],
+        "verification_contract": verification_contract,
         "package_manifest_sha256": expected_manifest_sha256,
         "verified_files": sorted(expected_files), "scientific_evidence_eligible": False,
         "limitations": ["Requires an independently trusted manifest hash.",
@@ -517,6 +528,8 @@ def export_replication_package(
             raise ValidationError(f"could not publish replication package atomically: {exc}") from exc
     return {
         "path": str(root),
+        "package_version": 2,
+        "verification_contract": _V2_VERIFICATION_CONTRACT,
         "package_manifest_sha256": manifest_hash,
         "privacy_mode": "metadata_only",
         "artifact_locator_policy": "included" if include_locators else "redacted",

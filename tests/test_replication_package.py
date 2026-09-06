@@ -102,6 +102,8 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         }},
     ))
     exported = service.export_replication_package(frozen.protocol_id, str(tmp_path / "package"))
+    assert exported["package_version"] == 2
+    assert exported["verification_contract"] == "replication_package_v2_guardrails"
     assert exported["privacy_mode"] == "metadata_only"
     assert exported["artifact_locator_policy"] == "redacted"
     assert (tmp_path / "package" / "package-manifest.json").is_file()
@@ -115,6 +117,8 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     commitment = exported["package_manifest_sha256"]
     verified = verify_replication_package(package, commitment)
     assert verified["verification_scope"] == "package_file_integrity"
+    assert verified["package_version"] == 2
+    assert verified["verification_contract"] == "replication_package_v2_guardrails"
     assert verified["scientific_evidence_eligible"] is False
     assert "ethics-review-events.json" in verified["verified_files"]
     assert main(["--json", "replication", "verify", "--package", str(package),

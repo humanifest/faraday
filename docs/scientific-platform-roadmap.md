@@ -718,7 +718,9 @@ match the non-evidentiary replication contract exactly, preventing reassuring
 rewrites that claim raw-data inclusion, successful replication, or human-subject
 reuse authorization. `INSTRUCTIONS.md` must match the same contract exactly, so
 the human-facing replication handoff cannot weaken those warnings while keeping
-file hashes internally consistent. It also reconstructs an acyclic, closed dataset lineage,
+file hashes internally consistent. Export and verification receipts name the
+package version and applied verification contract so downstream clients can tell
+v1 file-integrity checks from v2 guardrail replay. It also reconstructs an acyclic, closed dataset lineage,
 checks exact unique dataset/run summaries, and requires every run to bind the
 packaged protocol and included inputs. Run semantics are also recomputed:
 analysis mode, dataset roles, synthetic propagation, unique and required gates,
