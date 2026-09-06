@@ -531,13 +531,16 @@ The initial package mode is deliberately `metadata_only`. It is a sealed,
 hash-listed handoff for an independent executor, not a publication action or a
 claim that a result has replicated. Artifact locators are redacted by default;
 use `--include-locators` only when those paths are safe to disclose. Package
-version 2 hash-covers `ethics-review-events.json`, reports the latest recorded
-status, and always sets `replication_ethics_authorized` false: original approval
-or renewal never authorizes a new site, population, or replication. Protocol and
-review-event locator fields are included in default redaction. Verification does
-more than rehash files: it strictly parses version-2 JSON, validates the linear
+version 2 must declare `privacy_mode` as `metadata_only` and
+`artifact_locator_policy` as either `redacted` or `included`. It hash-covers
+`ethics-review-events.json`, reports the latest recorded status, and always sets
+`replication_ethics_authorized` false: original approval or renewal never
+authorizes a new site, population, or replication. Protocol and review-event
+locator fields are included in default redaction. Verification does more than
+rehash files: it strictly parses version-2 JSON, validates the linear
 ethics-event chain against `protocol.json`, derives the latest status, checks the
-manifest's exact event IDs, and rejects any claimed ethics authorization.
+manifest's exact event IDs, and rejects any claimed ethics authorization or
+unsupported package policy.
 It also reconstructs dataset lineage, rejects duplicate IDs, missing ancestors,
 cycles, and unrelated extras, requires manifest dataset/run IDs to match the
 records exactly, and verifies that every run binds the packaged protocol and

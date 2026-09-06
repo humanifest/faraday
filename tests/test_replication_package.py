@@ -48,7 +48,8 @@ def test_nested_locator_redaction_does_not_mutate_source():
 
 @pytest.mark.parametrize("mutation", [
     "file", "manifest", "missing", "extra", "symlink", "traversal",
-    "ethics_summary", "dataset_summary", "dataset_cycle", "run_eligibility",
+    "privacy_mode", "locator_policy", "ethics_summary", "dataset_summary",
+    "dataset_cycle", "run_eligibility",
     "blank_prerequisite", "quality_gate_duplicate_after_trim",
     "protocol_gate_duplicate_after_trim",
 ])
@@ -135,6 +136,18 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         manifest_path = package / "package-manifest.json"
         manifest = json.loads(manifest_path.read_text())
         manifest["files"]["../outside"] = "a" * 64
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "privacy_mode":
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["privacy_mode"] = "raw_data_included"
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "locator_policy":
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["artifact_locator_policy"] = "trust_sender_summary"
         manifest_path.write_text(json.dumps(manifest))
         commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     elif mutation == "ethics_summary":

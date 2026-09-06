@@ -92,6 +92,14 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
             }
             if set(manifest) != required_v2:
                 raise ValidationError("version-2 package manifest fields do not match the contract")
+            if manifest.get("privacy_mode") != "metadata_only":
+                raise ValidationError(
+                    "version-2 package privacy_mode must be metadata_only"
+                )
+            if manifest.get("artifact_locator_policy") not in {"redacted", "included"}:
+                raise ValidationError(
+                    "version-2 package artifact_locator_policy is unsupported"
+                )
             protocol_value = _strict_json_bytes(
                 (root / "protocol.json").read_bytes(), "protocol.json"
             )
