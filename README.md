@@ -628,6 +628,14 @@ that file, records its primary/secondary/registry/preprint classification and
 screening criteria, and states that claims still require separate extraction,
 verification, and bias assessment.
 
+Downstream literature evidence maps retain the extraction location, independent
+citation-review location and rationale, and study-level bias-domain judgments
+with their cited locations for every mapped claim. Qualitative synthesis now
+requires and preserves those provenance anchors instead of carrying only a
+ceiling label. This makes the review trail inspectable while still refusing to
+turn retrieved or reviewer-entered source claims into Faraday scientific
+evidence.
+
 ## Precision, difference-power, practical-power, and equivalence-power planning
 
 Before collecting an independent two-group study, plan a target confidence-

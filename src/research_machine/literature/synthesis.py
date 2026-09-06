@@ -69,9 +69,10 @@ def execute_qualitative_synthesis(
     if not isinstance(claims, list) or not claims:
         raise ValidationError("qualitative synthesis requires mapped claims")
     required_claim_fields = {
-        "extraction_id", "study_id", "source_id", "claim_text", "epistemic_layer",
-        "result_direction", "uncertainty", "citation_verdict", "risk_of_bias",
-        "interpretive_ceiling",
+        "extraction_id", "study_id", "source_id", "extracted_evidence_location",
+        "claim_text", "epistemic_layer", "result_direction", "uncertainty",
+        "citation_checked_location", "citation_rationale", "citation_verdict",
+        "risk_of_bias", "bias_domain_judgments", "interpretive_ceiling",
     }
     seen = set()
     normalized_claims = []
@@ -89,6 +90,26 @@ def execute_qualitative_synthesis(
             "insufficient_for_conclusion",
         }:
             raise ValidationError("evidence-map interpretive ceiling is invalid")
+        for field in ("extracted_evidence_location", "citation_checked_location", "citation_rationale"):
+            if not isinstance(claim[field], str) or not claim[field].strip():
+                raise ValidationError("evidence-map claim provenance fields must be non-empty text")
+        bias_domains = claim["bias_domain_judgments"]
+        if not isinstance(bias_domains, list) or not bias_domains:
+            raise ValidationError("evidence-map claim requires retained bias-domain judgments")
+        seen_domains = set()
+        for domain in bias_domains:
+            if not isinstance(domain, dict) or set(domain) != {"domain", "judgment", "evidence_locations"}:
+                raise ValidationError("evidence-map bias-domain provenance is malformed")
+            name, judgment, locations = domain["domain"], domain["judgment"], domain["evidence_locations"]
+            if not isinstance(name, str) or not name.strip() or name in seen_domains:
+                raise ValidationError("evidence-map bias-domain names must be unique non-empty text")
+            seen_domains.add(name)
+            if judgment not in {"low", "some_concerns", "high", "unclear", "not_applicable"}:
+                raise ValidationError("evidence-map bias-domain judgment is invalid")
+            if (not isinstance(locations, list)
+                    or any(not isinstance(item, str) or not item.strip() for item in locations)
+                    or (judgment != "not_applicable" and not locations)):
+                raise ValidationError("evidence-map bias-domain locations are invalid")
         normalized_claims.append(dict(claim))
     study_ids = {claim["study_id"] for claim in normalized_claims}
     minimum = plan.get("minimum_independent_studies")

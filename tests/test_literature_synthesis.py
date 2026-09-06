@@ -26,8 +26,13 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded",
         "screening_sha256": screening_sha, "snapshot_id": "snap"})
     claim = {"extraction_id": "e1", "study_id": "study-1", "source_id": "s1",
-        "claim_text": "Synthetic null result", "epistemic_layer": "inferred", "result_direction": "null",
-        "uncertainty": "Wide", "citation_verdict": "supported", "risk_of_bias": "high",
+        "extracted_evidence_location": "page 1", "claim_text": "Synthetic null result",
+        "epistemic_layer": "inferred", "result_direction": "null",
+        "uncertainty": "Wide", "citation_checked_location": "page 1",
+        "citation_rationale": "fixture reviewer check", "citation_verdict": "supported", "risk_of_bias": "high",
+        "bias_domain_judgments": [
+            {"domain": "selection", "judgment": "high", "evidence_locations": ["table 1"]}
+        ],
         "interpretive_ceiling": "insufficient_for_conclusion"}
     evidence_map = tmp_path / "map.json"
     map_sha = write_json(evidence_map, {"evidence_map_version": 1, "status": "evidence_map_recorded",
@@ -49,6 +54,8 @@ def test_qualitative_synthesis_cli_preserves_null_high_bias_claim_and_is_write_o
     result = json.loads(capsys.readouterr().out)["result"]
     assert result["result_direction_counts"]["null"] == 1
     assert result["interpretive_ceiling_counts"]["insufficient_for_conclusion"] == 1
+    assert result["claims"][0]["citation_checked_location"] == "page 1"
+    assert result["claims"][0]["bias_domain_judgments"][0]["judgment"] == "high"
     assert result["publication_authorized"] is False
     assert "No automated substantive conclusion" in result["bounded_conclusion"]
     with pytest.raises(ValidationError, match="already exists"):

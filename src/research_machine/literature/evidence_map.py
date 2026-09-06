@@ -102,11 +102,46 @@ def create_evidence_map(
                 raise ValidationError("evidence map cannot include unsupported or unclear citations")
             if overall not in {"low", "some_concerns", "high", "unclear"}:
                 raise ValidationError("evidence map bias judgment is invalid")
+            extracted_location = record.get("evidence_location")
+            checked_location = citation.get("checked_location")
+            citation_rationale = citation.get("rationale")
+            if any(not isinstance(value, str) or not value.strip()
+                   for value in (extracted_location, checked_location, citation_rationale)):
+                raise ValidationError("evidence map requires retained extraction and citation-review locations")
+            domains = study_bias.get("domains")
+            if not isinstance(domains, list) or not domains:
+                raise ValidationError("evidence map requires retained bias-domain judgments")
+            domain_summaries = []
+            seen_domains = set()
+            for domain in domains:
+                if not isinstance(domain, dict):
+                    raise ValidationError("evidence map bias-domain judgment is malformed")
+                name, judgment, locations = (
+                    domain.get("domain"), domain.get("judgment"), domain.get("evidence_locations")
+                )
+                if not isinstance(name, str) or not name.strip() or name in seen_domains:
+                    raise ValidationError("evidence map bias-domain names must be unique non-empty text")
+                seen_domains.add(name)
+                if judgment not in {"low", "some_concerns", "high", "unclear", "not_applicable"}:
+                    raise ValidationError("evidence map bias-domain judgment is invalid")
+                if (not isinstance(locations, list)
+                        or any(not isinstance(item, str) or not item.strip() for item in locations)
+                        or (judgment != "not_applicable" and not locations)):
+                    raise ValidationError("evidence map bias-domain locations are invalid")
+                domain_summaries.append({
+                    "domain": name,
+                    "judgment": judgment,
+                    "evidence_locations": locations,
+                })
             claims.append({
                 "extraction_id": extraction_id, "study_id": study_id, "source_id": source_id,
+                "extracted_evidence_location": extracted_location.strip(),
                 "claim_text": record.get("claim_text"), "epistemic_layer": layer,
                 "result_direction": record.get("result_direction"), "uncertainty": record.get("uncertainty"),
+                "citation_checked_location": checked_location.strip(),
+                "citation_rationale": citation_rationale.strip(),
                 "citation_verdict": verdict, "risk_of_bias": overall,
+                "bias_domain_judgments": domain_summaries,
                 "interpretive_ceiling": _ceiling(verdict, overall, layer),
             })
     if set(citation_by_id) != seen or not claims:

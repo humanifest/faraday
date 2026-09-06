@@ -19,15 +19,26 @@ def chain(tmp_path, bias_judgment="some_concerns"):
     extraction = tmp_path / "extraction.json"
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded", "snapshot_id": "snap",
         "source_reviews": [{"source_id": "s1", "records": [{"extraction_id": "e1", "study_id": "study-1",
-            "claim_text": "Synthetic claim", "epistemic_layer": "inferred", "result_direction": "mixed", "uncertainty": "fixture"}]}]})
+            "claim_text": "Synthetic claim", "evidence_location": "page fixture",
+            "epistemic_layer": "inferred", "result_direction": "mixed", "uncertainty": "fixture"}]}]})
     verification = tmp_path / "verification.json"
     verification_sha = write_json(verification, {"citation_verification_version": 1, "status": "citation_review_recorded",
         "extraction_sha256": extraction_sha, "assessments": [{"extraction_id": "e1", "study_id": "study-1",
-            "source_id": "s1", "verdict": "supported"}]})
+            "source_id": "s1", "verdict": "supported", "checked_location": "page 4",
+            "rationale": "fixture citation check"}]})
     bias = tmp_path / "bias.json"
+    domains = [
+        {"domain": name, "judgment": bias_judgment, "evidence_locations": ["table 1"]}
+        for name in (
+            "selection", "confounding", "exposure_or_intervention_classification",
+            "deviations_from_intended_conditions", "missing_data", "outcome_measurement",
+            "selective_reporting",
+        )
+    ]
     bias_sha = write_json(bias, {"bias_assessment_version": 1, "status": "bias_assessment_recorded",
         "citation_verification_sha256": verification_sha,
-        "assessments": [{"study_id": "study-1", "overall_judgment": bias_judgment}]})
+        "assessments": [{"study_id": "study-1", "overall_judgment": bias_judgment,
+            "domains": domains}]})
     reconciliation = tmp_path / "reconciliation.json"
     reconciliation_sha = write_json(reconciliation, {"study_reconciliation_version": 1,
         "status": "study_identities_reconciled", "bias_assessment_sha256": bias_sha,
@@ -44,13 +55,19 @@ def test_evidence_map_cli_verifies_chain_and_bounds_claim(tmp_path, capsys):
         "--expected-study-reconciliation-sha256", digest, "--output", str(output)]) == 0
     result = json.loads(capsys.readouterr().out)["result"]
     assert result["claims"][0]["interpretive_ceiling"] == "qualified_source_claim"
+    assert result["claims"][0]["extracted_evidence_location"] == "page fixture"
+    assert result["claims"][0]["citation_checked_location"] == "page 4"
+    assert result["claims"][0]["bias_domain_judgments"][0]["evidence_locations"] == ["table 1"]
     assert result["conclusion_authorized"] is False
     assert result["scientific_evidence_eligible"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_evidence_map(extraction, verification, bias, reconciliation, digest, output)
 
 
-@pytest.mark.parametrize("failure", ["terminal-hash", "extraction-link", "verification-link", "bias-link", "unresolved", "coverage"])
+@pytest.mark.parametrize("failure", [
+    "terminal-hash", "extraction-link", "verification-link", "bias-link", "unresolved",
+    "coverage", "citation-provenance", "bias-provenance",
+])
 def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
     extraction, verification, bias, reconciliation, digest = chain(tmp_path)
     if failure == "terminal-hash": digest = "0" * 64
@@ -65,6 +82,13 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
     elif failure == "coverage":
         value = json.loads(verification.read_text()); value["assessments"] = []; verification_sha = write_json(verification, value)
         value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure == "citation-provenance":
+        value = json.loads(verification.read_text()); value["assessments"][0]["checked_location"] = ""; verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure == "bias-provenance":
+        value = json.loads(bias.read_text()); value["assessments"][0]["domains"][0]["evidence_locations"] = []; bias_sha = write_json(bias, value)
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
     output = tmp_path / "map"
     with pytest.raises(ValidationError):

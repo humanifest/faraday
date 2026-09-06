@@ -796,9 +796,12 @@ prove cohort independence or authorize synthesis.
 `research literature evidence-map` verifies every hash link from extraction
 through citation review, bias assessment, and reconciled study identities before
 joining claims. It assigns deterministic, conservative interpretive ceilings
-from citation support, epistemic layer, and study bias. The write-once map cannot
-authorize a conclusion, pooled estimate, causal claim, recommendation, or
-publication; it is the inspectable input boundary for later registered synthesis.
+from citation support, epistemic layer, and study bias. Each mapped claim carries
+the extraction location, citation-check location and rationale, and retained
+bias-domain judgments with their cited locations, so the ceiling remains tied to
+inspectable review anchors. The write-once map cannot authorize a conclusion,
+pooled estimate, causal claim, recommendation, or publication; it is the
+inspectable input boundary for later registered synthesis.
 `research literature plan-synthesis` freezes the research question, primary
 outcome, qualitative or quantitative mode, effect measure, contrast definition, statistical model,
 minimum independent-study count, eligibility, missing-statistics, heterogeneity,
@@ -810,8 +813,10 @@ appropriate; later synthesis must verify this plan and declare every departure.
 verifies the plan, extraction, and full evidence-map lineage; enforces the frozen
 minimum independent-study count; and retains every null, adverse, mixed,
 hypothesis-only, and high-bias claim while reporting directional and ceiling
-counts. It never treats claim counts as effect sizes or authors a substantive
-conclusion. Quantitative plans fail closed until effect-size extraction,
+counts. The synthesis artifact also preserves the retained citation and
+bias-domain provenance for each claim, preventing a later reader from seeing only
+an unsupported ceiling label. It never treats claim counts as effect sizes or
+authors a substantive conclusion. Quantitative plans fail closed until effect-size extraction,
 variance checks, heterogeneity diagnostics, and validated pooling are available.
 The quantitative branch begins with `research literature prepare-effects`. It
 requires the frozen quantitative plan and its exact evidence-map lineage, then
