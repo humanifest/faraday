@@ -82,6 +82,7 @@ _ROUTES_BY_SUGGESTION_KIND = {
 _PROPOSAL_RECORD_FIELDS = {
     "collaborator_proposal_record_version",
     "context_input",
+    "context_reference_index",
     "proposal_input",
     "proposal",
     "status",
@@ -157,6 +158,28 @@ def _string_array(value: Any, field: str, *, nonempty: bool = True) -> list[str]
     return value
 
 
+def _context_reference_ids(context: dict[str, Any]) -> set[str]:
+    raw_index = context.get("context_reference_index")
+    if raw_index is None:
+        return set()
+    if not isinstance(raw_index, list):
+        raise ValidationError("collaborator context_reference_index must be an array")
+    refs: set[str] = set()
+    for index, item in enumerate(raw_index):
+        if not isinstance(item, dict):
+            raise ValidationError(f"collaborator context_reference_index[{index}] must be an object")
+        ref = item.get("ref")
+        kind = item.get("kind")
+        if not isinstance(ref, str) or not ref.strip():
+            raise ValidationError(f"collaborator context_reference_index[{index}].ref must be non-empty text")
+        if not isinstance(kind, str) or not kind.strip():
+            raise ValidationError(f"collaborator context_reference_index[{index}].kind must be non-empty text")
+        if ref in refs:
+            raise ValidationError(f"duplicate collaborator context reference: {ref}")
+        refs.add(ref)
+    return refs
+
+
 def _publish_json(root: Path, filename: str, value: dict[str, Any]) -> bytes:
     resolved = root.expanduser().resolve()
     if resolved.exists():
@@ -191,6 +214,7 @@ def create_context_snapshot(context: dict[str, Any], output: Path) -> dict[str, 
         raise ValidationError("collaborator context must be read-only")
     if boundary.get("provider_required") is not False:
         raise ValidationError("collaborator context must not require a provider")
+    _context_reference_ids(context)
     content = _publish_json(output, "collaborator-context.json", context)
     return {
         "path": str(output.expanduser().resolve()),
@@ -218,6 +242,7 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
         _text(proposal[field], field)
     for field in ("competing_explanations", "disconfirming_evidence", "limitations"):
         _string_array(proposal[field], field)
+    allowed_evidence_refs = _context_reference_ids(context)
 
     generated_by = proposal["generated_by"]
     if not isinstance(generated_by, dict):
@@ -250,7 +275,15 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
             raise ValidationError(f"{label} authority must be review_only")
         for field in ("statement", "rationale", "uncertainty", "next_test"):
             _text(suggestion[field], field)
-        _string_array(suggestion["evidence_refs"], "evidence_refs", nonempty=False)
+        evidence_refs = _string_array(
+            suggestion["evidence_refs"], "evidence_refs", nonempty=False
+        )
+        unknown_refs = sorted(set(evidence_refs) - allowed_evidence_refs)
+        if unknown_refs:
+            raise ValidationError(
+                f"{label} evidence_refs are not present in the frozen context: "
+                + ", ".join(unknown_refs)
+            )
         _string_array(
             suggestion["falsification_conditions"], "falsification_conditions"
         )
@@ -279,12 +312,14 @@ def validate_collaborator_proposal(
 
     proposal, proposal_content = _load_object(proposal_file, "collaborator proposal")
     _validate_proposal(proposal, context, context_digest)
+    context_reference_index = context.get("context_reference_index", [])
     record = {
         "collaborator_proposal_record_version": 1,
         "context_input": {
             "sha256": context_digest,
             "size_bytes": len(context_content),
         },
+        "context_reference_index": context_reference_index,
         "proposal_input": {
             "sha256": hashlib.sha256(proposal_content).hexdigest(),
             "size_bytes": len(proposal_content),
@@ -380,7 +415,11 @@ def adjudicate_collaborator_proposal(
         ):
             raise ValidationError(f"collaborator proposal record {label} size is invalid")
     _text(record["conclusion_ceiling"], "record.conclusion_ceiling")
-    _validate_proposal(proposal, {"purpose": proposal.get("purpose")}, context_input.get("sha256", ""))
+    replay_context = {
+        "purpose": proposal.get("purpose"),
+        "context_reference_index": record.get("context_reference_index", []),
+    }
+    _validate_proposal(proposal, replay_context, context_input.get("sha256", ""))
 
     review, review_content = _load_object(review_file, "collaborator proposal review")
     _exact_fields(review, _REVIEW_FIELDS, "collaborator proposal review")

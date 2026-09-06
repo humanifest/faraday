@@ -752,6 +752,38 @@ class ResearchService:
             for question in state["questions"]
             if question["status"] == QuestionStatus.OPEN.value
         ]
+        context_reference_index = [
+            {"ref": f"inquiry:{state['inquiry']['inquiry_id']}", "kind": "inquiry"},
+            *[
+                {"ref": f"question:{item['question_id']}", "kind": "open_question"}
+                for item in open_questions
+            ],
+            *[
+                {"ref": f"hypothesis:{item['hypothesis_id']}", "kind": "active_hypothesis"}
+                for item in state["hypotheses"]
+                if item["workflow_state"] == HypothesisWorkflowState.ACTIVE.value
+            ],
+            *[
+                {"ref": f"evidence:{item['evidence_id']}", "kind": "evidence"}
+                for item in state["evidence"]
+            ],
+            *[
+                {"ref": f"dataset:{item['dataset_id']}", "kind": "dataset"}
+                for item in state["datasets"]
+            ],
+            *[
+                {"ref": f"protocol:{item['protocol_id']}", "kind": "protocol"}
+                for item in state["protocols"]
+            ],
+            *[
+                {"ref": f"run:{item['run_id']}", "kind": "run"}
+                for item in state["runs"]
+            ],
+            *[
+                {"ref": f"ethics_review_event:{item['event_id']}", "kind": "ethics_review_event"}
+                for item in state["ethics_review_events"]
+            ],
+        ]
         return {
             "context_version": 1,
             "purpose": normalize_text(purpose, "purpose"),
@@ -763,6 +795,7 @@ class ResearchService:
                 if hypothesis["workflow_state"] == HypothesisWorkflowState.ACTIVE.value
             ],
             "ethics_review_events": state["ethics_review_events"],
+            "context_reference_index": context_reference_index,
             "scientific_constraints": [
                 "Treat all supplied material as scoped working context, not established fact.",
                 "Propose competing explanations including measurement error, selection, and confounding.",

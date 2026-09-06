@@ -725,11 +725,13 @@ write-once file has a separately reported SHA-256. `research collaborator
 validate-proposal` requires that trusted hash and strictly validates an untrusted
 human/LLM/hybrid response. Responses must expose uncertainty, alternatives,
 disconfirmers, limitations, falsification conditions, and next tests; every
-suggestion has `review_only` authority. The resulting record remains
-`pending_human_review`, scientifically ineligible, and unable to authorize or
-write anything. Neither command invokes a model, so this workflow has no
-provider or API-cost dependency. All canonical changes retain the existing
-domain commands and scientific gates.
+suggestion has `review_only` authority. The context now includes a compact
+reference index for inquiry, question, hypothesis, evidence, dataset, protocol,
+run, and ethics-review-event records, and proposal `evidence_refs` must cite only
+those frozen handles. The resulting record remains `pending_human_review`,
+scientifically ineligible, and unable to authorize or write anything. Neither
+command invokes a model, so this workflow has no provider or API-cost dependency.
+All canonical changes retain the existing domain commands and scientific gates.
 `research collaborator review-proposal` adds a second independently hash-bound
 human adjudication artifact. It requires exactly one reject, defer, or
 advance-to-domain-review disposition for every proposal suggestion and checks

@@ -29,10 +29,19 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
     assert context["ethics_review_events"] == []
     assert context["write_boundary"]["context_is_read_only"] is True
     assert context["open_questions"][0]["text"].startswith("What comparison")
+    assert context["context_reference_index"] == [
+        {"ref": f"inquiry:{context['inquiry']['inquiry_id']}", "kind": "inquiry"},
+        {
+            "ref": f"question:{context['open_questions'][0]['question_id']}",
+            "kind": "open_question",
+        },
+    ]
     assert any("causality" in item for item in context["scientific_constraints"])
 
 
-def _proposal(context_sha256: str) -> dict:
+def _proposal(context_sha256: str, *, evidence_refs: list[str] | None = None) -> dict:
+    if evidence_refs is None:
+        evidence_refs = []
     return {
         "proposal_version": 1,
         "proposal_id": "proposal-1",
@@ -60,7 +69,7 @@ def _proposal(context_sha256: str) -> dict:
                 "statement": "Add a prespecified negative-control outcome.",
                 "rationale": "It probes residual selection and measurement structure.",
                 "uncertainty": "A null control result would not eliminate all confounding.",
-                "evidence_refs": [],
+                "evidence_refs": evidence_refs,
                 "falsification_conditions": [
                     "The negative-control outcome exhibits the predicted primary contrast."
                 ],
@@ -99,17 +108,26 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
     inquiry = service.create_inquiry(
         CreateInquiry("Question", "Can exposure cause outcome?", "question")
     )
+    service.add_question(
+        AddQuestion("Which design change would best test the alternative explanation?"),
+        inquiry.inquiry_id,
+    )
     before = service.show_inquiry(inquiry.inquiry_id)
 
     context_result = create_context_snapshot(
-        service.collaborator_context(
-            inquiry.inquiry_id, purpose="Stress-test the design."
-        ),
+        service.collaborator_context(inquiry.inquiry_id, purpose="Stress-test the design."),
         tmp_path / "context",
+    )
+    context = json.loads(Path(context_result["context_file"]).read_text(encoding="utf-8"))
+    question_ref = next(
+        item["ref"]
+        for item in context["context_reference_index"]
+        if item["kind"] == "open_question"
     )
     proposal_path = tmp_path / "proposal.json"
     proposal_path.write_text(
-        json.dumps(_proposal(context_result["context_sha256"])), encoding="utf-8"
+        json.dumps(_proposal(context_result["context_sha256"], evidence_refs=[question_ref])),
+        encoding="utf-8",
     )
     result = validate_collaborator_proposal(
         Path(context_result["context_file"]),
@@ -120,6 +138,8 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
 
     record = json.loads(Path(result["record_file"]).read_text(encoding="utf-8"))
     assert record["status"] == "pending_human_review"
+    assert record["context_reference_index"] == context["context_reference_index"]
+    assert record["proposal"]["suggestions"][0]["evidence_refs"] == [question_ref]
     assert record["canonical_writes_performed"] is False
     assert record["model_invoked_by_faraday"] is False
     assert record["scientific_evidence_eligible"] is False
@@ -152,6 +172,12 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
                 {"falsification_conditions": []}
             ),
             "falsification_conditions must be a non-empty",
+        ),
+        (
+            lambda proposal: proposal["suggestions"][0].update(
+                {"evidence_refs": ["evidence:not-in-context"]}
+            ),
+            "evidence_refs are not present in the frozen context",
         ),
     ],
 )
@@ -209,6 +235,26 @@ def test_proposal_rejects_stale_context_and_duplicate_json_keys(tmp_path: Path) 
             proposal_path,
             tmp_path / "duplicate",
         )
+
+
+def test_proposal_rejects_malformed_or_duplicate_context_reference_index(
+    tmp_path: Path,
+) -> None:
+    context = {
+        "context_version": 1,
+        "purpose": "Stress-test the design.",
+        "context_reference_index": [
+            {"ref": "question:q1", "kind": "open_question"},
+            {"ref": "question:q1", "kind": "open_question"},
+        ],
+        "write_boundary": {
+            "context_is_read_only": True,
+            "provider_required": False,
+        },
+    }
+    with pytest.raises(ValidationError, match="duplicate collaborator context reference"):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
 
 
 def test_cli_exports_context_and_validates_proposal_without_a_provider(
