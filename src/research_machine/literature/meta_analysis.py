@@ -127,11 +127,32 @@ def execute_meta_analysis(
     if not isinstance(raw_records, list):
         raise ValidationError("effect records must be an array")
     available, unavailable = [], []
+    study_provenance = []
     seen = set()
     for item in raw_records:
         if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or item["study_id"] in seen:
             raise ValidationError("effect records contain invalid or duplicate study IDs")
         seen.add(item["study_id"])
+        mapped_claims = item.get("mapped_claims")
+        if not isinstance(mapped_claims, list) or not mapped_claims:
+            raise ValidationError("effect records must retain mapped claim provenance")
+        claim_ids = []
+        for claim in mapped_claims:
+            if not isinstance(claim, dict):
+                raise ValidationError("mapped claim provenance is malformed")
+            extraction_id = claim.get("extraction_id")
+            if not isinstance(extraction_id, str) or not extraction_id.strip() or extraction_id in claim_ids:
+                raise ValidationError("mapped claim provenance requires unique extraction IDs")
+            claim_ids.append(extraction_id)
+        risk = item.get("risk_of_bias")
+        if risk not in {"low", "some_concerns", "high", "unclear"}:
+            raise ValidationError("effect records require a valid risk_of_bias")
+        study_provenance.append({
+            "study_id": item["study_id"],
+            "effect_status": item.get("status"),
+            "risk_of_bias": risk,
+            "mapped_claim_ids": claim_ids,
+        })
         if item.get("status") == "unavailable":
             unavailable.append({"study_id": item["study_id"], "reason": item.get("reason")})
             continue
@@ -142,11 +163,9 @@ def execute_meta_analysis(
                 or isinstance(variance, bool) or not isinstance(variance, (int, float))
                 or not math.isfinite(variance) or variance <= 0):
             raise ValidationError("available effects require finite estimates and positive variances")
-        risk = item.get("risk_of_bias")
-        if risk not in {"low", "some_concerns", "high", "unclear"}:
-            raise ValidationError("available effect records require a valid risk_of_bias")
         available.append({"study_id": item["study_id"], "estimate": float(estimate),
-                          "variance": float(variance), "risk_of_bias": risk})
+                          "variance": float(variance), "risk_of_bias": risk,
+                          "mapped_claim_ids": claim_ids})
     minimum = plan.get("minimum_independent_studies")
     if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
         raise ValidationError("frozen minimum_independent_studies is invalid")
@@ -222,6 +241,7 @@ def execute_meta_analysis(
         "plan_id": plan.get("plan_id"), "snapshot_id": plan.get("snapshot_id"),
         "effect_measure": plan.get("effect_measure"), "statistical_model": model,
         "available_study_count": len(available), "unavailable_studies": unavailable,
+        "study_provenance": study_provenance,
         "pooled_estimate": estimate, "standard_error": standard_error,
         "conventional_standard_error": conventional_se,
         "hartung_knapp_standard_error": hartung_knapp_se,

@@ -25,10 +25,19 @@ def artifacts(tmp_path, minimum=1):
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded",
         "screening_sha256": screening_sha, "snapshot_id": "snap"})
     evidence_map = tmp_path / "map.json"
+    claim_template = {
+        "source_id": "source-fixture",
+        "result_direction": "mixed",
+        "interpretive_ceiling": "reviewed_source_claim",
+        "citation_verdict": "supported",
+        "citation_checked_location": "page fixture",
+    }
     map_sha = write_json(evidence_map, {"evidence_map_version": 1, "status": "evidence_map_recorded",
         "snapshot_id": "snap", "inputs": {"extraction_sha256": extraction_sha},
-        "claims": [{"study_id": "study-1", "risk_of_bias": "low"},
-                   {"study_id": "study-2", "risk_of_bias": "high"}]})
+        "claims": [{"study_id": "study-1", "risk_of_bias": "low",
+                    "extraction_id": "claim-1", **claim_template},
+                   {"study_id": "study-2", "risk_of_bias": "high",
+                    "extraction_id": "claim-2", **claim_template}]})
     return plan, plan_sha, extraction, evidence_map, map_sha
 
 
@@ -54,6 +63,8 @@ def test_effect_cli_preserves_unavailable_study_and_is_write_once(tmp_path, caps
     assert result["available_effect_count"] == 1 and result["unavailable_effect_count"] == 1
     assert result["records"][0]["variance"] == pytest.approx(0.01)
     assert result["records"][1]["risk_of_bias"] == "high"
+    assert result["records"][0]["mapped_claims"][0]["extraction_id"] == "claim-1"
+    assert result["records"][0]["mapped_claims"][0]["citation_checked_location"] == "page fixture"
     assert result["scientific_evidence_eligible"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, review(), output)
@@ -65,7 +76,10 @@ def test_insufficient_effects_is_recorded(tmp_path):
     assert result["status"] == "insufficient_effects"
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "map-hash", "measure", "missing", "duplicate", "nan", "se", "bool-n", "unavailable-value"])
+@pytest.mark.parametrize("failure", [
+    "plan-hash", "map-hash", "measure", "missing", "duplicate", "nan", "se", "bool-n",
+    "unavailable-value", "map-provenance",
+])
 def test_invalid_effect_records_never_publish(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
     candidate = review()
@@ -78,6 +92,10 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     elif failure == "se": candidate["records"][0]["standard_error"] = 0
     elif failure == "bool-n": candidate["records"][0]["sample_size"] = True
     elif failure == "unavailable-value": candidate["records"][1]["estimate"] = 0.0
+    elif failure == "map-provenance":
+        value = json.loads(evidence_map.read_text())
+        value["claims"][0]["citation_checked_location"] = ""
+        map_sha = write_json(evidence_map, value)
     output = tmp_path / "effects"
     with pytest.raises(ValidationError):
         create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, candidate, output)

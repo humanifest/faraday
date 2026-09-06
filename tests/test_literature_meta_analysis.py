@@ -25,9 +25,11 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
         "minimum_independent_studies": minimum, "plan_id": "p1", "snapshot_id": "snap",
         "sensitivity_analyses": sensitivities})
     records = [{"study_id": f"s{i}", "status": "available", "estimate": value, "variance": 1.0,
-                "risk_of_bias": "high" if i == 3 else "low"}
+                "risk_of_bias": "high" if i == 3 else "low",
+                "mapped_claims": [{"extraction_id": f"claim-{i}"}]}
                for i, value in enumerate([1.0, 2.0, 6.0][:count], start=1)]
-    records.append({"study_id": "missing", "status": "unavailable", "reason": "Not reported"})
+    records.append({"study_id": "missing", "status": "unavailable", "reason": "Not reported",
+                    "risk_of_bias": "unclear", "mapped_claims": [{"extraction_id": "claim-missing"}]})
     effects = tmp_path / "effects.json"
     effects_sha = write_json(effects, {"effect_records_version": 1, "status": "effects_ready",
         "inputs": {"synthesis_plan_sha256": plan_sha}, "effect_measure": "mean_difference", "records": records})
@@ -54,6 +56,12 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     assert result["standard_error"] == pytest.approx(2 ** -0.5)
     assert result["prediction_interval_95"] is None
     assert result["unavailable_studies"] == [{"reason": "Not reported", "study_id": "missing"}]
+    assert result["study_provenance"] == [
+        {"study_id": "s1", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-1"]},
+        {"study_id": "s2", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-2"]},
+        {"study_id": "missing", "effect_status": "unavailable", "risk_of_bias": "unclear",
+         "mapped_claim_ids": ["claim-missing"]},
+    ]
     assert result["conclusion_authorized"] is False
     assert result["small_study_effects"]["status"] == "not_estimable"
     assert result["small_study_effects"]["publication_bias_conclusion"] is False
@@ -85,7 +93,8 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
     value = json.loads(effects.read_text())
     value["records"] = [
         {"study_id": f"s{i}", "status": "available", "estimate": 0.1 + i * 0.02,
-         "variance": 0.05 + i * 0.01, "risk_of_bias": "low"}
+         "variance": 0.05 + i * 0.01, "risk_of_bias": "low",
+         "mapped_claims": [{"extraction_id": f"claim-{i}"}]}
         for i in range(10)
     ]
     effects_sha = write_json(effects, value)
@@ -104,7 +113,8 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
     value = json.loads(effects.read_text())
     value["records"] = [
         {"study_id": f"s{i}", "status": "available", "estimate": float(i),
-         "variance": 1.0, "risk_of_bias": "low"} for i in range(10)
+         "variance": 1.0, "risk_of_bias": "low",
+         "mapped_claims": [{"extraction_id": f"claim-{i}"}]} for i in range(10)
     ]
     effects_sha = write_json(effects, value)
     verification_sha = write_json(verification, {"effect_verification_version": 1,
@@ -128,7 +138,7 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     assert result["deviations"] == value["deviations"]
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "bias", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "bias", "claim-provenance", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -147,6 +157,8 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(effects.read_text()); value["records"][1]["study_id"] = "s1"; effects_sha = write_json(effects, value)
     elif failure == "bias":
         value = json.loads(effects.read_text()); value["records"][0]["risk_of_bias"] = "safe"; effects_sha = write_json(effects, value)
+    elif failure == "claim-provenance":
+        value = json.loads(effects.read_text()); value["records"][0]["mapped_claims"] = []; effects_sha = write_json(effects, value)
     elif failure == "unknown-sensitivity":
         value = json.loads(plan.read_text()); value["sensitivity_analyses"] = ["unknown"]; plan_sha = write_json(plan, value)
         value = json.loads(effects.read_text()); value["inputs"]["synthesis_plan_sha256"] = plan_sha; effects_sha = write_json(effects, value)

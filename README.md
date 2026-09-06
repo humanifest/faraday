@@ -636,6 +636,13 @@ ceiling label. This makes the review trail inspectable while still refusing to
 turn retrieved or reviewer-entered source claims into Faraday scientific
 evidence.
 
+Quantitative effect preparation also binds each study-level effect record to the
+mapped literature claims that justified including the study, including the claim
+IDs and citation-review anchors. Meta-analysis requires those links and reports
+a compact `study_provenance` table for available and unavailable studies, so a
+pooled estimate cannot shed the reviewed claim boundary or hide studies with
+missing compatible statistics.
+
 ## Precision, difference-power, practical-power, and equivalence-power planning
 
 Before collecting an independent two-group study, plan a target confidence-

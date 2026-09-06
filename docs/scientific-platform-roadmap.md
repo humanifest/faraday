@@ -821,10 +821,13 @@ variance checks, heterogeneity diagnostics, and validated pooling are available.
 The quantitative branch begins with `research literature prepare-effects`. It
 requires the frozen quantitative plan and its exact evidence-map lineage, then
 records exactly one effect measure, standard error, variance, and sample size per
-reconciled study. Unavailable statistics must remain explicit null records and
-count against the frozen minimum-study requirement. This validates finite values,
-positive variance, coverage, and plan consistency, but does not reproduce source
-calculations, prove outcome compatibility, impute missing values, or authorize pooling.
+reconciled study. Each effect record also retains the mapped claim IDs, citation
+verdicts, citation-check locations, and interpretive ceilings that brought the
+study across the evidence-map boundary. Unavailable statistics must remain
+explicit null records and count against the frozen minimum-study requirement.
+This validates finite values, positive variance, coverage, review provenance, and
+plan consistency, but does not reproduce source calculations, prove outcome
+compatibility, impute missing values, or authorize pooling.
 `research literature derive-effects` provides a reproducible alternative for
 `mean_difference` and `log_risk_ratio`: it computes estimates and standard errors
 from source-reported experimental and comparator arm summaries under the frozen
@@ -845,10 +848,11 @@ pooling only after the quantitative plan and prepared-effect hashes agree. It
 enforces the frozen fixed-effect or random-effects model, requires at least two
 available independent-study effects and the frozen minimum, reports Cochran's Q,
 I-squared, DerSimonian-Laird tau-squared, a 95% confidence interval, a random-
-effects prediction interval when at least three studies exist, and leave-one-
-study-out estimates. Unavailable studies remain disclosed. The executor does not
-interpret effect direction, reproduce source calculations, or authorize causal,
-clinical, practical, or publication conclusions.
+effects prediction interval when at least three studies exist, leave-one-study-
+out estimates, and a study-provenance table spanning available and unavailable
+studies. Unavailable studies remain disclosed. The executor does not interpret
+effect direction, reproduce source calculations, or authorize causal, clinical,
+practical, or publication conclusions.
 Random-effects confidence and prediction intervals now use a conservative
 modified Hartung-Knapp standard error with tabulated Student-t critical values;
 the conventional standard error remains reported for auditability. Leave-one-out

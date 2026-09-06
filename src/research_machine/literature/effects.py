@@ -61,12 +61,26 @@ def create_effect_records(
     if None in studies or any(not isinstance(item, str) or not item.strip() for item in studies):
         raise ValidationError("evidence map contains invalid study IDs")
     study_biases: dict[str, str] = {}
+    study_claims: dict[str, list[dict[str, Any]]] = {}
     for claim in claims:
         if not isinstance(claim, dict) or claim.get("risk_of_bias") not in {"low", "some_concerns", "high", "unclear"}:
             raise ValidationError("mapped claims require a valid study risk_of_bias")
         prior = study_biases.setdefault(claim["study_id"], claim["risk_of_bias"])
         if prior != claim["risk_of_bias"]:
             raise ValidationError("mapped claims disagree on study risk_of_bias")
+        claim_summary = {
+            "extraction_id": claim.get("extraction_id"),
+            "source_id": claim.get("source_id"),
+            "result_direction": claim.get("result_direction"),
+            "interpretive_ceiling": claim.get("interpretive_ceiling"),
+            "citation_verdict": claim.get("citation_verdict"),
+            "citation_checked_location": claim.get("citation_checked_location"),
+        }
+        if any(not isinstance(value, str) or not value.strip() for value in claim_summary.values()):
+            raise ValidationError("mapped claims require retained citation provenance before effect preparation")
+        study_claims.setdefault(claim["study_id"], []).append(
+            {key: value.strip() for key, value in claim_summary.items()}
+        )
 
     if not isinstance(review, dict) or set(review) != {"reviewer", "records"}:
         raise ValidationError("effect review requires exactly reviewer and records")
@@ -106,6 +120,7 @@ def create_effect_records(
             raise ValidationError("unavailable effects require null estimate, standard_error, and sample_size")
         by_study[study_id] = {"study_id": study_id, "status": status, "reason": reason,
             "risk_of_bias": study_biases[study_id],
+            "mapped_claims": sorted(study_claims[study_id], key=lambda claim: claim["extraction_id"]),
             "effect_measure": expected_measure, "estimate": estimate, "standard_error": standard_error,
             "variance": standard_error ** 2 if status == "available" else None,
             "sample_size": sample_size, "evidence_location": location, "derivation": derivation}
