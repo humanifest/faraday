@@ -811,23 +811,24 @@ commitments but cannot prove external chronology or that the chosen methods are
 appropriate; later synthesis must verify this plan and declare every departure.
 `research literature synthesize` now executes the frozen qualitative branch. It
 verifies the plan, extraction, and full evidence-map lineage; enforces the frozen
-minimum independent-study count; and retains every null, adverse, mixed,
-hypothesis-only, and high-bias claim while reporting directional and ceiling
-counts. The synthesis artifact also preserves the retained citation and
-bias-domain provenance for each claim, preventing a later reader from seeing only
-an unsupported ceiling label. It never treats claim counts as effect sizes or
-authors a substantive conclusion. Quantitative plans fail closed until effect-size extraction,
+included-source set and minimum independent-study count; and retains every null,
+adverse, mixed, hypothesis-only, and high-bias claim while reporting directional
+and ceiling counts. The synthesis artifact also preserves the retained citation
+and bias-domain provenance for each claim, preventing a later reader from seeing
+only an unsupported ceiling label. It never treats claim counts as effect sizes
+or authors a substantive conclusion. Quantitative plans fail closed until effect-size extraction,
 variance checks, heterogeneity diagnostics, and validated pooling are available.
 The quantitative branch begins with `research literature prepare-effects`. It
 requires the frozen quantitative plan and its exact evidence-map lineage, then
 records exactly one effect measure, standard error, variance, and sample size per
 reconciled study. Each effect record also retains the mapped claim IDs, citation
 verdicts, citation-check locations, and interpretive ceilings that brought the
-study across the evidence-map boundary. Unavailable statistics must remain
-explicit null records and count against the frozen minimum-study requirement.
-This validates finite values, positive variance, coverage, review provenance, and
-plan consistency, but does not reproduce source calculations, prove outcome
-compatibility, impute missing values, or authorize pooling.
+study across the evidence-map boundary, and preparation rejects extraction source
+sets that do not match the plan's frozen included sources. Unavailable statistics
+must remain explicit null records and count against the frozen minimum-study
+requirement. This validates finite values, positive variance, coverage, review
+provenance, and plan consistency, but does not reproduce source calculations,
+prove outcome compatibility, impute missing values, or authorize pooling.
 `research literature derive-effects` provides a reproducible alternative for
 `mean_difference` and `log_risk_ratio`: it computes estimates and standard errors
 from source-reported experimental and comparator arm summaries under the frozen

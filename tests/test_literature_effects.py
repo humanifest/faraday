@@ -20,10 +20,11 @@ def artifacts(tmp_path, minimum=1):
     plan_sha = write_json(plan, {"synthesis_plan_version": 1, "status": "synthesis_plan_frozen",
         "synthesis_type": "quantitative", "effect_measure": "log_risk_ratio",
         "minimum_independent_studies": minimum, "screening_sha256": screening_sha,
-        "snapshot_id": "snap", "plan_id": "p1"})
+        "snapshot_id": "snap", "plan_id": "p1", "included_source_ids_at_freeze": ["source-fixture"]})
     extraction = tmp_path / "extraction.json"
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded",
-        "screening_sha256": screening_sha, "snapshot_id": "snap"})
+        "screening_sha256": screening_sha, "snapshot_id": "snap",
+        "source_reviews": [{"source_id": "source-fixture"}]})
     evidence_map = tmp_path / "map.json"
     claim_template = {
         "source_id": "source-fixture",
@@ -78,7 +79,7 @@ def test_insufficient_effects_is_recorded(tmp_path):
 
 @pytest.mark.parametrize("failure", [
     "plan-hash", "map-hash", "measure", "missing", "duplicate", "nan", "se", "bool-n",
-    "unavailable-value", "map-provenance",
+    "unavailable-value", "plan-source-missing", "plan-source-drift", "map-provenance",
 ])
 def test_invalid_effect_records_never_publish(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
@@ -92,6 +93,14 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     elif failure == "se": candidate["records"][0]["standard_error"] = 0
     elif failure == "bool-n": candidate["records"][0]["sample_size"] = True
     elif failure == "unavailable-value": candidate["records"][1]["estimate"] = 0.0
+    elif failure == "plan-source-missing":
+        value = json.loads(plan.read_text())
+        del value["included_source_ids_at_freeze"]
+        plan_sha = write_json(plan, value)
+    elif failure == "plan-source-drift":
+        value = json.loads(plan.read_text())
+        value["included_source_ids_at_freeze"] = ["other-source"]
+        plan_sha = write_json(plan, value)
     elif failure == "map-provenance":
         value = json.loads(evidence_map.read_text())
         value["claims"][0]["citation_checked_location"] = ""

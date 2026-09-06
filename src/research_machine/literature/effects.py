@@ -48,6 +48,17 @@ def create_effect_records(
     if (extraction.get("extraction_version") != 1 or extraction.get("status") != "extraction_recorded"
             or extraction.get("screening_sha256") != plan.get("screening_sha256")):
         raise ValidationError("effect records require an extraction from the plan's pinned screening")
+    plan_sources = plan.get("included_source_ids_at_freeze")
+    if (not isinstance(plan_sources, list)
+            or any(not isinstance(item, str) or not item.strip() for item in plan_sources)
+            or len(plan_sources) != len(set(plan_sources))):
+        raise ValidationError("effect records require frozen included source IDs from the synthesis plan")
+    extraction_sources = [
+        item.get("source_id") for item in extraction.get("source_reviews", [])
+        if isinstance(item, dict)
+    ]
+    if sorted(plan_sources) != sorted(extraction_sources):
+        raise ValidationError("effect records extraction sources do not match the frozen synthesis plan")
     inputs = evidence_map.get("inputs")
     if (evidence_map.get("evidence_map_version") != 1 or evidence_map.get("status") != "evidence_map_recorded"
             or not isinstance(inputs, dict) or inputs.get("extraction_sha256") != extraction_sha):

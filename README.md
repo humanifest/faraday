@@ -631,17 +631,18 @@ verification, and bias assessment.
 Downstream literature evidence maps retain the extraction location, independent
 citation-review location and rationale, and study-level bias-domain judgments
 with their cited locations for every mapped claim. Qualitative synthesis now
-requires and preserves those provenance anchors instead of carrying only a
-ceiling label. This makes the review trail inspectable while still refusing to
-turn retrieved or reviewer-entered source claims into Faraday scientific
-evidence.
+requires the extraction source set to match the synthesis plan's frozen included
+sources, and preserves those provenance anchors instead of carrying only a ceiling
+label. This makes the review trail inspectable while still refusing to turn
+retrieved or reviewer-entered source claims into Faraday scientific evidence.
 
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim
-IDs and citation-review anchors. Meta-analysis requires those links and reports
-a compact `study_provenance` table for available and unavailable studies, so a
-pooled estimate cannot shed the reviewed claim boundary or hide studies with
-missing compatible statistics. The same table retains the independent
+IDs and citation-review anchors, after checking the extraction source set against
+the synthesis plan's frozen included sources. Meta-analysis requires those links
+and reports a compact `study_provenance` table for available and unavailable
+studies, so a pooled estimate cannot shed the reviewed claim boundary or hide
+studies with missing compatible statistics. The same table retains the independent
 source-transcription and arithmetic verification status for each effect record.
 Literature deviation declarations retain a compact snapshot of the frozen
 synthesis-plan commitments, and qualitative synthesis or quantitative pooling

@@ -21,10 +21,12 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
     plan_sha = write_json(plan, {"synthesis_plan_version": 1, "status": "synthesis_plan_frozen",
         "synthesis_type": synthesis_type, "screening_sha256": screening_sha, "snapshot_id": "snap",
         "plan_id": "p1", "research_question": "Fixture?", "primary_outcome": "Outcome",
-        "conclusion_rule": "Bound all wording", "minimum_independent_studies": minimum})
+        "conclusion_rule": "Bound all wording", "minimum_independent_studies": minimum,
+        "included_source_ids_at_freeze": ["s1"]})
     extraction = tmp_path / "extraction.json"
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded",
-        "screening_sha256": screening_sha, "snapshot_id": "snap"})
+        "screening_sha256": screening_sha, "snapshot_id": "snap",
+        "source_reviews": [{"source_id": "s1"}]})
     claim = {"extraction_id": "e1", "study_id": "study-1", "source_id": "s1",
         "extracted_evidence_location": "page 1", "claim_text": "Synthetic null result",
         "epistemic_layer": "inferred", "result_direction": "null",
@@ -92,13 +94,15 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     assert result["inputs"]["synthesis_deviations_sha256"] == deviations_sha
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "map-hash", "quantitative", "screening", "map-link", "snapshot", "claim", "deviation-plan"])
+@pytest.mark.parametrize("failure", ["plan-hash", "map-hash", "quantitative", "screening", "source-drift", "map-link", "snapshot", "claim", "deviation-plan"])
 def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(tmp_path, synthesis_type="quantitative" if failure == "quantitative" else "qualitative")
     if failure == "plan-hash": plan_sha = "0" * 64
     elif failure == "map-hash": map_sha = "0" * 64
     elif failure == "screening":
         value = json.loads(extraction.read_text()); value["screening_sha256"] = "2" * 64; write_json(extraction, value)
+    elif failure == "source-drift":
+        value = json.loads(plan.read_text()); value["included_source_ids_at_freeze"] = ["other-source"]; plan_sha = write_json(plan, value)
     elif failure == "map-link":
         value = json.loads(evidence_map.read_text()); value["inputs"]["extraction_sha256"] = "0" * 64; map_sha = write_json(evidence_map, value)
     elif failure == "snapshot":

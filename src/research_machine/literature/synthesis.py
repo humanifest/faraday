@@ -63,6 +63,17 @@ def execute_qualitative_synthesis(
         raise ValidationError("qualitative synthesis requires a completed version 1 extraction")
     if extraction.get("screening_sha256") != plan.get("screening_sha256"):
         raise ValidationError("synthesis plan and extraction do not bind the same screening artifact")
+    plan_sources = plan.get("included_source_ids_at_freeze")
+    if (not isinstance(plan_sources, list)
+            or any(not isinstance(item, str) or not item.strip() for item in plan_sources)
+            or len(plan_sources) != len(set(plan_sources))):
+        raise ValidationError("qualitative synthesis requires frozen included source IDs from the plan")
+    extraction_sources = [
+        item.get("source_id") for item in extraction.get("source_reviews", [])
+        if isinstance(item, dict)
+    ]
+    if sorted(plan_sources) != sorted(extraction_sources):
+        raise ValidationError("qualitative synthesis extraction sources do not match the frozen plan")
     inputs = evidence_map.get("inputs")
     if (evidence_map.get("evidence_map_version") != 1
             or evidence_map.get("status") != "evidence_map_recorded"
