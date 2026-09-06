@@ -129,11 +129,15 @@ def execute_meta_analysis(
         if not (isinstance(source_values_match, bool) and isinstance(calculation_matches, bool)
                 or source_values_match is None and calculation_matches is None):
             raise ValidationError("effect-verification assessment statuses are invalid")
+        effect_status = assessment.get("effect_status")
+        if effect_status not in {"available", "unavailable"}:
+            raise ValidationError("effect-verification assessment must retain effect status")
         checked_location = assessment.get("checked_location")
         if not isinstance(checked_location, str) or not checked_location.strip():
             raise ValidationError("effect-verification assessment requires an inspectable location")
         verification_by_study[study_id] = {
             "study_id": study_id,
+            "effect_status": effect_status,
             "source_values_match": source_values_match,
             "calculation_matches": calculation_matches,
             "checked_location": checked_location.strip(),
@@ -168,6 +172,8 @@ def execute_meta_analysis(
         verification = verification_by_study.get(item["study_id"])
         if verification is None:
             raise ValidationError("effect verification must cover every pooled effect record")
+        if verification["effect_status"] != item.get("status"):
+            raise ValidationError("effect-verification status does not match the effect record")
         mapped_claims = item.get("mapped_claims")
         if not isinstance(mapped_claims, list) or not mapped_claims:
             raise ValidationError("effect records must retain mapped claim provenance")
@@ -190,10 +196,14 @@ def execute_meta_analysis(
             "effect_verification": verification,
         })
         if item.get("status") == "unavailable":
+            if verification["source_values_match"] is not None or verification["calculation_matches"] is not None:
+                raise ValidationError("unavailable effects require not-applicable verification checks")
             unavailable.append({"study_id": item["study_id"], "reason": item.get("reason")})
             continue
         if item.get("status") != "available":
             raise ValidationError("effect record status is invalid")
+        if verification["source_values_match"] is not True or verification["calculation_matches"] is not True:
+            raise ValidationError("available effects require clean source and calculation verification")
         estimate, variance = item.get("estimate"), item.get("variance")
         if (isinstance(estimate, bool) or not isinstance(estimate, (int, float)) or not math.isfinite(estimate)
                 or isinstance(variance, bool) or not isinstance(variance, (int, float))

@@ -643,7 +643,10 @@ the synthesis plan's frozen included sources. Meta-analysis requires those links
 and reports a compact `study_provenance` table for available and unavailable
 studies, so a pooled estimate cannot shed the reviewed claim boundary or hide
 studies with missing compatible statistics. The same table retains the independent
-source-transcription and arithmetic verification status for each effect record.
+source-transcription and arithmetic verification status for each effect record,
+and pooling replays the retained effect-status contract: available effects must
+carry clean source and calculation checks, while unavailable effects must remain
+not-applicable rather than acquiring after-the-fact numeric-looking verification.
 Literature deviation declarations retain a compact snapshot of the frozen
 synthesis-plan commitments, and qualitative synthesis or quantitative pooling
 must match that snapshot before recording a result. Each declared departure

@@ -852,9 +852,12 @@ I-squared, DerSimonian-Laird tau-squared, a 95% confidence interval, a random-
 effects prediction interval when at least three studies exist, leave-one-study-
 out estimates, and a study-provenance table spanning available and unavailable
 studies. That table retains the mapped claim IDs, study risk of bias, and
-independent effect-verification assessment for each record. Unavailable studies
-remain disclosed. The executor does not interpret effect direction, reproduce
-source calculations, or authorize causal, clinical, practical, or publication
+independent effect-verification assessment for each record. It also replays the
+verification artifact's retained effect status against the effect records, so
+available studies require clean transcription and arithmetic checks and
+unavailable studies retain not-applicable checks. Unavailable studies remain
+disclosed. The executor does not interpret effect direction, reproduce source
+calculations, or authorize causal, clinical, practical, or publication
 conclusions.
 Random-effects confidence and prediction intervals now use a conservative
 modified Hartung-Knapp standard error with tabulated Student-t critical values;

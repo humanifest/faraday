@@ -37,10 +37,12 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
         "assessments": [
-            {"study_id": f"s{i}", "source_values_match": True, "calculation_matches": True,
+            {"study_id": f"s{i}", "effect_status": "available",
+             "source_values_match": True, "calculation_matches": True,
              "checked_location": f"table {i}"}
             for i in range(1, count + 1)
-        ] + [{"study_id": "missing", "source_values_match": None, "calculation_matches": None,
+        ] + [{"study_id": "missing", "effect_status": "unavailable",
+              "source_values_match": None, "calculation_matches": None,
               "checked_location": "results"}]})
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
@@ -71,14 +73,14 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     assert result["deviation_plan_commitments"]["statistical_model"] == "fixed_effect"
     assert result["study_provenance"] == [
         {"study_id": "s1", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-1"],
-         "effect_verification": {"study_id": "s1", "source_values_match": True,
+         "effect_verification": {"study_id": "s1", "effect_status": "available", "source_values_match": True,
                                  "calculation_matches": True, "checked_location": "table 1"}},
         {"study_id": "s2", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-2"],
-         "effect_verification": {"study_id": "s2", "source_values_match": True,
+         "effect_verification": {"study_id": "s2", "effect_status": "available", "source_values_match": True,
                                  "calculation_matches": True, "checked_location": "table 2"}},
         {"study_id": "missing", "effect_status": "unavailable", "risk_of_bias": "unclear",
          "mapped_claim_ids": ["claim-missing"],
-         "effect_verification": {"study_id": "missing", "source_values_match": None,
+         "effect_verification": {"study_id": "missing", "effect_status": "unavailable", "source_values_match": None,
                                  "calculation_matches": None, "checked_location": "results"}},
     ]
     assert result["conclusion_authorized"] is False
@@ -120,7 +122,8 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
         "assessments": [
-            {"study_id": f"s{i}", "source_values_match": True, "calculation_matches": True,
+            {"study_id": f"s{i}", "effect_status": "available",
+             "source_values_match": True, "calculation_matches": True,
              "checked_location": f"table {i}"} for i in range(10)
         ]})
     result = execute_meta_analysis(plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha, tmp_path / "meta")
@@ -143,7 +146,8 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
         "assessments": [
-            {"study_id": f"s{i}", "source_values_match": True, "calculation_matches": True,
+            {"study_id": f"s{i}", "effect_status": "available",
+             "source_values_match": True, "calculation_matches": True,
              "checked_location": f"table {i}"} for i in range(10)
         ]})
     result = execute_meta_analysis(plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha, tmp_path / "meta")
@@ -166,7 +170,7 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     assert result["deviations"] == value["deviations"]
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "bias", "claim-provenance", "verification-provenance", "deviation-plan", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "bias", "claim-provenance", "verification-provenance", "verification-missing-status", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -189,6 +193,14 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(effects.read_text()); value["records"][0]["mapped_claims"] = []; effects_sha = write_json(effects, value)
     elif failure == "verification-provenance":
         value = json.loads(verification.read_text()); value["assessments"][0]["checked_location"] = ""; verification_sha = write_json(verification, value)
+    elif failure == "verification-missing-status":
+        value = json.loads(verification.read_text()); del value["assessments"][0]["effect_status"]; verification_sha = write_json(verification, value)
+    elif failure == "verification-status-drift":
+        value = json.loads(verification.read_text()); value["assessments"][0]["effect_status"] = "unavailable"; verification_sha = write_json(verification, value)
+    elif failure == "verification-unclean-available":
+        value = json.loads(verification.read_text()); value["assessments"][0]["calculation_matches"] = False; verification_sha = write_json(verification, value)
+    elif failure == "verification-applicable-unavailable":
+        value = json.loads(verification.read_text()); value["assessments"][-1]["source_values_match"] = True; verification_sha = write_json(verification, value)
     elif failure == "deviation-plan":
         value = json.loads(deviations.read_text()); value["frozen_plan_commitments"]["statistical_model"] = "random_effects"; deviations_sha = write_json(deviations, value)
     elif failure == "unknown-sensitivity":
