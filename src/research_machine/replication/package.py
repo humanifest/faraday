@@ -91,6 +91,14 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 (root / "protocol.json").read_bytes(), "protocol.json"
             )
             protocol = ExperimentProtocol.from_dict(protocol_value)
+            protocol_gate_ids = [
+                require_text(gate_id, "quality_requirements item")
+                for gate_id in protocol.quality_requirements
+            ]
+            if len(protocol_gate_ids) != len(set(protocol_gate_ids)):
+                raise ValidationError(
+                    "package protocol repeats a quality requirement"
+                )
             from research_machine.application.ethics import validate_original_review_artifact
             validate_original_review_artifact(
                 protocol, verify_current_artifact=False
@@ -226,10 +234,6 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 gate_by_id = {item.gate_id: item for item in quality_gates}
                 if len(gate_by_id) != len(quality_gates):
                     raise ValidationError(f"package run {run.run_id} repeats a quality gate")
-                protocol_gate_ids = [
-                    require_text(gate_id, "quality_requirements item")
-                    for gate_id in protocol.quality_requirements
-                ]
                 missing_gates = sorted(set(protocol_gate_ids) - set(gate_by_id))
                 protocol_gate_failure = any(
                     gate_by_id[value].status is not QualityGateStatus.PASSED

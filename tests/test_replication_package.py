@@ -49,6 +49,7 @@ def test_nested_locator_redaction_does_not_mutate_source():
     "file", "manifest", "missing", "extra", "symlink", "traversal",
     "ethics_summary", "dataset_summary", "dataset_cycle", "run_eligibility",
     "blank_prerequisite", "quality_gate_duplicate_after_trim",
+    "protocol_gate_duplicate_after_trim",
 ])
 def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Path, mutation, capsys) -> None:
     service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
@@ -178,7 +179,7 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
         manifest_path.write_text(json.dumps(manifest))
         commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-    else:
+    elif mutation == "quality_gate_duplicate_after_trim":
         runs_path = package / "runs.json"
         runs = json.loads(runs_path.read_text())
         duplicate = dict(runs[0]["quality_gates"][0])
@@ -188,6 +189,18 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         manifest_path = package / "package-manifest.json"
         manifest = json.loads(manifest_path.read_text())
         manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    else:
+        protocol_path = package / "protocol.json"
+        protocol_record = json.loads(protocol_path.read_text())
+        protocol_record["quality_requirements"].append(
+            f" {protocol_record['quality_requirements'][0]} "
+        )
+        protocol_path.write_text(json.dumps(protocol_record, indent=2, sort_keys=True) + "\n")
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["protocol.json"] = hashlib.sha256(protocol_path.read_bytes()).hexdigest()
         manifest_path.write_text(json.dumps(manifest))
         commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     with pytest.raises(ValidationError):
