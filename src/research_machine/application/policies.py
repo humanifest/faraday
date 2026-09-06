@@ -1591,10 +1591,12 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 require_text(value, f"control definition {name}")
             if control.family not in CONTROL_FAMILIES:
                 raise ValidationError("unsupported control family")
-            if control.control_id in control_ids or control.registered_control in targets:
+            control_id = control.control_id.strip()
+            registered_control = control.registered_control.strip()
+            if control_id in control_ids or registered_control in targets:
                 raise ValidationError("duplicate control definition ID or registered control")
-            control_ids.add(control.control_id)
-            targets.add(control.registered_control)
+            control_ids.add(control_id)
+            targets.add(registered_control)
             if control.evaluation_gate_id not in quality_requirement_set:
                 raise ValidationError("control evaluation gate must be a required protocol quality gate")
         if targets != set(protocol.controls):

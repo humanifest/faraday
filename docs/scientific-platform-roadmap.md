@@ -25,7 +25,8 @@ Definitions contain
 `control_id`, `registered_control`, `family`, `purpose`, `expected_behavior`,
 and `evaluation_gate_id`. Families are positive, negative, sham, replay,
 random_time, adversarial, reference, and other. Supplied definitions must cover
-the registered controls exactly and link to required quality gates. Expected
+the registered controls exactly with trimmed-unique identities and link to
+required quality gates. Expected
 scientific behavior is not itself a quality-gate pass condition. Definitions are
 hash-bound; absent definitions preserve legacy commitments without retroactively
 claiming a control audit. The provider-free interview collects family, purpose,

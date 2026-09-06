@@ -77,6 +77,32 @@ def test_control_definition_roundtrips_and_changes_commitment():
     assert _protocol_commitment(changed) != _protocol_commitment(protocol)
 
 
+@pytest.mark.parametrize("field", ["control_id", "registered_control"])
+def test_control_definition_identity_rejects_whitespace_ambiguity(field):
+    protocol = _protocol()
+    duplicate = replace(protocol.control_definitions[0])
+    if field == "control_id":
+        duplicate = replace(
+            duplicate,
+            control_id=f" {protocol.control_definitions[0].control_id} ",
+            registered_control="Distinct control condition",
+        )
+        controls = [protocol.controls[0], "Distinct control condition"]
+    else:
+        duplicate = replace(
+            duplicate,
+            control_id="distinct-control-id",
+            registered_control=f" {protocol.control_definitions[0].registered_control} ",
+        )
+        controls = list(protocol.controls)
+    with pytest.raises(ValidationError, match="duplicate control definition"):
+        validate_protocol_freeze(replace(
+            protocol,
+            controls=controls,
+            control_definitions=[protocol.control_definitions[0], duplicate],
+        ))
+
+
 @pytest.mark.parametrize("change", [
     {"family": "unknown"}, {"registered_control": "unregistered"},
     {"evaluation_gate_id": "not-required"}, {"purpose": ""},
