@@ -1597,10 +1597,12 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             raise ValidationError("calibration_acceptance_criteria must contain CalibrationCriterion values")
         for name in ("criterion_id", "calibration_id", "quantity", "unit", "rationale"):
             require_text(getattr(criterion, name), f"calibration criterion {name}")
-        if criterion.criterion_id in criteria_ids or criterion.calibration_id in calibration_ids:
+        criterion_id = criterion.criterion_id.strip()
+        calibration_id = criterion.calibration_id.strip()
+        if criterion_id in criteria_ids or calibration_id in calibration_ids:
             raise ValidationError("calibration criterion and calibration IDs must be unique")
-        criteria_ids.add(criterion.criterion_id)
-        calibration_ids.add(criterion.calibration_id)
+        criteria_ids.add(criterion_id)
+        calibration_ids.add(calibration_id)
         bounds = (criterion.lower_bound, criterion.upper_bound)
         if all(value is None for value in bounds):
             raise ValidationError("calibration criterion requires a lower_bound or upper_bound")

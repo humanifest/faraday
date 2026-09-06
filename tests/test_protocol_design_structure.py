@@ -11,8 +11,8 @@ from research_machine.application.service import _protocol_commitment
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     AnalysisContract, AnalysisFamilyMember, AnalysisStepContract, ConclusionContract,
-    ExperimentProtocol, MeasurementDefinition, MeasurementRole, MeasurementValidityCheck,
-    EvidenceDirection, ClaimLevel,
+    CalibrationCriterion, ExperimentProtocol, MeasurementDefinition, MeasurementRole,
+    MeasurementValidityCheck, EvidenceDirection, ClaimLevel,
 )
 from test_execution import prepared_service, frozen_formal_protocol
 from test_ethics_gate import _human_protocol
@@ -153,6 +153,50 @@ def test_canonical_measurement_validity_plan_is_bound_and_gate_dedicated() -> No
             measurement_validity_checks=[replace(
                 check, assessment_gate_id="missingness-assessed"
             )],
+        ))
+
+
+def test_calibration_acceptance_ids_are_unambiguous_at_freeze() -> None:
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        measurement_custody_requirements=["clock-sync"],
+        calibration_acceptance_criteria=[
+            CalibrationCriterion(
+                "clock-residual", "clock", "absolute clock residual", "ms",
+                "Keep synchronization error below the registered event limit.",
+                lower_bound=0.0, upper_bound=1.0,
+            ),
+        ],
+    )
+    validate_protocol_freeze(protocol)
+
+    with pytest.raises(
+        ValidationError, match="calibration criterion and calibration IDs"
+    ):
+        validate_protocol_freeze(replace(
+            protocol,
+            calibration_acceptance_criteria=[
+                *protocol.calibration_acceptance_criteria,
+                CalibrationCriterion(
+                    " clock-residual ", "other-clock", "alternate residual", "ms",
+                    "A cosmetically padded criterion ID cannot become a new criterion.",
+                    lower_bound=0.0, upper_bound=1.0,
+                ),
+            ],
+        ))
+    with pytest.raises(
+        ValidationError, match="calibration criterion and calibration IDs"
+    ):
+        validate_protocol_freeze(replace(
+            protocol,
+            calibration_acceptance_criteria=[
+                *protocol.calibration_acceptance_criteria,
+                CalibrationCriterion(
+                    "other-residual", " clock ", "alternate residual", "ms",
+                    "A cosmetically padded calibration ID cannot become a new calibration.",
+                    lower_bound=0.0, upper_bound=1.0,
+                ),
+            ],
         ))
 
 
