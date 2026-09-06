@@ -173,6 +173,10 @@ def validate_evidence_annotations(
     normalized_uncertainty = require_text(uncertainty, "uncertainty")
     passed = require_text_list(controls_passed, "controls_passed")
     failed = require_text_list(controls_failed, "controls_failed")
+    if len(set(passed)) != len(passed) or len(set(failed)) != len(failed):
+        raise ValidationError("control disclosures must not contain duplicates")
+    if set(passed) & set(failed):
+        raise ValidationError("control disclosures cannot list the same control as passed and failed")
     ceilings = require_text_list(
         higher_level_conclusions_unsupported,
         "higher_level_conclusions_unsupported",

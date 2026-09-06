@@ -2,10 +2,18 @@ from dataclasses import replace
 
 import pytest
 
-from research_machine.application.policies import validate_protocol_freeze
+from research_machine.application.policies import (
+    validate_evidence_annotations,
+    validate_protocol_freeze,
+)
 from research_machine.application.service import _protocol_commitment
 from research_machine.domain.errors import ValidationError
-from research_machine.domain.models import ControlDefinition, ExperimentProtocol
+from research_machine.domain.models import (
+    ControlDefinition,
+    EvidenceDirection,
+    ExperimentProtocol,
+    ValidationTag,
+)
 from test_ethics_gate import _human_protocol
 
 
@@ -23,6 +31,26 @@ def test_protocol_schema_and_cli_cover_same_fields():
     from research_machine.interfaces.cli import _PROTOCOL_FIELDS
     schema = json.loads((Path(__file__).parents[1] / "schemas/protocol-command.schema.json").read_text())
     assert set(schema["properties"]) == _PROTOCOL_FIELDS
+
+
+@pytest.mark.parametrize(
+    ("passed", "failed", "message"),
+    [
+        (["Registered negative", " Registered negative "], [], "duplicates"),
+        (["Registered negative"], [" Registered negative "], "passed and failed"),
+    ],
+)
+def test_evidence_control_disclosures_are_an_exact_partition(passed, failed, message):
+    with pytest.raises(ValidationError, match=message):
+        validate_evidence_annotations(
+            direction=EvidenceDirection.INCONCLUSIVE,
+            scope="Synthetic fixture scope",
+            uncertainty="No scientific inference",
+            controls_passed=passed,
+            controls_failed=failed,
+            higher_level_conclusions_unsupported=["No empirical conclusion"],
+            validation_tags=[ValidationTag.CALIBRATION],
+        )
 
 
 @pytest.mark.parametrize("invalid", [False, True])

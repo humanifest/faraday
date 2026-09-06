@@ -139,7 +139,8 @@ evaluated as required; it does not mean the scientific outcome was favorable.
 Evidence derived from that run must then account for the complete frozen control
 set: each registered control appears exactly once in `controls_passed` or
 `controls_failed`, as determined by its structured result. Omissions, duplicates,
-invented controls, and favorable relabeling are rejected.
+overlap between passed and failed controls, invented controls, and favorable
+relabeling are rejected.
 
 Evidence attached to an execution-backed run must supply the verified analysis
 output SHA-256 plus the effect-estimate and uncertainty JSON Pointers frozen in
