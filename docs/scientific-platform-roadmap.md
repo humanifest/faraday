@@ -875,8 +875,9 @@ funnel asymmetry remain explicit.
 `research literature record-deviations` creates an immutable disclosure tied to
 the frozen synthesis-plan hash. Each departure identifies its workflow stage,
 frozen commitment, actual method, reason, timing, impact, and corrective action.
-Changes after results were seen—or with unknown timing—force heightened review.
-The artifact also retains a compact frozen-plan commitment snapshot, and rejects
+It also names an inspectable evidence location for the deviation review. Changes
+after results were seen—or with unknown timing—force heightened review. The
+artifact also retains a compact frozen-plan commitment snapshot, and rejects
 synthesis-type-incompatible stages such as qualitative effect preparation. It
 cannot amend the plan, retroactively preregister a choice, raise a claim ceiling,
 or authenticate the researcher's account.

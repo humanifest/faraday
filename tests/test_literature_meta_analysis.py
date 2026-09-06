@@ -155,7 +155,8 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, _ = artifacts(tmp_path)
     value = json.loads(deviations.read_text())
     value["status"] = "retrospective_or_uncertain_deviation_review_required"
-    value["deviations"] = [{"deviation_id": "d1", "timing": "unknown"}]
+    value["deviations"] = [{"deviation_id": "d1", "timing": "unknown",
+                            "evidence_location": "review log section 4"}]
     deviations_sha = write_json(deviations, value)
     result = execute_meta_analysis(
         plan, plan_sha, effects, effects_sha, verification, verification_sha,

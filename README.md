@@ -645,7 +645,8 @@ missing compatible statistics. The same table retains the independent
 source-transcription and arithmetic verification status for each effect record.
 Literature deviation declarations retain a compact snapshot of the frozen
 synthesis-plan commitments, and qualitative synthesis or quantitative pooling
-must match that snapshot before recording a result.
+must match that snapshot before recording a result. Each declared departure
+also names an inspectable evidence location for the review of that deviation.
 
 ## Precision, difference-power, practical-power, and equivalence-power planning
 

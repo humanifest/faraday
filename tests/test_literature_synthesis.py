@@ -80,7 +80,8 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     plan, plan_sha, extraction, evidence_map, map_sha, deviations, _ = artifacts(tmp_path)
     value = json.loads(deviations.read_text())
     value["status"] = "retrospective_or_uncertain_deviation_review_required"
-    value["deviations"] = [{"deviation_id": "d1", "timing": "after_results_seen"}]
+    value["deviations"] = [{"deviation_id": "d1", "timing": "after_results_seen",
+                            "evidence_location": "review log section 3"}]
     deviations_sha = write_json(deviations, value)
     result = execute_qualitative_synthesis(
         plan, plan_sha, extraction, evidence_map, map_sha,

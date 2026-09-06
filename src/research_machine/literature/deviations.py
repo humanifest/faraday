@@ -43,7 +43,7 @@ def create_synthesis_deviations(
     if not isinstance(deviations, list):
         raise ValidationError("deviations must be an array")
     required = {"deviation_id", "stage", "frozen_commitment", "actual_method", "reason",
-                "timing", "impact_assessment", "corrective_action"}
+                "timing", "impact_assessment", "corrective_action", "evidence_location"}
     by_id: dict[str, dict[str, str]] = {}
     for item in deviations:
         if not isinstance(item, dict) or set(item) != required:
@@ -60,7 +60,8 @@ def create_synthesis_deviations(
             "actual_method": _text(item["actual_method"], "actual_method").strip(),
             "reason": _text(item["reason"], "deviation reason").strip(), "timing": item["timing"],
             "impact_assessment": _text(item["impact_assessment"], "impact_assessment").strip(),
-            "corrective_action": _text(item["corrective_action"], "corrective_action").strip()}
+            "corrective_action": _text(item["corrective_action"], "corrective_action").strip(),
+            "evidence_location": _text(item["evidence_location"], "deviation evidence_location").strip()}
     timing_counts = {timing: sum(item["timing"] == timing for item in by_id.values())
                      for timing in sorted(_TIMINGS)}
     elevated = bool(timing_counts["after_results_seen"] or timing_counts["unknown"])
