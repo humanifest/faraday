@@ -154,6 +154,34 @@ def test_canonical_measurement_validity_plan_is_bound_and_gate_dedicated() -> No
                 check, assessment_gate_id="missingness-assessed"
             )],
         ))
+    with pytest.raises(ValidationError, match="measurement validity check IDs"):
+        validate_protocol_freeze(replace(
+            bound,
+            measurement_validity_checks=[
+                check,
+                replace(
+                    check,
+                    check_id=" primary-reference-agreement ",
+                    assessment_gate_id="second-validity-assessed",
+                ),
+            ],
+            quality_requirements=[
+                *bound.quality_requirements,
+                "second-validity-assessed",
+            ],
+        ))
+    with pytest.raises(ValidationError, match="measurement validity assessment gates"):
+        validate_protocol_freeze(replace(
+            bound,
+            measurement_validity_checks=[
+                check,
+                replace(
+                    check,
+                    check_id="secondary-reference-agreement",
+                    assessment_gate_id=" measurement-validity-assessed ",
+                ),
+            ],
+        ))
 
 
 def test_calibration_acceptance_ids_are_unambiguous_at_freeze() -> None:

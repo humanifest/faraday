@@ -1522,18 +1522,26 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         check_ids: set[str] = set()
         gate_ids: set[str] = set()
         measurement_ids = {
-            item.measurement_id for item in protocol.measurement_definitions
+            require_text(item.measurement_id, "measurement definition measurement_id")
+            for item in protocol.measurement_definitions
         }
         occupied_gate_ids = {
-            item.evaluation_gate_id for item in protocol.control_definitions
+            require_text(item.evaluation_gate_id, "control evaluation_gate_id")
+            for item in protocol.control_definitions
         }
         if protocol.analysis_contract is not None:
             occupied_gate_ids.add(
-                protocol.analysis_contract.missingness_assessment_gate_id
+                require_text(
+                    protocol.analysis_contract.missingness_assessment_gate_id,
+                    "analysis_contract.missingness_assessment_gate_id",
+                )
             )
         if protocol.causal_identification:
             occupied_gate_ids.update(
-                item["assessment_gate_id"]
+                require_text(
+                    item["assessment_gate_id"],
+                    "causal assumption assessment_gate_id",
+                )
                 for item in protocol.causal_identification.get("assumptions", [])
             )
         occupied_gate_ids.discard("")
@@ -1549,24 +1557,26 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 "test_retest", "inter_rater", "content", "calibration", "other",
             }:
                 raise ValidationError("unsupported measurement validity evidence_type")
-            if check.check_id in check_ids:
+            check_id = check.check_id.strip()
+            assessment_gate_id = check.assessment_gate_id.strip()
+            if check_id in check_ids:
                 raise ValidationError("measurement validity check IDs must be unique")
-            if check.assessment_gate_id in gate_ids:
+            if assessment_gate_id in gate_ids:
                 raise ValidationError("measurement validity assessment gates must be unique")
             if check.measurement_id not in measurement_ids:
                 raise ValidationError(
                     "measurement validity check must bind an exact protocol measurement_id"
                 )
-            if check.assessment_gate_id not in quality_requirement_set:
+            if assessment_gate_id not in quality_requirement_set:
                 raise ValidationError(
                     "measurement validity assessment gate must be a required protocol quality gate"
                 )
-            if check.assessment_gate_id in occupied_gate_ids:
+            if assessment_gate_id in occupied_gate_ids:
                 raise ValidationError(
                     "measurement validity assessment gate must be dedicated and cannot be reused for controls, causal assumptions, or missingness"
                 )
-            check_ids.add(check.check_id)
-            gate_ids.add(check.assessment_gate_id)
+            check_ids.add(check_id)
+            gate_ids.add(assessment_gate_id)
     if conclusion_required and conclusion is None:
         raise ValidationError(
             "confirmatory empirical analyses require a typed conclusion_contract"
