@@ -545,8 +545,11 @@ uses only included datasets.
 For every run it also recomputes analysis-mode and dataset-role compatibility,
 synthetic propagation, unique quality gates, required protocol-gate coverage,
 passed-gate output evidence, prerequisite satisfaction, run validity, and final
-scientific-evidence eligibility. The exporter runs this verifier against its
-staging directory before atomically publishing a package.
+scientific-evidence eligibility. Gate IDs and prerequisite references are
+normalized with the same nonblank, trimmed-unique rules used by canonical run
+intake, so malformed package metadata cannot survive independent verification.
+The exporter runs this verifier against its staging directory before atomically
+publishing a package.
 
 ## Evidence corrections and retractions
 

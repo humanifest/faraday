@@ -717,7 +717,10 @@ checks exact unique dataset/run summaries, and requires every run to bind the
 packaged protocol and included inputs. Run semantics are also recomputed:
 analysis mode, dataset roles, synthetic propagation, unique and required gates,
 output-bound gate evidence, prerequisites, validity status, workflow-component
-status, and evidence eligibility. Export self-verifies before atomic publication.
+status, and evidence eligibility. The verifier applies the same nonblank,
+trimmed-unique gate and prerequisite identity rules as canonical run intake,
+closing package-only ambiguity before a package can be trusted independently.
+Export self-verifies before atomic publication.
 Version-1 packages remain verifiable.
 Export itself does not validate a replication
 result or publish material. `replication verify` checks included file integrity

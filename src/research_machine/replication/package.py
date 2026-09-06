@@ -19,6 +19,7 @@ from research_machine.domain.models import (
     DatasetRole,
     QualityGateStatus,
 )
+from research_machine.application.policies import require_text, validate_quality_gates
 
 
 def _strict_json_bytes(content: bytes, label: str) -> Any:
@@ -221,28 +222,41 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     raise ValidationError(
                         f"package run {run.run_id} drops synthetic status from an input"
                     )
-                gate_by_id = {item.gate_id: item for item in run.quality_gates}
-                if len(gate_by_id) != len(run.quality_gates):
+                quality_gates = validate_quality_gates(run.quality_gates)
+                gate_by_id = {item.gate_id: item for item in quality_gates}
+                if len(gate_by_id) != len(quality_gates):
                     raise ValidationError(f"package run {run.run_id} repeats a quality gate")
-                missing_gates = sorted(set(protocol.quality_requirements) - set(gate_by_id))
+                protocol_gate_ids = [
+                    require_text(gate_id, "quality_requirements item")
+                    for gate_id in protocol.quality_requirements
+                ]
+                missing_gates = sorted(set(protocol_gate_ids) - set(gate_by_id))
                 protocol_gate_failure = any(
                     gate_by_id[value].status is not QualityGateStatus.PASSED
-                    for value in protocol.quality_requirements
+                    for value in protocol_gate_ids
                     if value in gate_by_id
                 )
                 required_gate_failure = any(
                     item.required and item.status is not QualityGateStatus.PASSED
-                    for item in run.quality_gates
+                    for item in quality_gates
                 )
                 output_hashes = {item.sha256 for item in run.output_artifacts}
-                for gate in run.quality_gates:
+                for gate in quality_gates:
                     if gate.status is QualityGateStatus.PASSED:
                         if gate.details.get("evidence_sha256") not in output_hashes:
                             raise ValidationError(
                                 f"package run {run.run_id} passed gate {gate.gate_id} lacks output-bound evidence"
                             )
                     prerequisites = gate.details.get("prerequisite_gate_ids", [])
-                    if not isinstance(prerequisites, list) or len(prerequisites) != len(set(prerequisites)):
+                    if not isinstance(prerequisites, list) or any(
+                        not isinstance(value, str) or not value.strip()
+                        for value in prerequisites
+                    ):
+                        raise ValidationError(
+                            f"package run {run.run_id} gate {gate.gate_id} has invalid prerequisites"
+                        )
+                    prerequisites = [value.strip() for value in prerequisites]
+                    if len(prerequisites) != len(set(prerequisites)) or gate.gate_id in prerequisites:
                         raise ValidationError(
                             f"package run {run.run_id} gate {gate.gate_id} has invalid prerequisites"
                         )

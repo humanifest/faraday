@@ -45,7 +45,11 @@ def test_nested_locator_redaction_does_not_mutate_source():
     assert redacted["summary"] == source["summary"]
 
 
-@pytest.mark.parametrize("mutation", ["file", "manifest", "missing", "extra", "symlink", "traversal", "ethics_summary", "dataset_summary", "dataset_cycle", "run_eligibility"])
+@pytest.mark.parametrize("mutation", [
+    "file", "manifest", "missing", "extra", "symlink", "traversal",
+    "ethics_summary", "dataset_summary", "dataset_cycle", "run_eligibility",
+    "blank_prerequisite", "quality_gate_duplicate_after_trim",
+])
 def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Path, mutation, capsys) -> None:
     service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
     service.init_workspace()
@@ -154,10 +158,32 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         manifest["files"]["datasets.json"] = hashlib.sha256(datasets_path.read_bytes()).hexdigest()
         manifest_path.write_text(json.dumps(manifest))
         commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-    else:
+    elif mutation == "run_eligibility":
         runs_path = package / "runs.json"
         runs = json.loads(runs_path.read_text())
         runs[0]["synthetic"] = True
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "blank_prerequisite":
+        runs_path = package / "runs.json"
+        runs = json.loads(runs_path.read_text())
+        runs[0]["quality_gates"][0]["details"]["prerequisite_gate_ids"] = [" "]
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    else:
+        runs_path = package / "runs.json"
+        runs = json.loads(runs_path.read_text())
+        duplicate = dict(runs[0]["quality_gates"][0])
+        duplicate["gate_id"] = f" {duplicate['gate_id']} "
+        runs[0]["quality_gates"].append(duplicate)
         runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
         manifest_path = package / "package-manifest.json"
         manifest = json.loads(manifest_path.read_text())
