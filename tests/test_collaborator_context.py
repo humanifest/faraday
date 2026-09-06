@@ -255,22 +255,39 @@ def test_proposal_rejects_stale_context_and_duplicate_json_keys(tmp_path: Path) 
         )
 
 
-def test_proposal_rejects_malformed_or_duplicate_context_reference_index(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("reference", "message"),
+    [
+        (
+            [
+                {"ref": "question:q1", "kind": "open_question"},
+                {"ref": "question:q1", "kind": "open_question"},
+            ],
+            "duplicate collaborator context reference",
+        ),
+        (
+            [{"ref": "source:x", "kind": "external_source"}],
+            "kind is unsupported",
+        ),
+        (
+            [{"ref": "evidence:ev1", "kind": "claim"}],
+            "ref must match kind claim",
+        ),
+    ],
+)
+def test_proposal_rejects_malformed_context_reference_index(
+    tmp_path: Path, reference: list[dict[str, str]], message: str
 ) -> None:
     context = {
         "context_version": 1,
         "purpose": "Stress-test the design.",
-        "context_reference_index": [
-            {"ref": "question:q1", "kind": "open_question"},
-            {"ref": "question:q1", "kind": "open_question"},
-        ],
+        "context_reference_index": reference,
         "write_boundary": {
             "context_is_read_only": True,
             "provider_required": False,
         },
     }
-    with pytest.raises(ValidationError, match="duplicate collaborator context reference"):
+    with pytest.raises(ValidationError, match=message):
         create_context_snapshot(context, tmp_path / "context")
     assert not (tmp_path / "context").exists()
 

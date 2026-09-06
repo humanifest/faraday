@@ -93,6 +93,17 @@ _PROPOSAL_RECORD_FIELDS = {
     "conclusion_ceiling",
 }
 _INPUT_FIELDS = {"sha256", "size_bytes"}
+_CONTEXT_REFERENCE_PREFIXES = {
+    "inquiry": "inquiry:",
+    "open_question": "question:",
+    "claim": "claim:",
+    "active_hypothesis": "hypothesis:",
+    "evidence": "evidence:",
+    "dataset": "dataset:",
+    "protocol": "protocol:",
+    "run": "run:",
+    "ethics_review_event": "ethics_review_event:",
+}
 
 
 def _duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -174,6 +185,13 @@ def _context_reference_ids(context: dict[str, Any]) -> set[str]:
             raise ValidationError(f"collaborator context_reference_index[{index}].ref must be non-empty text")
         if not isinstance(kind, str) or not kind.strip():
             raise ValidationError(f"collaborator context_reference_index[{index}].kind must be non-empty text")
+        prefix = _CONTEXT_REFERENCE_PREFIXES.get(kind)
+        if prefix is None:
+            raise ValidationError(f"collaborator context_reference_index[{index}].kind is unsupported")
+        if not ref.startswith(prefix):
+            raise ValidationError(
+                f"collaborator context_reference_index[{index}].ref must match kind {kind}"
+            )
         if ref in refs:
             raise ValidationError(f"duplicate collaborator context reference: {ref}")
         refs.add(ref)
