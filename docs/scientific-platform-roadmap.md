@@ -850,9 +850,11 @@ available independent-study effects and the frozen minimum, reports Cochran's Q,
 I-squared, DerSimonian-Laird tau-squared, a 95% confidence interval, a random-
 effects prediction interval when at least three studies exist, leave-one-study-
 out estimates, and a study-provenance table spanning available and unavailable
-studies. Unavailable studies remain disclosed. The executor does not interpret
-effect direction, reproduce source calculations, or authorize causal, clinical,
-practical, or publication conclusions.
+studies. That table retains the mapped claim IDs, study risk of bias, and
+independent effect-verification assessment for each record. Unavailable studies
+remain disclosed. The executor does not interpret effect direction, reproduce
+source calculations, or authorize causal, clinical, practical, or publication
+conclusions.
 Random-effects confidence and prediction intervals now use a conservative
 modified Hartung-Knapp standard error with tabulated Student-t critical values;
 the conventional standard error remains reported for auditability. Leave-one-out

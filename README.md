@@ -641,7 +641,8 @@ mapped literature claims that justified including the study, including the claim
 IDs and citation-review anchors. Meta-analysis requires those links and reports
 a compact `study_provenance` table for available and unavailable studies, so a
 pooled estimate cannot shed the reviewed claim boundary or hide studies with
-missing compatible statistics.
+missing compatible statistics. The same table retains the independent
+source-transcription and arithmetic verification status for each effect record.
 
 ## Precision, difference-power, practical-power, and equivalence-power planning
 

@@ -114,6 +114,30 @@ def execute_meta_analysis(
             or effect_verification.get("status") != "effect_verification_recorded"
             or effect_verification.get("effect_records_sha256") != effects_sha):
         raise ValidationError("meta-analysis requires clean independent verification of the supplied effects")
+    verification_assessments = effect_verification.get("assessments")
+    if not isinstance(verification_assessments, list) or not verification_assessments:
+        raise ValidationError("meta-analysis requires retained effect-verification assessments")
+    verification_by_study = {}
+    for assessment in verification_assessments:
+        if not isinstance(assessment, dict):
+            raise ValidationError("effect-verification assessment is malformed")
+        study_id = assessment.get("study_id")
+        if not isinstance(study_id, str) or not study_id.strip() or study_id in verification_by_study:
+            raise ValidationError("effect-verification assessments require unique study IDs")
+        source_values_match = assessment.get("source_values_match")
+        calculation_matches = assessment.get("calculation_matches")
+        if not (isinstance(source_values_match, bool) and isinstance(calculation_matches, bool)
+                or source_values_match is None and calculation_matches is None):
+            raise ValidationError("effect-verification assessment statuses are invalid")
+        checked_location = assessment.get("checked_location")
+        if not isinstance(checked_location, str) or not checked_location.strip():
+            raise ValidationError("effect-verification assessment requires an inspectable location")
+        verification_by_study[study_id] = {
+            "study_id": study_id,
+            "source_values_match": source_values_match,
+            "calculation_matches": calculation_matches,
+            "checked_location": checked_location.strip(),
+        }
     deviation_status = deviations.get("status")
     if (deviations.get("synthesis_deviations_version") != 1
             or deviations.get("synthesis_plan_sha256") != plan_sha
@@ -133,6 +157,9 @@ def execute_meta_analysis(
         if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or item["study_id"] in seen:
             raise ValidationError("effect records contain invalid or duplicate study IDs")
         seen.add(item["study_id"])
+        verification = verification_by_study.get(item["study_id"])
+        if verification is None:
+            raise ValidationError("effect verification must cover every pooled effect record")
         mapped_claims = item.get("mapped_claims")
         if not isinstance(mapped_claims, list) or not mapped_claims:
             raise ValidationError("effect records must retain mapped claim provenance")
@@ -152,6 +179,7 @@ def execute_meta_analysis(
             "effect_status": item.get("status"),
             "risk_of_bias": risk,
             "mapped_claim_ids": claim_ids,
+            "effect_verification": verification,
         })
         if item.get("status") == "unavailable":
             unavailable.append({"study_id": item["study_id"], "reason": item.get("reason")})
@@ -171,6 +199,8 @@ def execute_meta_analysis(
         raise ValidationError("frozen minimum_independent_studies is invalid")
     if len(available) < max(2, minimum):
         raise ValidationError("meta-analysis requires at least two available effects and the frozen minimum study count")
+    if set(verification_by_study) != seen:
+        raise ValidationError("effect verification must cover exactly the effect records")
 
     fixed_estimate, fixed_se = _weighted(available)
     fixed_weights = [1.0 / item["variance"] for item in available]
