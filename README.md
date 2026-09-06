@@ -540,7 +540,10 @@ locator fields are included in default redaction. Verification does more than
 rehash files: it strictly parses version-2 JSON, validates the linear
 ethics-event chain against `protocol.json`, derives the latest status, checks the
 manifest's exact event IDs, and rejects any claimed ethics authorization or
-unsupported package policy.
+unsupported package policy. The manifest limitations must also match Faraday's
+non-evidentiary replication contract, so a package cannot claim to include raw
+data, validate replication results, or authorize human-subject reuse by editing
+summary text.
 It also reconstructs dataset lineage, rejects duplicate IDs, missing ancestors,
 cycles, and unrelated extras, requires manifest dataset/run IDs to match the
 records exactly, and verifies that every run binds the packaged protocol and

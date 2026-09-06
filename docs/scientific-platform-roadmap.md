@@ -713,7 +713,10 @@ Default redaction covers protocol and event artifact-locator fields as well as
 nested dataset/run locators. Verification strictly parses version-2 JSON and
 recomputes protocol-summary agreement, the complete linear ethics chain, event
 IDs, latest status, and the non-authorization invariant instead of trusting
-manifest summaries or unsupported package policy. It also reconstructs an acyclic, closed dataset lineage,
+manifest summaries or unsupported package policy. Manifest limitations must
+match the non-evidentiary replication contract exactly, preventing reassuring
+rewrites that claim raw-data inclusion, successful replication, or human-subject
+reuse authorization. It also reconstructs an acyclic, closed dataset lineage,
 checks exact unique dataset/run summaries, and requires every run to bind the
 packaged protocol and included inputs. Run semantics are also recomputed:
 analysis mode, dataset roles, synthetic propagation, unique and required gates,

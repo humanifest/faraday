@@ -27,6 +27,14 @@ from research_machine.application.dataset_integrity import (
 from research_machine.application.run_integrity import validate_run_payload_commitment
 
 
+_V2_LIMITATIONS = [
+    "Raw data are not included.",
+    "Artifact locators may be unavailable to an independent executor.",
+    "A package export does not validate replication results.",
+    "Recorded ethics status does not authorize a new site, population, or replication.",
+]
+
+
 def _strict_json_bytes(content: bytes, label: str) -> Any:
     def reject_constant(value: str) -> None:
         raise ValueError(f"non-finite JSON number: {value}")
@@ -99,6 +107,10 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
             if manifest.get("artifact_locator_policy") not in {"redacted", "included"}:
                 raise ValidationError(
                     "version-2 package artifact_locator_policy is unsupported"
+                )
+            if manifest.get("limitations") != _V2_LIMITATIONS:
+                raise ValidationError(
+                    "version-2 package limitations must match the non-evidentiary replication contract"
                 )
             protocol_value = _strict_json_bytes(
                 (root / "protocol.json").read_bytes(), "protocol.json"
@@ -489,12 +501,7 @@ def export_replication_package(
             ),
             "replication_ethics_authorized": False,
             "files": hashes,
-            "limitations": [
-                "Raw data are not included.",
-                "Artifact locators may be unavailable to an independent executor.",
-                "A package export does not validate replication results.",
-                "Recorded ethics status does not authorize a new site, population, or replication.",
-            ],
+            "limitations": list(_V2_LIMITATIONS),
         }
         manifest_hash = _write(staging / "package-manifest.json", manifest)
         verify_replication_package(staging, manifest_hash)
