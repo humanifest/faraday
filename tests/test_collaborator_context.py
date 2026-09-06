@@ -11,9 +11,10 @@ from research_machine.collaboration.proposal import (
     validate_collaborator_proposal,
 )
 from research_machine.adapters.filesystem import FileSystemRepository
-from research_machine.application.commands import AddQuestion, CreateInquiry
+from research_machine.application.commands import AddClaim, AddQuestion, CreateInquiry
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ValidationError
+from research_machine.domain.models import ClaimLevel
 from research_machine.interfaces.cli import main
 
 
@@ -24,6 +25,12 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
     service.init_workspace()
     service.create_inquiry(CreateInquiry("Question", "Statement", "question"))
     service.add_question(AddQuestion("What comparison would discriminate causes?"))
+    claim = service.add_claim(
+        AddClaim(
+            "The observed contrast is a source claim, not a causal finding.",
+            ClaimLevel.STATISTICAL_ASSOCIATION,
+        )
+    )
     context = service.collaborator_context(purpose="Help draft a design review.")
     assert context["write_boundary"]["provider_required"] is False
     assert context["ethics_review_events"] == []
@@ -35,6 +42,7 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
             "ref": f"question:{context['open_questions'][0]['question_id']}",
             "kind": "open_question",
         },
+        {"ref": f"claim:{claim.claim_id}", "kind": "claim"},
     ]
     assert any("causality" in item for item in context["scientific_constraints"])
 
@@ -112,6 +120,13 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
         AddQuestion("Which design change would best test the alternative explanation?"),
         inquiry.inquiry_id,
     )
+    claim = service.add_claim(
+        AddClaim(
+            "The current comparison is associational until a causal protocol is frozen.",
+            ClaimLevel.STATISTICAL_ASSOCIATION,
+        ),
+        inquiry.inquiry_id,
+    )
     before = service.show_inquiry(inquiry.inquiry_id)
 
     context_result = create_context_snapshot(
@@ -119,14 +134,17 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
         tmp_path / "context",
     )
     context = json.loads(Path(context_result["context_file"]).read_text(encoding="utf-8"))
-    question_ref = next(
+    cited_refs = [
         item["ref"]
         for item in context["context_reference_index"]
-        if item["kind"] == "open_question"
-    )
+        if item["ref"] in {
+            f"question:{context['open_questions'][0]['question_id']}",
+            f"claim:{claim.claim_id}",
+        }
+    ]
     proposal_path = tmp_path / "proposal.json"
     proposal_path.write_text(
-        json.dumps(_proposal(context_result["context_sha256"], evidence_refs=[question_ref])),
+        json.dumps(_proposal(context_result["context_sha256"], evidence_refs=cited_refs)),
         encoding="utf-8",
     )
     result = validate_collaborator_proposal(
@@ -139,7 +157,7 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
     record = json.loads(Path(result["record_file"]).read_text(encoding="utf-8"))
     assert record["status"] == "pending_human_review"
     assert record["context_reference_index"] == context["context_reference_index"]
-    assert record["proposal"]["suggestions"][0]["evidence_refs"] == [question_ref]
+    assert record["proposal"]["suggestions"][0]["evidence_refs"] == cited_refs
     assert record["canonical_writes_performed"] is False
     assert record["model_invoked_by_faraday"] is False
     assert record["scientific_evidence_eligible"] is False

@@ -593,8 +593,9 @@ uncertainty, competing explanations, disconfirming evidence, limitations, and
 review-only suggestions with falsification conditions and a next test. Faraday
 strictly parses it, binds it to the exact frozen context, and stores it
 write-once as `pending_human_review`. The frozen context also carries a compact
-reference index such as `question:<id>`, `hypothesis:<id>`, `evidence:<id>`,
-`protocol:<id>`, `run:<id>`, and `ethics_review_event:<id>`; proposal
+reference index such as `question:<id>`, `claim:<id>`, `hypothesis:<id>`,
+`evidence:<id>`, `protocol:<id>`, `run:<id>`, and
+`ethics_review_event:<id>`; proposal
 `evidence_refs` must cite only those handles, so an optional collaborator cannot
 smuggle uncited external claims across the provider boundary. It does not call a
 provider, modify the inquiry, accept a finding, create evidence, or authorize an

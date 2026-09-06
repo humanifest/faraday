@@ -759,6 +759,10 @@ class ResearchService:
                 for item in open_questions
             ],
             *[
+                {"ref": f"claim:{item['claim_id']}", "kind": "claim"}
+                for item in state["claims"]
+            ],
+            *[
                 {"ref": f"hypothesis:{item['hypothesis_id']}", "kind": "active_hypothesis"}
                 for item in state["hypotheses"]
                 if item["workflow_state"] == HypothesisWorkflowState.ACTIVE.value
