@@ -51,8 +51,9 @@ byte chain; they do not authenticate chronology, executors, scientific gates, or
 the truth of source observations.
 
 Executable measurement definitions now freeze the data column's scale type,
-unit, categorical domain or numeric validity bounds, and exact missing-value
-codes. Protocol-bound execution validates the actual CSV values against those
+unit, categorical domain or strictly ordered numeric validity bounds, and exact
+missing-value codes. Protocol-bound execution validates the actual CSV values
+against those
 commitments before analysis and records the check in its receipt. This prevents
 silent recoding, out-of-domain categories, out-of-range values, fractional
 counts, and unregistered missing encodings; it does not prove measurement
@@ -414,14 +415,16 @@ before exposure is rejected rather than treated as a post-exposure outcome.
 Every registered secondary outcome must likewise have exactly one complete typed
 measurement contract in the same order. The scaffold rejects missing,
 duplicated, renamed, or invented secondary targets and malformed value domains,
-then emits an ordered `secondary-measurement-definitions-draft.json`. The
+including equal or inverted numeric bounds, then emits an ordered
+`secondary-measurement-definitions-draft.json`. The
 provider-free interview can collect each contract; skipped answers remain an
 explicit coverage blocker rather than generating a plausible surrogate.
 Registered controls now require the same exact ordered measurement coverage.
 Each control measurement preserves its observable, input condition, parameters,
 evaluation point, convention, aggregation, tolerance, expected behavior, and
 timing. Controls stored in dataset columns must carry a complete typed value
-domain; controls evaluated through retained artifacts may explicitly omit the
+domain with strictly ordered numeric bounds; controls evaluated through retained
+artifacts may explicitly omit the
 column-specific fields. The interview and scaffold never treat a control-family
 label or expected behavior as proof that the control was reproducibly measured.
 The design auditor also rejects duplicate control and confound labels after

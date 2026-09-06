@@ -304,6 +304,18 @@ def test_causal_measurements_exactly_cover_exposure_and_adjustment_set():
     assert "CAUSAL_MEASUREMENT_TIMING_INVALID" in {
         item["code"] for item in invalid["findings"]
     }
+    degenerate_covariate = scaffold_design({
+        **base,
+        "causal_measurements": [
+            measurements[0],
+            _causal_measurement(
+                "baseline", "covariate", "baseline", valid_min=5, valid_max=5
+            ),
+        ],
+    })
+    assert "CAUSAL_MEASUREMENT_DOMAIN_INVALID" in {
+        item["code"] for item in degenerate_covariate["findings"]
+    }
 
 
 def test_secondary_outcomes_require_distinct_roles_and_multiplicity_plan():
@@ -383,6 +395,21 @@ def test_secondary_outcomes_require_exact_typed_measurement_coverage():
     assert "SECONDARY_MEASUREMENT_COVERAGE_INVALID" in {
         item["code"] for item in substituted["findings"]
     }
+    degenerate = scaffold_design({
+        **base,
+        "secondary_measurements": [
+            _secondary_measurement(
+                "Response time", "response_time", valid_min=10, valid_max=10
+            ),
+            _secondary_measurement(
+                "Errors", "errors", scale_type="count", unit="count", valid_min=0,
+                valid_max=20,
+            ),
+        ],
+    })
+    assert "SECONDARY_MEASUREMENT_DOMAIN_INVALID" in {
+        item["code"] for item in degenerate["findings"]
+    }
     conflicted = scaffold_design({**base, "secondary_outcomes": ["primary SCORE"]})
     assert conflicted["status"] == "blocked"
     assert "OUTCOME_ROLE_CONFLICT" in {item["code"] for item in conflicted["findings"]}
@@ -427,6 +454,18 @@ def test_controls_require_exact_reproducible_measurement_coverage():
     assert [item["registered_target"] for item in drafts] == ["Blank sample", "Reference sample"]
     assert drafts[0]["data_column"] == ""
     assert drafts[1]["scale_type"] == "interval"
+    degenerate = scaffold_design({
+        **base,
+        "control_measurements": [
+            _control_measurement("Blank sample"),
+            _control_measurement(
+                "Reference sample", "reference_value", valid_min=1, valid_max=1
+            ),
+        ],
+    })
+    assert "CONTROL_MEASUREMENT_DOMAIN_INVALID" in {
+        item["code"] for item in degenerate["findings"]
+    }
     substituted = scaffold_design({
         **base,
         "control_measurements": [

@@ -473,13 +473,14 @@ Secondary measurement-coverage delivery: each registered secondary outcome now
 requires one ordered, exact-name, full typed measurement contract in guided
 briefs. Coverage rejects omissions, duplicates, substitutions, and unregistered
 surrogates; secondary domains receive the same categorical, missing-code,
-numeric-range, non-negativity, and integer-count checks. The provider-free
+strict numeric-range, non-negativity, and integer-count checks. The provider-free
 interview can collect these definitions outcome by outcome and emits an ordered
 secondary measurement-set draft without auto-filling skipped answers.
 Control measurement-coverage delivery: every guided registered control now
 requires one exact ordered reproducible measurement definition in addition to
 its control-family rationale. Dataset-column controls receive typed domain
-validation; artifact-evaluated controls may explicitly omit column-only scale,
+validation that rejects equal or inverted numeric bounds; artifact-evaluated
+controls may explicitly omit column-only scale,
 unit, range, and missing-code fields. The provider-free interview collects both
 forms and emits a separate control measurement-set draft. Expected behavior
 remains a prospective commitment, not evidence that the control passed.

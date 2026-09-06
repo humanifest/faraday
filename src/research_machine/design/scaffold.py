@@ -405,8 +405,8 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             add("SECONDARY_MEASUREMENT_DOMAIN_INVALID", "error", f"Binary secondary outcome {item['outcome']} does not have exactly two values.", "Register exactly two admissible observed values.")
         if not categorical and admissible:
             add("SECONDARY_MEASUREMENT_DOMAIN_INVALID", "error", f"Numeric secondary outcome {item['outcome']} uses categorical admissible values.", "Use numeric validity bounds and leave admissible_values empty.")
-        if bounds[0] is not None and bounds[1] is not None and bounds[0] > bounds[1]:
-            add("SECONDARY_MEASUREMENT_DOMAIN_INVALID", "error", f"Secondary outcome {item['outcome']} has inverted numeric bounds.", "Set valid_min no greater than valid_max.")
+        if bounds[0] is not None and bounds[1] is not None and bounds[0] >= bounds[1]:
+            add("SECONDARY_MEASUREMENT_DOMAIN_INVALID", "error", f"Secondary outcome {item['outcome']} has invalid numeric bounds.", "Set valid_min strictly below valid_max.")
         if scale in {"ratio", "count", "time_to_event"} and bounds[0] is not None and bounds[0] < 0:
             add("SECONDARY_MEASUREMENT_DOMAIN_INVALID", "error", f"Secondary outcome {item['outcome']} permits a negative {scale} value.", "Use a non-negative lower bound for ratio, count, and time-to-event measurements.")
         if scale == "count" and any(
@@ -554,8 +554,8 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             add("CONTROL_MEASUREMENT_DOMAIN_INVALID", "error", f"Binary control {item['control']} does not have exactly two values.", "Register exactly two admissible observed values.")
         if not categorical and admissible:
             add("CONTROL_MEASUREMENT_DOMAIN_INVALID", "error", f"Numeric control {item['control']} uses categorical admissible values.", "Use numeric validity bounds and leave admissible_values empty.")
-        if bounds[0] is not None and bounds[1] is not None and bounds[0] > bounds[1]:
-            add("CONTROL_MEASUREMENT_DOMAIN_INVALID", "error", f"Control {item['control']} has inverted numeric bounds.", "Set valid_min no greater than valid_max.")
+        if bounds[0] is not None and bounds[1] is not None and bounds[0] >= bounds[1]:
+            add("CONTROL_MEASUREMENT_DOMAIN_INVALID", "error", f"Control {item['control']} has invalid numeric bounds.", "Set valid_min strictly below valid_max.")
 
     causal_measurements = brief.get("causal_measurements", [])
     if causal_measurements and study_type != "causal":
@@ -604,8 +604,8 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             add("CAUSAL_MEASUREMENT_DOMAIN_INVALID", "error", f"Binary causal variable {variable} does not have exactly two values.", "Register exactly two admissible observed values.")
         if not categorical and admissible:
             add("CAUSAL_MEASUREMENT_DOMAIN_INVALID", "error", f"Numeric causal variable {variable} uses categorical admissible values.", "Use numeric validity bounds and leave admissible_values empty.")
-        if bounds[0] is not None and bounds[1] is not None and bounds[0] > bounds[1]:
-            add("CAUSAL_MEASUREMENT_DOMAIN_INVALID", "error", f"Causal variable {variable} has inverted numeric bounds.", "Set valid_min no greater than valid_max.")
+        if bounds[0] is not None and bounds[1] is not None and bounds[0] >= bounds[1]:
+            add("CAUSAL_MEASUREMENT_DOMAIN_INVALID", "error", f"Causal variable {variable} has invalid numeric bounds.", "Set valid_min strictly below valid_max.")
         if scale in {"ratio", "count", "time_to_event"} and bounds[0] is not None and bounds[0] < 0:
             add("CAUSAL_MEASUREMENT_DOMAIN_INVALID", "error", f"Causal variable {variable} permits a negative {scale} value.", "Use a non-negative lower bound.")
         if role == "exposure":
