@@ -35,6 +35,23 @@ _V2_LIMITATIONS = [
 ]
 
 
+_V2_INSTRUCTIONS = (
+    "# Independent replication instructions\n\n"
+    "This package contains frozen protocol and provenance metadata only. It does "
+    "not copy raw data files or claim that the original result is correct. "
+    "Free-text metadata may contain sensitive information; review before sharing. "
+    "When locators are redacted, nested receipts are redacted derivatives, not "
+    "the original hash-verifiable receipt bytes. Retained receipt hashes refer "
+    "to originals obtainable from the authorized source. "
+    "Obtain data through the authorized source, verify every listed SHA-256, "
+    "use an independent executor and implementation where possible, and return a new "
+    "run through Research Machine's replication workflow.\n"
+    "Inspect ethics-review-events.json before any human-subject reuse; a "
+    "suspension, withdrawal, expiry, or even an active event in this package "
+    "does not authorize a new site or replication. Obtain independent current approval.\n"
+)
+
+
 def _strict_json_bytes(content: bytes, label: str) -> Any:
     def reject_constant(value: str) -> None:
         raise ValueError(f"non-finite JSON number: {value}")
@@ -92,6 +109,10 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
             if not valid_hash(expected) or hashlib.sha256((root / name).read_bytes()).hexdigest() != expected:
                 raise ValidationError(f"package file hash mismatch: {name}")
         if manifest["package_version"] == 2:
+            if (root / "INSTRUCTIONS.md").read_text(encoding="utf-8") != _V2_INSTRUCTIONS:
+                raise ValidationError(
+                    "version-2 package instructions must match the non-evidentiary replication contract"
+                )
             required_v2 = {
                 "package_version", "privacy_mode", "artifact_locator_policy",
                 "protocol", "dataset_ids", "run_ids", "ethics_review_event_ids",
@@ -458,22 +479,7 @@ def export_replication_package(
                 staging / "ethics-review-events.json", ethics_records
             ),
         }
-        instructions = (
-            "# Independent replication instructions\n\n"
-            "This package contains frozen protocol and provenance metadata only. It does "
-            "not copy raw data files or claim that the original result is correct. "
-            "Free-text metadata may contain sensitive information; review before sharing. "
-            "When locators are redacted, nested receipts are redacted derivatives, not "
-            "the original hash-verifiable receipt bytes. Retained receipt hashes refer "
-            "to originals obtainable from the authorized source. "
-            "Obtain data through the authorized source, verify every listed SHA-256, "
-            "use an independent executor and implementation where possible, and return a new "
-            "run through Research Machine's replication workflow.\n"
-            "Inspect ethics-review-events.json before any human-subject reuse; a "
-            "suspension, withdrawal, expiry, or even an active event in this package "
-            "does not authorize a new site or replication. Obtain independent current approval.\n"
-        )
-        instruction_bytes = instructions.encode()
+        instruction_bytes = _V2_INSTRUCTIONS.encode()
         (staging / "INSTRUCTIONS.md").write_bytes(instruction_bytes)
         hashes["INSTRUCTIONS.md"] = hashlib.sha256(instruction_bytes).hexdigest()
         manifest = {

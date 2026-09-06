@@ -49,7 +49,7 @@ def test_nested_locator_redaction_does_not_mutate_source():
 @pytest.mark.parametrize("mutation", [
     "file", "manifest", "missing", "extra", "symlink", "traversal",
     "privacy_mode", "locator_policy", "limitations", "ethics_summary",
-    "dataset_summary", "dataset_cycle", "run_eligibility",
+    "instructions", "dataset_summary", "dataset_cycle", "run_eligibility",
     "blank_prerequisite", "quality_gate_duplicate_after_trim",
     "protocol_gate_duplicate_after_trim",
 ])
@@ -154,6 +154,20 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         manifest_path = package / "package-manifest.json"
         manifest = json.loads(manifest_path.read_text())
         manifest["limitations"] = ["This package verifies successful replication."]
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "instructions":
+        instructions_path = package / "INSTRUCTIONS.md"
+        instructions_path.write_text(
+            "# Independent replication instructions\n\n"
+            "This package is ready to use as evidence.\n",
+            encoding="utf-8",
+        )
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["INSTRUCTIONS.md"] = hashlib.sha256(
+            instructions_path.read_bytes()
+        ).hexdigest()
         manifest_path.write_text(json.dumps(manifest))
         commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     elif mutation == "ethics_summary":
