@@ -846,7 +846,11 @@ Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally
 retained source files. Sources are classified but never promoted to facts or
 evidence merely by retrieval; claim extraction, citation verification, bias
-assessment, and synthesis remain distinct next gates.
+assessment, and synthesis remain distinct next gates. Snapshot IDs, queries,
+criteria entries, source IDs, titles, locators, and retained-file paths must be
+canonical without surrounding whitespace before the snapshot is published, so a
+padded root literature handle cannot be carried into screening, extraction,
+evidence maps, or synthesis.
 Snapshots now group byte-identical retained files by SHA-256 without deleting
 source records or resolving conflicting metadata. Unique-content counts are not
 unique-study counts; related publications and multiple reports of one study

@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from research_machine.domain.errors import ValidationError
 from research_machine.literature.snapshot import create_snapshot
 
 
@@ -46,3 +49,60 @@ def test_byte_duplicates_are_grouped_without_deleting_source_records(tmp_path):
     create_snapshot({**manifest, "sources": list(reversed(sources))}, tmp_path / "reversed")
     reversed_snapshot = json.loads((tmp_path / "reversed/literature-snapshot.json").read_text())
     assert saved["deduplication"] == reversed_snapshot["deduplication"]
+
+
+@pytest.mark.parametrize("field", ["snapshot_id", "query"])
+def test_literature_snapshot_rejects_padded_manifest_text(tmp_path: Path, field) -> None:
+    source = tmp_path / "paper.txt"
+    source.write_text("retained source", encoding="utf-8")
+    manifest = {
+        "snapshot_id": "fixture",
+        "query": "fixture query",
+        "sources": [{
+            "source_id": "s1", "title": "Study", "locator": "doi:example",
+            "source_class": "primary", "file": str(source),
+        }],
+    }
+    manifest[field] = f" {manifest[field]} "
+    output = tmp_path / "snapshot"
+    with pytest.raises(ValidationError, match="canonical"):
+        create_snapshot(manifest, output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("field", ["inclusion_criteria", "exclusion_criteria"])
+def test_literature_snapshot_rejects_padded_criteria(tmp_path: Path, field) -> None:
+    source = tmp_path / "paper.txt"
+    source.write_text("retained source", encoding="utf-8")
+    manifest = {
+        "snapshot_id": "fixture",
+        "query": "fixture query",
+        "inclusion_criteria": [" Eligible "] if field == "inclusion_criteria" else [],
+        "exclusion_criteria": [" Ineligible "] if field == "exclusion_criteria" else [],
+        "sources": [{
+            "source_id": "s1", "title": "Study", "locator": "doi:example",
+            "source_class": "primary", "file": str(source),
+        }],
+    }
+    output = tmp_path / "snapshot"
+    with pytest.raises(ValidationError, match="canonical"):
+        create_snapshot(manifest, output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("field", ["source_id", "title", "locator", "file"])
+def test_literature_snapshot_rejects_padded_source_metadata(tmp_path: Path, field) -> None:
+    source = tmp_path / "paper.txt"
+    source.write_text("retained source", encoding="utf-8")
+    record = {
+        "source_id": "s1", "title": "Study", "locator": "doi:example",
+        "source_class": "primary", "file": str(source),
+    }
+    record[field] = f" {record[field]} "
+    output = tmp_path / "snapshot"
+    with pytest.raises(ValidationError, match="canonical"):
+        create_snapshot({
+            "snapshot_id": "fixture", "query": "fixture query",
+            "sources": [record],
+        }, output)
+    assert not output.exists()

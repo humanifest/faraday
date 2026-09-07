@@ -27,6 +27,8 @@ def _hash(path: Path) -> tuple[str, int]:
 def _text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValidationError(f"literature snapshot {field} must be non-empty text")
+    if value != value.strip():
+        raise ValidationError(f"literature snapshot {field} must be canonical without surrounding whitespace")
     return value
 
 
@@ -41,8 +43,10 @@ def create_snapshot(manifest: dict[str, Any], output: Path) -> dict[str, Any]:
     criteria: dict[str, list[str]] = {}
     for field in ("inclusion_criteria", "exclusion_criteria"):
         value = manifest.get(field, [])
-        if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
-            raise ValidationError(f"literature snapshot {field} must be an array of non-empty strings")
+        if (not isinstance(value, list)
+                or any(not isinstance(item, str) or not item.strip() for item in value)
+                or any(isinstance(item, str) and item != item.strip() for item in value)):
+            raise ValidationError(f"literature snapshot {field} must be an array of canonical non-empty strings")
         criteria[field] = value
     sources = manifest.get("sources")
     if not isinstance(sources, list) or not sources:
