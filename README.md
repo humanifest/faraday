@@ -538,7 +538,10 @@ Confirmatory causal and correlational scaffolds must also state the exact
 primary estimand, signed contrast order, expected direction, numeric null,
 support rule, and confidence level. Faraday emits these in a separate
 `analysis-commitment-draft.json` and carries the estimand and direction into the
-hypothesis proposal. Equivalence intent cannot use a difference-support rule,
+hypothesis proposal. Population, setting, effect scale, endpoint window,
+estimand, and signed contrast text must be canonical without surrounding
+whitespace before those bounded conclusion and inference commitments are treated
+as review-ready. Equivalence intent cannot use a difference-support rule,
 and a confirmatory point-direction rule is rejected because it ignores
 uncertainty. These remain review artifacts until stable IDs and executable
 specifications are frozen canonically.

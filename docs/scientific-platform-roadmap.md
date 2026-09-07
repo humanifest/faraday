@@ -594,7 +594,10 @@ Prospective inference-commitment delivery: confirmatory guided designs now
 require an explicit primary estimand, signed contrast definition, expected
 direction, numeric null, support rule, and confidence level. The scaffold emits
 a distinct analysis-commitment draft and retains the estimand and direction in
-the hypothesis proposal. It rejects equivalence/difference-rule conflicts and
+the hypothesis proposal. Population, setting, effect scale, endpoint window,
+estimand, and signed contrast text now receive blocking findings when
+surrounding whitespace would otherwise be preserved as bounded conclusion or
+inference commitments. It rejects equivalence/difference-rule conflicts and
 point-only confirmatory support, preventing favorable contrast reversal or a
 post-result choice of the decision event. The artifact remains review-only and
 does not substitute for a frozen executable analysis contract.

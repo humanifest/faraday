@@ -917,6 +917,25 @@ def test_confirmatory_scaffold_binds_estimand_contrast_null_and_support_rule():
         "confidence_level": 0.95,
     })
     assert "CONTRAST_GROUP_LABEL_NONCANONICAL" in {item["code"] for item in padded["findings"]}
+    padded_contract = scaffold_design({
+        **base,
+        "population": " Eligible units",
+        "primary_estimand": " Mean difference",
+        "contrast_definition": "A minus B ",
+        "contrast_groups": ["A", "B"], "expected_effect_direction": "positive",
+        "null_value": 0.0, "support_rule": "interval_excludes_null",
+        "confidence_level": 0.95,
+    })
+    codes = {item["code"] for item in padded_contract["findings"]}
+    assert "CONCLUSION_CONTRACT_NONCANONICAL" in codes
+    assert "INFERENCE_COMMITMENT_NONCANONICAL" in codes
+    assert padded_contract["status"] == "blocked"
+    assert padded_contract["artifacts"]["protocol-draft.json"]["conclusion_contract"][
+        "population"
+    ].startswith(" ")
+    assert padded_contract["artifacts"]["analysis-commitment-draft.json"][
+        "primary_estimand"
+    ].startswith(" ")
     padded_ceiling = scaffold_design({
         **base,
         "higher_level_conclusions_unsupported": [" No causal conclusion"],

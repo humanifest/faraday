@@ -573,6 +573,15 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                 "The confirmatory study lacks a complete prospective conclusion contract.",
                 "Before review, specify population, setting, endpoint, effect scale and unit, smallest effect of interest, non-supporting disposition, and unsupported higher-level claims.",
             )
+        if any(
+            isinstance(value, str) and value and value != value.strip()
+            for value in required_conclusion_fields.values()
+        ):
+            add(
+                "CONCLUSION_CONTRACT_NONCANONICAL", "error",
+                "The prospective conclusion contract contains text with surrounding whitespace.",
+                "Use exact unpadded population, setting, endpoint unit, effect scale, and time-window text before freezing bounded conclusion scope.",
+            )
         inference_fields = {
             "primary_estimand": brief.get("primary_estimand"),
             "contrast_definition": brief.get("contrast_definition"),
@@ -591,6 +600,15 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                 "INFERENCE_COMMITMENT_INCOMPLETE", "error",
                 "The confirmatory design lacks a complete estimand, contrast, direction, null, support rule, or interval level.",
                 "Freeze what quantity is estimated, the signed contrast order, expected direction, numeric null, support rule, and confidence level before collection.",
+            )
+        if any(
+            isinstance(value, str) and value and value != value.strip()
+            for value in inference_fields.values()
+        ):
+            add(
+                "INFERENCE_COMMITMENT_NONCANONICAL", "error",
+                "The prospective inference commitment contains text with surrounding whitespace.",
+                "Use exact unpadded estimand and signed contrast text before review artifacts preserve the hypothesis and analysis commitment.",
             )
         groups = _text_list(brief, "contrast_groups")
         if groups and (len(groups) != 2 or len({item.casefold() for item in groups}) != 2):
