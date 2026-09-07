@@ -44,11 +44,13 @@ For Holm-controlled protocols, that outcome plan is now backed by a frozen
 multi-step analysis workflow. The primary effect estimate is distinct from each
 explicit `confirmatory_test`; every test binds its method, exact specification
 and implementation hashes, hypothesis, outcome, measurement, and p-value JSON
-Pointer. The Holm step freezes an acyclic dependency set and one-to-one family
-mapping. `research analysis materialize-holm` verifies pinned upstream receipt
-and result bytes, rechecks each registered p-value selector, rejects missing or
-substituted source steps, rejects noncanonical manifest step IDs, and writes the
-exact family CSV plus a provenance receipt. Protocol-bound Holm execution then accepts only the frozen Holm
+Pointer. Protocol freeze rejects noncanonical step IDs, dependency handles, Holm
+family IDs, and family-member source bindings before checking the acyclic graph
+and one-to-one family mapping. `research analysis materialize-holm` verifies
+pinned upstream receipt and result bytes, rechecks each registered p-value
+selector, rejects missing or substituted source steps, rejects noncanonical
+manifest step IDs, and writes the exact family CSV plus a provenance receipt.
+Protocol-bound Holm execution then accepts only the frozen Holm
 specification, implementation, ordered family, family ID, alpha, and registered
 input bytes. The paired materialization and execution receipts establish a local
 byte chain; they do not authenticate chronology, executors, scientific gates, or

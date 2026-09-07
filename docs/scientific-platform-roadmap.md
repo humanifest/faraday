@@ -305,11 +305,13 @@ provider-free and emits the same typed structure. Holm protocols now freeze an
 acyclic multi-step workflow that separates the primary estimate from explicit
 confirmatory tests. Each test binds exact specification and implementation
 hashes, hypothesis, outcome, measurement ID, and p-value selector. The
-multiplicity step exactly covers those test steps and family members. A
-provider-free materializer verifies every pinned source receipt/result pair,
-recomputes the registered selectors, rejects noncanonical manifest step IDs, and
-writes the exact family CSV plus a receipt. Protocol-bound Holm execution
-verifies its frozen step, family order and ID, alpha, implementation,
+multiplicity step rejects noncanonical step IDs, dependency handles, Holm family
+IDs, and family-member source bindings before exactly covering those test steps
+and family members. A provider-free materializer verifies every pinned source
+receipt/result pair, recomputes the registered selectors, rejects noncanonical
+manifest step IDs, and writes the exact family CSV plus a receipt.
+Protocol-bound Holm execution verifies its frozen step, family order and ID,
+alpha, implementation,
 specification, and registered input bytes. The
 materialization output hash connects those receipts into a local byte chain;
 independent chronology anchoring, executor authentication, and scientific-gate

@@ -534,6 +534,40 @@ def test_analysis_workflow_rejects_selective_or_inconsistent_steps(mutation, mes
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
+        ("step_id", "analysis_steps\\[1\\].step_id"),
+        ("depends_on", "analysis_steps\\[3\\].depends_on items"),
+        ("family_id", "Holm multiplicity step family_id"),
+        ("member_id", "family member_id"),
+        ("source_step_id", "family source_step_id"),
+    ],
+)
+def test_analysis_workflow_handles_must_be_canonical_at_freeze(
+    mutation, message
+) -> None:
+    protocol = _multi_step_protocol()
+    steps = list(protocol.analysis_steps)
+    if mutation == "step_id":
+        steps[1] = replace(steps[1], step_id="primary-test ")
+    elif mutation == "depends_on":
+        steps[3] = replace(steps[3], depends_on=["primary-test ", "secondary-test"])
+    elif mutation == "family_id":
+        steps[3] = replace(steps[3], family_id=" confirmatory-family")
+    elif mutation == "member_id":
+        members = list(steps[3].family_members)
+        members[0] = replace(members[0], member_id="primary-test-p ")
+        steps[3] = replace(steps[3], family_members=members)
+    else:
+        members = list(steps[3].family_members)
+        members[0] = replace(members[0], source_step_id=" primary-test")
+        steps[3] = replace(steps[3], family_members=members)
+
+    with pytest.raises(ValidationError, match=message):
+        validate_protocol_freeze(replace(protocol, analysis_steps=steps))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
         ("missing", "typed conclusion_contract"),
         ("hypothesis", "primary analysis hypothesis"),
         ("threshold", "finite non-negative"),

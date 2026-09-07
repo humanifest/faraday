@@ -1292,11 +1292,29 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
     if any(not isinstance(item, AnalysisStepContract) for item in protocol.analysis_steps):
         raise ValidationError("analysis_steps must contain AnalysisStepContract values")
     if protocol.analysis_steps:
+        def require_canonical_analysis_text(value: object, field: str) -> str:
+            text = require_text(value, field)
+            if text != value:
+                raise ValidationError(
+                    f"{field} must be canonical without surrounding whitespace"
+                )
+            return text
+
+        def require_canonical_analysis_list(
+            values: Sequence[object], field: str
+        ) -> list[str]:
+            texts = require_unique_text_list(values, field)
+            if list(values) != texts:
+                raise ValidationError(
+                    f"{field} items must be canonical without surrounding whitespace"
+                )
+            return texts
+
         step_ids: list[str] = []
         steps_by_id: dict[str, AnalysisStepContract] = {}
         for index, step in enumerate(protocol.analysis_steps):
             prefix = f"analysis_steps[{index}]"
-            step_id = require_text(step.step_id, f"{prefix}.step_id")
+            step_id = require_canonical_analysis_text(step.step_id, f"{prefix}.step_id")
             if step_id in steps_by_id:
                 raise ValidationError(f"duplicate analysis step_id: {step_id}")
             if step.role not in {"primary_estimate", "confirmatory_test", "exploratory_analysis", "diagnostic", "sensitivity", "multiplicity"}:
@@ -1304,7 +1322,9 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             require_text(step.method, f"{prefix}.method")
             require_sha256(step.specification_sha256, f"{prefix}.specification_sha256")
             require_sha256(step.implementation_sha256, f"{prefix}.implementation_sha256")
-            dependencies = require_unique_text_list(step.depends_on, f"{prefix}.depends_on")
+            dependencies = require_canonical_analysis_list(
+                step.depends_on, f"{prefix}.depends_on"
+            )
             if step_id in dependencies:
                 raise ValidationError(f"{prefix} cannot depend on itself")
             step_ids.append(step_id)
@@ -1392,7 +1412,10 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             if len(multiplicity_steps) != 1:
                 raise ValidationError("Holm protocols require exactly one multiplicity analysis step")
             step = multiplicity_steps[0]
-            if step.method != "holm_adjustment" or not step.family_id.strip():
+            family_id = require_canonical_analysis_text(
+                step.family_id, "Holm multiplicity step family_id"
+            )
+            if step.method != "holm_adjustment" or not family_id:
                 raise ValidationError(
                     "Holm multiplicity step requires method holm_adjustment and a family_id"
                 )
@@ -1400,10 +1423,22 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 raise ValidationError("Holm multiplicity step alpha must match the protocol alpha")
             if any(not isinstance(item, AnalysisFamilyMember) for item in step.family_members):
                 raise ValidationError("multiplicity family_members must be typed values")
-            member_ids = [require_text(item.member_id, "family member_id") for item in step.family_members]
+            member_ids = [
+                require_canonical_analysis_text(item.member_id, "family member_id")
+                for item in step.family_members
+            ]
             if len(set(member_ids)) != len(member_ids):
                 raise ValidationError("multiplicity family member_id values must be unique")
-            members_by_source = {item.source_step_id: item for item in step.family_members}
+            source_member_pairs = [
+                (
+                    require_canonical_analysis_text(
+                        item.source_step_id, "family source_step_id"
+                    ),
+                    item,
+                )
+                for item in step.family_members
+            ]
+            members_by_source = dict(source_member_pairs)
             if len(members_by_source) != len(step.family_members):
                 raise ValidationError("multiplicity family must use each source step exactly once")
             confirmatory_sources = [
