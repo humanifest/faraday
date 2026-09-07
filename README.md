@@ -175,9 +175,10 @@ The same contract must state the missingness assumption that would make the
 complete-case analysis interpretable, how it will be assessed, whether that
 assessment is an empirical diagnostic, design-record review, external validation,
 or substantive judgment, what happens if it fails, and a dedicated required gate.
-The bundled descriptive summary and missingness report normalize requested column
-names before duplicate checks and result construction, so padded diagnostic
-specifications cannot create separate apparent fields.
+The bundled descriptive summary, Pearson correlation, and missingness report
+normalize requested column names before duplicate or distinct-column checks and
+result construction, so padded diagnostic specifications cannot create separate
+apparent fields or hidden self-comparisons.
 Run intake requires an exact artifact-bound result. Passed, warning, and failed
 gates correspond respectively to `consistent_with_assumption`, `inconclusive`,
 and `contradicted_assumption`; the classification cannot be upgraded after

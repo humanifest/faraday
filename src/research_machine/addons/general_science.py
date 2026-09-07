@@ -100,8 +100,12 @@ def missingness_report(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict
 def pearson_correlation(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[str, Any]:
     x_name = spec.get("x_column")
     y_name = spec.get("y_column")
-    if not isinstance(x_name, str) or not isinstance(y_name, str):
+    if not isinstance(x_name, str) or not x_name.strip() or not isinstance(y_name, str) or not y_name.strip():
         raise ValidationError("pearson_correlation requires x_column and y_column")
+    x_name = x_name.strip()
+    y_name = y_name.strip()
+    if x_name == y_name:
+        raise ValidationError("pearson_correlation requires distinct x_column and y_column")
     pairs: list[tuple[float, float]] = []
     missing = 0
     for index, row in enumerate(rows, start=2):

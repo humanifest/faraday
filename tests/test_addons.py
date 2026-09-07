@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from research_machine.addons.models import AddonManifest, AnalysisMethod
-from research_machine.addons.general_science import descriptive_summary
+from research_machine.addons.general_science import descriptive_summary, pearson_correlation
 from research_machine.addons.registry import (
     AddonRegistry,
     default_registry,
@@ -59,6 +59,27 @@ def _result(capsys) -> object:
     payload = json.loads(captured.out)
     assert payload["ok"] is True
     return payload["result"]
+
+
+def test_pearson_correlation_normalizes_column_handles() -> None:
+    """Synthetic fixture: padded handles must resolve to the committed CSV fields."""
+    result = pearson_correlation(
+        {"x_column": " x ", "y_column": " y "},
+        [{"x": "1", "y": "2"}, {"x": "2", "y": "4"}, {"x": "3", "y": "6"}],
+    )
+
+    assert result["n"] == 3
+    assert result["pearson_r"] == pytest.approx(1.0)
+    assert result["missing_pairs"] == 0
+
+
+def test_pearson_correlation_rejects_duplicate_normalized_columns() -> None:
+    """Synthetic fixture: whitespace cannot hide a self-correlation request."""
+    with pytest.raises(ValidationError, match="distinct x_column and y_column"):
+        pearson_correlation(
+            {"x_column": "x", "y_column": " x "},
+            [{"x": "1"}, {"x": "2"}, {"x": "3"}],
+        )
 
 
 @pytest.mark.parametrize("case", ["unique", "duplicate", "missing", "unsupported_method"])

@@ -15,8 +15,8 @@ methods without changing its epistemic rules or canonical state.
 - Write-once execution receipts binding analysis specification, data,
   implementation, environment, output, and gates.
 - Cross-disciplinary CSV summaries, correlation, and seeded permutation testing;
-  summary and missingness methods normalize requested column handles before
-  duplicate checks and result construction.
+  summary, correlation, and missingness methods normalize requested column
+  handles before duplicate or distinct-column checks and result construction.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit
@@ -625,9 +625,10 @@ inconclusive, and contradicted results. Verified analysis-result citations use a
 resolving absolute JSON Pointer. Deterministic synthesis exposes the frozen
 assumption and every recorded disposition. This closes an accountability gap but
 does not make any diagnostic sufficient to establish ignorability.
-The bundled descriptive summary and missingness report normalize requested
-diagnostic columns before duplicate checks and result construction, preventing
-whitespace-padded specifications from creating separate apparent fields.
+The bundled descriptive summary, Pearson correlation, and missingness report
+normalize requested diagnostic columns before duplicate or distinct-column checks
+and result construction, preventing whitespace-padded specifications from
+creating separate apparent fields or hidden self-comparisons.
 The provider-free design interview and scaffold elicit the same minimum count,
 maximum total exclusion fraction, and maximum between-group exclusion-rate
 difference, as well as the full missingness-assessment contract. Missing answers
