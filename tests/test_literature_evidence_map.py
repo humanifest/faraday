@@ -64,29 +64,8 @@ def test_evidence_map_cli_verifies_chain_and_bounds_claim(tmp_path, capsys):
         create_evidence_map(extraction, verification, bias, reconciliation, digest, output)
 
 
-def test_evidence_map_normalizes_join_handles(tmp_path):
+def test_evidence_map_preserves_canonical_join_handles(tmp_path):
     extraction, verification, bias, reconciliation, digest = chain(tmp_path)
-    value = json.loads(extraction.read_text())
-    value["source_reviews"][0]["source_id"] = " s1 "
-    value["source_reviews"][0]["records"][0]["extraction_id"] = " e1 "
-    value["source_reviews"][0]["records"][0]["study_id"] = " study-1 "
-    extraction_sha = write_json(extraction, value)
-    value = json.loads(verification.read_text())
-    value["extraction_sha256"] = extraction_sha
-    value["assessments"][0]["extraction_id"] = "e1 "
-    value["assessments"][0]["study_id"] = "study-1 "
-    value["assessments"][0]["source_id"] = "s1 "
-    verification_sha = write_json(verification, value)
-    value = json.loads(bias.read_text())
-    value["citation_verification_sha256"] = verification_sha
-    value["assessments"][0]["study_id"] = " study-1 "
-    value["assessments"][0]["domains"][0]["domain"] = " selection "
-    value["assessments"][0]["domains"][0]["evidence_locations"] = [" table 1 "]
-    bias_sha = write_json(bias, value)
-    value = json.loads(reconciliation.read_text())
-    value["bias_assessment_sha256"] = bias_sha
-    value["studies"][0]["study_id"] = " study-1 "
-    digest = write_json(reconciliation, value)
     result = create_evidence_map(extraction, verification, bias, reconciliation, digest, tmp_path / "map")
     assert result["claims"][0]["extraction_id"] == "e1"
     assert result["claims"][0]["study_id"] == "study-1"
@@ -99,6 +78,10 @@ def test_evidence_map_normalizes_join_handles(tmp_path):
     "terminal-hash", "extraction-link", "verification-link", "bias-link", "unresolved",
     "coverage", "padded-extraction-duplicate", "padded-citation-duplicate",
     "padded-bias-duplicate", "padded-reconciliation-duplicate",
+    "padded-extraction-source", "padded-extraction-study", "padded-extraction-location",
+    "padded-citation-id", "padded-citation-source", "padded-citation-study",
+    "padded-citation-location", "padded-citation-rationale", "padded-bias-study",
+    "padded-bias-domain", "padded-bias-location", "padded-reconciliation-study",
     "citation-provenance", "bias-provenance",
 ])
 def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
@@ -143,6 +126,50 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
     elif failure == "padded-reconciliation-duplicate":
         value = json.loads(reconciliation.read_text())
         value["studies"].append({"study_id": " study-1 "})
+        digest = write_json(reconciliation, value)
+    elif failure in {"padded-extraction-source", "padded-extraction-study", "padded-extraction-location"}:
+        value = json.loads(extraction.read_text())
+        if failure == "padded-extraction-source":
+            value["source_reviews"][0]["source_id"] = " s1 "
+        elif failure == "padded-extraction-study":
+            value["source_reviews"][0]["records"][0]["study_id"] = " study-1 "
+        elif failure == "padded-extraction-location":
+            value["source_reviews"][0]["records"][0]["evidence_location"] = " page fixture "
+        extraction_sha = write_json(extraction, value)
+        value = json.loads(verification.read_text()); value["extraction_sha256"] = extraction_sha; verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure in {
+        "padded-citation-id", "padded-citation-source", "padded-citation-study",
+        "padded-citation-location", "padded-citation-rationale",
+    }:
+        value = json.loads(verification.read_text())
+        if failure == "padded-citation-id":
+            value["assessments"][0]["extraction_id"] = " e1 "
+        elif failure == "padded-citation-source":
+            value["assessments"][0]["source_id"] = " s1 "
+        elif failure == "padded-citation-study":
+            value["assessments"][0]["study_id"] = " study-1 "
+        elif failure == "padded-citation-location":
+            value["assessments"][0]["checked_location"] = " page 4 "
+        elif failure == "padded-citation-rationale":
+            value["assessments"][0]["rationale"] = " fixture citation check "
+        verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure in {"padded-bias-study", "padded-bias-domain", "padded-bias-location"}:
+        value = json.loads(bias.read_text())
+        if failure == "padded-bias-study":
+            value["assessments"][0]["study_id"] = " study-1 "
+        elif failure == "padded-bias-domain":
+            value["assessments"][0]["domains"][0]["domain"] = " selection "
+        elif failure == "padded-bias-location":
+            value["assessments"][0]["domains"][0]["evidence_locations"] = [" table 1 "]
+        bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure == "padded-reconciliation-study":
+        value = json.loads(reconciliation.read_text())
+        value["studies"][0]["study_id"] = " study-1 "
         digest = write_json(reconciliation, value)
     elif failure == "citation-provenance":
         value = json.loads(verification.read_text()); value["assessments"][0]["checked_location"] = ""; verification_sha = write_json(verification, value)

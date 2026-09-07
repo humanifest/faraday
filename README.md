@@ -737,10 +737,11 @@ pinned extraction trail. Bias assessment and study-identity reconciliation now
 require canonical prior reviewer, study/source, reviewer, registration,
 metadata, relationship-pair, rationale, and evidence-location text before
 coverage checks, preventing reviewer-entered whitespace from splitting or
-merging provenance after citation review. Evidence-map construction and qualitative
-synthesis replay the normalized extraction, study, source, and bias-domain
-handles before joining or counting claims, so the final qualitative artifact
-cannot reintroduce hidden duplicate identities. This makes the review trail
+merging provenance after citation review. Evidence-map construction also
+requires canonical extraction, study, source, citation-review, and bias-domain
+handles before joining or counting claims, so the final map cannot reintroduce
+hidden duplicate identities. Qualitative synthesis still replays the normalized
+map handles before joining claims. This makes the review trail
 inspectable while still refusing to turn retrieved or reviewer-entered source
 claims into Faraday scientific evidence.
 

@@ -24,6 +24,13 @@ def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
     return value, hashlib.sha256(content).hexdigest()
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def _ceiling(citation_verdict: str, bias_judgment: str, epistemic_layer: str) -> str:
     if bias_judgment in {"high", "unclear"}:
         return "insufficient_for_conclusion"
@@ -68,25 +75,25 @@ def create_evidence_map(
 
     citation_by_id = {}
     for item in verification.get("assessments", []):
-        if not isinstance(item, dict) or not isinstance(item.get("extraction_id"), str) or not item["extraction_id"].strip():
+        if not isinstance(item, dict):
             raise ValidationError("citation assessments are malformed")
-        extraction_id = item["extraction_id"].strip()
+        extraction_id = _canonical_text(item.get("extraction_id"), "citation extraction_id")
         if extraction_id in citation_by_id:
             raise ValidationError("citation assessments contain duplicate extraction_id")
         citation_by_id[extraction_id] = {**item, "extraction_id": extraction_id}
     bias_by_study = {}
     for item in bias.get("assessments", []):
-        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or not item["study_id"].strip():
+        if not isinstance(item, dict):
             raise ValidationError("bias assessments are malformed")
-        study_id = item["study_id"].strip()
+        study_id = _canonical_text(item.get("study_id"), "bias study_id")
         if study_id in bias_by_study:
             raise ValidationError("bias assessments contain duplicate study_id")
         bias_by_study[study_id] = {**item, "study_id": study_id}
     reconciled_studies = set()
     for item in reconciliation.get("studies", []):
-        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or not item["study_id"].strip():
+        if not isinstance(item, dict):
             raise ValidationError("reconciled studies are malformed")
-        study_id = item["study_id"].strip()
+        study_id = _canonical_text(item.get("study_id"), "reconciled study_id")
         if study_id in reconciled_studies:
             raise ValidationError("reconciled studies contain duplicate study_id")
         reconciled_studies.add(study_id)
@@ -96,23 +103,20 @@ def create_evidence_map(
     for source_review in extraction.get("source_reviews", []):
         if not isinstance(source_review, dict):
             raise ValidationError("extraction source reviews are malformed")
-        source_id = _text(source_review.get("source_id"), "extraction source_id").strip()
+        source_id = _canonical_text(source_review.get("source_id"), "extraction source_id")
         for record in source_review.get("records", []):
             if not isinstance(record, dict):
                 raise ValidationError("extraction records are malformed")
-            extraction_id, study_id = record.get("extraction_id"), record.get("study_id")
-            if not isinstance(extraction_id, str) or not extraction_id.strip():
-                raise ValidationError("extraction records contain invalid or duplicate extraction_id")
-            extraction_id = extraction_id.strip()
+            extraction_id = _canonical_text(record.get("extraction_id"), "extraction_id")
             if extraction_id in seen:
                 raise ValidationError("extraction records contain invalid or duplicate extraction_id")
-            study_id = _text(study_id, "extraction study_id").strip()
+            study_id = _canonical_text(record.get("study_id"), "extraction study_id")
             seen.add(extraction_id)
             citation = citation_by_id.get(extraction_id)
             study_bias = bias_by_study.get(study_id)
             if (citation is None or study_bias is None or study_id not in reconciled_studies
-                    or _text(citation.get("source_id"), "citation source_id").strip() != source_id
-                    or _text(citation.get("study_id"), "citation study_id").strip() != study_id):
+                    or _canonical_text(citation.get("source_id"), "citation source_id") != source_id
+                    or _canonical_text(citation.get("study_id"), "citation study_id") != study_id):
                 raise ValidationError("literature artifacts do not provide consistent claim, source, and study coverage")
             verdict, overall = citation.get("verdict"), study_bias.get("overall_judgment")
             layer = record.get("epistemic_layer")
@@ -124,6 +128,7 @@ def create_evidence_map(
             checked_location = citation.get("checked_location")
             citation_rationale = citation.get("rationale")
             if any(not isinstance(value, str) or not value.strip()
+                   or value != value.strip()
                    for value in (extracted_location, checked_location, citation_rationale)):
                 raise ValidationError("evidence map requires retained extraction and citation-review locations")
             domains = study_bias.get("domains")
@@ -137,30 +142,29 @@ def create_evidence_map(
                 name, judgment, locations = (
                     domain.get("domain"), domain.get("judgment"), domain.get("evidence_locations")
                 )
-                if not isinstance(name, str) or not name.strip():
-                    raise ValidationError("evidence map bias-domain names must be unique non-empty text")
-                name = name.strip()
+                name = _canonical_text(name, "bias domain")
                 if name in seen_domains:
                     raise ValidationError("evidence map bias-domain names must be unique non-empty text")
                 seen_domains.add(name)
                 if judgment not in {"low", "some_concerns", "high", "unclear", "not_applicable"}:
                     raise ValidationError("evidence map bias-domain judgment is invalid")
                 if (not isinstance(locations, list)
-                        or any(not isinstance(item, str) or not item.strip() for item in locations)
+                        or any(not isinstance(item, str) or not item.strip() or item != item.strip()
+                               for item in locations)
                         or (judgment != "not_applicable" and not locations)):
                     raise ValidationError("evidence map bias-domain locations are invalid")
                 domain_summaries.append({
                     "domain": name,
                     "judgment": judgment,
-                    "evidence_locations": [item.strip() for item in locations],
+                    "evidence_locations": locations,
                 })
             claims.append({
                 "extraction_id": extraction_id, "study_id": study_id, "source_id": source_id,
-                "extracted_evidence_location": extracted_location.strip(),
+                "extracted_evidence_location": extracted_location,
                 "claim_text": record.get("claim_text"), "epistemic_layer": layer,
                 "result_direction": record.get("result_direction"), "uncertainty": record.get("uncertainty"),
-                "citation_checked_location": checked_location.strip(),
-                "citation_rationale": citation_rationale.strip(),
+                "citation_checked_location": checked_location,
+                "citation_rationale": citation_rationale,
                 "citation_verdict": verdict, "risk_of_bias": overall,
                 "bias_domain_judgments": domain_summaries,
                 "interpretive_ceiling": _ceiling(verdict, overall, layer),

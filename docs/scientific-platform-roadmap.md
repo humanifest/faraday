@@ -926,9 +926,10 @@ bias-domain judgments with their cited locations, so the ceiling remains tied to
 inspectable review anchors. The write-once map cannot authorize a conclusion,
 pooled estimate, causal claim, recommendation, or publication; it is the
 inspectable input boundary for later registered synthesis.
-Evidence-map construction normalizes extraction, study, source, and bias-domain
-handles before every provenance join, preventing padded upstream artifacts from
-creating apparent new claims or studies.
+Evidence-map construction requires canonical extraction, study, source,
+citation-review, and bias-domain handles before every provenance join,
+preventing padded upstream artifacts from creating apparent new claims or
+studies.
 `research literature plan-synthesis` freezes the research question, primary
 outcome, qualitative or quantitative mode, effect measure, contrast definition, statistical model,
 minimum independent-study count, eligibility, missing-statistics, heterogeneity,
