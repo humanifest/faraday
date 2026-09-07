@@ -43,7 +43,7 @@ _INDEPENDENT_REVIEW_DECISIONS = {"approved", "approved_with_conditions"}
 
 def require_sha256(value: str, field_name: str) -> str:
     digest = require_text(value, field_name)
-    if not _SHA256.fullmatch(digest):
+    if digest != value or not _SHA256.fullmatch(digest):
         raise ValidationError(f"{field_name} must be 64 lowercase hex characters")
     return digest
 

@@ -800,7 +800,9 @@ Export self-verifies before atomic publication.
 Version-1 packages remain verifiable.
 Export itself does not validate a replication
 result or publish material. `replication verify` checks included file integrity
-against a separately trusted manifest hash; it does not reproduce the experiment.
+against a separately trusted canonical lowercase manifest hash, and requires
+every manifest file digest to be canonical before comparison; it does not
+reproduce the experiment.
 
 Provider-boundary delivery: `research collaborator context --output <directory>`
 freezes read-only inquiry state, open questions, and scientific constraints for

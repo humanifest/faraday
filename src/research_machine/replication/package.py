@@ -19,7 +19,11 @@ from research_machine.domain.models import (
     DatasetRole,
     QualityGateStatus,
 )
-from research_machine.application.policies import require_text, validate_quality_gates
+from research_machine.application.policies import (
+    require_sha256,
+    require_text,
+    validate_quality_gates,
+)
 from research_machine.application.protocol_integrity import protocol_commitment
 from research_machine.application.dataset_integrity import (
     validate_dataset_payload_commitment,
@@ -80,11 +84,9 @@ def _strict_json_bytes(content: bytes, label: str) -> Any:
 
 def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any]:
     """Verify packaged bytes against an independently retained export commitment."""
-    def valid_hash(value: Any) -> bool:
-        return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
-
-    if not valid_hash(expected_manifest_sha256):
-        raise ValidationError("expected manifest SHA-256 must be 64 lowercase hexadecimal characters")
+    expected_manifest_sha256 = require_sha256(
+        expected_manifest_sha256, "expected manifest SHA-256"
+    )
     try:
         if not root.is_dir() or root.is_symlink():
             raise ValidationError("package must be a directory, not a symbolic link")
@@ -110,7 +112,10 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
         if not isinstance(files, dict) or set(files) != expected_files:
             raise ValidationError("manifest must cover exactly the package files")
         for name, expected in files.items():
-            if not valid_hash(expected) or hashlib.sha256((root / name).read_bytes()).hexdigest() != expected:
+            expected_file_sha256 = require_sha256(
+                expected, f"manifest file hash for {name}"
+            )
+            if hashlib.sha256((root / name).read_bytes()).hexdigest() != expected_file_sha256:
                 raise ValidationError(f"package file hash mismatch: {name}")
         if manifest["package_version"] == 2:
             if (root / "INSTRUCTIONS.md").read_text(encoding="utf-8") != _V2_INSTRUCTIONS:

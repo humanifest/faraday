@@ -29,6 +29,23 @@ from research_machine.replication.package import verify_replication_package
 from research_machine.interfaces.cli import main
 
 
+def _tiny_v1_replication_package(root: Path) -> tuple[Path, str]:
+    package = root / "package"
+    package.mkdir()
+    expected_files = {"protocol.json", "datasets.json", "runs.json", "INSTRUCTIONS.md"}
+    file_hashes: dict[str, str] = {}
+    for name in expected_files:
+        path = package / name
+        path.write_text(f"synthetic fixture {name}\n", encoding="utf-8")
+        file_hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest_path = package / "package-manifest.json"
+    manifest_path.write_text(
+        json.dumps({"package_version": 1, "files": file_hashes}),
+        encoding="utf-8",
+    )
+    return package, hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+
 def _after_registration_times(registration_timestamp: str) -> tuple[str, str]:
     registered = datetime.fromisoformat(
         registration_timestamp.replace("Z", "+00:00")
@@ -57,6 +74,37 @@ def test_nested_locator_redaction_does_not_mutate_source():
     assert redacted["review_artifact_locator"].startswith("[redacted:")
     assert source["review_artifact_locator"] == "/private/review.pdf"
     assert redacted["summary"] == source["summary"]
+
+
+@pytest.mark.parametrize("expected", ["A" * 64, "0" * 63, " " + "0" * 64])
+def test_replication_verify_rejects_noncanonical_expected_manifest_hash(
+    tmp_path: Path, expected: str
+) -> None:
+    package, _ = _tiny_v1_replication_package(tmp_path)
+
+    with pytest.raises(
+        ValidationError,
+        match="expected manifest SHA-256 must be 64 lowercase hex characters",
+    ):
+        verify_replication_package(package, expected)
+
+
+@pytest.mark.parametrize("expected", ["A" * 64, "0" * 63, " " + "0" * 64])
+def test_replication_verify_rejects_noncanonical_manifest_file_hash(
+    tmp_path: Path, expected: str
+) -> None:
+    package, _ = _tiny_v1_replication_package(tmp_path)
+    manifest_path = package / "package-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"]["runs.json"] = expected
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+    with pytest.raises(
+        ValidationError,
+        match="manifest file hash for runs.json must be 64 lowercase hex characters",
+    ):
+        verify_replication_package(package, commitment)
 
 
 @pytest.mark.parametrize("mutation", [

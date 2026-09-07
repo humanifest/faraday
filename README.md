@@ -558,7 +558,8 @@ metadata can contain sensitive information; review it before sharing:
 ```
 
 Retain the returned `package_manifest_sha256` separately through a trusted
-channel. Verify a received package with:
+channel. It and every file hash inside `package-manifest.json` must remain a
+canonical lowercase SHA-256 digest. Verify a received package with:
 
 ```bash
 ./research replication verify --package replication-package \
