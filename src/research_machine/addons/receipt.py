@@ -18,6 +18,16 @@ from research_machine.domain.errors import ValidationError
 from research_machine.application.service import ResearchService
 
 
+def _require_sha256(value: Any, field: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValidationError(f"{field} must be a lowercase SHA-256 digest")
+    return value
+
+
 def execution_run_draft(service: ResearchService, directory: Path, expected_receipt_sha256: str,
                         inquiry_id: str | None = None) -> dict[str, Any]:
     verified = verify_execution_output(directory, expected_receipt_sha256)
@@ -61,6 +71,9 @@ def execution_run_draft(service: ResearchService, directory: Path, expected_rece
 
 def verify_execution_output(directory: Path, expected_receipt_sha256: str) -> dict[str, Any]:
     """Verify pinned receipt/output bytes; do not trust arbitrary receipt locators."""
+    expected_receipt_sha256 = _require_sha256(
+        expected_receipt_sha256, "expected_receipt_sha256"
+    )
     if directory.is_symlink() or not directory.is_dir():
         raise ValidationError("execution directory must be a real directory")
     contents = {}

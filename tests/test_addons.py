@@ -453,6 +453,12 @@ def test_general_analysis_is_deterministic_and_non_evidentiary(
     import hashlib
 
     assert receipt["output"]["sha256"] == hashlib.sha256(result_bytes).hexdigest()
+    from research_machine.addons.receipt import verify_execution_output
+
+    receipt_hash = hashlib.sha256((first / "execution-receipt.json").read_bytes()).hexdigest()
+    assert verify_execution_output(first, receipt_hash)["receipt"]["method"] == "permutation_mean_difference"
+    with pytest.raises(ValidationError, match="lowercase SHA-256"):
+        verify_execution_output(first, f" {receipt_hash} ")
 
 
 def test_explicit_local_addon_loads_without_installing_a_package(

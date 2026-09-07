@@ -84,9 +84,11 @@ calibration.
 `./research --workspace PATH analysis run-draft --execution-directory OUTPUT
 --expected-receipt-sha256 TRUSTED_HASH` returns a review-only run draft from a
 protocol-bound execution. It verifies the pinned receipt/result bytes and checks
-the binding against canonical records. Scientific gates remain skipped and the
-environment hash remains unresolved. Review the `record` and use run preflight
-before recording; output artifact locators are relative to the execution directory.
+the binding against canonical records. The supplied trusted receipt hash must be
+a canonical lowercase SHA-256 digest without surrounding whitespace. Scientific
+gates remain skipped and the environment hash remains unresolved. Review the
+`record` and use run preflight before recording; output artifact locators are
+relative to the execution directory.
 Canonical run intake repeats receipt/output-byte verification and the complete
 protocol binding; callers cannot bypass this by constructing
 `metadata.execution_handoff` themselves. This command writes no canonical state

@@ -613,11 +613,12 @@ required`. A clean prospective study can still establish its own bounded ceiling
 
 Run-handoff delivery: `analysis run-draft` verifies pinned receipt/output bytes
 and rechecks protocol, dataset, specification, implementation, and input bindings.
-It retains the analysis result (including exclusions and unit checks), leaves
-quality gates skipped and environment provenance unresolved, and writes no
-canonical state. CLI fixtures reject changed bindings even with a newly supplied
-receipt hash. This does not authenticate a receipt or verify original code/input
-files are still available. The synthetic acceptance workflow now exercises
+The supplied trusted receipt hash must be a canonical lowercase digest without
+surrounding whitespace. It retains the analysis result (including exclusions and
+unit checks), leaves quality gates skipped and environment provenance unresolved,
+and writes no canonical state. CLI fixtures reject changed bindings even with a
+newly supplied receipt hash. This does not authenticate a receipt or verify
+original code/input files are still available. The synthetic acceptance workflow now exercises
 frozen observational and experimental protocols through registered input,
 protocol-bound execution, reviewed run preflight, invalid-run preservation,
 rigor audit, replication-package verification, redaction checks, and ledger
