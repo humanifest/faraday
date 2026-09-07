@@ -338,6 +338,13 @@ def test_dataset_artifact_locator_must_be_canonical() -> None:
         validate_dataset_artifacts([DatasetArtifact(" result.json ", "a" * 64)])
 
 
+def test_dataset_artifact_media_type_must_be_canonical() -> None:
+    with pytest.raises(ValidationError, match="artifact media_type must be canonical"):
+        validate_dataset_artifacts([
+            DatasetArtifact("result.json", "a" * 64, media_type=" application/json ")
+        ])
+
+
 def test_artifact_integrity_rejects_duplicate_attestation_keys(
     tmp_path: Path,
 ) -> None:
@@ -526,6 +533,7 @@ def test_run_preflight_rejects_noncanonical_attestation_schema_hash(
             "attestation_schema_path must be canonical",
         ),
         ("output_artifacts", "{padded_locator}", "artifact locator must be canonical"),
+        ("output_artifacts", "{padded_media_type}", "artifact media_type must be canonical"),
     ],
 )
 def test_run_artifact_receipt_paths_must_be_canonical_at_intake(
@@ -564,6 +572,17 @@ def test_run_artifact_receipt_paths_must_be_canonical_at_intake(
                 artifacts[0].sha256,
                 artifacts[0].size_bytes,
                 artifacts[0].media_type,
+                artifacts[0].metadata,
+            ),
+            artifacts[1],
+        ]
+    elif value == "{padded_media_type}":
+        value = [
+            DatasetArtifact(
+                artifacts[0].locator,
+                artifacts[0].sha256,
+                artifacts[0].size_bytes,
+                " application/json ",
                 artifacts[0].metadata,
             ),
             artifacts[1],

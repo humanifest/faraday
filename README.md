@@ -945,7 +945,7 @@ The discharge must cover every frozen condition exactly, bind each satisfied
 condition or active control to verified evidence bytes and an inspectable
 location, and cannot predate review or postdate registration. Active controls
 must declare `valid_through`; run intake refuses analyses completed after that
-horizon. Evidence artifacts declare a media type; for `application/json`, the
+horizon. Evidence artifacts declare a canonical media type; for `application/json`, the
 location must be an absolute JSON Pointer that resolves in the verified bytes
 and Faraday records a digest of the selected value. Other formats retain an exact
 human-inspectable location without pretending to parse them. These checks enforce documented obligations without claiming the
@@ -1035,9 +1035,10 @@ and canonical without surrounding whitespace. Retained receipt text, including
 receipt IDs, artifact locators, acquisition methods, transformation versions,
 calibration references/results, gate summaries, and derived-observation
 definitions, must also be unpadded. The shared artifact validator rejects
-padded locators before custody, dataset, run, or review receipts can be built.
-Custody record actors and retained verification identities follow the same
-rule, so cosmetic whitespace cannot split or obscure custody provenance.
+padded locators and media types before custody, dataset, run, or review
+receipts can be built. Custody record actors and retained verification
+identities follow the same rule, so cosmetic whitespace cannot split or obscure
+custody provenance.
 At protocol freeze, required custody-gate IDs must also be canonical without
 surrounding whitespace before they become calibration and registration
 commitments. Calibration criterion IDs, calibration IDs, quantities, units, and
@@ -1156,9 +1157,10 @@ generated or replayed.
   inquiry display, rigor audit, and synthesis. Retained run artifact roots and
   attestation-schema paths must be canonical unpadded text, and schema hash
   commitments must be canonical lowercase SHA-256 digests, before receipts can
-  be generated or replayed. Output artifact locators must also be canonical at
-  the shared artifact-validation boundary, so padded local handles cannot enter
-  dataset, run, custody, or review receipts. Evidence records preserve the
+  be generated or replayed. Output artifact locators and media types must also
+  be canonical at the shared artifact-validation boundary, so padded local
+  handles and JSON-vs-human-inspectable labels cannot enter dataset, run,
+  custody, or review receipts. Evidence records preserve the
   admission-time protocol, dataset, output, and ethics checks without claiming
   that these checks validate scientific interpretation. The receipt also
   commits every immutable evidence field, so later changes to direction, scope,

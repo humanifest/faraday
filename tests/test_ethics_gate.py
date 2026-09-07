@@ -413,6 +413,17 @@ def test_conditional_review_obligations_require_exact_artifact_backed_discharge_
             ethics_artifact_root=str(ethics_root),
         ))
     assert ledger.read_bytes() == before
+    padded_media_type = dict(discharge)
+    padded_media_type["evidence_artifacts"] = [{
+        **discharge["evidence_artifacts"][0], "media_type": " application/json ",
+    }]
+    with pytest.raises(ValidationError, match="artifact media_type must be canonical"):
+        service.register_dataset(replace(
+            command,
+            metadata={"ethics_condition_discharge": padded_media_type},
+            ethics_artifact_root=str(ethics_root),
+        ))
+    assert ledger.read_bytes() == before
     evidence.write_bytes(b"tampered")
     with pytest.raises(ValidationError, match="evidence verification failed"):
         service.register_dataset(replace(

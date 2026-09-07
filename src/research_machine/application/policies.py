@@ -679,12 +679,17 @@ def validate_dataset_artifacts(
             raise ValidationError(f"duplicate artifact digest: {digest}")
         locators.add(locator)
         digests.add(digest)
+        media_type = normalize_text(artifact.media_type, "artifact media_type")
+        if media_type != artifact.media_type:
+            raise ValidationError(
+                "artifact media_type must be canonical without surrounding whitespace"
+            )
         normalized.append(
             DatasetArtifact(
                 locator=locator,
                 sha256=digest,
                 size_bytes=artifact.size_bytes,
-                media_type=normalize_text(artifact.media_type, "artifact media_type"),
+                media_type=media_type,
                 metadata=dict(artifact.metadata),
             )
         )
