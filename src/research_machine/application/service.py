@@ -4225,16 +4225,18 @@ class ResearchService:
         artifact_hash = require_sha256(
             command.review_artifact_sha256, "review_artifact_sha256"
         )
+        review_artifact_locator = require_canonical_text(
+            command.review_artifact_locator, "review_artifact_locator"
+        )
+        review_artifact_root = require_canonical_text(
+            command.review_artifact_root, "review_artifact_root"
+        )
         report = verify_run_artifacts(
             [DatasetArtifact(
-                locator=require_text(
-                    command.review_artifact_locator, "review_artifact_locator"
-                ),
+                locator=review_artifact_locator,
                 sha256=artifact_hash,
             )],
-            artifact_root=require_text(
-                command.review_artifact_root, "review_artifact_root"
-            ),
+            artifact_root=review_artifact_root,
             actor=self.actor,
             analysis_code_hash="",
             run_metadata={},
@@ -4253,10 +4255,10 @@ class ResearchService:
             status=status,
             effective_at=effective_at,
             reason=require_text(command.reason, "evidence status reason"),
-            review_artifact_locator=command.review_artifact_locator,
+            review_artifact_locator=review_artifact_locator,
             review_artifact_sha256=artifact_hash,
             review_artifact_root=str(
-                Path(command.review_artifact_root).expanduser().resolve()
+                Path(review_artifact_root).expanduser().resolve()
             ),
             supersedes_event_id=supersedes_event_id,
             created_at=created_at,

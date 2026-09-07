@@ -123,16 +123,17 @@ Post-discovery evidence-status delivery: evidence records remain immutable, but
 `research evidence record-status` appends a locally artifact-verified `active`,
 `qualified`, `withdrawn`, or terminal `retracted` event. Events bind the exact
 evidence ID, require timezone-aware chronology and the exact latest predecessor,
-reject noncanonical status, event, evidence, and predecessor handles, and
-preserve a linear sequence. Current rigor audits and synthesis capability
-calculations use only evidence with no status event or a latest `active` event;
-restricted evidence and its entire correction history remain visible in the
-report. This verifies local review bytes and lifecycle consistency, not reviewer
-identity or the scientific correctness of the disposition.
+reject noncanonical status, event, evidence, predecessor, review-artifact
+locator/root, creator, and retained conclusion-ceiling handles, and preserve a
+linear sequence. Current rigor audits and synthesis capability calculations use
+only evidence with no status event or a latest `active` event; restricted
+evidence and its entire correction history remain visible in the report. This
+verifies local review bytes and lifecycle consistency, not reviewer identity or
+the scientific correctness of the disposition.
 The event retains its local artifact root. Every authoritative read recomputes
 the complete integrity receipt from present bytes and rejects missing, moved,
-mutated, symlinked, or receipt-inconsistent review material instead of trusting
-a historical `passed` flag.
+mutated, symlinked, padded, or receipt-inconsistent review material instead of
+trusting a historical `passed` flag.
 
 Priority clarification from the original brief: guided design and the design
 auditor are the next primary development track, not gated on completing this

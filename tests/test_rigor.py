@@ -294,6 +294,8 @@ def test_evidence_status_chain_requires_exact_predecessor_and_retraction_is_term
         ("evidence_id", "{evidence_id} ", "evidence_id must be canonical"),
         ("status", " qualified", "evidence status must be canonical"),
         ("event_id", " evidence-status-manual", "event_id must be canonical"),
+        ("review_artifact_locator", " qualified.txt", "review_artifact_locator must be canonical"),
+        ("review_artifact_root", "{root} ", "review_artifact_root must be canonical"),
     ],
 )
 def test_evidence_status_command_handles_must_be_canonical(
@@ -307,6 +309,8 @@ def test_evidence_status_command_handles_must_be_canonical(
     review_root.mkdir()
     if value == "{evidence_id} ":
         value = f"{evidence.evidence_id} "
+    elif value == "{root} ":
+        value = f"{review_root} "
 
     command = _status_command(
         evidence.evidence_id, review_root, "qualified.txt", "qualified",
@@ -371,6 +375,10 @@ def test_evidence_status_reads_fail_closed_on_semantic_chain_tampering(
         ("status", " qualified", "evidence status must be canonical"),
         ("effective_at", " 2026-09-02T12:00:00Z", "evidence status effective_at must be canonical"),
         ("supersedes_event_id", "{event_id} ", "evidence status supersedes_event_id must be canonical"),
+        ("review_artifact_locator", " qualified.txt", "review artifact locator must be canonical"),
+        ("review_artifact_root", "{root} ", "review artifact root must be canonical"),
+        ("created_by", " test-researcher", "evidence status created_by must be canonical"),
+        ("conclusion_ceiling", " Append-only evidence interpretation status.", "evidence status conclusion ceiling must be canonical"),
     ],
 )
 def test_evidence_status_reads_fail_closed_on_noncanonical_chain_tampering(
@@ -390,6 +398,8 @@ def test_evidence_status_reads_fail_closed_on_noncanonical_chain_tampering(
         value = f"{event.event_id} "
     elif value == "{evidence_id} ":
         value = f"{evidence.evidence_id} "
+    elif value == "{root} ":
+        value = f"{review_root} "
     event_file = next(workspace.rglob(f"{event.event_id}.json"))
     tampered = json.loads(event_file.read_text(encoding="utf-8"))
     tampered[field] = value

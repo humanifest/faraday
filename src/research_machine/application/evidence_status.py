@@ -96,9 +96,11 @@ def validate_evidence_status_event_chains(
                     f"evidence {evidence_id} status effective time moves backward"
                 )
             require_text(event.reason, "evidence status reason")
-            require_text(event.review_artifact_locator, "review artifact locator")
+            review_artifact_locator = _canonical_text(
+                event.review_artifact_locator, "review artifact locator"
+            )
             require_sha256(event.review_artifact_sha256, "review artifact SHA-256")
-            artifact_root = require_text(
+            artifact_root = _canonical_text(
                 event.review_artifact_root, "review artifact root"
             )
             if not isinstance(event.artifact_integrity, dict) or event.artifact_integrity.get(
@@ -109,11 +111,11 @@ def validate_evidence_status_event_chains(
                 )
             current_integrity = verify_run_artifacts(
                 [DatasetArtifact(
-                    locator=event.review_artifact_locator,
+                    locator=review_artifact_locator,
                     sha256=event.review_artifact_sha256,
                 )],
                 artifact_root=artifact_root,
-                actor=event.created_by,
+                actor=_canonical_text(event.created_by, "evidence status created_by"),
                 analysis_code_hash="",
                 run_metadata={},
                 attestation_schema_path=None,
@@ -123,8 +125,7 @@ def validate_evidence_status_event_chains(
                 raise ValidationError(
                     f"evidence status event {event.event_id} review artifact no longer matches its integrity receipt"
                 )
-            require_text(event.created_by, "evidence status created_by")
-            require_text(event.conclusion_ceiling, "evidence status conclusion ceiling")
+            _canonical_text(event.conclusion_ceiling, "evidence status conclusion ceiling")
             terminal_seen = event.status == "retracted"
             prior_effective = effective
             prior_event_id = event.event_id
