@@ -354,7 +354,9 @@ def _unit_structure(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[st
             group = row.get(group_column)
             if not isinstance(group, str) or not group.strip():
                 raise ValidationError(f"analysis group assignment is missing at CSV row {row_number}")
-            allocation.append({"unit_id": identifier, "group": group.strip()})
+            if group != group.strip():
+                raise ValidationError(f"analysis group assignment is noncanonical at CSV row {row_number}")
+            allocation.append({"unit_id": identifier, "group": group})
     frequencies = list(counts.values())
     return {
         "unit_id_column": column,

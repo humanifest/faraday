@@ -1057,7 +1057,7 @@ def test_protocol_freeze_rejects_nested_scaffold_placeholder():
         validate_protocol_freeze(protocol)
 
 
-@pytest.mark.parametrize("failure", [None, "design", "implementation", "specification", "unpinned", "input", "size", "role", "unit", "wrong_unit_column", "noncanonical_unit_column", "noncanonical_group_column", "same_group_unit_column", "duplicate_unit", "allocation", "information_minimum", "differential_exclusion", "value_domain", "contract_method", "contract_outcome", "contract_group", "contract_levels", "contract_covariates", "contract_missingness", "contract_estimand", "contract_contrast", "contract_hypothesis", "contract_measurement", "measurement_column", "measurement_scale", "measurement_unit", "measurement_domain", "measurement_bounds", "contract_selector", "duplicate_selectors", "missing_result_selector"])
+@pytest.mark.parametrize("failure", [None, "design", "implementation", "specification", "unpinned", "input", "size", "role", "unit", "wrong_unit_column", "noncanonical_unit_column", "noncanonical_group_column", "same_group_unit_column", "noncanonical_group_value", "duplicate_unit", "allocation", "information_minimum", "differential_exclusion", "value_domain", "contract_method", "contract_outcome", "contract_group", "contract_levels", "contract_covariates", "contract_missingness", "contract_estimand", "contract_contrast", "contract_hypothesis", "contract_measurement", "measurement_column", "measurement_scale", "measurement_unit", "measurement_domain", "measurement_bounds", "contract_selector", "duplicate_selectors", "missing_result_selector"])
 @pytest.mark.parametrize("kind", [ProtocolKind.OBSERVATIONAL, ProtocolKind.EXPERIMENTAL])
 def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, failure, kind):
     from research_machine.addons.execution import _implementation_hash
@@ -1182,7 +1182,8 @@ def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, fai
         )
     else:
         final_value = 101 if failure == "value_domain" else 4
-        data.write_text(f"unit,group,outcome\nu1,a,1\nu2,a,2\nu3,b,3\n{last_unit},{last_group},{final_value}\n")
+        first_group = " a " if failure == "noncanonical_group_value" else "a"
+        data.write_text(f"unit,group,outcome\nu1,{first_group},1\nu2,a,2\nu3,b,3\n{last_unit},{last_group},{final_value}\n")
     dataset = service.register_dataset(RegisterDataset(
         name="Synthetic execution fixture",
         role=DatasetRole.EXPLORATORY if failure == "role" else DatasetRole.CONFIRMATORY,

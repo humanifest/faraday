@@ -61,14 +61,16 @@ against those commitments before analysis and records the check in its receipt.
 CSV headers must be canonical and case-insensitively unique before any method
 runs, so source data cannot expose ambiguous executable columns. Unit, pair, and
 group column handles used to derive execution receipts must also be canonical,
-and the grouping handle cannot reuse the unit or pair identifier column. The
-execution gate independently rejects noncanonical measurement column names,
-unsupported or noncanonical scale types, noncanonical units, case-insensitive
-duplicate value-domain entries, overlapping observed/missing codes, and invalid
-bounds. These checks prevent silent recoding, accidental numeric treatment of
-unknown scales, unit/group allocation hash corruption, out-of-domain categories,
-out-of-range values, fractional counts, and unregistered missing encodings; they
-do not prove measurement validity or calibration.
+and the grouping handle cannot reuse the unit or pair identifier column. Row
+group assignments must be nonblank and canonical before they enter the allocation
+digest. The execution gate independently rejects noncanonical measurement column
+names, unsupported or noncanonical scale types, noncanonical units,
+case-insensitive duplicate value-domain entries, overlapping observed/missing
+codes, and invalid bounds. These checks prevent silent recoding, accidental
+numeric treatment of unknown scales, unit/group allocation hash corruption,
+out-of-domain categories, out-of-range values, fractional counts, and
+unregistered missing encodings; they do not prove measurement validity or
+calibration.
 
 `./research --workspace PATH analysis run-draft --execution-directory OUTPUT
 --expected-receipt-sha256 TRUSTED_HASH` returns a review-only run draft from a
