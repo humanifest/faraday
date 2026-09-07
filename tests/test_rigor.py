@@ -606,6 +606,9 @@ def test_advanced_tags_cannot_overstate_a_formal_self_check(tmp_path: Path) -> N
         ("allowed_input", " contract.md", "allowed_inputs\\[0\\].locator"),
         ("disclosure", " contamination note ", "contamination_disclosures item"),
         ("attestation", " attestation.json", "attestation_artifact"),
+        ("duplicate_dimension", None, "independence_dimensions must not contain duplicates"),
+        ("duplicate_allowed_input", None, "allowed_inputs must not contain duplicates"),
+        ("duplicate_disclosure", None, "contamination_disclosures must not contain duplicates"),
     ],
 )
 def test_independent_replication_requires_canonical_clean_room_metadata(
@@ -628,6 +631,19 @@ def test_independent_replication_requires_canonical_clean_room_metadata(
         independence["contamination_disclosures"] = [value]
     elif field == "attestation":
         independence["attestation_artifact"] = value
+    elif field == "duplicate_dimension":
+        independence["independence_dimensions"] = [
+            "executor", "implementation", "executor"
+        ]
+    elif field == "duplicate_allowed_input":
+        independence["allowed_inputs"] = [
+            {"locator": "contract.md", "sha256": "2" * 64},
+            {"locator": "contract.md", "sha256": "2" * 64},
+        ]
+    elif field == "duplicate_disclosure":
+        independence["contamination_disclosures"] = [
+            "none declared", "none declared"
+        ]
     replication = ResearchRun(
         run_id="replication-run",
         protocol_id="replication-protocol",

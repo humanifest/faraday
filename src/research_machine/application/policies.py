@@ -496,6 +496,10 @@ def validate_validation_tag_context(
             )
             for value in dimensions_input
         ]
+        if len(set(dimensions)) != len(dimensions):
+            raise ValidationError(
+                "replication_independence.independence_dimensions must not contain duplicates"
+            )
         missing_dimensions = {"executor", "implementation"} - set(dimensions)
         if missing_dimensions:
             raise ValidationError(
@@ -512,18 +516,24 @@ def validate_validation_tag_context(
             raise ValidationError(
                 "independent_replication requires a non-empty allowed_inputs manifest"
             )
+        allowed_input_keys: set[tuple[str, str]] = set()
         for index, item in enumerate(allowed_inputs):
             if not isinstance(item, dict):
                 raise ValidationError(
                     "replication_independence.allowed_inputs items must be objects"
                 )
-            require_canonical_text(
+            locator = require_canonical_text(
                 item.get("locator", ""),
                 f"replication_independence.allowed_inputs[{index}].locator",
             )
-            require_sha256(
+            digest = require_sha256(
                 item.get("sha256", ""),
                 f"replication_independence.allowed_inputs[{index}].sha256",
+            )
+            allowed_input_keys.add((locator, digest))
+        if len(allowed_input_keys) != len(allowed_inputs):
+            raise ValidationError(
+                "replication_independence.allowed_inputs must not contain duplicates"
             )
         disclosures = independence.get("contamination_disclosures")
         if not isinstance(disclosures, list):
@@ -536,12 +546,16 @@ def validate_validation_tag_context(
             raise ValidationError(
                 "independent_replication requires a contamination_disclosures list"
             )
-        [
+        normalized_disclosures = [
             require_canonical_text(
                 value, "replication_independence.contamination_disclosures item"
             )
             for value in disclosures
         ]
+        if len(set(normalized_disclosures)) != len(normalized_disclosures):
+            raise ValidationError(
+                "replication_independence.contamination_disclosures must not contain duplicates"
+            )
         attestation_locator = require_canonical_text(
             independence.get("attestation_artifact", ""),
             "replication_independence.attestation_artifact",

@@ -52,7 +52,9 @@ artifacts, a matching and valid schema, and a consistent attestation.
 The run's clean-room metadata handles are exact: independence dimensions,
 allowed-input locators, contamination disclosures, and the attestation artifact
 locator must be canonical without surrounding whitespace before evidence can use
-the replication tag.
+the replication tag. Dimensions, allowed-input entries, and contamination
+disclosures must also be duplicate-free, so repeated declarations cannot make a
+replication record appear broader or better disclosed.
 
 ## Supported schema profile
 
