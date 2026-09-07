@@ -1213,7 +1213,8 @@ fields. `measurement inspect-source` rejects media types outside that declaratio
 then gives an inspector an immutable source-byte
 snapshot, core-hashes its actual implementation module, rejects mutation of its
 config, source, or code, rejects padded retained text fields in its bounded
-metadata result, and core-hashes a write-once acquisition proposal.
+metadata result, including nested native-metadata keys and string values, and
+core-hashes a write-once acquisition proposal.
 `measurement verify-source-inspection` requires
 an independently trusted record hash and exactly re-executes all three inputs.
 The trusted record hash must now be a canonical lowercase digest without

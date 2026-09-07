@@ -32,18 +32,26 @@ def _text(value: Any, field: str, *, optional: bool = False) -> str:
     return value
 
 
-def _json_safe(value: Any) -> None:
+def _json_safe(value: Any, *, canonical_text: bool = False) -> None:
     if isinstance(value, float) and not math.isfinite(value):
         raise ValidationError("instrument adapter output must contain only finite numbers")
+    if canonical_text and isinstance(value, str) and value != value.strip():
+        raise ValidationError(
+            "instrument inspection native_metadata text must be canonical without surrounding whitespace"
+        )
     if value is None or isinstance(value, (str, bool, int, float)):
         return
     if isinstance(value, list):
         for item in value:
-            _json_safe(item)
+            _json_safe(item, canonical_text=canonical_text)
         return
     if isinstance(value, dict) and all(isinstance(key, str) for key in value):
+        if canonical_text and any(not key.strip() or key != key.strip() for key in value):
+            raise ValidationError(
+                "instrument inspection native_metadata keys must be canonical non-empty text"
+            )
         for item in value.values():
-            _json_safe(item)
+            _json_safe(item, canonical_text=canonical_text)
         return
     raise ValidationError("instrument adapter output must be JSON-compatible")
 
@@ -136,7 +144,7 @@ def inspect_instrument_source(
         raise ValidationError(
             "instrument inspection warnings must be canonical non-empty text entries"
         )
-    _json_safe(metadata)
+    _json_safe(metadata, canonical_text=True)
     record = {
         "instrument_inspection_version": 1,
         "adapter": {

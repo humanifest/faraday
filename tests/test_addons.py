@@ -754,6 +754,8 @@ def test_instrument_adapter_cannot_mutate_config_or_publish_invalid_result(
         ("instrument_model", " FixtureScope ", "instrument_model"),
         ("firmware_version", " 1.2.3 ", "firmware_version"),
         ("warnings", [" padded warning "], "warnings"),
+        ("native_metadata", {" serial_number": "fixture-01"}, "native_metadata keys"),
+        ("native_metadata", {"serial_number": " fixture-01 "}, "native_metadata text"),
     ],
 )
 def test_instrument_adapter_output_text_must_be_canonical(

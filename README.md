@@ -1003,7 +1003,8 @@ with `measurement inspect-source --adapter ADAPTER_ID --source-file FILE
 type to match the adapter's declared supported media types, snapshots and hashes the bytes,
 hashes the actual adapter implementation module, rejects source, implementation,
 or config mutation during inspection, validates the adapter's declared output
-shape, and writes a non-evidentiary acquisition-metadata proposal.
+shape, rejects padded top-level and nested native-metadata text, and writes a
+non-evidentiary acquisition-metadata proposal.
 Adapters cannot pass calibration, clear gates, register a dataset, or authorize
 evidence; their proposed raw-source entry must still enter the custody workflow
 below. `measurement verify-source-inspection` takes an independently trusted
