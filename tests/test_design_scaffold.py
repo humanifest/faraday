@@ -136,6 +136,41 @@ def test_primary_observable_is_not_substituted_by_validity_evidence():
     }
 
 
+def test_prospective_text_commitments_must_be_canonical_before_drafting():
+    brief = {
+        "title": "Commitment fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "study_type": "causal",
+        "assignment_type": "observational",
+        "exposure_definition": "Observed treatment",
+        "comparison": "No treatment",
+        "outcome": "Score",
+        "outcome_unit": "points",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "sampling_plan": "Fixed eligible cohort",
+        "blinding_plan": "Outcome assessor is masked",
+        "calibration_plan": "Check instrument before collection",
+        "measurement_validity": "Compare a blinded subset with a reference",
+        "analysis_commitment": "Estimate the registered contrast",
+        "stopping_rule": "Stop after the fixed cohort",
+        "observable_prediction": "Scores are higher under treatment",
+        "null_model": "Selection explains any apparent difference",
+    }
+    clean = scaffold_design(brief)
+    assert "PROSPECTIVE_COMMITMENT_NONCANONICAL" not in {
+        item["code"] for item in clean["findings"]
+    }
+
+    padded = scaffold_design({**brief, "analysis_commitment": " Estimate the registered contrast"})
+    assert "PROSPECTIVE_COMMITMENT_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
+    assert padded["status"] == "blocked"
+    assert padded["artifacts"]["protocol-draft.json"]["statistical_model"].startswith(" ")
+
+
 def test_confirmatory_measurement_requires_structured_validity_decision_rules():
     base = {
         "title": "Validity fixture", "question": "Question", "decision": "Decision",

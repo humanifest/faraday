@@ -403,7 +403,11 @@ measurement units and calibration, controls, confounds, stopping rules, and
 human-participant safeguards. Review-list commitments such as exclusions,
 falsification conditions, and unsupported higher-level conclusions must be
 canonical without surrounding whitespace before they are treated as draft
-protocol, hypothesis, or conclusion-contract text. It never creates canonical
+protocol, hypothesis, or conclusion-contract text. Prospective prose
+commitments for intervention or exposure, comparison, sampling, randomization,
+blinding, calibration, measurement validity, analysis, stopping, prediction,
+and the null or competing model must also be exact and unpadded before they are
+copied into review artifacts. It never creates canonical
 state, activates a hypothesis, freezes a protocol, or authorizes data collection.
 
 The provider-free interview and JSON scaffold distinguish measurement units

@@ -560,6 +560,11 @@ exploratory, control, confound, and contrast-group lists now receive explicit
 blocking findings when a label has surrounding whitespace. The audit still
 reports normalized duplicate and coverage failures, but padded handles cannot be
 treated as exact simply because trimming made a comparison succeed.
+Prospective commitment canonicalization delivery: guided intervention or
+exposure, comparison, sampling, randomization, blinding, calibration,
+measurement-validity, analysis, stopping, prediction, and null or competing-model
+text now receives a blocking finding when surrounding whitespace would otherwise
+be preserved in hypothesis, protocol, or data-dictionary review drafts.
 Guided sample-size integration delivery: design briefs can carry any supported
 deterministic planning input or exact receipt. The scaffold recomputes it,
 retains the receipt in both the protocol and a dedicated review artifact, and

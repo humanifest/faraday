@@ -791,6 +791,23 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         value = brief.get(field)
         if not value or (isinstance(value, str) and not value.strip()):
             add(code, "warning", "The hypothesis is not yet ready for review: " + field.replace("_", " ") + " is missing.", prompt)
+    prospective_commitment_fields = (
+        "intervention", "exposure_definition", "comparison",
+        "sampling_plan", "randomization_plan", "blinding_plan",
+        "calibration_plan", "measurement_validity", "analysis_commitment",
+        "stopping_rule", "observable_prediction", "null_model",
+    )
+    if any(
+        isinstance(brief.get(field), str)
+        and brief[field]
+        and brief[field] != brief[field].strip()
+        for field in prospective_commitment_fields
+    ):
+        add(
+            "PROSPECTIVE_COMMITMENT_NONCANONICAL", "error",
+            "A prospective design commitment contains surrounding whitespace.",
+            "Use exact unpadded intervention, exposure, comparison, sampling, blinding, calibration, analysis, stopping, prediction, and alternative-model text before review artifacts preserve those commitments.",
+        )
     if not brief.get("independent_unit") or "repeated_measures" not in brief:
         add("INDEPENDENCE_UNRESOLVED", "warning", "The independent sampling unit and repeated-observation structure are not fully declared.", "Name the independently sampled participant, pot, site, or other unit; state whether each contributes repeated observations. Count independent units separately from rows.")
     if not brief.get("analysis_design"):
