@@ -20,6 +20,11 @@ from research_machine.domain.models import (
 
 
 _HEX = set("0123456789abcdef")
+_CUSTODY_RECORD_CONCLUSION_CEILING = (
+    "This record verifies local bytes, internal chronology, frozen calibration "
+    "bounds, and custody references. It does not authenticate actors or time, "
+    "validate scientific interpretation, register a dataset, or establish evidence."
+)
 
 
 def _text(value: Any, field: str) -> str:
@@ -465,11 +470,7 @@ def create_measurement_custody_record(
         "artifact_integrity": integrity,
         "status": "custody_recorded",
         "scientific_evidence_eligible": False,
-        "conclusion_ceiling": (
-            "This record verifies local bytes, internal chronology, frozen calibration "
-            "bounds, and custody references. It does not authenticate actors or time, "
-            "validate scientific interpretation, register a dataset, or establish evidence."
-        ),
+        "conclusion_ceiling": _CUSTODY_RECORD_CONCLUSION_CEILING,
     }
     encoded = (json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode()
     root = output.expanduser().resolve()
@@ -528,7 +529,11 @@ def verify_measurement_custody_record(
         raise ValidationError("unsupported measurement custody record")
     if record.get("scientific_evidence_eligible") is not False:
         raise ValidationError("measurement custody record must remain scientific-evidence ineligible")
+    recorded_at = _canonical_text(record.get("recorded_at"), "recorded_at")
+    _timestamp(recorded_at, "recorded_at")
     _canonical_text(record.get("recorded_by"), "recorded_by")
+    if record.get("conclusion_ceiling") != _CUSTODY_RECORD_CONCLUSION_CEILING:
+        raise ValidationError("measurement custody record conclusion ceiling has changed")
     if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
         raise ValidationError("measurement custody record verification requires a frozen protocol")
     if record.get("protocol_id") != protocol.protocol_id or record.get("protocol_hash") != protocol.protocol_hash:

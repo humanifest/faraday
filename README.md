@@ -1083,8 +1083,9 @@ not register data or create scientific evidence; later dataset registration
 still repeats the custody checks against canonical state. `verify-record`
 requires an independently trusted record hash and recomputes the original
 receipt-byte binding, frozen protocol commitments, structured custody rules,
-and present artifact bytes; merely retaining the generated record is not treated
-as proof that its inputs remain intact.
+present artifact bytes, the retained offset-aware recorded-at time, and
+Faraday's non-evidentiary conclusion ceiling; merely retaining the generated
+record is not treated as proof that its inputs remain intact.
 Canonical protected dataset registration also retains the local custody root.
 Inquiry display, protocol-bound execution, and run intake replay the complete
 custody validator and current-byte verification from the preserved receipt, then

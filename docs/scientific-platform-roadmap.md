@@ -1182,8 +1182,9 @@ implementation, derived, and supporting-evidence bytes under a guarded local
 artifact root. The record remains non-evidence and does not register a dataset;
 `measurement verify-record` later requires an independently trusted record hash
 and recomputes the receipt bytes, current frozen protocol binding, structured
-custody checks, and local artifact-integrity result exactly. Canonical dataset
-intake still repeats validation.
+custody checks, local artifact-integrity result, retained offset-aware
+recorded-at time, and Faraday's non-evidentiary conclusion ceiling exactly.
+Canonical dataset intake still repeats validation.
 
 Protected observation-byte delivery: every non-synthetic confirmatory or
 replication dataset now requires an explicit local artifact root at canonical

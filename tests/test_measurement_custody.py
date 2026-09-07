@@ -159,6 +159,44 @@ def test_registration_rejects_unrelated_receipt_without_writing(tmp_path, capsys
         "--artifact-root", str(tmp_path),
     ]) == 2
     assert "recorded_by must be canonical" in capsys.readouterr().err
+    naive_recorded_at = dict(record)
+    naive_recorded_at["recorded_at"] = "2026-09-04T12:00:00"
+    naive_recorded_at_file = tmp_path / "naive-recorded-at-custody-record.json"
+    naive_recorded_at_file.write_text(
+        json.dumps(naive_recorded_at, indent=2, sort_keys=True) + "\n"
+    )
+    naive_recorded_at_sha256 = hashlib.sha256(
+        naive_recorded_at_file.read_bytes()
+    ).hexdigest()
+    assert main([
+        "--workspace", str(tmp_path), "--json", "measurement",
+        "verify-record",
+        "--protocol", protocol.protocol_id,
+        "--record-file", str(naive_recorded_at_file),
+        "--expected-record-sha256", naive_recorded_at_sha256,
+        "--receipt-file", str(receipt_file),
+        "--artifact-root", str(tmp_path),
+    ]) == 2
+    assert "recorded_at must include a UTC offset" in capsys.readouterr().err
+    weakened_ceiling = dict(record)
+    weakened_ceiling["conclusion_ceiling"] = "Custody proves the dataset is valid."
+    weakened_ceiling_file = tmp_path / "weakened-ceiling-custody-record.json"
+    weakened_ceiling_file.write_text(
+        json.dumps(weakened_ceiling, indent=2, sort_keys=True) + "\n"
+    )
+    weakened_ceiling_sha256 = hashlib.sha256(
+        weakened_ceiling_file.read_bytes()
+    ).hexdigest()
+    assert main([
+        "--workspace", str(tmp_path), "--json", "measurement",
+        "verify-record",
+        "--protocol", protocol.protocol_id,
+        "--record-file", str(weakened_ceiling_file),
+        "--expected-record-sha256", weakened_ceiling_sha256,
+        "--receipt-file", str(receipt_file),
+        "--artifact-root", str(tmp_path),
+    ]) == 2
+    assert "conclusion ceiling has changed" in capsys.readouterr().err
     derived_hash = receipt["transformations"][0]["output_sha256"]
     with pytest.raises(ValidationError, match="cover exactly"):
         service.register_dataset(RegisterDataset(
