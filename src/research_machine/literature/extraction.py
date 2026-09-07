@@ -31,8 +31,11 @@ def create_extraction(screening_path: Path, expected_sha256: str,
     decisions = screening.get("decisions")
     if not isinstance(decisions, list):
         raise ValidationError("screening decisions must be an array")
-    included = {item.get("source_id") for item in decisions
-                if isinstance(item, dict) and item.get("decision") == "include"}
+    included = {
+        _text(item.get("source_id"), "screening source_id").strip()
+        for item in decisions
+        if isinstance(item, dict) and item.get("decision") == "include"
+    }
     if not included:
         raise ValidationError("extraction requires at least one included source")
     if not isinstance(review, dict) or set(review) != {"reviewer", "source_reviews"}:
@@ -48,7 +51,7 @@ def create_extraction(screening_path: Path, expected_sha256: str,
             "source_id", "status", "reason", "records"
         }:
             raise ValidationError("each source review requires exactly source_id, status, reason, and records")
-        source_id = _text(source_review["source_id"], "extraction source_id")
+        source_id = _text(source_review["source_id"], "extraction source_id").strip()
         if source_id in by_source:
             raise ValidationError("duplicate extraction source review")
         if source_id not in included:
@@ -66,6 +69,8 @@ def create_extraction(screening_path: Path, expected_sha256: str,
             if not isinstance(record, dict) or set(record) != required:
                 raise ValidationError("extraction record fields do not match the documented contract")
             normalized = {key: _text(record[key], f"extraction {key}") for key in required}
+            normalized["extraction_id"] = normalized["extraction_id"].strip()
+            normalized["study_id"] = normalized["study_id"].strip()
             identifier = normalized["extraction_id"]
             if identifier in extraction_ids:
                 raise ValidationError("duplicate extraction_id")

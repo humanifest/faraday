@@ -799,6 +799,9 @@ screening bytes are hash-pinned and excluded sources cannot enter extraction.
 These records are reviewer assertions, not accepted facts or scientific evidence.
 The machine has not yet verified the cited passage, authenticated the reviewer,
 assessed risk of bias, reconciled independent extractors, or synthesized effects.
+Extraction source, study, and claim IDs are normalized before coverage and
+duplicate checks, preventing whitespace-padded reports from becoming separate
+claims or study groupings.
 `research literature verify-citations` adds a second, hash-bound review covering
 every extracted claim. The citation reviewer must differ from the extraction
 reviewer and must record the checked location, rationale, and a supported,

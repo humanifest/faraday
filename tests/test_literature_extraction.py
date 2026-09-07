@@ -57,7 +57,21 @@ def test_extraction_cli_is_write_once_and_non_evidentiary(tmp_path, capsys):
         create_extraction(screening, digest, extraction_review(), output)
 
 
-@pytest.mark.parametrize("failure", ["hash", "excluded", "missing", "duplicate", "location", "layer", "empty"])
+def test_extraction_normalizes_source_study_and_record_ids(tmp_path):
+    screening, digest = prepared_screening(tmp_path)
+    review = extraction_review()
+    review["source_reviews"][0]["source_id"] = " s0 "
+    record = review["source_reviews"][0]["records"][0]
+    record["extraction_id"] = " ext-1 "
+    record["study_id"] = " study-1 "
+    result = create_extraction(screening, digest, review, tmp_path / "extraction")
+    source_review = result["source_reviews"][0]
+    assert source_review["source_id"] == "s0"
+    assert source_review["records"][0]["extraction_id"] == "ext-1"
+    assert source_review["records"][0]["study_id"] == "study-1"
+
+
+@pytest.mark.parametrize("failure", ["hash", "excluded", "missing", "duplicate", "padded_duplicate", "duplicate_source", "location", "layer", "empty"])
 def test_invalid_extraction_never_publishes(tmp_path, failure):
     screening, digest = prepared_screening(tmp_path)
     review = extraction_review()
@@ -66,6 +80,14 @@ def test_invalid_extraction_never_publishes(tmp_path, failure):
     elif failure == "excluded": review["source_reviews"][0]["source_id"] = "s1"
     elif failure == "missing": review["source_reviews"] = []
     elif failure == "duplicate": review["source_reviews"][0]["records"].append(dict(record))
+    elif failure == "padded_duplicate":
+        duplicate = dict(record)
+        duplicate["extraction_id"] = " ext-1 "
+        review["source_reviews"][0]["records"].append(duplicate)
+    elif failure == "duplicate_source":
+        duplicate = dict(review["source_reviews"][0])
+        duplicate["source_id"] = " s0 "
+        review["source_reviews"].append(duplicate)
     elif failure == "location": record["evidence_location"] = ""
     elif failure == "layer": record["epistemic_layer"] = "fact"
     elif failure == "empty":

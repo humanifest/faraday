@@ -668,8 +668,11 @@ citation-review location and rationale, and study-level bias-domain judgments
 with their cited locations for every mapped claim. Qualitative synthesis now
 requires the extraction source set to match the synthesis plan's frozen included
 sources, and preserves those provenance anchors instead of carrying only a ceiling
-label. This makes the review trail inspectable while still refusing to turn
-retrieved or reviewer-entered source claims into Faraday scientific evidence.
+label. Extraction source, study, and claim IDs are normalized before coverage and
+duplicate checks, preventing whitespace-padded reports from becoming separate
+claims or study groupings. This makes the review trail inspectable while still
+refusing to turn retrieved or reviewer-entered source claims into Faraday
+scientific evidence.
 
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim
