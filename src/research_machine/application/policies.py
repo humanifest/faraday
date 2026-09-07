@@ -1657,22 +1657,36 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
     if protocol.control_definitions:
         control_ids: set[str] = set()
         targets: set[str] = set()
+        registered_controls = []
+        for control_name in protocol.controls:
+            registered_control = require_text(control_name, "protocol controls item")
+            if registered_control != control_name:
+                raise ValidationError(
+                    "protocol controls must be canonical without surrounding whitespace"
+                )
+            registered_controls.append(registered_control)
         for control in protocol.control_definitions:
             if not isinstance(control, ControlDefinition):
                 raise ValidationError("control_definitions must contain ControlDefinition objects")
             for name, value in control.to_dict().items():
                 require_text(value, f"control definition {name}")
+            for name in ("control_id", "registered_control", "evaluation_gate_id"):
+                value = getattr(control, name)
+                if require_text(value, f"control definition {name}") != value:
+                    raise ValidationError(
+                        f"control definition {name} must be canonical without surrounding whitespace"
+                    )
             if control.family not in CONTROL_FAMILIES:
                 raise ValidationError("unsupported control family")
-            control_id = control.control_id.strip()
-            registered_control = control.registered_control.strip()
+            control_id = control.control_id
+            registered_control = control.registered_control
             if control_id in control_ids or registered_control in targets:
                 raise ValidationError("duplicate control definition ID or registered control")
             control_ids.add(control_id)
             targets.add(registered_control)
             if control.evaluation_gate_id not in quality_requirement_set:
                 raise ValidationError("control evaluation gate must be a required protocol quality gate")
-        if targets != set(protocol.controls):
+        if targets != set(registered_controls):
             raise ValidationError("control definitions must cover exactly the registered controls")
     custody_requirement_ids = []
     for gate_id in protocol.measurement_custody_requirements:

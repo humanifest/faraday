@@ -157,6 +157,9 @@ artifact is Faraday's verified analysis result, the location must be an absolute
 JSON Pointer that resolves in those bytes. Synthesis retains this provenance and
 keeps unexpected control behavior visible. A passed gate means the control was
 evaluated as required; it does not mean the scientific outcome was favorable.
+Protocol freeze rejects noncanonical registered control names and
+control-definition IDs, targets, and gate handles before checking coverage, so a
+padded control cannot become a different evidence-partition target.
 Evidence derived from that run must then account for the complete frozen control
 set: each registered control appears exactly once in `controls_passed` or
 `controls_failed`, as determined by its structured result. Omissions, duplicates,

@@ -106,13 +106,13 @@ def test_control_definition_roundtrips_and_changes_commitment():
 
 
 @pytest.mark.parametrize("field", ["control_id", "registered_control"])
-def test_control_definition_identity_rejects_whitespace_ambiguity(field):
+def test_control_definition_identity_rejects_duplicate_entries(field):
     protocol = _protocol()
     duplicate = replace(protocol.control_definitions[0])
     if field == "control_id":
         duplicate = replace(
             duplicate,
-            control_id=f" {protocol.control_definitions[0].control_id} ",
+            control_id=protocol.control_definitions[0].control_id,
             registered_control="Distinct control condition",
         )
         controls = [protocol.controls[0], "Distinct control condition"]
@@ -120,7 +120,7 @@ def test_control_definition_identity_rejects_whitespace_ambiguity(field):
         duplicate = replace(
             duplicate,
             control_id="distinct-control-id",
-            registered_control=f" {protocol.control_definitions[0].registered_control} ",
+            registered_control=protocol.control_definitions[0].registered_control,
         )
         controls = list(protocol.controls)
     with pytest.raises(ValidationError, match="duplicate control definition"):
@@ -129,6 +129,30 @@ def test_control_definition_identity_rejects_whitespace_ambiguity(field):
             controls=controls,
             control_definitions=[protocol.control_definitions[0], duplicate],
         ))
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["control_id", "registered_control", "evaluation_gate_id"],
+)
+def test_control_definition_handles_must_be_canonical_at_freeze(field):
+    protocol = _protocol()
+    control = replace(
+        protocol.control_definitions[0],
+        **{field: getattr(protocol.control_definitions[0], field) + " "},
+    )
+    with pytest.raises(ValidationError, match="canonical"):
+        validate_protocol_freeze(
+            replace(protocol, control_definitions=[control])
+        )
+
+
+def test_registered_control_names_must_be_canonical_at_freeze():
+    protocol = _protocol()
+    with pytest.raises(ValidationError, match="protocol controls"):
+        validate_protocol_freeze(
+            replace(protocol, controls=[protocol.controls[0] + " "])
+        )
 
 
 @pytest.mark.parametrize("change", [
