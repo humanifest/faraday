@@ -1750,13 +1750,7 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         if not isinstance(criterion, CalibrationCriterion):
             raise ValidationError("calibration_acceptance_criteria must contain CalibrationCriterion values")
         for name in ("criterion_id", "calibration_id", "quantity", "unit", "rationale"):
-            require_text(getattr(criterion, name), f"calibration criterion {name}")
-        for name in ("criterion_id", "calibration_id"):
-            value = getattr(criterion, name)
-            if require_text(value, f"calibration criterion {name}") != value:
-                raise ValidationError(
-                    f"calibration criterion {name} must be canonical without surrounding whitespace"
-                )
+            require_canonical_text(getattr(criterion, name), f"calibration criterion {name}")
         criterion_id = criterion.criterion_id
         calibration_id = criterion.calibration_id
         if criterion_id in criteria_ids or calibration_id in calibration_ids:

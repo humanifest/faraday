@@ -299,9 +299,15 @@ def test_calibration_acceptance_ids_are_unambiguous_at_freeze() -> None:
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("criterion_id", "clock-residual "), ("calibration_id", " clock")],
+    [
+        ("criterion_id", "clock-residual "),
+        ("calibration_id", " clock"),
+        ("quantity", " absolute clock residual"),
+        ("unit", "ms "),
+        ("rationale", " Keep synchronization error below the registered event limit."),
+    ],
 )
-def test_calibration_acceptance_ids_must_be_canonical_at_freeze(field, value) -> None:
+def test_calibration_acceptance_fields_must_be_canonical_at_freeze(field, value) -> None:
     protocol = replace(
         _human_protocol(human_subjects=False),
         measurement_custody_requirements=["clock-sync"],

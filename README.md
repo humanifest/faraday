@@ -956,8 +956,8 @@ after trimming whitespace, so cosmetic padding cannot split one custody node
 into apparently separate provenance records.
 At protocol freeze, required custody-gate IDs must also be canonical without
 surrounding whitespace before they become calibration and registration
-commitments. Calibration criterion and calibration IDs follow the same rule
-before their bounds are frozen into the protocol.
+commitments. Calibration criterion IDs, calibration IDs, quantities, units, and
+rationales follow the same rule before their bounds are frozen into the protocol.
 Offset-aware transformation, gate-evaluation, and derived-observation times must
 also follow their declared input and calibration prerequisites. This establishes
 internal chronology, not an externally authenticated timestamp.

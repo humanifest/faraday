@@ -1176,9 +1176,10 @@ data while leaving scientific interpretation to review. Calibration-prerequisite
 and clearing-gate references are normalized before uniqueness and coverage
 checks, so whitespace padding cannot create a second apparent prerequisite or
 gate link. Frozen protocol `measurement_custody_requirements` and calibration
-criterion/calibration IDs must already be canonical without surrounding
-whitespace; receipt-side required custody-gate and frozen calibration IDs are
-normalized later before receipt coverage is accepted.
+criterion IDs, calibration IDs, quantities, units, and rationales must already
+be canonical without surrounding whitespace; receipt-side required custody-gate
+and frozen calibration IDs are normalized later before receipt coverage is
+accepted.
 Custody-bearing protocols now freeze quantitative calibration acceptance
 criteria with stable criterion/calibration IDs, quantity, unit, rationale, and
 at least one finite bound. Dataset registration requires every named calibration,
