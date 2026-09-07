@@ -59,7 +59,17 @@ def test_unsupported_claim_is_preserved_and_requires_review(tmp_path):
     assert any(item["verdict"] == "unsupported" for item in result["assessments"])
 
 
-@pytest.mark.parametrize("failure", ["hash", "same-reviewer", "missing", "duplicate", "unknown", "location", "verdict"])
+def test_citation_verification_normalizes_extraction_handles(tmp_path):
+    extraction, digest = extraction_file(tmp_path)
+    candidate = review()
+    candidate["assessments"][0]["extraction_id"] = " claim-1 "
+    result = create_citation_verification(
+        extraction, digest, candidate, tmp_path / "verification"
+    )
+    assert result["assessments"][0]["extraction_id"] == "claim-1"
+
+
+@pytest.mark.parametrize("failure", ["hash", "same-reviewer", "missing", "duplicate", "padded_duplicate", "padded_extraction_duplicate", "unknown", "location", "verdict"])
 def test_invalid_citation_review_never_publishes(tmp_path, failure):
     extraction, digest = extraction_file(tmp_path)
     candidate = review()
@@ -67,6 +77,16 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
     elif failure == "same-reviewer": candidate["reviewer"] = " extractor one "
     elif failure == "missing": candidate["assessments"].pop()
     elif failure == "duplicate": candidate["assessments"][1]["extraction_id"] = "claim-1"
+    elif failure == "padded_duplicate": candidate["assessments"][1]["extraction_id"] = " claim-1 "
+    elif failure == "padded_extraction_duplicate":
+        value = json.loads(extraction.read_text())
+        duplicate = dict(value["source_reviews"][0]["records"][0])
+        duplicate["extraction_id"] = " claim-1 "
+        value["source_reviews"][0]["records"].append(duplicate)
+        encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+        extraction.write_bytes(encoded)
+        import hashlib
+        digest = hashlib.sha256(encoded).hexdigest()
     elif failure == "unknown": candidate["assessments"][0]["extraction_id"] = "claim-x"
     elif failure == "location": candidate["assessments"][0]["checked_location"] = ""
     elif failure == "verdict": candidate["assessments"][0]["verdict"] = "true"

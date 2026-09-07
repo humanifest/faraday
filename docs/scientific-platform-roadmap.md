@@ -810,6 +810,8 @@ claims remain in the artifact and force `review_required`; they are never silent
 dropped. This records independent human citation checking but does not make a
 claim true, authenticate reviewer identities, assess study bias, or create
 scientific evidence.
+Citation verification applies normalized claim-ID coverage, so padded assessment
+IDs cannot create duplicate or missing independent reviews.
 `research literature assess-bias` requires a clean citation-review artifact and
 a third reviewer distinct from both extraction and citation reviewers. Every
 reviewed study must cover all seven documented bias domains, cite locations for

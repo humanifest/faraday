@@ -42,19 +42,19 @@ def create_citation_verification(
     for source_review in source_reviews:
         if not isinstance(source_review, dict):
             raise ValidationError("extraction source review must be an object")
-        source_id = _text(source_review.get("source_id"), "extraction source_id")
+        source_id = _text(source_review.get("source_id"), "extraction source_id").strip()
         source_records = source_review.get("records")
         if not isinstance(source_records, list):
             raise ValidationError("extraction records must be an array")
         for record in source_records:
             if not isinstance(record, dict):
                 raise ValidationError("extraction record must be an object")
-            extraction_id = _text(record.get("extraction_id"), "extraction_id")
+            extraction_id = _text(record.get("extraction_id"), "extraction_id").strip()
             if extraction_id in records:
                 raise ValidationError("extraction contains duplicate extraction_id")
             records[extraction_id] = {
                 "source_id": source_id,
-                "study_id": _text(record.get("study_id"), "study_id"),
+                "study_id": _text(record.get("study_id"), "study_id").strip(),
                 "claim_text": _text(record.get("claim_text"), "claim_text"),
                 "extracted_evidence_location": _text(
                     record.get("evidence_location"), "extracted evidence_location"
@@ -78,7 +78,7 @@ def create_citation_verification(
             raise ValidationError(
                 "each citation assessment requires exactly extraction_id, verdict, checked_location, and rationale"
             )
-        extraction_id = _text(assessment["extraction_id"], "citation extraction_id")
+        extraction_id = _text(assessment["extraction_id"], "citation extraction_id").strip()
         if extraction_id not in records:
             raise ValidationError("citation assessment references an unknown extraction_id")
         if extraction_id in by_id:
