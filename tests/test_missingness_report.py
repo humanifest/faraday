@@ -32,20 +32,16 @@ def test_missingness_patterns_do_not_collide_with_column_names():
     assert report["complete_case_fraction"] == 0
 
 
-def test_missingness_report_normalizes_requested_columns():
-    report = missingness_report({"columns": [" outcome ", "covariate"]}, [
+def test_missingness_report_requires_canonical_requested_columns():
+    with pytest.raises(ValidationError, match="missingness_report column must be canonical"):
+        missingness_report({"columns": [" outcome ", "covariate"]}, [
         {"outcome": "", "covariate": "present"},
         {"outcome": "present", "covariate": ""},
-    ])
-    assert report["missing_by_column"] == {"outcome": 1, "covariate": 1}
-    assert report["missingness_patterns"] == [
-        {"missing_columns": ["covariate"], "row_count": 1},
-        {"missing_columns": ["outcome"], "row_count": 1},
-    ]
+        ])
 
 
-def test_missingness_report_rejects_duplicate_columns_after_normalization():
-    with pytest.raises(ValidationError, match="duplicates"):
+def test_missingness_report_rejects_noncanonical_columns_before_duplicates():
+    with pytest.raises(ValidationError, match="missingness_report column must be canonical"):
         missingness_report({"columns": ["outcome", " outcome "]}, [
             {"outcome": "present"},
         ])

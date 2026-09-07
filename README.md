@@ -27,8 +27,8 @@ count. This is planning provenance, not preregistration or scientific evidence.
 `holm_adjustment` requires the exact prespecified `family_hypothesis_ids`, a
 stable family name, and alpha. The input must contain every member exactly once;
 missing, substituted, or extra hypotheses fail before adjustment. CSV selector
-handles and the displayed family name are normalized, while family member IDs
-remain strict canonical strings. The result retains the family and returns
+handles, the displayed family name, row hypothesis IDs, and family member IDs
+must be canonical before adjustment. The result retains the family and returns
 deterministic monotone Holm-adjusted p-values. This protects the arithmetic
 family boundary but does not prove that the family, tests, alpha, or chronology
 are scientifically appropriate.
@@ -206,10 +206,11 @@ complete-case analysis interpretable, how it will be assessed, whether that
 assessment is an empirical diagnostic, design-record review, external validation,
 or substantive judgment, what happens if it fails, and a dedicated required gate.
 The bundled descriptive summary, Pearson correlation, two-group estimators,
-adjusted model, and missingness report normalize requested column or comparison
-labels before duplicate or distinct-handle checks and result construction, so
-padded diagnostic specifications cannot create separate apparent fields, hidden
-self-comparisons, or duplicate comparison identities.
+adjusted model, and missingness report require canonical requested column,
+comparison, covariate, unit, pair, and family handles before duplicate or
+distinct-handle checks and result construction, so padded diagnostic
+specifications cannot be silently rewritten into apparent fields,
+self-comparisons, or comparison identities.
 Run intake requires an exact artifact-bound result. Passed, warning, and failed
 gates correspond respectively to `consistent_with_assumption`, `inconclusive`,
 and `contradicted_assumption`; the classification cannot be upgraded after

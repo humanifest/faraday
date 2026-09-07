@@ -66,25 +66,41 @@ def _result(capsys) -> object:
     return payload["result"]
 
 
-def test_pearson_correlation_normalizes_column_handles() -> None:
-    """Synthetic fixture: padded handles must resolve to the committed CSV fields."""
+def test_pearson_correlation_requires_canonical_column_handles() -> None:
+    """Synthetic fixture: padded handles must not be silently rewritten."""
+    with pytest.raises(ValidationError, match="pearson_correlation x_column must be canonical"):
+        pearson_correlation(
+            {"x_column": " x ", "y_column": "y"},
+            [{"x": "1", "y": "2"}, {"x": "2", "y": "4"}, {"x": "3", "y": "6"}],
+        )
+
+
+def test_pearson_correlation_rejects_duplicate_columns() -> None:
+    """Synthetic fixture: a self-correlation request remains invalid."""
+    with pytest.raises(ValidationError, match="distinct x_column and y_column"):
+        pearson_correlation(
+            {"x_column": "x", "y_column": "x"},
+            [{"x": "1"}, {"x": "2"}, {"x": "3"}],
+        )
+
+
+def test_pearson_correlation_rejects_noncanonical_columns_before_duplicates() -> None:
+    with pytest.raises(ValidationError, match="pearson_correlation y_column must be canonical"):
+        pearson_correlation(
+            {"x_column": "x", "y_column": " x "},
+            [{"x": "1"}, {"x": "2"}, {"x": "3"}],
+        )
+
+
+def test_pearson_correlation_runs_with_canonical_handles() -> None:
     result = pearson_correlation(
-        {"x_column": " x ", "y_column": " y "},
+        {"x_column": "x", "y_column": "y"},
         [{"x": "1", "y": "2"}, {"x": "2", "y": "4"}, {"x": "3", "y": "6"}],
     )
 
     assert result["n"] == 3
     assert result["pearson_r"] == pytest.approx(1.0)
     assert result["missing_pairs"] == 0
-
-
-def test_pearson_correlation_rejects_duplicate_normalized_columns() -> None:
-    """Synthetic fixture: whitespace cannot hide a self-correlation request."""
-    with pytest.raises(ValidationError, match="distinct x_column and y_column"):
-        pearson_correlation(
-            {"x_column": "x", "y_column": " x "},
-            [{"x": "1"}, {"x": "2"}, {"x": "3"}],
-        )
 
 
 @pytest.mark.parametrize("case", ["unique", "duplicate", "missing", "unsupported_method"])
@@ -185,35 +201,73 @@ def test_default_registry_exposes_general_and_domain_addons() -> None:
     assert method.maximum_inference_level == "design_conditional_effect"
 
 
-def test_descriptive_summary_normalizes_requested_columns() -> None:
-    result = descriptive_summary({"columns": [" x "]}, [{"x": "1"}, {"x": ""}])
-    assert result["summaries"]["x"]["n"] == 1
-    assert result["missing_by_column"] == {"x": 1}
+def test_descriptive_summary_requires_canonical_requested_columns() -> None:
+    with pytest.raises(ValidationError, match="descriptive_summary column must be canonical"):
+        descriptive_summary({"columns": [" x "]}, [{"x": "1"}, {"x": ""}])
 
 
-def test_descriptive_summary_rejects_duplicate_columns_after_normalization() -> None:
-    with pytest.raises(ValidationError, match="duplicates"):
+def test_descriptive_summary_rejects_noncanonical_columns_before_duplicates() -> None:
+    with pytest.raises(ValidationError, match="descriptive_summary column must be canonical"):
         descriptive_summary({"columns": ["x", " x "]}, [{"x": "1"}])
 
 
-def test_permutation_mean_difference_normalizes_comparison_handles() -> None:
-    """Synthetic fixture: padded comparison handles cannot fork result provenance."""
+def test_descriptive_summary_rejects_duplicate_columns() -> None:
+    with pytest.raises(ValidationError, match="duplicates"):
+        descriptive_summary({"columns": ["x", "x"]}, [{"x": "1"}])
+
+
+@pytest.mark.parametrize(("field", "message"), [
+    ("outcome_column", "permutation_mean_difference outcome_column must be canonical"),
+    ("group_column", "permutation_mean_difference group_column must be canonical"),
+    ("groups", "group label must be canonical"),
+    ("unit_column", "permutation_mean_difference unit_column must be canonical"),
+    ("row_group", "row group label must be canonical"),
+])
+def test_permutation_mean_difference_requires_canonical_comparison_handles(field, message) -> None:
+    """Synthetic fixture: padded comparison handles cannot enter result provenance."""
+    spec = {
+        "outcome_column": "outcome",
+        "group_column": "group",
+        "groups": ["treatment", "control"],
+        "permutations": 100,
+        "seed": 7,
+        "missing_data_policy": "complete_case",
+        "unit_column": "unit",
+    }
+    rows = [
+        {"unit": "u1", "group": "treatment", "outcome": "4"},
+        {"unit": "u2", "group": "treatment", "outcome": "5"},
+        {"unit": "u3", "group": "control", "outcome": "1"},
+        {"unit": "u4", "group": "control", "outcome": "2"},
+        {"unit": "u5", "group": "treatment", "outcome": ""},
+    ]
+    if field == "groups":
+        spec[field] = [" treatment ", "control"]
+    elif field == "row_group":
+        rows[-1]["group"] = " treatment "
+    else:
+        spec[field] = f" {spec[field]} "
+    with pytest.raises(ValidationError, match=message):
+        permutation_mean_difference(spec, rows)
+
+
+def test_permutation_mean_difference_runs_with_canonical_comparison_handles() -> None:
     result = permutation_mean_difference(
         {
-            "outcome_column": " outcome ",
-            "group_column": " group ",
-            "groups": [" treatment ", " control "],
+            "outcome_column": "outcome",
+            "group_column": "group",
+            "groups": ["treatment", "control"],
             "permutations": 100,
             "seed": 7,
             "missing_data_policy": "complete_case",
-            "unit_column": " unit ",
+            "unit_column": "unit",
         },
         [
             {"unit": "u1", "group": "treatment", "outcome": "4"},
             {"unit": "u2", "group": "treatment", "outcome": "5"},
             {"unit": "u3", "group": "control", "outcome": "1"},
             {"unit": "u4", "group": "control", "outcome": "2"},
-            {"unit": "u5", "group": " treatment ", "outcome": ""},
+            {"unit": "u5", "group": "treatment", "outcome": ""},
         ],
     )
 
@@ -224,9 +278,9 @@ def test_permutation_mean_difference_normalizes_comparison_handles() -> None:
     assert result["missing_rows"] == 1
 
 
-def test_independent_mean_difference_rejects_duplicate_normalized_handles() -> None:
-    """Synthetic fixture: whitespace cannot hide duplicate executable columns."""
-    with pytest.raises(ValidationError, match="distinct outcome_column and group_column"):
+def test_independent_mean_difference_rejects_noncanonical_handles_before_duplicates() -> None:
+    """Synthetic fixture: whitespace cannot enter executable column handles."""
+    with pytest.raises(ValidationError, match="group_column must be canonical"):
         independent_mean_difference_ci(
             {
                 "study_design": "independent_groups",

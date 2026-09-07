@@ -16,11 +16,12 @@ methods without changing its epistemic rules or canonical state.
   implementation, environment, output, and gates.
 - Cross-disciplinary CSV summaries, correlation, and seeded permutation testing;
   summary, correlation, two-group estimators, adjusted models, and missingness
-  methods normalize requested column or comparison handles before duplicate or
-  distinct-handle checks and result construction, and CSV headers are canonical
-  and case-insensitively unique before any method runs. The execution gate also
-  revalidates measurement scale, unit, and value-domain contracts before
-  applying them to rows.
+  methods require requested column, comparison, covariate, unit, pair, family,
+  and row group handles to be canonical before duplicate or distinct-handle
+  checks and result construction, and CSV headers are canonical and
+  case-insensitively unique before any method runs. The execution gate also
+  revalidates measurement scale, unit, and value-domain contracts before applying
+  them to rows.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit
@@ -315,10 +316,10 @@ units, deterministic fixtures, adversarial cases, and explicit claim ceilings.
 Multiplicity execution now requires `family_hypothesis_ids` as an exact frozen
 member set for Holm adjustment. Missing, substituted, duplicate, extra, blank, or
 noncanonical identifiers reject before calculation; CSV selector handles and the
-family display name are normalized without relaxing canonical member IDs, and row
-order does not affect the adjusted values. The result preserves the exact family
-list and alpha. This closes selective input omission inside the executable
-method. Protocols with secondary outcomes now separately freeze an exact,
+family display name must also be canonical, and row order does not affect the
+adjusted values. The result preserves the exact family list and alpha. This
+closes selective input omission inside the executable method. Protocols with
+secondary outcomes now separately freeze an exact,
 disjoint confirmatory/exploratory outcome partition, method, and alpha contract:
 exploratory studies cannot acquire a confirmatory family, while confirmatory
 studies must retain the primary outcome and use `single_test` or `holm` according
@@ -678,10 +679,12 @@ resolving absolute JSON Pointer. Deterministic synthesis exposes the frozen
 assumption and every recorded disposition. This closes an accountability gap but
 does not make any diagnostic sufficient to establish ignorability.
 The bundled descriptive summary, Pearson correlation, two-group estimators,
-adjusted model, and missingness report normalize requested diagnostic columns or
-comparison labels before duplicate or distinct-handle checks and result
-construction, preventing whitespace-padded specifications from creating separate
-apparent fields, hidden self-comparisons, or duplicate comparison identities.
+adjusted model, and missingness report require requested diagnostic columns,
+comparison labels, covariates, unit or pair handles, family names, and row group
+labels to be canonical before duplicate or distinct-handle checks and result
+construction, preventing whitespace-padded specifications from being silently
+rewritten into separate apparent fields, self-comparisons, or comparison
+identities.
 The provider-free design interview and scaffold elicit the same minimum count,
 maximum total exclusion fraction, and maximum between-group exclusion-rate
 difference, as well as the full missingness-assessment contract. Missing answers

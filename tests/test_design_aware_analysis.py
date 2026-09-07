@@ -46,22 +46,26 @@ def test_adjusted_linear_effect_recovers_registered_conditional_contrast():
     assert result["robust_confidence_interval"]["upper"] >= 2
 
 
-def test_adjusted_linear_effect_normalizes_model_handles():
-    """Synthetic fixture: padded model handles must resolve to one executable contract."""
+@pytest.mark.parametrize(("field", "message"), [
+    ("outcome_column", "adjusted_linear_effect outcome_column must be canonical"),
+    ("group_column", "adjusted_linear_effect group_column must be canonical"),
+    ("groups", "group label must be canonical"),
+    ("covariate_columns", "adjusted_linear_effect covariate_column must be canonical"),
+    ("unit_column", "adjusted_linear_effect unit_column must be canonical"),
+])
+def test_adjusted_linear_effect_requires_canonical_model_handles(field, message):
+    """Synthetic fixture: padded model handles must not be silently rewritten."""
     spec = {
         **_adjusted_spec(),
-        "outcome_column": " outcome ",
-        "group_column": " group ",
-        "groups": [" treatment ", " control "],
-        "covariate_columns": [" baseline "],
-        "unit_column": " unit ",
     }
-    result = adjusted_linear_effect(spec, _adjusted_fixture())
-
-    assert result["groups"] == ["treatment", "control"]
-    assert result["adjustment_columns"] == ["baseline"]
-    assert result["independent_unit_check"]["column"] == "unit"
-    assert result["n_by_group"] == {"treatment": 4, "control": 4}
+    if field == "groups":
+        spec[field] = [" treatment ", "control"]
+    elif field == "covariate_columns":
+        spec[field] = [" baseline "]
+    else:
+        spec[field] = f" {spec[field]} "
+    with pytest.raises(ValidationError, match=message):
+        adjusted_linear_effect(spec, _adjusted_fixture())
 
 
 @pytest.mark.parametrize("scale,offset", [(1000, 0), (0.001, 0), (10, -17)])
@@ -110,9 +114,9 @@ def test_adjusted_linear_effect_reports_registered_complete_case_exclusions():
         )
 
 
-def test_adjusted_linear_effect_rejects_duplicate_normalized_covariates():
+def test_adjusted_linear_effect_rejects_noncanonical_covariates_before_duplicates():
     spec = {**_adjusted_spec(), "covariate_columns": ["baseline", " baseline "]}
-    with pytest.raises(ValidationError, match="distinct non-blank covariate_columns"):
+    with pytest.raises(ValidationError, match="covariate_column must be canonical"):
         adjusted_linear_effect(spec, _adjusted_fixture())
 
 
@@ -141,24 +145,31 @@ def test_effect_estimates_respect_positive_unit_conversion(design, scale, offset
         )
 
 
-def test_paired_mean_difference_normalizes_pair_and_comparison_handles():
+@pytest.mark.parametrize(("field", "message"), [
+    ("outcome_column", "paired_mean_difference_ci outcome_column must be canonical"),
+    ("group_column", "paired_mean_difference_ci group_column must be canonical"),
+    ("groups", "group label must be canonical"),
+    ("pair_column", "paired_mean_difference_ci pair_column must be canonical"),
+])
+def test_paired_mean_difference_requires_canonical_pair_and_comparison_handles(field, message):
     rows = [{"pair": str(i), "group": group, "outcome": str(value)}
             for i, pair in enumerate([(1, 3), (4, 7)])
             for group, value in zip(["control", "treatment"], pair)]
     spec = {
-        "outcome_column": " outcome ",
-        "group_column": " group ",
-        "groups": [" treatment ", " control "],
-        "pair_column": " pair ",
+        "outcome_column": "outcome",
+        "group_column": "group",
+        "groups": ["treatment", "control"],
+        "pair_column": "pair",
         "study_design": "paired",
         "seed": 42,
         "bootstrap_resamples": 1000,
     }
-    result = paired_mean_difference_ci(spec, rows)
-
-    assert result["groups"] == ["treatment", "control"]
-    assert result["n_pairs"] == 2
-    assert result["mean_difference_first_minus_second"] == pytest.approx(2.5)
+    if field == "groups":
+        spec[field] = [" treatment ", "control"]
+    else:
+        spec[field] = f" {spec[field]} "
+    with pytest.raises(ValidationError, match=message):
+        paired_mean_difference_ci(spec, rows)
 
 
 @pytest.mark.parametrize("method", [independent_mean_difference_ci, permutation_mean_difference])
@@ -208,7 +219,7 @@ def test_two_group_methods_reject_invalid_comparisons(labels, method, design):
     spec = {"outcome_column": "outcome", "group_column": "group",
             "pair_column": "pair", "groups": labels, "study_design": design,
             "seed": 1, "bootstrap_resamples": 1000, "permutations": 100}
-    with pytest.raises(ValidationError, match="distinct non-blank"):
+    with pytest.raises(ValidationError, match="distinct non-blank|group label must be non-blank"):
         method(spec, rows)
 
 

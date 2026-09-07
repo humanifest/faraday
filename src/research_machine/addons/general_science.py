@@ -9,6 +9,14 @@ from research_machine.addons.models import AddonManifest, AnalysisMethod
 from research_machine.domain.errors import ValidationError
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError(f"{field} must be non-blank text")
+    if value != value.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return value
+
+
 def _column(rows: list[dict[str, str]], name: str) -> tuple[list[float], int]:
     values: list[float] = []
     missing = 0
@@ -44,9 +52,9 @@ def _summary(values: list[float]) -> dict[str, float | int | None]:
 
 def descriptive_summary(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[str, Any]:
     columns = spec.get("columns")
-    if not isinstance(columns, list) or not columns or any(not isinstance(item, str) or not item.strip() for item in columns):
+    if not isinstance(columns, list) or not columns:
         raise ValidationError("descriptive_summary requires a non-empty columns array")
-    columns = [item.strip() for item in columns]
+    columns = [_canonical_text(item, "descriptive_summary column") for item in columns]
     if len(set(columns)) != len(columns):
         raise ValidationError("descriptive_summary columns must not contain duplicates")
     summaries: dict[str, Any] = {}
@@ -60,11 +68,9 @@ def descriptive_summary(spec: dict[str, Any], rows: list[dict[str, str]]) -> dic
 
 def missingness_report(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[str, Any]:
     columns = spec.get("columns")
-    if not isinstance(columns, list) or not columns or any(
-        not isinstance(item, str) or not item.strip() for item in columns
-    ):
+    if not isinstance(columns, list) or not columns:
         raise ValidationError("missingness_report requires a non-empty columns array")
-    columns = [item.strip() for item in columns]
+    columns = [_canonical_text(item, "missingness_report column") for item in columns]
     if len(set(columns)) != len(columns):
         raise ValidationError("missingness_report columns must not contain duplicates")
     if not rows:
@@ -98,12 +104,8 @@ def missingness_report(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict
 
 
 def pearson_correlation(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[str, Any]:
-    x_name = spec.get("x_column")
-    y_name = spec.get("y_column")
-    if not isinstance(x_name, str) or not x_name.strip() or not isinstance(y_name, str) or not y_name.strip():
-        raise ValidationError("pearson_correlation requires x_column and y_column")
-    x_name = x_name.strip()
-    y_name = y_name.strip()
+    x_name = _canonical_text(spec.get("x_column"), "pearson_correlation x_column")
+    y_name = _canonical_text(spec.get("y_column"), "pearson_correlation y_column")
     if x_name == y_name:
         raise ValidationError("pearson_correlation requires distinct x_column and y_column")
     pairs: list[tuple[float, float]] = []
@@ -134,26 +136,20 @@ def pearson_correlation(spec: dict[str, Any], rows: list[dict[str, str]]) -> dic
 
 
 def _validate_group_labels(labels: Any) -> list[str]:
-    if (
-        not isinstance(labels, list) or len(labels) != 2
-        or any(not isinstance(item, str) or not item.strip() for item in labels)
-    ):
+    if not isinstance(labels, list) or len(labels) != 2:
         raise ValidationError("groups must contain exactly two distinct non-blank string labels")
-    labels = [item.strip() for item in labels]
+    labels = [_canonical_text(item, "group label") for item in labels]
     if labels[0] == labels[1]:
         raise ValidationError("groups must contain exactly two distinct non-blank string labels")
     return labels
 
 
 def _two_group_handles(spec: dict[str, Any], method: str) -> tuple[str, str, list[str]]:
-    outcome, group, labels = spec.get("outcome_column"), spec.get("group_column"), spec.get("groups")
-    if not isinstance(outcome, str) or not outcome.strip() or not isinstance(group, str) or not group.strip():
-        raise ValidationError(f"{method} requires outcome_column and group_column")
-    outcome = outcome.strip()
-    group = group.strip()
+    outcome = _canonical_text(spec.get("outcome_column"), f"{method} outcome_column")
+    group = _canonical_text(spec.get("group_column"), f"{method} group_column")
     if outcome == group:
         raise ValidationError(f"{method} requires distinct outcome_column and group_column")
-    return outcome, group, _validate_group_labels(labels)
+    return outcome, group, _validate_group_labels(spec.get("groups"))
 
 
 def _comparison_exclusions(
@@ -173,7 +169,7 @@ def _comparison_exclusions(
                           if not row[field].strip()]
         if not missing_fields:
             continue
-        group = row[group_column].strip()
+        group = _canonical_text(row[group_column], "row group label") if row[group_column].strip() else ""
         if group in by_group:
             by_group[group] += 1
         else:
@@ -198,9 +194,7 @@ def permutation_mean_difference(spec: dict[str, Any], rows: list[dict[str, str]]
     unit_check = {"status": "not_checked", "notice": "No independent-unit column supplied; exchangeability is a declaration only."}
     if "unit_column" in spec:
         unit_column = spec.get("unit_column")
-        if not isinstance(unit_column, str) or not unit_column.strip():
-            raise ValidationError("permutation_mean_difference unit_column must be non-blank")
-        unit_column = unit_column.strip()
+        unit_column = _canonical_text(unit_column, "permutation_mean_difference unit_column")
         if unit_column in {outcome, group}:
             raise ValidationError("permutation_mean_difference unit_column must be distinct from outcome_column and group_column")
         units: set[str] = set()
@@ -208,7 +202,7 @@ def permutation_mean_difference(spec: dict[str, Any], rows: list[dict[str, str]]
             unit = row.get(unit_column)
             if not isinstance(unit, str) or not unit.strip():
                 raise ValidationError(f"missing independent-unit identifier at CSV row {index}")
-            unit = unit.strip()
+            unit = _canonical_text(unit, "independent-unit identifier")
             if unit in units:
                 raise ValidationError(
                     f"repeated independent-unit identifier at CSV row {index}; use a dependence-aware randomization procedure"
@@ -226,7 +220,7 @@ def permutation_mean_difference(spec: dict[str, Any], rows: list[dict[str, str]]
         raw, label = row.get(outcome), row.get(group)
         if raw is None or label is None:
             raise ValidationError("permutation-test column not found")
-        label = label.strip()
+        label = _canonical_text(label, "row group label") if isinstance(label, str) and label.strip() else label
         if label and label not in labels:
             raise ValidationError(f"unexpected group {label!r} at CSV row {index}")
         if not raw.strip() or not label:
@@ -306,7 +300,7 @@ def _two_groups(
         raw, label = row.get(outcome), row.get(group)
         if raw is None or label is None:
             raise ValidationError(f"{method} column not found")
-        label = label.strip()
+        label = _canonical_text(label, "row group label") if isinstance(label, str) and label.strip() else label
         if label and label not in labels:
             raise ValidationError(f"unexpected group {label!r} at CSV row {index}")
         if not raw.strip() or not label:
@@ -335,9 +329,7 @@ def independent_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, st
     unit_column = spec.get("unit_column")
     unit_check = {"status": "not_checked", "notice": "No independent-unit column supplied; independence is a declaration only."}
     if "unit_column" in spec:
-        if not isinstance(unit_column, str) or not unit_column.strip():
-            raise ValidationError("unit_column must be a non-blank column name")
-        unit_column = unit_column.strip()
+        unit_column = _canonical_text(unit_column, "unit_column")
         if unit_column in {outcome, group}:
             raise ValidationError("unit_column must be distinct from outcome_column and group_column")
         units: set[str] = set()
@@ -345,7 +337,7 @@ def independent_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, st
             unit = row.get(unit_column)
             if not isinstance(unit, str) or not unit.strip():
                 raise ValidationError(f"missing independent-unit identifier at CSV row {index}")
-            unit = unit.strip()
+            unit = _canonical_text(unit, "independent-unit identifier")
             if unit in units:
                 raise ValidationError(f"repeated independent-unit identifier at CSV row {index}; use a dependence-aware design")
             units.add(unit)
@@ -429,10 +421,9 @@ def adjusted_linear_effect(spec: dict[str, Any], rows: list[dict[str, str]]) -> 
     if (
         not isinstance(covariates, list)
         or not covariates
-        or any(not isinstance(item, str) or not item.strip() for item in covariates)
     ):
         raise ValidationError(f"{method} requires distinct non-blank covariate_columns")
-    covariates = [item.strip() for item in covariates]
+    covariates = [_canonical_text(item, f"{method} covariate_column") for item in covariates]
     if len(set(covariates)) != len(covariates):
         raise ValidationError(f"{method} requires distinct non-blank covariate_columns")
     if outcome in covariates or group in covariates:
@@ -445,9 +436,7 @@ def adjusted_linear_effect(spec: dict[str, Any], rows: list[dict[str, str]]) -> 
     ):
         raise ValidationError(f"{method} confidence_level must be in [0.8, 1)")
     unit_column = spec.get("unit_column")
-    if not isinstance(unit_column, str) or not unit_column.strip():
-        raise ValidationError(f"{method} requires a non-blank unit_column")
-    unit_column = unit_column.strip()
+    unit_column = _canonical_text(unit_column, f"{method} unit_column")
     if unit_column in {outcome, group, *covariates}:
         raise ValidationError("unit_column must be distinct from modeled columns")
 
@@ -462,7 +451,7 @@ def adjusted_linear_effect(spec: dict[str, Any], rows: list[dict[str, str]]) -> 
         unit = row.get(unit_column)
         if not isinstance(unit, str) or not unit.strip():
             raise ValidationError(f"missing independent-unit identifier at CSV row {csv_row}")
-        unit = unit.strip()
+        unit = _canonical_text(unit, "independent-unit identifier")
         if unit in units:
             raise ValidationError(
                 f"repeated independent-unit identifier at CSV row {csv_row}; use a dependence-aware design"
@@ -471,7 +460,7 @@ def adjusted_linear_effect(spec: dict[str, Any], rows: list[dict[str, str]]) -> 
         label = row.get(group)
         if label is None:
             raise ValidationError(f"column not found: {group}")
-        label = label.strip()
+        label = _canonical_text(label, "row group label") if isinstance(label, str) and label.strip() else label
         if label and label not in labels:
             raise ValidationError(f"unexpected group {label!r} at CSV row {csv_row}")
         missing_fields: list[str] = []
@@ -618,9 +607,7 @@ def paired_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, str]]) 
     if spec.get("study_design") != "paired":
         raise ValidationError("paired_mean_difference_ci requires study_design paired")
     pair_column = spec.get("pair_column")
-    if not isinstance(pair_column, str) or not pair_column.strip():
-        raise ValidationError("paired_mean_difference_ci requires pair_column")
-    pair_column = pair_column.strip()
+    pair_column = _canonical_text(spec.get("pair_column"), "paired_mean_difference_ci pair_column")
     outcome, group, labels = _two_group_handles(spec, "paired_mean_difference_ci")
     if pair_column in {outcome, group}:
         raise ValidationError("paired_mean_difference_ci pair_column must be distinct from outcome_column and group_column")
@@ -647,8 +634,8 @@ def paired_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, str]]) 
         if raw is None or label is None or pair_id is None:
             raise ValidationError("paired_mean_difference_ci column not found")
         value = float(raw)
-        label = label.strip()
-        pair_id = pair_id.strip()
+        label = _canonical_text(label, "row group label")
+        pair_id = _canonical_text(pair_id, "pair identifier")
         if pair_id in pairs and label in pairs[pair_id]:
             raise ValidationError(f"duplicate observation for pair {pair_id!r} and group {label!r} at CSV row {index}")
         pairs.setdefault(pair_id, {})[label] = value
@@ -683,12 +670,9 @@ def holm_adjustment(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[st
     hypothesis_column = spec.get("hypothesis_column")
     p_value_column = spec.get("p_value_column")
     family_name = spec.get("family_name")
-    if any(not isinstance(value, str) or not value.strip()
-           for value in (hypothesis_column, p_value_column, family_name)):
-        raise ValidationError("holm_adjustment requires non-blank hypothesis_column, p_value_column, and family_name")
-    hypothesis_column = hypothesis_column.strip()
-    p_value_column = p_value_column.strip()
-    family_name = family_name.strip()
+    hypothesis_column = _canonical_text(hypothesis_column, "holm_adjustment hypothesis_column")
+    p_value_column = _canonical_text(p_value_column, "holm_adjustment p_value_column")
+    family_name = _canonical_text(family_name, "holm_adjustment family_name")
     if hypothesis_column == p_value_column:
         raise ValidationError("holm_adjustment requires distinct hypothesis_column and p_value_column")
     family_hypothesis_ids = spec.get("family_hypothesis_ids")
@@ -719,7 +703,7 @@ def holm_adjustment(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[st
             raise ValidationError("holm_adjustment column not found")
         if not raw_id.strip() or not raw_p.strip():
             raise ValidationError(f"holm_adjustment does not allow missing identifiers or p-values at CSV row {index}")
-        identifier = raw_id.strip()
+        identifier = _canonical_text(raw_id, "holm_adjustment hypothesis identifier")
         if identifier in identifiers:
             raise ValidationError(f"duplicate hypothesis identifier {identifier!r} at CSV row {index}")
         identifiers.add(identifier)
