@@ -90,6 +90,10 @@ research analysis materialize-holm \
   --output materialized-family
 ```
 
+The trusted manifest hash must already be a canonical lowercase SHA-256 digest;
+uppercase, padded, or malformed values fail before the manifest can pin workflow
+source receipts.
+
 The command verifies every pinned source receipt and result, recomputes its
 registered p-value selection, rejects missing/substituted sources, and emits
 `holm-family.csv` with `family-materialization.json`. Holm execution verifies its
@@ -113,6 +117,10 @@ research analysis adjudicate-holm \
   --expected-manifest-sha256 TRUSTED_HASH \
   --output adjudicated-workflow
 ```
+
+The adjudication manifest hash uses the same canonical lowercase SHA-256
+contract. The later adjudication-run-draft receipt hash is validated under that
+contract as well.
 
 The manifest pins a canonical run ID, execution directory, and receipt hash for
 the primary estimate, every confirmatory test, and the multiplicity step, plus

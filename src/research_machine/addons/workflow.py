@@ -112,6 +112,7 @@ def composite_quality_gates(adjudication: dict[str, Any], output_sha256: str) ->
 def _read_pinned_json(path: Path, expected_sha256: str, label: str) -> tuple[dict[str, Any], bytes]:
     if path.is_symlink() or not path.is_file():
         raise ValidationError(f"{label} must be a regular non-symlink file")
+    expected_sha256 = _require_sha256(expected_sha256, f"{label} expected_sha256")
     raw = path.read_bytes()
     if hashlib.sha256(raw).hexdigest() != expected_sha256:
         raise ValidationError(f"{label} does not match the trusted hash")
@@ -554,6 +555,9 @@ def materialize_holm_family(
     """Verify source executions and write an exact Holm-family CSV plus receipt."""
     if manifest_path.is_symlink() or not manifest_path.is_file():
         raise ValidationError("workflow dependency manifest must be a regular non-symlink file")
+    expected_manifest_sha256 = _require_sha256(
+        expected_manifest_sha256, "dependency manifest expected_manifest_sha256"
+    )
     raw_manifest = manifest_path.read_bytes()
     manifest_sha256 = hashlib.sha256(raw_manifest).hexdigest()
     if manifest_sha256 != expected_manifest_sha256:
