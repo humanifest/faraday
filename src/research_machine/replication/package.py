@@ -326,7 +326,10 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         raise ValidationError(
                             f"package run {run.run_id} gate {gate.gate_id} has invalid prerequisites"
                         )
-                    prerequisites = [value.strip() for value in prerequisites]
+                    if any(value != value.strip() for value in prerequisites):
+                        raise ValidationError(
+                            f"package run {run.run_id} gate {gate.gate_id} has invalid prerequisites"
+                        )
                     if len(prerequisites) != len(set(prerequisites)) or gate.gate_id in prerequisites:
                         raise ValidationError(
                             f"package run {run.run_id} gate {gate.gate_id} has invalid prerequisites"

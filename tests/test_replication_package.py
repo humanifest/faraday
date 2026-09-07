@@ -111,7 +111,7 @@ def test_replication_verify_rejects_noncanonical_manifest_file_hash(
     "file", "manifest", "missing", "extra", "symlink", "traversal",
     "privacy_mode", "locator_policy", "limitations", "ethics_summary",
     "instructions", "dataset_summary", "dataset_cycle", "run_eligibility",
-    "blank_prerequisite", "quality_gate_duplicate_after_trim",
+    "blank_prerequisite", "padded_prerequisite", "quality_gate_duplicate_after_trim",
     "protocol_gate_duplicate_after_trim",
 ])
 def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Path, mutation, capsys) -> None:
@@ -283,6 +283,22 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         runs_path = package / "runs.json"
         runs = json.loads(runs_path.read_text())
         runs[0]["quality_gates"][0]["details"]["prerequisite_gate_ids"] = [" "]
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "padded_prerequisite":
+        runs_path = package / "runs.json"
+        runs = json.loads(runs_path.read_text())
+        source_gate = dict(runs[0]["quality_gates"][0])
+        source_gate["gate_id"] = "source-check"
+        source_gate["summary"] = "Source gate passed."
+        runs[0]["quality_gates"][0]["details"]["prerequisite_gate_ids"] = [
+            " source-check"
+        ]
+        runs[0]["quality_gates"].append(source_gate)
         runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
         manifest_path = package / "package-manifest.json"
         manifest = json.loads(manifest_path.read_text())

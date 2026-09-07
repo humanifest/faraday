@@ -63,10 +63,11 @@ and contradictory classifications fail closed. Existing synthetic-evidence
 restrictions still apply.
 All passed quality gates now require `details.evidence_sha256` referencing an
 artifact emitted by that exact run. Optional `prerequisite_gate_ids` are checked
-against the same run: every named gate must exist and pass before the dependent
-gate may pass. This turns a pass summary into a hash-linked prerequisite receipt;
-it verifies local run linkage and disposition, not the scientific adequacy of the
-underlying test or the truth of its interpretation.
+against the same run: every named gate must be canonical without surrounding
+whitespace, exist, and pass before the dependent gate may pass. This turns a pass
+summary into a hash-linked prerequisite receipt; it verifies local run linkage
+and disposition, not the scientific adequacy of the underlying test or the truth
+of its interpretation.
 
 Run-deviation delivery: every automatically evidence-eligible run now requires
 an explicit `protocol_deviation_disclosure`. Silence is retained as

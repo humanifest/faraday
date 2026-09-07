@@ -31,6 +31,7 @@ from research_machine.application.artifact_integrity import verify_run_artifacts
 from research_machine.application.policies import (
     normalize_confidence,
     normalize_text,
+    require_canonical_text,
     require_text,
     require_text_list,
     require_unique_text_list,
@@ -2557,7 +2558,12 @@ class ResearchService:
                 raise ValidationError(
                     f"quality gate {gate.gate_id} prerequisite_gate_ids must be a list of non-blank gate IDs"
                 )
-            prerequisites = [item.strip() for item in prerequisites]
+            prerequisites = [
+                require_canonical_text(
+                    item, f"quality gate {gate.gate_id} prerequisite_gate_ids item"
+                )
+                for item in prerequisites
+            ]
             if len(set(prerequisites)) != len(prerequisites):
                 raise ValidationError(f"quality gate {gate.gate_id} has duplicate prerequisites")
             if gate.gate_id in prerequisites:

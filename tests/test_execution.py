@@ -427,6 +427,20 @@ def test_passed_quality_gate_requires_output_bound_evidence_and_passed_prerequis
         service.record_run(run_command(
             protocol.protocol_id, QualityGateStatus.PASSED, quality_gates=gates,
         ))
+    padded_dependency = [
+        QualityGateResult(
+            "source-check", QualityGateStatus.PASSED, "Source passed",
+            details={"evidence_sha256": "c" * 64},
+        ),
+        QualityGateResult(
+            "proof-check", QualityGateStatus.PASSED, "Depends on source",
+            details={"evidence_sha256": "c" * 64, "prerequisite_gate_ids": [" source-check"]},
+        ),
+    ]
+    with pytest.raises(ValidationError, match="prerequisite_gate_ids item must be canonical"):
+        service.record_run(run_command(
+            protocol.protocol_id, QualityGateStatus.PASSED, quality_gates=padded_dependency,
+        ))
 
 
 def test_run_requires_explicit_no_deviation_disclosure_for_evidence(tmp_path: Path) -> None:
