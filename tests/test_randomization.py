@@ -37,7 +37,7 @@ def test_blocked_assignment_is_reproducible_balanced_and_hash_bound(tmp_path, ca
 
 
 @pytest.mark.parametrize("change", [
-    {"unit_ids": ["u1", " u1 ", "u2", "u3"]}, {"groups": ["a", " a "]},
+    {"unit_ids": ["u1", "u1", "u2", "u3"]}, {"groups": ["a", "a"]},
     {"block_size": 3}, {"block_size": True}, {"seed": True},
     {"unit_ids": ["u1", "u2", "u3", "u4", "u5", "u6"]},
 ])
@@ -62,15 +62,19 @@ def test_stratified_blocks_balance_each_declared_stratum():
     assert {row["block_within_stratum"] for row in result["assignments"]} == {1}
 
 
-def test_stratification_normalizes_unit_keys_and_stratum_labels():
-    spec = {"unit_ids": [" u1 ", "u2", "u3", "u4"], "groups": ["control", "treatment"],
+@pytest.mark.parametrize(("change", "message"), [
+    ({"unit_ids": [" u1 ", "u2", "u3", "u4"]}, "unit_ids must be canonical"),
+    ({"groups": [" control ", "treatment"]}, "groups must be canonical"),
+    ({"strata": {" u1 ": "site-a", "u2": "site-a", "u3": "site-a", "u4": "site-a"}}, "strata unit_id must be canonical"),
+    ({"strata": {"u1": " site-a ", "u2": "site-a", "u3": "site-a", "u4": "site-a"}}, "strata stratum must be canonical"),
+])
+def test_randomization_requires_canonical_assignment_handles(change, message):
+    spec = {"unit_ids": ["u1", "u2", "u3", "u4"], "groups": ["control", "treatment"],
             "block_size": 4, "seed": 9,
-            "strata": {" u1 ": " site-a ", "u2": "site-a", "u3": "site-a", "u4": "site-a"}}
-    result = generate_blocked_assignment(spec)
-    assert result["method"] == "stratified_fixed_permuted_blocks"
-    assert {row["unit_id"] for row in result["assignments"]} == {"u1", "u2", "u3", "u4"}
-    assert {row["stratum"] for row in result["assignments"]} == {"site-a"}
-    assert result["balance_by_stratum"] == {"site-a": {"control": 2, "treatment": 2}}
+            "strata": {"u1": "site-a", "u2": "site-a", "u3": "site-a", "u4": "site-a"},
+            **change}
+    with pytest.raises(ValidationError, match=message):
+        generate_blocked_assignment(spec)
 
 
 @pytest.mark.parametrize("strata", [

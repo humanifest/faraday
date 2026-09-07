@@ -10,11 +10,12 @@ missing, added, crossed-over, or reassigned units. A disclosed seed and fixed
 blocks may be predictable: generation does
 not establish allocation concealment, blinding, enrollment order, or adherence.
 An optional `strata` object must map every unit ID to a nonblank stratum; each
-stratum must form complete blocks. Stratum-map unit keys and stratum labels are
-normalized before exact coverage and duplicate checks, so padded keys cannot
-split or omit randomized units. Output reports balance within every stratum. This
-balances declared strata but does not eliminate within-stratum confounding or
-validate how strata were chosen.
+stratum must form complete blocks. Unit IDs, group labels, stratum-map unit keys,
+and stratum labels must be canonical without surrounding whitespace before exact
+coverage, duplicate checks, and assignment hashing, so padded handles cannot be
+silently rewritten inside the prospective allocation commitment. Output reports
+balance within every stratum. This balances declared strata but does not
+eliminate within-stratum confounding or validate how strata were chosen.
 
 Precision-plan specifications may include `sensitivity_standard_deviations`,
 for example `[1, 2, 4]`, to compare sample targets under explicit hypothetical

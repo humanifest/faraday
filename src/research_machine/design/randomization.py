@@ -9,6 +9,14 @@ from typing import Any
 from research_machine.domain.errors import ValidationError
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError(f"{field} must be a non-blank string")
+    if value != value.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return value
+
+
 def generate_blocked_assignment(spec: dict[str, Any]) -> dict[str, Any]:
     allowed = {"unit_ids", "groups", "block_size", "seed", "strata"}
     unknown = sorted(set(spec) - allowed)
@@ -16,15 +24,13 @@ def generate_blocked_assignment(spec: dict[str, Any]) -> dict[str, Any]:
         raise ValidationError("unknown randomization fields: " + ", ".join(unknown))
     units, groups = spec.get("unit_ids"), spec.get("groups")
     for value, name, minimum in ((units, "unit_ids", 2), (groups, "groups", 2)):
-        if not isinstance(value, list) or len(value) < minimum or any(
-            not isinstance(item, str) or not item.strip() for item in value
-        ):
+        if not isinstance(value, list) or len(value) < minimum:
             raise ValidationError(f"{name} must be an array of at least {minimum} non-blank strings")
-        normalized = [item.strip() for item in value]
-        if len(set(normalized)) != len(normalized):
-            raise ValidationError(f"{name} must be unique after trimming whitespace")
-    units = [item.strip() for item in units]
-    groups = [item.strip() for item in groups]
+        canonical = [_canonical_text(item, name) for item in value]
+        if len(set(canonical)) != len(canonical):
+            raise ValidationError(f"{name} must be unique")
+    units = list(units)
+    groups = list(groups)
     block_size, seed = spec.get("block_size"), spec.get("seed")
     if type(block_size) is not int or block_size < len(groups) or block_size % len(groups):
         raise ValidationError("block_size must be an integer at least the group count and divisible by it")
@@ -34,18 +40,18 @@ def generate_blocked_assignment(spec: dict[str, Any]) -> dict[str, Any]:
     if strata is None:
         units_by_stratum: list[tuple[str | None, list[str]]] = [(None, units)]
     else:
-        if not isinstance(strata, dict) or any(
-            not isinstance(key, str) or not key.strip() or not isinstance(value, str) or not value.strip()
+        if not isinstance(strata, dict):
+            raise ValidationError("strata must map every canonical unit_id exactly once to a non-blank stratum")
+        canonical_strata = {
+            _canonical_text(key, "strata unit_id"): _canonical_text(value, "strata stratum")
             for key, value in strata.items()
-        ):
-            raise ValidationError("strata must map every normalized unit_id exactly once to a non-blank stratum")
-        normalized_strata = {key.strip(): value.strip() for key, value in strata.items()}
-        if len(normalized_strata) != len(strata) or set(normalized_strata) != set(units):
-            raise ValidationError("strata must map every normalized unit_id exactly once to a non-blank stratum")
+        }
+        if len(canonical_strata) != len(strata) or set(canonical_strata) != set(units):
+            raise ValidationError("strata must map every canonical unit_id exactly once to a non-blank stratum")
         units_by_stratum = []
         positions: dict[str, int] = {}
         for unit in units:
-            stratum = normalized_strata[unit]
+            stratum = canonical_strata[unit]
             if stratum not in positions:
                 positions[stratum] = len(units_by_stratum)
                 units_by_stratum.append((stratum, []))
