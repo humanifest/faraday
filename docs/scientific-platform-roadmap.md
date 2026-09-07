@@ -1257,6 +1257,11 @@ second apparent prerequisite or gate link. Frozen protocol
 IDs, quantities, units, and rationales must follow the same rule; receipt-side
 required custody-gate and frozen calibration IDs are rejected rather than
 silently normalized before receipt coverage is accepted.
+Custody receipt text canonicalization delivery: receipt IDs, evidence and
+artifact locators, acquisition methods, transformation versions, calibration
+references and results, quality-gate summaries, and derived-observation
+definitions are now rejected when padded, so retained custody records cannot
+hide distinct-looking provenance behind later whitespace normalization.
 Custody-bearing protocols now freeze quantitative calibration acceptance
 criteria with stable criterion/calibration IDs, quantity, unit, rationale, and
 at least one finite bound. Dataset registration requires every named calibration,

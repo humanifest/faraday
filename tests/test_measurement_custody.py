@@ -353,6 +353,29 @@ def test_required_calibration_criteria_ids_must_be_canonical_and_unique() -> Non
 
 
 @pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda receipt: receipt.update({"receipt_id": " mc-001 "}), "receipt_id"),
+        (lambda receipt: receipt["evidence_artifacts"][0].update({"locator": " calibration-result.json "}), "evidence artifact locator"),
+        (lambda receipt: receipt["raw_sources"][0].update({"locator": " capture.bin "}), "raw_sources\\[0\\].locator"),
+        (lambda receipt: receipt["raw_sources"][0].update({"acquisition_method": " instrument export "}), "raw_sources\\[0\\].acquisition_method"),
+        (lambda receipt: receipt["transformations"][0].update({"version": " 1 "}), "transformations\\[0\\].version"),
+        (lambda receipt: receipt["transformations"][0].update({"implementation_locator": " extract.py "}), "transformations\\[0\\].implementation_locator"),
+        (lambda receipt: receipt["transformations"][0].update({"output_locator": " derived.json "}), "transformations\\[0\\].output_locator"),
+        (lambda receipt: receipt["calibrations"][0].update({"reference": " GPS "}), "calibration.reference"),
+        (lambda receipt: receipt["calibrations"][0].update({"result": " residual = 0.4 ms "}), "calibration.result"),
+        (lambda receipt: receipt["quality_gates"][0].update({"summary": " clock alignment passed "}), "quality gate clock-sync summary"),
+        (lambda receipt: receipt["derived_observations"][0].update({"definition": " detected event "}), "derived observation definition"),
+    ],
+)
+def test_custody_retained_text_fields_must_be_canonical(mutate, message) -> None:
+    receipt = _receipt()
+    mutate(receipt)
+    with pytest.raises(ValidationError, match=message):
+        validate_measurement_custody(receipt)
+
+
+@pytest.mark.parametrize(
     ("field", "value", "message"),
     [
         ("observed_unit", "seconds", "observed_unit"),

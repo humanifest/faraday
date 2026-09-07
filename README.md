@@ -1026,8 +1026,11 @@ and supporting-evidence bytes. It persists the resulting integrity report, recei
 actor, and verification time inside the immutable dataset manifest.
 Stable protocol quality-gate, required custody-gate, calibration criterion,
 calibration, transformation, gate, and derived-observation IDs must be unique
-and canonical without surrounding whitespace, so cosmetic padding cannot split
-one custody node into apparently separate provenance records.
+and canonical without surrounding whitespace. Retained receipt text, including
+receipt IDs, artifact locators, acquisition methods, transformation versions,
+calibration references/results, gate summaries, and derived-observation
+definitions, must also be unpadded so cosmetic whitespace cannot split or
+obscure custody provenance.
 At protocol freeze, required custody-gate IDs must also be canonical without
 surrounding whitespace before they become calibration and registration
 commitments. Calibration criterion IDs, calibration IDs, quantities, units, and
