@@ -10,6 +10,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 
@@ -22,6 +23,7 @@ def create_study_reconciliation(
     review: dict[str, Any],
     output: Path,
 ) -> dict[str, Any]:
+    expected_sha256 = require_sha256(expected_sha256, "expected_bias_assessment_sha256")
     try:
         content = bias_path.read_bytes()
         bias = json.loads(content)

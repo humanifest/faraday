@@ -716,8 +716,11 @@ citation-review location and rationale, and study-level bias-domain judgments
 with their cited locations for every mapped claim. Qualitative synthesis now
 requires the extraction source set to match the synthesis plan's frozen included
 sources, and preserves those provenance anchors instead of carrying only a ceiling
-label. Extraction source, study, and claim IDs are normalized before coverage and
-duplicate checks, preventing whitespace-padded reports from becoming separate
+label. Trusted extraction, citation-verification, bias-assessment, and
+study-reconciliation hashes must also be canonical lowercase SHA-256 digests
+before they can bind downstream review artifacts. Extraction source, study, and
+claim IDs are normalized before coverage and duplicate checks, preventing
+whitespace-padded reports from becoming separate
 claims or study groupings. Citation verification applies the same normalized
 claim-ID coverage, so padded assessment IDs cannot create duplicate or missing
 independent reviews. Bias assessment and study-identity reconciliation also

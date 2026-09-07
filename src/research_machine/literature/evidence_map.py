@@ -9,6 +9,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 
@@ -41,6 +42,9 @@ def create_evidence_map(
     expected_reconciliation_sha256: str,
     output: Path,
 ) -> dict[str, Any]:
+    expected_reconciliation_sha256 = require_sha256(
+        expected_reconciliation_sha256, "expected_study_reconciliation_sha256"
+    )
     extraction, extraction_sha = _load(extraction_path, "extraction")
     verification, verification_sha = _load(verification_path, "citation verification")
     bias, bias_sha = _load(bias_path, "bias assessment")

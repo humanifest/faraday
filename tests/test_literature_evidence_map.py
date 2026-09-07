@@ -155,3 +155,15 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
     with pytest.raises(ValidationError):
         create_evidence_map(extraction, verification, bias, reconciliation, digest, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("expected", [" 0123", "A" * 64, "g" * 64, "0" * 63, "0" * 65])
+def test_evidence_map_rejects_malformed_expected_reconciliation_hash(tmp_path, expected):
+    extraction, verification, bias, reconciliation, _ = chain(tmp_path)
+    output = tmp_path / "map"
+    with pytest.raises(
+        ValidationError,
+        match="expected_study_reconciliation_sha256 must be a lowercase SHA-256 digest",
+    ):
+        create_evidence_map(extraction, verification, bias, reconciliation, expected, output)
+    assert not output.exists()

@@ -868,25 +868,30 @@ Extraction source, study, and claim IDs are normalized before coverage and
 duplicate checks, preventing whitespace-padded reports from becoming separate
 claims or study groupings.
 `research literature verify-citations` adds a second, hash-bound review covering
-every extracted claim. The citation reviewer must differ from the extraction
-reviewer and must record the checked location, rationale, and a supported,
-partially-supported, unsupported, or unclear verdict. Unsupported and unclear
-claims remain in the artifact and force `review_required`; they are never silently
-dropped. This records independent human citation checking but does not make a
-claim true, authenticate reviewer identities, assess study bias, or create
-scientific evidence.
+every extracted claim. The expected extraction hash must be canonical lowercase
+SHA-256 before it can pin the extraction bytes. The citation reviewer must
+differ from the extraction reviewer and must record the checked location,
+rationale, and a supported, partially-supported, unsupported, or unclear
+verdict. Unsupported and unclear claims remain in the artifact and force
+`review_required`; they are never silently dropped. This records independent
+human citation checking but does not make a claim true, authenticate reviewer
+identities, assess study bias, or create scientific evidence.
 Citation verification applies normalized claim-ID coverage, so padded assessment
 IDs cannot create duplicate or missing independent reviews.
 `research literature assess-bias` requires a clean citation-review artifact and
-a third reviewer distinct from both extraction and citation reviewers. Every
-reviewed study must cover all seven documented bias domains, cite locations for
-each applicable judgment, and exactly identify all source reports grouped under
-that study. Overall judgments are computed conservatively from the domain
-judgments; high risk dominates, followed by some concerns and unclear. This is a
+a third reviewer distinct from both extraction and citation reviewers. The
+expected citation-verification hash must be canonical lowercase SHA-256 before
+it can pin the reviewed extraction claims. Every reviewed study must cover all
+seven documented bias domains, cite locations for each applicable judgment, and
+exactly identify all source reports grouped under that study. Overall judgments
+are computed conservatively from the domain judgments; high risk dominates,
+followed by some concerns and unclear. This is a
 generic audit scaffold, not a substitute for a design-specific validated bias
 instrument, proof of reviewer expertise, or permission to synthesize effects.
 `research literature reconcile-studies` then requires identity metadata for every
 bias-assessed study and an explicit judgment for every unordered pair of studies.
+The expected bias-assessment hash must be canonical lowercase SHA-256 before it
+can pin the study-level bias artifact.
 Independent, overlapping-cohort, duplicate-report, and unclear relationships are
 all preserved. Any non-independent or unclear pair forces `review_required`,
 preventing silent double counting. Registration IDs, populations, settings,
@@ -898,8 +903,10 @@ reviewer-entered whitespace cannot create separate provenance identities after
 citation review.
 `research literature evidence-map` verifies every hash link from extraction
 through citation review, bias assessment, and reconciled study identities before
-joining claims. It assigns deterministic, conservative interpretive ceilings
-from citation support, epistemic layer, and study bias. Each mapped claim carries
+joining claims. The expected study-reconciliation hash must be canonical
+lowercase SHA-256 before the map can bind the terminal review artifact. It
+assigns deterministic, conservative interpretive ceilings from citation support,
+epistemic layer, and study bias. Each mapped claim carries
 the extraction location, citation-check location and rationale, and retained
 bias-domain judgments with their cited locations, so the ceiling remains tied to
 inspectable review anchors. The write-once map cannot authorize a conclusion,

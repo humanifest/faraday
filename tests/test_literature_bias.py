@@ -79,3 +79,15 @@ def test_invalid_bias_assessment_never_publishes(tmp_path, failure):
     with pytest.raises(ValidationError):
         create_bias_assessment(verification, digest, candidate, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("expected", [" 0123", "A" * 64, "g" * 64, "0" * 63, "0" * 65])
+def test_bias_assessment_rejects_malformed_expected_verification_hash(tmp_path, expected):
+    verification, _ = verification_file(tmp_path)
+    output = tmp_path / "bias"
+    with pytest.raises(
+        ValidationError,
+        match="expected_citation_verification_sha256 must be a lowercase SHA-256 digest",
+    ):
+        create_bias_assessment(verification, expected, review(), output)
+    assert not output.exists()

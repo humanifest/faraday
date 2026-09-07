@@ -96,3 +96,12 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
     with pytest.raises(ValidationError):
         create_study_reconciliation(bias, digest, candidate, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("expected", [" 0123", "A" * 64, "g" * 64, "0" * 63, "0" * 65])
+def test_reconciliation_rejects_malformed_expected_bias_hash(tmp_path, expected):
+    bias, _ = bias_file(tmp_path)
+    output = tmp_path / "reconciliation"
+    with pytest.raises(ValidationError, match="expected_bias_assessment_sha256 must be a lowercase SHA-256 digest"):
+        create_study_reconciliation(bias, expected, review(), output)
+    assert not output.exists()
