@@ -1092,6 +1092,10 @@ custody validator and current-byte verification from the preserved receipt, then
 require exact equality with the original service-generated result. Changes to
 raw data, transformation code, derived output, calibration evidence, or gate
 evidence therefore fail closed. Default replication exports redact the root.
+Protected observation-byte receipts also reject non-canonical verifier metadata:
+the retained actor, timestamp, and local root must be exact, unpadded text, and
+the verification time must include a UTC offset before the receipt can be
+generated or replayed.
 
 ## What works now
 

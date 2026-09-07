@@ -1191,9 +1191,13 @@ replication dataset now requires an explicit local artifact root at canonical
 registration. The service verifies the declared observation hashes and sizes,
 records a non-self-attestable receipt bound to the frozen protocol, and replays
 the receipt from present bytes before inquiry display, protocol-bound execution,
-or run intake. Mutation, removal, relocation, or symlink substitution fails
-closed. Synthetic fixtures remain exempt but cannot become scientific evidence;
-default replication exports redact local roots.
+or run intake. The generated and retained verifier actor, verification time,
+and local root must be canonical unpadded text, and the timestamp must be
+offset-aware, so replay cannot silently normalize provenance metadata while
+authorizing current bytes. Mutation, removal, relocation, symlink substitution,
+or receipt metadata padding fails closed. Synthetic fixtures remain exempt but
+cannot become scientific evidence; default replication exports redact local
+roots.
 
 Canonical dataset-payload delivery: every registered dataset now carries a
 service-generated commitment over its complete immutable manifest outside the

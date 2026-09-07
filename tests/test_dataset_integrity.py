@@ -1,4 +1,4 @@
-from dataclasses import fields
+from dataclasses import fields, replace
 import hashlib
 import json
 from pathlib import Path
@@ -6,6 +6,10 @@ from pathlib import Path
 import pytest
 
 from research_machine.application.commands import CreateProtocol, RegisterDataset
+from research_machine.application.dataset_integrity import (
+    reverify_dataset_artifacts,
+    verify_dataset_artifacts,
+)
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import DatasetArtifact, DatasetRole
 from test_ethics_gate import _human_protocol
@@ -108,3 +112,55 @@ def test_dataset_artifact_verification_cannot_be_self_attested(tmp_path: Path) -
             metadata={"dataset_payload_sha256": "a" * 64},
             artifact_root=str(tmp_path),
         ))
+
+
+def test_dataset_artifact_receipt_requires_canonical_verifier_metadata(
+    tmp_path: Path,
+) -> None:
+    observations = tmp_path / "observations.csv"
+    observations.write_text("unit,group,outcome\nu1,a,1\n", encoding="utf-8")
+    artifacts = [_artifact(observations)]
+
+    with pytest.raises(ValidationError, match="verification actor.*canonical"):
+        verify_dataset_artifacts(
+            artifacts,
+            str(tmp_path),
+            actor=" verifier ",
+            verified_at="2026-09-07T00:00:00+00:00",
+            protocol_hash="a" * 64,
+        )
+
+    with pytest.raises(ValidationError, match="verification time must include a UTC offset"):
+        verify_dataset_artifacts(
+            artifacts,
+            str(tmp_path),
+            actor="verifier",
+            verified_at="2026-09-07T00:00:00",
+            protocol_hash="a" * 64,
+        )
+
+
+def test_dataset_artifact_replay_rejects_padded_retained_verifier_metadata(
+    tmp_path: Path,
+) -> None:
+    service, protocol = _protected_protocol(tmp_path)
+    observations = tmp_path / "observations.csv"
+    observations.write_text("unit,group,outcome\nu1,a,1\nu2,b,2\n", encoding="utf-8")
+    dataset = service.register_dataset(RegisterDataset(
+        dataset_id="protected-observations",
+        name="Protected observations",
+        role=DatasetRole.CONFIRMATORY,
+        protocol_id=protocol.protocol_id,
+        artifacts=[_artifact(observations)],
+        artifact_root=str(tmp_path),
+    ))
+
+    forged_receipt = dict(dataset.metadata["dataset_artifact_verification"])
+    forged_receipt["verified_by"] = f" {forged_receipt['verified_by']} "
+    forged = replace(
+        dataset,
+        metadata={**dataset.metadata, "dataset_artifact_verification": forged_receipt},
+    )
+
+    with pytest.raises(ValidationError, match="verification actor.*canonical"):
+        reverify_dataset_artifacts(forged, protocol)

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Sequence
 
 from research_machine.application.artifact_integrity import verify_run_artifacts
-from research_machine.application.policies import require_text
+from research_machine.application.policies import require_canonical_text
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import DatasetArtifact, DatasetManifest, ExperimentProtocol
 
@@ -59,6 +59,17 @@ def _integrity(
     return report.to_dict()
 
 
+def _timestamp(value: str, field_name: str) -> str:
+    timestamp = require_canonical_text(value, field_name)
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValidationError(f"{field_name} must be valid ISO-8601") from exc
+    if parsed.utcoffset() is None:
+        raise ValidationError(f"{field_name} must include a UTC offset")
+    return timestamp
+
+
 def verify_dataset_artifacts(
     artifacts: Sequence[DatasetArtifact],
     artifact_root: str,
@@ -68,9 +79,13 @@ def verify_dataset_artifacts(
     protocol_hash: str | None,
 ) -> dict[str, object]:
     """Verify protected observation bytes and create a replayable receipt."""
-    root = str(Path(require_text(artifact_root, "artifact root")).expanduser().resolve())
-    verifier = require_text(actor, "verification actor")
-    timestamp = require_text(verified_at, "verification time")
+    root = str(
+        Path(require_canonical_text(artifact_root, "artifact root"))
+        .expanduser()
+        .resolve()
+    )
+    verifier = require_canonical_text(actor, "verification actor")
+    timestamp = _timestamp(verified_at, "verification time")
     return {
         "verification_version": 1,
         "verified_at": timestamp,
@@ -92,15 +107,11 @@ def reverify_dataset_artifacts(
         raise ValidationError(
             f"dataset {dataset.dataset_id} lacks service-generated artifact verification"
         )
-    root = require_text(receipt.get("dataset_artifact_root"), "dataset artifact root")
-    actor = require_text(receipt.get("verified_by"), "verification actor")
-    verified_at = require_text(receipt.get("verified_at"), "verification time")
-    try:
-        parsed = datetime.fromisoformat(verified_at.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise ValidationError("verification time must be valid ISO-8601") from exc
-    if parsed.utcoffset() is None:
-        raise ValidationError("verification time must include a UTC offset")
+    root = require_canonical_text(
+        receipt.get("dataset_artifact_root"), "dataset artifact root"
+    )
+    actor = require_canonical_text(receipt.get("verified_by"), "verification actor")
+    verified_at = _timestamp(receipt.get("verified_at"), "verification time")
     expected = {
         "verification_version": 1,
         "verified_at": verified_at,
