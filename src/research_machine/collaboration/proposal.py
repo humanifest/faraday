@@ -144,6 +144,15 @@ def _text(value: Any, field: str, *, allow_empty: bool = False) -> str:
     return value
 
 
+def _canonical_text(value: Any, field: str, *, allow_empty: bool = False) -> str:
+    text = _text(value, field, allow_empty=allow_empty)
+    if text != text.strip():
+        raise ValidationError(
+            f"collaborator proposal {field} must be canonical without surrounding whitespace"
+        )
+    return text
+
+
 def _exact_fields(value: dict[str, Any], expected: set[str], label: str) -> None:
     missing = sorted(expected - set(value))
     unknown = sorted(set(value) - expected)
@@ -164,10 +173,13 @@ def _string_array(value: Any, field: str, *, nonempty: bool = True) -> list[str]
         raise ValidationError(
             f"collaborator proposal {field} must contain only non-empty strings"
         )
-    normalized = [item.strip() for item in value]
-    if len(set(normalized)) != len(normalized):
+    if any(item != item.strip() for item in value):
+        raise ValidationError(
+            f"collaborator proposal {field} must be canonical without surrounding whitespace"
+        )
+    if len(set(value)) != len(value):
         raise ValidationError(f"collaborator proposal {field} must be unique")
-    return normalized
+    return list(value)
 
 
 def _context_reference_ids(context: dict[str, Any]) -> set[str]:
@@ -184,12 +196,19 @@ def _context_reference_ids(context: dict[str, Any]) -> set[str]:
         kind = item.get("kind")
         if not isinstance(ref, str) or not ref.strip():
             raise ValidationError(f"collaborator context_reference_index[{index}].ref must be non-empty text")
+        if ref != ref.strip():
+            raise ValidationError(
+                f"collaborator context_reference_index[{index}].ref must be canonical without surrounding whitespace"
+            )
         if not isinstance(kind, str) or not kind.strip():
             raise ValidationError(f"collaborator context_reference_index[{index}].kind must be non-empty text")
+        if kind != kind.strip():
+            raise ValidationError(
+                f"collaborator context_reference_index[{index}].kind must be canonical without surrounding whitespace"
+            )
         prefix = _CONTEXT_REFERENCE_PREFIXES.get(kind)
         if prefix is None:
             raise ValidationError(f"collaborator context_reference_index[{index}].kind is unsupported")
-        ref = ref.strip()
         if not ref.startswith(prefix):
             raise ValidationError(
                 f"collaborator context_reference_index[{index}].ref must match kind {kind}"
@@ -285,7 +304,7 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
         if not isinstance(suggestion, dict):
             raise ValidationError(f"{label} must be an object")
         _exact_fields(suggestion, _SUGGESTION_FIELDS, label)
-        suggestion_id = _text(suggestion["suggestion_id"], "suggestion_id").strip()
+        suggestion_id = _canonical_text(suggestion["suggestion_id"], "suggestion_id")
         if suggestion_id in identifiers:
             raise ValidationError(f"duplicate collaborator suggestion_id: {suggestion_id}")
         identifiers.add(suggestion_id)
@@ -445,7 +464,7 @@ def adjudicate_collaborator_proposal(
     _exact_fields(review, _REVIEW_FIELDS, "collaborator proposal review")
     if review["review_version"] != 1:
         raise ValidationError("collaborator proposal review_version must be 1")
-    _text(review["review_id"], "review_id")
+    _canonical_text(review["review_id"], "review_id")
     if review["proposal_record_sha256"] != record_digest:
         raise ValidationError("collaborator proposal review is not bound to the exact proposal record")
     _rfc3339(review["reviewed_at"], "reviewed_at")
@@ -454,11 +473,11 @@ def adjudicate_collaborator_proposal(
     if not isinstance(reviewer, dict):
         raise ValidationError("collaborator proposal review reviewer must be an object")
     _exact_fields(reviewer, _REVIEWER_FIELDS, "collaborator proposal review reviewer")
-    _text(reviewer["reviewer_id"], "reviewer.reviewer_id")
-    _text(reviewer["role"], "reviewer.role")
+    _canonical_text(reviewer["reviewer_id"], "reviewer.reviewer_id")
+    _canonical_text(reviewer["role"], "reviewer.role")
 
     suggestions = proposal["suggestions"]
-    suggestions_by_id = {item["suggestion_id"].strip(): item for item in suggestions}
+    suggestions_by_id = {item["suggestion_id"]: item for item in suggestions}
     decisions = review["decisions"]
     if not isinstance(decisions, list):
         raise ValidationError("collaborator proposal review decisions must be an array")
@@ -469,7 +488,7 @@ def adjudicate_collaborator_proposal(
         if not isinstance(decision, dict):
             raise ValidationError(f"{label} must be an object")
         _exact_fields(decision, _DECISION_FIELDS, label)
-        suggestion_id = _text(decision["suggestion_id"], "decision.suggestion_id").strip()
+        suggestion_id = _canonical_text(decision["suggestion_id"], "decision.suggestion_id")
         if suggestion_id in seen:
             raise ValidationError(f"duplicate collaborator review suggestion_id: {suggestion_id}")
         if suggestion_id not in suggestions_by_id:

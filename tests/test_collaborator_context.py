@@ -201,7 +201,7 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
             lambda proposal: proposal["suggestions"][0].update(
                 {"evidence_refs": ["claim:claim-1", " claim:claim-1 "]}
             ),
-            "evidence_refs must be unique",
+            "evidence_refs must be canonical",
         ),
     ],
 )
@@ -232,7 +232,7 @@ def test_proposal_fails_closed_on_missing_scientific_boundaries(
     assert not (tmp_path / "validated").exists()
 
 
-def test_proposal_suggestion_ids_are_unique_after_trimming(tmp_path: Path) -> None:
+def test_proposal_suggestion_ids_must_be_canonical(tmp_path: Path) -> None:
     context = {
         "context_version": 1,
         "purpose": "Stress-test the design.",
@@ -248,7 +248,7 @@ def test_proposal_suggestion_ids_are_unique_after_trimming(tmp_path: Path) -> No
     proposal["suggestions"].append(duplicate)
     proposal_path = tmp_path / "proposal.json"
     proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
-    with pytest.raises(ValidationError, match="duplicate collaborator suggestion_id"):
+    with pytest.raises(ValidationError, match="suggestion_id must be canonical"):
         validate_collaborator_proposal(
             Path(snapshot["context_file"]),
             snapshot["context_sha256"],
@@ -296,7 +296,7 @@ def test_proposal_rejects_stale_context_and_duplicate_json_keys(tmp_path: Path) 
                 {"ref": "question:q1", "kind": "open_question"},
                 {"ref": " question:q1 ", "kind": "open_question"},
             ],
-            "duplicate collaborator context reference",
+            "ref must be canonical",
         ),
         (
             [{"ref": "source:x", "kind": "external_source"}],
@@ -473,7 +473,15 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
                     "domain_route": "none",
                 }
             ),
-            "duplicate collaborator review suggestion_id",
+            "decision.suggestion_id must be canonical",
+        ),
+        (
+            lambda review: review.update({"review_id": " review-1 "}),
+            "review_id must be canonical",
+        ),
+        (
+            lambda review: review["reviewer"].update({"reviewer_id": " researcher-1 "}),
+            "reviewer.reviewer_id must be canonical",
         ),
     ],
 )
