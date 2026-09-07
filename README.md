@@ -47,8 +47,8 @@ and implementation hashes, hypothesis, outcome, measurement, and p-value JSON
 Pointer. The Holm step freezes an acyclic dependency set and one-to-one family
 mapping. `research analysis materialize-holm` verifies pinned upstream receipt
 and result bytes, rechecks each registered p-value selector, rejects missing or
-substituted source steps, and writes the exact family CSV plus a provenance
-receipt. Protocol-bound Holm execution then accepts only the frozen Holm
+substituted source steps, rejects noncanonical manifest step IDs, and writes the
+exact family CSV plus a provenance receipt. Protocol-bound Holm execution then accepts only the frozen Holm
 specification, implementation, ordered family, family ID, alpha, and registered
 input bytes. The paired materialization and execution receipts establish a local
 byte chain; they do not authenticate chronology, executors, scientific gates, or
@@ -87,7 +87,8 @@ adjudication.
 `research analysis adjudicate-holm` performs that provider-free composite
 check from a hash-pinned manifest. It requires the exact completed canonical
 run and verified execution receipt for the primary estimate, every frozen
-confirmatory test, and the Holm step; all required component gates must pass.
+confirmatory test, and the Holm step; component step IDs and receipt hashes must
+be canonical, and all required component gates must pass.
 It also re-verifies the family-materialization receipt, requires one shared
 non-synthetic observation dataset across the estimate and tests, and proves
 that Holm consumed the exact materialized bytes. The output combines the

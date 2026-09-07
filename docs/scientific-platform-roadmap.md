@@ -294,9 +294,10 @@ confirmatory tests. Each test binds exact specification and implementation
 hashes, hypothesis, outcome, measurement ID, and p-value selector. The
 multiplicity step exactly covers those test steps and family members. A
 provider-free materializer verifies every pinned source receipt/result pair,
-recomputes the registered selectors, and writes the exact family CSV plus a
-receipt. Protocol-bound Holm execution verifies its frozen step, family order and
-ID, alpha, implementation, specification, and registered input bytes. The
+recomputes the registered selectors, rejects noncanonical manifest step IDs, and
+writes the exact family CSV plus a receipt. Protocol-bound Holm execution
+verifies its frozen step, family order and ID, alpha, implementation,
+specification, and registered input bytes. The
 materialization output hash connects those receipts into a local byte chain;
 independent chronology anchoring, executor authentication, and scientific-gate
 adjudication remain separate enforcement layers.
@@ -310,10 +311,11 @@ A primary-estimate run under a Holm protocol is likewise always a component, so
 its estimate cannot bypass family-level adjudication.
 The provider-free `analysis adjudicate-holm` command now builds a deterministic
 composite result only after verifying exact completed canonical runs, passed
-required gates, their byte-pinned execution handoffs, a shared non-synthetic
-observation dataset, the family-materialization receipt, and the exact Holm
-input/output chain. It emits the registered estimate and uncertainty alongside
-one raw and adjusted decision for every frozen member. The artifact remains
+required gates, their byte-pinned execution handoffs, canonical manifest step
+IDs and receipt hashes, a shared non-synthetic observation dataset, the family-
+materialization receipt, and the exact Holm input/output chain. It emits the
+registered estimate and uncertainty alongside one raw and adjusted decision for
+every frozen member. The artifact remains
 non-evidence with `reviewed_composite_run_required`. A separate
 `adjudication-run-draft` path now recomputes the artifact from canonical state,
 requires one passed receipt per required gate from every component, rejects

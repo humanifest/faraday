@@ -23,6 +23,22 @@ def _pointer_token(value: str) -> str:
     return value.replace("~", "~0").replace("/", "~1")
 
 
+def _require_canonical_manifest_id(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip() or value != value.strip():
+        raise ValidationError(f"workflow {field} must be a canonical non-blank string")
+    return value
+
+
+def _require_sha256(value: Any, field: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValidationError(f"workflow {field} must be a lowercase SHA-256 digest")
+    return value
+
+
 def _gate_semantics(gate: Any) -> dict[str, Any]:
     details = gate.details
     return {
@@ -123,6 +139,8 @@ def _verify_component(
     required = {"step_id", "run_id", "execution_directory", "receipt_sha256"}
     if not isinstance(component, dict) or set(component) != required:
         raise ValidationError("workflow components require exactly step_id, run_id, execution_directory, and receipt_sha256")
+    _require_canonical_manifest_id(component["step_id"], "component step_id")
+    _require_sha256(component["receipt_sha256"], "component receipt_sha256")
     if component["step_id"] != expected_step_id:
         raise ValidationError(f"workflow component must identify frozen step {expected_step_id}")
     directory = _absolute_from(manifest_path, component["execution_directory"], "execution_directory")
@@ -208,9 +226,12 @@ def adjudicate_holm_workflow(
         raise ValidationError("confirmatory_tests must be an array")
     tests_by_id: dict[str, Any] = {}
     for item in tests:
-        if not isinstance(item, dict) or not isinstance(item.get("step_id"), str) or item["step_id"] in tests_by_id:
+        if not isinstance(item, dict):
             raise ValidationError("confirmatory_tests require unique step_id values")
-        tests_by_id[item["step_id"]] = item
+        step_id = _require_canonical_manifest_id(item.get("step_id"), "confirmatory test step_id")
+        if step_id in tests_by_id:
+            raise ValidationError("confirmatory_tests require unique step_id values")
+        tests_by_id[step_id] = item
     expected_test_ids = [member.source_step_id for member in family_step.family_members]
     if set(tests_by_id) != set(expected_test_ids):
         raise ValidationError("confirmatory_tests must exactly cover the frozen Holm family")
@@ -546,8 +567,7 @@ def materialize_holm_family(
         raise ValidationError(f"invalid workflow dependency manifest: {exc}") from exc
     if not isinstance(manifest, dict) or set(manifest) != {"family_step_id", "sources"}:
         raise ValidationError("workflow dependency manifest requires only family_step_id and sources")
-    if not isinstance(manifest["family_step_id"], str) or not manifest["family_step_id"].strip():
-        raise ValidationError("workflow family_step_id must be non-blank")
+    family_step_id = _require_canonical_manifest_id(manifest["family_step_id"], "family_step_id")
     sources = manifest["sources"]
     if not isinstance(sources, list) or not sources:
         raise ValidationError("workflow dependency sources must be a non-empty array")
@@ -562,7 +582,7 @@ def materialize_holm_family(
         raise ValidationError("frozen protocol content no longer matches its hash commitment")
     family_steps = [
         step for step in protocol.analysis_steps
-        if step.step_id == manifest["family_step_id"] and step.role == "multiplicity"
+        if step.step_id == family_step_id and step.role == "multiplicity"
         and step.method == "holm_adjustment"
     ]
     if len(family_steps) != 1:
@@ -570,15 +590,13 @@ def materialize_holm_family(
     family_step = family_steps[0]
     sources_by_id: dict[str, dict[str, Any]] = {}
     for source in sources:
-        source_step_id = source["source_step_id"]
-        if not isinstance(source_step_id, str) or not source_step_id.strip() or source_step_id in sources_by_id:
+        source_step_id = _require_canonical_manifest_id(source["source_step_id"], "source_step_id")
+        if source_step_id in sources_by_id:
             raise ValidationError("workflow source_step_id values must be unique non-blank strings")
         directory_value = source["execution_directory"]
-        receipt_sha256 = source["receipt_sha256"]
+        receipt_sha256 = _require_sha256(source["receipt_sha256"], "receipt_sha256")
         if not isinstance(directory_value, str) or not directory_value.strip():
             raise ValidationError("workflow execution_directory must be non-blank")
-        if not isinstance(receipt_sha256, str) or len(receipt_sha256) != 64:
-            raise ValidationError("workflow receipt_sha256 must be a lowercase SHA-256 digest")
         directory = Path(directory_value)
         if not directory.is_absolute():
             directory = manifest_path.parent / directory

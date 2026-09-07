@@ -738,6 +738,31 @@ def test_holm_execution_binds_frozen_workflow_family_and_registered_input(tmp_pa
             service, frozen.protocol_id, incomplete_path,
             hashlib.sha256(incomplete_bytes).hexdigest(), tmp_path / "incomplete-family",
         )
+    padded_manifest = {
+        "family_step_id": " confirmatory-holm ",
+        "sources": source_manifest["sources"],
+    }
+    padded_path = tmp_path / "padded-dependencies.json"
+    padded_bytes = json.dumps(padded_manifest).encode()
+    padded_path.write_bytes(padded_bytes)
+    with pytest.raises(ValidationError, match="canonical non-blank"):
+        materialize_holm_family(
+            service, frozen.protocol_id, padded_path,
+            hashlib.sha256(padded_bytes).hexdigest(), tmp_path / "padded-family",
+        )
+    padded_source_manifest = {
+        "family_step_id": "confirmatory-holm",
+        "sources": [{**source_manifest["sources"][0], "source_step_id": " primary-test "},
+                    *source_manifest["sources"][1:]],
+    }
+    padded_source_path = tmp_path / "padded-source-dependencies.json"
+    padded_source_bytes = json.dumps(padded_source_manifest).encode()
+    padded_source_path.write_bytes(padded_source_bytes)
+    with pytest.raises(ValidationError, match="canonical non-blank"):
+        materialize_holm_family(
+            service, frozen.protocol_id, padded_source_path,
+            hashlib.sha256(padded_source_bytes).hexdigest(), tmp_path / "padded-source-family",
+        )
     source_result = Path(source_manifest["sources"][0]["execution_directory"]) / "analysis-result.json"
     original_source_result = source_result.read_bytes()
     source_result.write_text("{}")
@@ -804,6 +829,19 @@ def test_holm_execution_binds_frozen_workflow_family_and_registered_input(tmp_pa
             "receipt_sha256": holm_receipt_hash,
         },
     }
+    padded_adjudication_manifest = {
+        **adjudication_manifest,
+        "confirmatory_tests": [{**completed_test_refs[0], "step_id": " primary-test "},
+                               *completed_test_refs[1:]],
+    }
+    padded_adjudication_path = tmp_path / "padded-workflow-adjudication-manifest.json"
+    padded_adjudication_bytes = json.dumps(padded_adjudication_manifest).encode()
+    padded_adjudication_path.write_bytes(padded_adjudication_bytes)
+    with pytest.raises(ValidationError, match="canonical non-blank"):
+        adjudicate_holm_workflow(
+            service, frozen.protocol_id, padded_adjudication_path,
+            hashlib.sha256(padded_adjudication_bytes).hexdigest(), tmp_path / "padded-adjudication",
+        )
     adjudication_manifest_path = tmp_path / "workflow-adjudication-manifest.json"
     adjudication_manifest_bytes = json.dumps(adjudication_manifest).encode()
     adjudication_manifest_path.write_bytes(adjudication_manifest_bytes)
