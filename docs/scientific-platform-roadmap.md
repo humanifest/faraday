@@ -697,7 +697,9 @@ estimand; it does not prove that the estimand itself is scientifically appropria
 Randomization now continues through that same boundary. `design randomize` emits
 an order-independent digest of unit/group pairs. Contracts distinguish
 observational, randomized-between-unit, nonrandomized, and not-applicable
-assignment; randomized contracts require the digest. Execution reconstructs the
+assignment; randomized contracts require the digest. Stratum-map unit keys and
+stratum labels are normalized before exact coverage and duplicate checks, so
+padded keys cannot split or omit randomized units. Execution reconstructs the
 mapping from the exact dataset bytes and rejects allocation drift. This detects
 recorded reassignment and unit-set changes but does not authenticate enrollment,
 conceal allocation, or verify treatment adherence.

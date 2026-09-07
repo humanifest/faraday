@@ -62,10 +62,22 @@ def test_stratified_blocks_balance_each_declared_stratum():
     assert {row["block_within_stratum"] for row in result["assignments"]} == {1}
 
 
+def test_stratification_normalizes_unit_keys_and_stratum_labels():
+    spec = {"unit_ids": [" u1 ", "u2", "u3", "u4"], "groups": ["control", "treatment"],
+            "block_size": 4, "seed": 9,
+            "strata": {" u1 ": " site-a ", "u2": "site-a", "u3": "site-a", "u4": "site-a"}}
+    result = generate_blocked_assignment(spec)
+    assert result["method"] == "stratified_fixed_permuted_blocks"
+    assert {row["unit_id"] for row in result["assignments"]} == {"u1", "u2", "u3", "u4"}
+    assert {row["stratum"] for row in result["assignments"]} == {"site-a"}
+    assert result["balance_by_stratum"] == {"site-a": {"control": 2, "treatment": 2}}
+
+
 @pytest.mark.parametrize("strata", [
     {"u1": "a", "u2": "a", "u3": "a"},
     {"u1": "a", "u2": "a", "u3": "a", "u4": ""},
     {"u1": "a", "u2": "a", "u3": "a", "u4": "b"},
+    {"u1": "a", " u1 ": "a", "u2": "a", "u3": "a", "u4": "a"},
 ])
 def test_stratification_requires_exact_coverage_and_full_blocks(strata):
     with pytest.raises(ValidationError):

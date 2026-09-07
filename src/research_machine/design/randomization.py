@@ -34,14 +34,18 @@ def generate_blocked_assignment(spec: dict[str, Any]) -> dict[str, Any]:
     if strata is None:
         units_by_stratum: list[tuple[str | None, list[str]]] = [(None, units)]
     else:
-        if not isinstance(strata, dict) or set(strata) != set(units) or any(
-            not isinstance(value, str) or not value.strip() for value in strata.values()
+        if not isinstance(strata, dict) or any(
+            not isinstance(key, str) or not key.strip() or not isinstance(value, str) or not value.strip()
+            for key, value in strata.items()
         ):
+            raise ValidationError("strata must map every normalized unit_id exactly once to a non-blank stratum")
+        normalized_strata = {key.strip(): value.strip() for key, value in strata.items()}
+        if len(normalized_strata) != len(strata) or set(normalized_strata) != set(units):
             raise ValidationError("strata must map every normalized unit_id exactly once to a non-blank stratum")
         units_by_stratum = []
         positions: dict[str, int] = {}
         for unit in units:
-            stratum = strata[unit].strip()
+            stratum = normalized_strata[unit]
             if stratum not in positions:
                 positions[stratum] = len(units_by_stratum)
                 units_by_stratum.append((stratum, []))
