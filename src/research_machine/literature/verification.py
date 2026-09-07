@@ -16,6 +16,13 @@ from research_machine.literature.snapshot import _text
 _VERDICTS = {"supported", "partially_supported", "unsupported", "unclear"}
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def create_citation_verification(
     extraction_path: Path,
     expected_sha256: str,
@@ -36,7 +43,7 @@ def create_citation_verification(
             or extraction.get("status") != "extraction_recorded"):
         raise ValidationError("citation verification requires a completed version 1 extraction")
 
-    extractor = _text(extraction.get("reviewer"), "extraction reviewer")
+    extractor = _canonical_text(extraction.get("reviewer"), "extraction reviewer")
     records: dict[str, dict[str, str]] = {}
     source_reviews = extraction.get("source_reviews")
     if not isinstance(source_reviews, list):
@@ -44,21 +51,21 @@ def create_citation_verification(
     for source_review in source_reviews:
         if not isinstance(source_review, dict):
             raise ValidationError("extraction source review must be an object")
-        source_id = _text(source_review.get("source_id"), "extraction source_id").strip()
+        source_id = _canonical_text(source_review.get("source_id"), "extraction source_id")
         source_records = source_review.get("records")
         if not isinstance(source_records, list):
             raise ValidationError("extraction records must be an array")
         for record in source_records:
             if not isinstance(record, dict):
                 raise ValidationError("extraction record must be an object")
-            extraction_id = _text(record.get("extraction_id"), "extraction_id").strip()
+            extraction_id = _canonical_text(record.get("extraction_id"), "extraction_id")
             if extraction_id in records:
                 raise ValidationError("extraction contains duplicate extraction_id")
             records[extraction_id] = {
                 "source_id": source_id,
-                "study_id": _text(record.get("study_id"), "study_id").strip(),
-                "claim_text": _text(record.get("claim_text"), "claim_text"),
-                "extracted_evidence_location": _text(
+                "study_id": _canonical_text(record.get("study_id"), "study_id"),
+                "claim_text": _canonical_text(record.get("claim_text"), "claim_text"),
+                "extracted_evidence_location": _canonical_text(
                     record.get("evidence_location"), "extracted evidence_location"
                 ),
             }
@@ -66,8 +73,8 @@ def create_citation_verification(
         raise ValidationError("citation verification requires at least one extracted claim")
     if not isinstance(review, dict) or set(review) != {"reviewer", "assessments"}:
         raise ValidationError("citation review requires exactly reviewer and assessments")
-    reviewer = _text(review["reviewer"], "citation reviewer")
-    if reviewer.strip().casefold() == extractor.strip().casefold():
+    reviewer = _canonical_text(review["reviewer"], "citation reviewer")
+    if reviewer.casefold() == extractor.casefold():
         raise ValidationError("citation reviewer must be independent of the extraction reviewer")
     assessments = review["assessments"]
     if not isinstance(assessments, list):
@@ -80,7 +87,7 @@ def create_citation_verification(
             raise ValidationError(
                 "each citation assessment requires exactly extraction_id, verdict, checked_location, and rationale"
             )
-        extraction_id = _text(assessment["extraction_id"], "citation extraction_id").strip()
+        extraction_id = _canonical_text(assessment["extraction_id"], "citation extraction_id")
         if extraction_id not in records:
             raise ValidationError("citation assessment references an unknown extraction_id")
         if extraction_id in by_id:
@@ -92,8 +99,8 @@ def create_citation_verification(
             "extraction_id": extraction_id,
             **records[extraction_id],
             "verdict": verdict,
-            "checked_location": _text(assessment["checked_location"], "checked_location").strip(),
-            "rationale": _text(assessment["rationale"], "citation rationale").strip(),
+            "checked_location": _canonical_text(assessment["checked_location"], "checked_location"),
+            "rationale": _canonical_text(assessment["rationale"], "citation rationale"),
         }
     if set(by_id) != set(records):
         raise ValidationError("citation assessments must cover exactly all extracted claims")

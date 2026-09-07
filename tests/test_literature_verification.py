@@ -59,36 +59,74 @@ def test_unsupported_claim_is_preserved_and_requires_review(tmp_path):
     assert any(item["verdict"] == "unsupported" for item in result["assessments"])
 
 
-def test_citation_verification_normalizes_extraction_handles(tmp_path):
+def test_citation_verification_preserves_canonical_extraction_handles(tmp_path):
     extraction, digest = extraction_file(tmp_path)
-    candidate = review()
-    candidate["assessments"][0]["extraction_id"] = " claim-1 "
     result = create_citation_verification(
-        extraction, digest, candidate, tmp_path / "verification"
+        extraction, digest, review(), tmp_path / "verification"
     )
     assert result["assessments"][0]["extraction_id"] == "claim-1"
+    assert result["assessments"][0]["checked_location"] == "page 1"
 
 
-@pytest.mark.parametrize("failure", ["hash", "same-reviewer", "missing", "duplicate", "padded_duplicate", "padded_extraction_duplicate", "unknown", "location", "verdict"])
+@pytest.mark.parametrize("failure", [
+    "hash",
+    "same-reviewer",
+    "padded-reviewer",
+    "missing",
+    "duplicate",
+    "padded_duplicate",
+    "padded_extraction_duplicate",
+    "padded-extractor",
+    "padded-source",
+    "padded-study",
+    "padded-claim-text",
+    "padded-evidence-location",
+    "unknown",
+    "location",
+    "padded-location",
+    "padded-rationale",
+    "verdict",
+])
 def test_invalid_citation_review_never_publishes(tmp_path, failure):
     extraction, digest = extraction_file(tmp_path)
     candidate = review()
     if failure == "hash": digest = "0" * 64
-    elif failure == "same-reviewer": candidate["reviewer"] = " extractor one "
+    elif failure == "same-reviewer": candidate["reviewer"] = "Extractor One"
+    elif failure == "padded-reviewer": candidate["reviewer"] = " Verifier Two "
     elif failure == "missing": candidate["assessments"].pop()
     elif failure == "duplicate": candidate["assessments"][1]["extraction_id"] = "claim-1"
     elif failure == "padded_duplicate": candidate["assessments"][1]["extraction_id"] = " claim-1 "
-    elif failure == "padded_extraction_duplicate":
+    elif failure in {
+        "padded_extraction_duplicate",
+        "padded-extractor",
+        "padded-source",
+        "padded-study",
+        "padded-claim-text",
+        "padded-evidence-location",
+    }:
         value = json.loads(extraction.read_text())
-        duplicate = dict(value["source_reviews"][0]["records"][0])
-        duplicate["extraction_id"] = " claim-1 "
-        value["source_reviews"][0]["records"].append(duplicate)
+        if failure == "padded_extraction_duplicate":
+            duplicate = dict(value["source_reviews"][0]["records"][0])
+            duplicate["extraction_id"] = " claim-1 "
+            value["source_reviews"][0]["records"].append(duplicate)
+        elif failure == "padded-extractor":
+            value["reviewer"] = " Extractor One "
+        elif failure == "padded-source":
+            value["source_reviews"][0]["source_id"] = " source-1 "
+        elif failure == "padded-study":
+            value["source_reviews"][0]["records"][0]["study_id"] = " study-1 "
+        elif failure == "padded-claim-text":
+            value["source_reviews"][0]["records"][0]["claim_text"] = " Synthetic claim one "
+        elif failure == "padded-evidence-location":
+            value["source_reviews"][0]["records"][0]["evidence_location"] = " page 1 "
         encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
         extraction.write_bytes(encoded)
         import hashlib
         digest = hashlib.sha256(encoded).hexdigest()
     elif failure == "unknown": candidate["assessments"][0]["extraction_id"] = "claim-x"
     elif failure == "location": candidate["assessments"][0]["checked_location"] = ""
+    elif failure == "padded-location": candidate["assessments"][0]["checked_location"] = " page 1 "
+    elif failure == "padded-rationale": candidate["assessments"][0]["rationale"] = " Text checked "
     elif failure == "verdict": candidate["assessments"][0]["verdict"] = "true"
     output = tmp_path / "verification"
     with pytest.raises(ValidationError):

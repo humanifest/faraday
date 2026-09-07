@@ -729,9 +729,11 @@ before they can bind downstream review artifacts. Extraction reviewer text,
 pinned screening source IDs, extraction source IDs, study IDs, claim IDs,
 evidence locations, uncertainty, and notes must be canonical before coverage and
 duplicate checks, preventing whitespace-padded reports from becoming separate
-claims or study groupings. Citation verification applies the same normalized
-claim-ID coverage, so padded assessment IDs cannot create duplicate or missing
-independent reviews. Bias assessment and study-identity reconciliation also
+claims or study groupings. Citation verification also requires canonical
+extraction reviewer, source, study, claim, evidence-location, citation-reviewer,
+checked-location, and rationale text before coverage and duplicate checks, so
+the independent review cannot trim a second apparent assessment or rewrite the
+pinned extraction trail. Bias assessment and study-identity reconciliation also
 normalize study, source, registration, and relationship-pair handles before
 coverage checks, preventing reviewer-entered whitespace from splitting or merging
 provenance after citation review. Evidence-map construction and qualitative
