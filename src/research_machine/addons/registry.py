@@ -104,6 +104,12 @@ class AddonRegistry:
                 raise ValidationError(f"duplicate method in add-on: {method.method_id}")
             if not method.title.strip() or not method.description.strip():
                 raise ValidationError(f"method metadata is incomplete: {method.method_id}")
+            _canonical_values(
+                method.required_spec_fields,
+                "method required_spec_fields",
+                method.method_id,
+                allow_empty=True,
+            )
             if (not isinstance(method.maximum_claim_ceiling, str)
                     or not method.maximum_claim_ceiling.strip()):
                 raise ValidationError(

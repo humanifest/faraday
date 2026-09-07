@@ -240,6 +240,9 @@ tamper tests reject altered nested checks or inconsistent receipt/result levels.
 This binds capability metadata to the same implementation/specification/input
 chain; it does not authenticate third-party add-on authors or make their
 scientific capability declaration self-proving.
+Method manifest validation now rejects noncanonical or duplicate
+`required_spec_fields` before registration, so executable specification
+requirements cannot depend on whitespace-normalized handles.
 Instrument adapter manifest validation now also rejects noncanonical supported
 media types and required or optional configuration handles, duplicate entries,
 and required/optional overlap before an adapter can enter the registry. This

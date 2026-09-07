@@ -269,6 +269,23 @@ def test_registry_rejects_unknown_machine_readable_inference_ceiling() -> None:
 
 
 @pytest.mark.parametrize(
+    "required_fields",
+    [("outcome_column ",), ("outcome_column", "outcome_column")],
+)
+def test_registry_rejects_noncanonical_method_required_spec_fields(
+    required_fields,
+) -> None:
+    registry = AddonRegistry()
+    method = AnalysisMethod(
+        "unsafe", "Unsafe", "Fixture", required_fields, lambda spec, rows: {},
+    )
+    with pytest.raises(ValidationError, match="required_spec_fields"):
+        registry.register(
+            AddonManifest("unsafe", "Unsafe", "1", "test", "Fixture", methods=(method,))
+        )
+
+
+@pytest.mark.parametrize(
     ("field", "value", "message"),
     [
         ("supported_media_types", ("application/json ",), "supported_media_types"),

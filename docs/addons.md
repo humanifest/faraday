@@ -22,6 +22,9 @@ default. Successful execution still creates no canonical evidence by itself.
 Registry validation rejects blank or non-text method ceilings, and the published
 add-on manifest schema requires the same field. An add-on cannot enter the
 execution registry with an omitted conclusion bound.
+Declared `required_spec_fields` are exact executable handles: empty tuples are
+allowed for methods with no required inputs, but any supplied field must be
+canonical without surrounding whitespace and duplicate-free.
 Methods also declare a typed `maximum_inference_level`: `computation_only`,
 `descriptive`, `association`, or `design_conditional_effect`. This value is
 included in the result and receipt. During protocol-bound execution the resolved
@@ -359,9 +362,9 @@ Python code execution from that exact add-on, so never load an unreviewed path.
 Later, Python packages may publish an entry point in the
 `research_machine.addons` group. The loaded object (or zero-argument factory)
 must return `research_machine.addons.AddonManifest`. Identifiers are stable and
-globally unique; duplicate add-on, method, media-type, or adapter configuration
-identifiers fail closed. Registry validation rejects padded adapter contract
-handles instead of normalizing them.
+globally unique; duplicate add-on, method, required-spec, media-type, or adapter
+configuration identifiers fail closed. Registry validation rejects padded method
+and adapter contract handles instead of normalizing them.
 
 An add-on should contain:
 
