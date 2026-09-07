@@ -1109,8 +1109,9 @@ bounded inspectors with stable IDs, supported media types, and explicit config
 fields. `measurement inspect-source` rejects media types outside that declaration,
 then gives an inspector an immutable source-byte
 snapshot, core-hashes its actual implementation module, rejects mutation of its
-config, source, or code, validates its bounded metadata result, and core-hashes a
-write-once acquisition proposal. `measurement verify-source-inspection` requires
+config, source, or code, rejects padded retained text fields in its bounded
+metadata result, and core-hashes a write-once acquisition proposal.
+`measurement verify-source-inspection` requires
 an independently trusted record hash and exactly re-executes all three inputs.
 The trusted record hash must now be a canonical lowercase digest without
 surrounding whitespace, so verification cannot silently normalize the external

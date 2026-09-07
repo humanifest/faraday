@@ -686,6 +686,55 @@ def test_instrument_adapter_cannot_mutate_config_or_publish_invalid_result(
     assert not source_output.exists()
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("acquisition_method", " fixture ", "acquisition_method"),
+        ("instrument_identifier", " fixture-01 ", "instrument_identifier"),
+        ("instrument_model", " FixtureScope ", "instrument_model"),
+        ("firmware_version", " 1.2.3 ", "firmware_version"),
+        ("warnings", [" padded warning "], "warnings"),
+    ],
+)
+def test_instrument_adapter_output_text_must_be_canonical(
+    tmp_path: Path, field, value, message
+) -> None:
+    from research_machine.addons.models import InstrumentAdapter
+    from research_machine.measurement.instrument import inspect_instrument_source
+
+    source = tmp_path / "capture.bin"
+    source.write_bytes(b"fixture")
+
+    def inspect(source_bytes, config):
+        proposed = {
+            "captured_at": "2026-09-06T12:00:00Z",
+            "captured_at_basis": "user_supplied",
+            "acquisition_method": "fixture",
+            "instrument_identifier": "fixture-01",
+            "instrument_model": "FixtureScope",
+            "firmware_version": "1.2.3",
+            "native_metadata": {},
+            "warnings": ["Synthetic fixture"],
+        }
+        proposed[field] = value
+        return proposed
+
+    adapter = InstrumentAdapter(
+        "padded_output", "Padded output", "Synthetic invalid fixture.",
+        ("application/octet-stream",), ("captured_at",), inspect,
+    )
+    manifest = AddonManifest(
+        "padded_instrument", "Padded instrument", "1", "test", "Fixture",
+        instrument_adapters=(adapter,),
+    )
+    with pytest.raises(ValidationError, match=message):
+        inspect_instrument_source(
+            manifest, adapter, source, "application/octet-stream",
+            {"captured_at": "2026-09-06T12:00:00Z"}, tmp_path / "inspection",
+        )
+    assert not (tmp_path / "inspection").exists()
+
+
 def test_analysis_refuses_overwrite_and_undeclared_claim_ceiling(
     tmp_path: Path, capsys
 ) -> None:

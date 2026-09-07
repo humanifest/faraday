@@ -25,6 +25,10 @@ def _text(value: Any, field: str, *, optional: bool = False) -> str:
         return ""
     if not isinstance(value, str) or not value.strip():
         raise ValidationError(f"instrument inspection {field} must be non-empty text")
+    if value != value.strip():
+        raise ValidationError(
+            f"instrument inspection {field} must be canonical without surrounding whitespace"
+        )
     return value
 
 
@@ -126,9 +130,12 @@ def inspect_instrument_source(
     if not isinstance(metadata, dict):
         raise ValidationError("instrument inspection native_metadata must be an object")
     if not isinstance(warnings, list) or any(
-        not isinstance(item, str) or not item.strip() for item in warnings
+        not isinstance(item, str) or not item.strip() or item != item.strip()
+        for item in warnings
     ):
-        raise ValidationError("instrument inspection warnings must be non-empty text entries")
+        raise ValidationError(
+            "instrument inspection warnings must be canonical non-empty text entries"
+        )
     _json_safe(metadata)
     record = {
         "instrument_inspection_version": 1,
