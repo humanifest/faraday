@@ -1625,13 +1625,22 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 )
             for name, value in check.to_dict().items():
                 require_text(value, f"measurement validity check {name}")
+            for name, value in (
+                ("check_id", check.check_id),
+                ("measurement_id", check.measurement_id),
+                ("assessment_gate_id", check.assessment_gate_id),
+            ):
+                if value.strip() != value:
+                    raise ValidationError(
+                        "measurement validity check IDs and gate bindings must be canonical without surrounding whitespace"
+                    )
             if check.evidence_type not in {
                 "criterion", "convergent", "discriminant", "known_groups",
                 "test_retest", "inter_rater", "content", "calibration", "other",
             }:
                 raise ValidationError("unsupported measurement validity evidence_type")
-            check_id = check.check_id.strip()
-            assessment_gate_id = check.assessment_gate_id.strip()
+            check_id = check.check_id
+            assessment_gate_id = check.assessment_gate_id
             if check_id in check_ids:
                 raise ValidationError("measurement validity check IDs must be unique")
             if assessment_gate_id in gate_ids:

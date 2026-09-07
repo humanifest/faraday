@@ -410,11 +410,12 @@ required gates. They remain plans—not evidence that validity has been shown.
 Validity gates cannot be reused for control, causal-assumption, or missingness
 assessments.
 During canonical protocol construction, each check must be bound to the exact
-reviewed `measurement_id`; stable check and assessment-gate IDs must be unique
-after trimming whitespace. The typed checks survive serialization and are part
-of the frozen protocol commitment, so later changes to a validity claim,
-criterion, procedure, failure response, or gate invalidate the protocol hash.
-Older protocols without this optional typed field remain readable; guided
+reviewed `measurement_id`; stable check IDs, measurement bindings, and
+assessment-gate IDs must be canonical without surrounding whitespace, and the
+check and gate IDs must be unique. The typed checks survive serialization and
+are part of the frozen protocol commitment, so later changes to a validity
+claim, criterion, procedure, failure response, or gate invalidate the protocol
+hash. Older protocols without this optional typed field remain readable; guided
 confirmatory designs do not pass readiness without it.
 Run templates expose the exact required result shape for each validity check.
 Every performed validity gate must bind its observed diagnostic and

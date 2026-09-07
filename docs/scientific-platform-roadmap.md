@@ -451,9 +451,10 @@ typed protocol field with an exact target measurement ID. CLI parsing, the
 published protocol schema, service construction, serialization, and freeze
 validation preserve it. The complete check set participates in the protocol
 hash; unknown measurement IDs, unsupported evidence types, absent required
-gates, duplicate IDs, and cross-purpose gate reuse fail before freeze. This
-protects the prospective plan but does not authenticate reviewer identity or
-establish that the chosen check is scientifically sufficient.
+gates, duplicate IDs, noncanonical check or gate bindings, and cross-purpose
+gate reuse fail before freeze. This protects the prospective plan but does not
+authenticate reviewer identity or establish that the chosen check is
+scientifically sufficient.
 Artifact-bound validity-result delivery: run templates and intake now require
 exact result coverage for every performed validity gate. Each result separates
 the observed diagnostic from interpretation, repeats the frozen evidence type,
