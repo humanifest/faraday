@@ -9,6 +9,14 @@ from typing import Any
 from research_machine.domain.errors import ValidationError
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError(f"sample_size_plan {field} must be non-empty text")
+    if value != value.strip():
+        raise ValidationError(f"sample_size_plan {field} must be canonical without surrounding whitespace")
+    return value
+
+
 def _registered_variance_ratio(spec: dict[str, Any]) -> float | None:
     value = spec.get("maximum_observed_to_assumed_sd_ratio")
     if value is None:
@@ -68,16 +76,13 @@ def build_sample_size_planning_receipt(value: dict[str, Any]) -> dict[str, Any]:
     specification = value.get("specification")
     if not isinstance(specification, dict):
         raise ValidationError("sample_size_plan specification must be an object")
-    justification = value.get("justification")
-    if not isinstance(justification, str) or not justification.strip():
-        raise ValidationError("sample_size_plan justification must be non-empty text")
+    justification = _canonical_text(value.get("justification"), "justification")
     targeted = "target_hypothesis_id" in value
     if targeted:
         for field in (
             "target_hypothesis_id", "target_measurement_id", "measurement_unit",
         ):
-            if not isinstance(value[field], str) or not value[field].strip():
-                raise ValidationError(f"sample_size_plan {field} must be non-empty text")
+            _canonical_text(value[field], field)
     calculation = (
         plan_two_group_power(specification) if strategy == "power"
         else plan_two_group_practical_power(specification)
@@ -94,14 +99,14 @@ def build_sample_size_planning_receipt(value: dict[str, Any]) -> dict[str, Any]:
         "strategy": strategy,
         "specification": specification,
         "specification_sha256": hashlib.sha256(canonical_specification).hexdigest(),
-        "justification": justification.strip(),
+        "justification": justification,
         "calculation": calculation,
         "scope": "prospective sample-size assumptions and deterministic calculation",
         "scientific_interpretation_verified": False,
     }
     if targeted:
         target = {
-            field: value[field].strip() for field in (
+            field: value[field] for field in (
                 "target_hypothesis_id", "target_measurement_id", "measurement_unit",
             )
         }

@@ -111,6 +111,29 @@ def test_execution_bound_plan_must_name_the_registered_scientific_target() -> No
         )
 
 
+@pytest.mark.parametrize(
+    "field",
+    ["justification", "target_hypothesis_id", "target_measurement_id", "measurement_unit"],
+)
+def test_sample_size_plan_rejects_padded_receipt_commitments(field) -> None:
+    candidate = {
+        "strategy": "precision",
+        "target_hypothesis_id": "h1",
+        "target_measurement_id": "m1",
+        "measurement_unit": "fixture units",
+        "specification": {
+            "study_design": "independent_groups",
+            "target_half_width": 1.0,
+            "assumed_standard_deviation": 2.0,
+            "confidence_level": 0.95,
+        },
+        "justification": "Target an explicitly identified outcome.",
+    }
+    candidate[field] = f" {candidate[field]} "
+    with pytest.raises(ValidationError, match="canonical"):
+        build_sample_size_planning_receipt(candidate)
+
+
 def test_practical_power_plan_smallest_effect_must_match_conclusion_threshold() -> None:
     plan = build_sample_size_planning_receipt({
         "strategy": "practical_power", "target_hypothesis_id": "h1",

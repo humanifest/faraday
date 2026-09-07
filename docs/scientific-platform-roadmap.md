@@ -1072,9 +1072,13 @@ does not itself freeze or preregister a protocol.
 
 Protocol-bound sample-size delivery: `sample_size_plan` accepts a reviewed power
 or precision specification plus a scientific justification. Evidence-bound
-plans explicitly name their target hypothesis, measurement, and unit, which must match
-the primary analysis contract; this prevents a calculation for one endpoint
-from being silently reused for another or moved across incompatible scales.
+plans explicitly name their target hypothesis, measurement, and unit, which must
+match the primary analysis contract; this prevents a calculation for one endpoint
+from being silently reused for another or moved across incompatible scales. The
+scientific justification and target handles must be canonical without surrounding
+whitespace before Faraday builds or reproduces the versioned receipt, preventing
+padded planning text or IDs from being trimmed into a different protocol-hash
+commitment.
 Power plans must also use the conclusion contract's exact practical-significance
 threshold, and no plan may anticipate more attrition than its analysis contract
 allows. Composite workflow adjudication now carries the primary component's

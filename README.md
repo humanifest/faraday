@@ -823,8 +823,11 @@ To make a reviewed calculation prospective, place it in a protocol as
 Faraday recomputes the calculation, stores a versioned receipt, and includes it
 in the protocol hash. Evidence-bound plans must also name the exact
 `target_hypothesis_id`, `target_measurement_id`, and measurement unit selected
-by the analysis contract; an un-targeted plan remains usable only where no executable analysis
-contract exists. A supplied full receipt must reproduce exactly. When an
+by the analysis contract. The justification and target handles must be canonical
+without surrounding whitespace before receipt construction, so a padded planning
+rationale, hypothesis ID, measurement ID, or unit cannot be trimmed into a
+different protocol commitment. An un-targeted plan remains usable only where no
+executable analysis contract exists. A supplied full receipt must reproduce exactly. When an
 analysis contract declares `minimum_analyzable_units`, it must equal the plan’s
 analyzable count per group—the contract’s exact independent-groups meaning; an
 incompatible protocol analysis design also fails freeze.
