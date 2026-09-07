@@ -591,8 +591,9 @@ Executable comparison-column delivery: each guided two-level contrast now names
 the exact dataset column carrying its ordered levels. The provider-free
 interview elicits it, and the protocol draft, data dictionary, and analysis
 commitment preserve it. The audit rejects omission, collisions with measurement
-or identity fields, and disagreement with a causal-identification record's
-exposure node, closing the former hardcoded `condition` handoff gap.
+or identity fields, surrounding whitespace, and disagreement with a
+causal-identification record's exposure node, closing the former hardcoded
+`condition` handoff gap.
 Its optional output creates a separate experiment repository. This is a terminal
 interview, not a graphical conversational app, power calculator, or automatic
 protocol-registration workflow.
@@ -735,13 +736,14 @@ Protocols with a pinned analysis specification now also require a structured
 `unit_id_column`. Protocol-bound execution binds an independent estimator's
 `unit_column`, or a paired estimator's `pair_column`, to that exact frozen name.
 The binding is retained in the execution receipt and revalidated during run-draft
-handoff. Unit, pair, and group column handles used to derive row-to-unit and
-allocation receipts must be canonical before those receipts are hashed, and the
-group handle must be distinct from the unit or pair handle. Row-level group
-assignment values must also be nonblank and canonical before allocation receipt
-hashing. This verifies identifier-column consistency and the estimator's own
-duplicate/incomplete-unit checks; it does not prove that source rows were
-assigned to the correct real-world units.
+handoff. Guided unit-ID handles and the later unit, pair, and group column
+handles used to derive row-to-unit and allocation receipts must be canonical
+before audits pass or receipts are hashed, and the group handle must be distinct
+from the unit or pair handle. Row-level group assignment values must also be
+nonblank and canonical before allocation receipt hashing. This verifies
+identifier-column consistency and the estimator's own duplicate/incomplete-unit
+checks; it does not prove that source rows were assigned to the correct
+real-world units.
 Execution now also derives a unit-structure receipt from the exact parsed CSV:
 row and unit counts, repeated-unit count, minimum and maximum observations per
 unit, and a SHA-256 commitment to the ordered row-to-unit mapping. A protocol

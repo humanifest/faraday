@@ -487,7 +487,15 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         if groups and (len(groups) != 2 or len({item.casefold() for item in groups}) != 2):
             add("CONTRAST_GROUPS_INVALID", "error", "The confirmatory contrast does not name exactly two distinct ordered levels.", "List the first-minus-second comparison levels exactly once and preserve that order in the executable analysis.")
     groups = _text_list(brief, "contrast_groups")
-    group_data_column = str(brief.get("group_data_column", "")).strip()
+    group_data_column_value = brief.get("group_data_column", "")
+    group_data_column = group_data_column_value if isinstance(group_data_column_value, str) else ""
+    if group_data_column and group_data_column != group_data_column.strip():
+        add(
+            "GROUP_DATA_COLUMN_NONCANONICAL",
+            "error",
+            "The guided comparison column has surrounding whitespace.",
+            "Name the exact comparison or exposure column without padding so audit, protocol, dictionary, and analysis artifacts bind the same handle.",
+        )
     if len(groups) == 2 and not group_data_column:
         add(
             "GROUP_DATA_COLUMN_UNRESOLVED",
@@ -751,7 +759,15 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "The primary measurement lacks a complete reproducible measurement contract.",
             "Separately specify the exact observable, input condition, fixed parameter bindings, evaluation point, coding convention, aggregation, tolerance, expected behavior, and temporal role before collection.",
         )
-    unit_id_column = str(brief.get("unit_id_column", "")).strip()
+    unit_id_column_value = brief.get("unit_id_column", "")
+    unit_id_column = unit_id_column_value if isinstance(unit_id_column_value, str) else ""
+    if unit_id_column and unit_id_column != unit_id_column.strip():
+        add(
+            "UNIT_ID_COLUMN_NONCANONICAL",
+            "error",
+            "The guided unit-identity column has surrounding whitespace.",
+            "Name the exact stable unit identifier column without padding so collection, protocol, and executable analysis share the same handle.",
+        )
     if brief.get("independent_unit") and not unit_id_column:
         add(
             "UNIT_ID_COLUMN_UNRESOLVED",

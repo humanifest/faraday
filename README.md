@@ -460,6 +460,10 @@ exact stable unit-ID column is also required and shared by the protocol, data
 dictionary, and collection plan. Secondary and column-backed control
 measurements are included in the proposed dictionary rather than existing only
 in detached measurement drafts.
+Guided unit-ID and comparison/exposure column handles must be canonical without
+surrounding whitespace before the audit treats them as resolved, preventing a
+padded brief field from passing review while downstream draft artifacts preserve
+a different literal column name.
 Confirmatory designs with any of these unresolved are blocked; exploratory
 designs retain a warning. A causal primary outcome explicitly declared at or
 before exposure is rejected rather than treated as a post-exposure outcome.

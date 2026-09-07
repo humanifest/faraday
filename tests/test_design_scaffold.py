@@ -188,6 +188,12 @@ def test_unit_identity_column_is_explicit_and_shared_by_all_guided_artifacts():
     assert "participant_key" in {item["name"] for item in columns}
     assert "participant_key" in explicit["artifacts"]["collection-plan.md"]
 
+    padded = scaffold_design({**base, "unit_id_column": " participant_key "})
+    assert padded["status"] == "blocked"
+    assert "UNIT_ID_COLUMN_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
+
     collision = scaffold_design({
         **base, "unit_id_column": "participant_key",
         "outcome_data_column": "PARTICIPANT_KEY",
@@ -221,6 +227,12 @@ def test_comparison_column_is_bound_to_contrast_and_causal_exposure():
     )
     analysis = explicit["artifacts"]["analysis-commitment-draft.json"]
     assert analysis["group_column"] == "exposure"
+
+    padded = scaffold_design({**base, "group_data_column": " exposure "})
+    assert padded["status"] == "blocked"
+    assert "GROUP_DATA_COLUMN_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
 
     collision = scaffold_design({
         **base, "group_data_column": "score",
