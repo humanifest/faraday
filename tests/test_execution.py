@@ -22,7 +22,8 @@ from research_machine.application.policies import (
     validate_result_direction,
 )
 from research_machine.addons.execution import (
-    validate_registered_confidence_level, validate_registered_information,
+    validate_measurement_values, validate_registered_confidence_level,
+    validate_registered_information,
 )
 from research_machine.domain.models import (
     ActionCandidate,
@@ -47,6 +48,54 @@ CODE_HASH = "a" * 64
 ENVIRONMENT_HASH = "b" * 64
 SEED_REVEAL = "registered-seed-42"
 SEED_COMMITMENT = hashlib.sha256(SEED_REVEAL.encode("utf-8")).hexdigest()
+
+
+def _measurement_contract(**overrides):
+    contract = {
+        "measurement_id": "m1",
+        "data_column": "outcome",
+        "scale_type": "nominal",
+        "unit": "category",
+        "admissible_values": ["yes", "no"],
+        "missing_value_codes": ["not_recorded"],
+        "valid_min": None,
+        "valid_max": None,
+    }
+    contract.update(overrides)
+    return contract
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"data_column": " outcome "}, "data_column must be canonical"),
+        ({"admissible_values": ["yes", "Yes"]}, "admissible_values must be case-insensitively unique"),
+        ({"missing_value_codes": ["NA", "na"]}, "missing_value_codes must be case-insensitively unique"),
+        ({"admissible_values": ["yes"], "missing_value_codes": ["YES"]}, "must not overlap"),
+        ({"missing_value_codes": [" NA "]}, "value-domain entries must be canonical"),
+        ({"scale_type": "ratio", "valid_min": 1.0, "valid_max": 1.0}, "valid_min must be strictly below"),
+        ({"scale_type": "ratio", "valid_min": True}, "validity bounds must be finite"),
+    ],
+)
+def test_measurement_value_validation_rejects_noncanonical_contracts(overrides, message):
+    rows = [{"outcome": "yes"}]
+    with pytest.raises(ValidationError, match=message):
+        validate_measurement_values(rows, [_measurement_contract(**overrides)])
+
+
+def test_measurement_value_validation_rejects_duplicate_normalized_columns():
+    rows = [{"outcome": "1", "Outcome2": "2"}]
+    first = _measurement_contract(scale_type="ratio", admissible_values=[], valid_min=0.0, valid_max=10.0)
+    second = _measurement_contract(
+        measurement_id="m2",
+        data_column="OUTCOME",
+        scale_type="ratio",
+        admissible_values=[],
+        valid_min=0.0,
+        valid_max=10.0,
+    )
+    with pytest.raises(ValidationError, match="data_column values must be case-insensitively unique"):
+        validate_measurement_values(rows, [first, second])
 
 
 @pytest.mark.parametrize(("expected", "effect"), [("positive", 0.1), ("negative", -0.1), ("two_sided", -2.0)])

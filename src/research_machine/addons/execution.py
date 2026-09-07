@@ -374,6 +374,7 @@ def validate_measurement_values(
     if not isinstance(definitions, list) or not definitions:
         raise ValidationError("protocol design receipt lacks executable measurement contracts")
     checks: list[dict[str, Any]] = []
+    columns: list[str] = []
     for definition in definitions:
         if not isinstance(definition, dict):
             raise ValidationError("executable measurement contracts must be objects")
@@ -382,10 +383,56 @@ def validate_measurement_values(
         unit = definition.get("unit")
         admissible = definition.get("admissible_values")
         missing_codes = definition.get("missing_value_codes")
-        if not isinstance(column, str) or not column or not isinstance(scale, str) or not scale:
+        if (
+            not isinstance(column, str)
+            or not column
+            or not isinstance(scale, str)
+            or not scale
+        ):
             raise ValidationError("executable measurement contract lacks data_column or scale_type")
-        if not isinstance(unit, str) or not unit or not isinstance(admissible, list) or not isinstance(missing_codes, list):
+        if column != column.strip():
+            raise ValidationError("executable measurement data_column must be canonical without surrounding whitespace")
+        if (
+            not isinstance(unit, str)
+            or not unit
+            or not isinstance(admissible, list)
+            or not isinstance(missing_codes, list)
+        ):
             raise ValidationError("executable measurement contract lacks unit or value-domain lists")
+        values = [*admissible, *missing_codes]
+        if any(
+            not isinstance(value, str) or not value or value != value.strip()
+            for value in values
+        ):
+            raise ValidationError("executable measurement value-domain entries must be canonical non-blank strings")
+        if len({value.casefold() for value in admissible}) != len(admissible):
+            raise ValidationError("executable measurement admissible_values must be case-insensitively unique")
+        if len({value.casefold() for value in missing_codes}) != len(missing_codes):
+            raise ValidationError("executable measurement missing_value_codes must be case-insensitively unique")
+        if {value.casefold() for value in admissible} & {value.casefold() for value in missing_codes}:
+            raise ValidationError("executable measurement admissible_values and missing_value_codes must not overlap")
+        lower, upper = definition.get("valid_min"), definition.get("valid_max")
+        if (
+            lower is not None
+            and (
+                isinstance(lower, bool)
+                or not isinstance(lower, (int, float))
+                or not math.isfinite(float(lower))
+            )
+        ) or (
+            upper is not None
+            and (
+                isinstance(upper, bool)
+                or not isinstance(upper, (int, float))
+                or not math.isfinite(float(upper))
+            )
+        ):
+            raise ValidationError("executable measurement validity bounds must be finite numbers when supplied")
+        if lower is not None and upper is not None and not float(lower) < float(upper):
+            raise ValidationError("executable measurement valid_min must be strictly below valid_max")
+        columns.append(column)
+        if len({item.casefold() for item in columns}) != len(columns):
+            raise ValidationError("executable measurement data_column values must be case-insensitively unique")
         observed = 0
         missing = 0
         for index, row in enumerate(rows, start=2):
@@ -416,7 +463,6 @@ def validate_measurement_values(
                     raise ValidationError(
                         f"non-finite value in {column!r} at CSV row {index}"
                     )
-                lower, upper = definition.get("valid_min"), definition.get("valid_max")
                 if ((lower is not None and value < lower)
                         or (upper is not None and value > upper)):
                     raise ValidationError(
