@@ -14,7 +14,15 @@ from research_machine.domain.models import DatasetArtifact, EvidenceRecord, Evid
 _STATUSES = {"active", "qualified", "withdrawn", "retracted"}
 
 
+def _canonical_text(value: str | None, field: str) -> str:
+    text = require_text(value, field)
+    if text != value:
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def _timestamp(value: str, field: str) -> datetime:
+    _canonical_text(value, field)
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except (AttributeError, ValueError) as exc:
@@ -34,6 +42,13 @@ def validate_evidence_status_event_chains(
     grouped: dict[str, list[EvidenceStatusEvent]] = defaultdict(list)
     event_ids: set[str] = set()
     for event in events:
+        _canonical_text(event.event_id, "evidence status event_id")
+        _canonical_text(event.evidence_id, "evidence status evidence_id")
+        if event.supersedes_event_id is not None:
+            _canonical_text(
+                event.supersedes_event_id,
+                "evidence status supersedes_event_id",
+            )
         if event.event_id in event_ids:
             raise ValidationError(f"duplicate evidence status event_id: {event.event_id}")
         event_ids.add(event.event_id)
@@ -65,7 +80,8 @@ def validate_evidence_status_event_chains(
                 raise ValidationError(
                     f"evidence {evidence_id} has an event after terminal retraction"
                 )
-            if event.status not in _STATUSES:
+            status = _canonical_text(event.status, "evidence status")
+            if status not in _STATUSES:
                 raise ValidationError(
                     f"evidence status event {event.event_id} has an invalid status"
                 )

@@ -623,14 +623,16 @@ the original record and append an artifact-backed status event:
 ```
 
 Statuses are `active`, `qualified`, `withdrawn`, and terminal `retracted`.
-Every later event must name the exact latest event with `--supersedes-event`.
-Qualified, withdrawn, and retracted evidence remains in the report and history
-but cannot contribute to current rigor capabilities or conclusion ceilings.
-Faraday verifies the local review artifact and chronology; it does not
-authenticate the reviewer or decide whether the scientific judgment is correct.
-It retains the local artifact root and re-hashes the review bytes whenever the
-status history is used for inquiry display, rigor audit, or synthesis. Missing,
-moved, changed, or symlinked review material therefore fails closed.
+Status, evidence, event, and predecessor handles must be canonical without
+surrounding whitespace; every later event must name the exact latest event with
+`--supersedes-event`. Qualified, withdrawn, and retracted evidence remains in
+the report and history but cannot contribute to current rigor capabilities or
+conclusion ceilings. Faraday verifies the local review artifact and chronology;
+it does not authenticate the reviewer or decide whether the scientific judgment
+is correct. It retains the local artifact root and re-hashes the review bytes
+whenever the status history is used for inquiry display, rigor audit, or
+synthesis. Missing, moved, changed, or symlinked review material therefore fails
+closed.
 
 ## Optional model or app collaboration
 

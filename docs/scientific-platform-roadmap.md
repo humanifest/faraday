@@ -117,7 +117,8 @@ Post-discovery evidence-status delivery: evidence records remain immutable, but
 `research evidence record-status` appends a locally artifact-verified `active`,
 `qualified`, `withdrawn`, or terminal `retracted` event. Events bind the exact
 evidence ID, require timezone-aware chronology and the exact latest predecessor,
-and preserve a linear sequence. Current rigor audits and synthesis capability
+reject noncanonical status, event, evidence, and predecessor handles, and
+preserve a linear sequence. Current rigor audits and synthesis capability
 calculations use only evidence with no status event or a latest `active` event;
 restricted evidence and its entire correction history remain visible in the
 report. This verifies local review bytes and lifecycle consistency, not reviewer

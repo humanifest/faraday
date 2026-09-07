@@ -288,6 +288,58 @@ def test_evidence_status_chain_requires_exact_predecessor_and_retraction_is_term
         )
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("evidence_id", "{evidence_id} ", "evidence_id must be canonical"),
+        ("status", " qualified", "evidence status must be canonical"),
+        ("event_id", " evidence-status-manual", "event_id must be canonical"),
+    ],
+)
+def test_evidence_status_command_handles_must_be_canonical(
+    tmp_path: Path, field, value, message
+) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path / "workspace")
+    evidence = service.record_evidence(
+        _classified_evidence(hypothesis.hypothesis_id, run.run_id)
+    )
+    review_root = tmp_path / "reviews"
+    review_root.mkdir()
+    if value == "{evidence_id} ":
+        value = f"{evidence.evidence_id} "
+
+    command = _status_command(
+        evidence.evidence_id, review_root, "qualified.txt", "qualified",
+    )
+    with pytest.raises(ValidationError, match=message):
+        service.record_evidence_status_event(replace(command, **{field: value}))
+
+
+def test_evidence_status_supersedes_handle_must_be_canonical(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path / "workspace")
+    evidence = service.record_evidence(
+        _classified_evidence(hypothesis.hypothesis_id, run.run_id)
+    )
+    review_root = tmp_path / "reviews"
+    review_root.mkdir()
+    qualified = service.record_evidence_status_event(
+        _status_command(evidence.evidence_id, review_root, "qualified.txt", "qualified")
+    )
+
+    with pytest.raises(ValidationError, match="supersedes_event_id must be canonical"):
+        service.record_evidence_status_event(
+            _status_command(
+                evidence.evidence_id,
+                review_root,
+                "active.txt",
+                "active",
+                supersedes_event_id=f"{qualified.event_id} ",
+            )
+        )
+
+
 def test_evidence_status_reads_fail_closed_on_semantic_chain_tampering(
     tmp_path: Path,
 ) -> None:
@@ -309,6 +361,42 @@ def test_evidence_status_reads_fail_closed_on_semantic_chain_tampering(
         service.list_evidence_status_events()
     with pytest.raises(ValidationError, match="contiguous from 1"):
         service.audit_rigor()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("event_id", "{event_id} ", "evidence status event_id must be canonical"),
+        ("evidence_id", "{evidence_id} ", "evidence status evidence_id must be canonical"),
+        ("status", " qualified", "evidence status must be canonical"),
+        ("effective_at", " 2026-09-02T12:00:00Z", "evidence status effective_at must be canonical"),
+        ("supersedes_event_id", "{event_id} ", "evidence status supersedes_event_id must be canonical"),
+    ],
+)
+def test_evidence_status_reads_fail_closed_on_noncanonical_chain_tampering(
+    tmp_path: Path, field, value, message
+) -> None:
+    workspace = tmp_path / "workspace"
+    service, hypothesis, run = _prepared_run(workspace)
+    evidence = service.record_evidence(
+        _classified_evidence(hypothesis.hypothesis_id, run.run_id)
+    )
+    review_root = tmp_path / "reviews"
+    review_root.mkdir()
+    event = service.record_evidence_status_event(
+        _status_command(evidence.evidence_id, review_root, "qualified.txt", "qualified")
+    )
+    if value == "{event_id} ":
+        value = f"{event.event_id} "
+    elif value == "{evidence_id} ":
+        value = f"{evidence.evidence_id} "
+    event_file = next(workspace.rglob(f"{event.event_id}.json"))
+    tampered = json.loads(event_file.read_text(encoding="utf-8"))
+    tampered[field] = value
+    event_file.write_text(json.dumps(tampered), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match=message):
+        service.list_evidence_status_events()
 
 
 def test_new_evidence_requires_scope_ceiling_and_classification(tmp_path: Path) -> None:

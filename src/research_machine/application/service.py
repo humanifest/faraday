@@ -4085,17 +4085,44 @@ class ResearchService:
     ) -> EvidenceStatusEvent:
         """Append an artifact-backed correction state without rewriting evidence."""
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        evidence_id = require_text(command.evidence_id, "evidence_id")
+        if evidence_id != command.evidence_id:
+            raise ValidationError(
+                "evidence_id must be canonical without surrounding whitespace"
+            )
+        if command.event_id is not None:
+            event_id = require_text(command.event_id, "event_id")
+            if event_id != command.event_id:
+                raise ValidationError(
+                    "event_id must be canonical without surrounding whitespace"
+                )
+        else:
+            event_id = None
+        if command.supersedes_event_id is not None:
+            supersedes_event_id = require_text(
+                command.supersedes_event_id, "supersedes_event_id"
+            )
+            if supersedes_event_id != command.supersedes_event_id:
+                raise ValidationError(
+                    "supersedes_event_id must be canonical without surrounding whitespace"
+                )
+        else:
+            supersedes_event_id = None
         evidence = next(
             (
                 item
                 for item in self.repository.list_evidence(resolved)
-                if item.evidence_id == command.evidence_id
+                if item.evidence_id == evidence_id
             ),
             None,
         )
         if evidence is None:
-            raise NotFoundError(f"evidence {command.evidence_id} does not exist")
+            raise NotFoundError(f"evidence {evidence_id} does not exist")
         status = require_text(command.status, "evidence status")
+        if status != command.status:
+            raise ValidationError(
+                "evidence status must be canonical without surrounding whitespace"
+            )
         if status not in {"active", "qualified", "withdrawn", "retracted"}:
             raise ValidationError(
                 "evidence status must be active, qualified, withdrawn, or retracted"
@@ -4117,12 +4144,12 @@ class ResearchService:
         chains = validate_evidence_status_event_chains(all_evidence, all_events)
         prior = chains.get(evidence.evidence_id, [])
         latest = prior[-1] if prior else None
-        if latest is None and command.supersedes_event_id is not None:
+        if latest is None and supersedes_event_id is not None:
             raise ValidationError("first evidence status event cannot supersede another event")
         if latest is not None:
             if latest.status == "retracted":
                 raise ValidationError("retracted evidence status is terminal")
-            if command.supersedes_event_id != latest.event_id:
+            if supersedes_event_id != latest.event_id:
                 raise ValidationError("evidence status event must supersede the exact latest event")
             if effective < _parse_aware_timestamp(latest.effective_at, "prior effective_at"):
                 raise ValidationError("evidence status event effective_at cannot move backward")
@@ -4151,7 +4178,7 @@ class ResearchService:
                 + ", ".join(item["code"] for item in report.findings)
             )
         event = EvidenceStatusEvent(
-            event_id=command.event_id or f"evidence-status-{self.token()}",
+            event_id=event_id or f"evidence-status-{self.token()}",
             sequence=len(prior) + 1,
             evidence_id=evidence.evidence_id,
             status=status,
@@ -4162,7 +4189,7 @@ class ResearchService:
             review_artifact_root=str(
                 Path(command.review_artifact_root).expanduser().resolve()
             ),
-            supersedes_event_id=command.supersedes_event_id,
+            supersedes_event_id=supersedes_event_id,
             created_at=created_at,
             created_by=self.actor,
             artifact_integrity=report.to_dict(),
