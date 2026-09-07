@@ -321,7 +321,7 @@ def test_analysis_contract_rejects_noncanonical_list_handles(
 def test_measurement_custody_requirement_ids_are_unambiguous_at_freeze() -> None:
     protocol = replace(
         _human_protocol(human_subjects=False),
-        measurement_custody_requirements=["clock-sync", " clock-sync "],
+        measurement_custody_requirements=["clock-sync", "clock-sync"],
         calibration_acceptance_criteria=[
             CalibrationCriterion(
                 "clock-residual", "clock", "absolute clock residual", "ms",
@@ -331,6 +331,22 @@ def test_measurement_custody_requirement_ids_are_unambiguous_at_freeze() -> None
         ],
     )
     with pytest.raises(ValidationError, match="measurement_custody_requirements"):
+        validate_protocol_freeze(protocol)
+
+
+def test_measurement_custody_requirement_ids_must_be_canonical_at_freeze() -> None:
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        measurement_custody_requirements=["clock-sync "],
+        calibration_acceptance_criteria=[
+            CalibrationCriterion(
+                "clock-residual", "clock", "absolute clock residual", "ms",
+                "Keep synchronization error below the registered event limit.",
+                lower_bound=0.0, upper_bound=1.0,
+            ),
+        ],
+    )
+    with pytest.raises(ValidationError, match="canonical"):
         validate_protocol_freeze(protocol)
 
 

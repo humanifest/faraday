@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import hashlib
 import json
@@ -26,6 +27,18 @@ from research_machine.domain.models import (
 from research_machine.domain.errors import ValidationError
 from research_machine.replication.package import verify_replication_package
 from research_machine.interfaces.cli import main
+
+
+def _after_registration_times(registration_timestamp: str) -> tuple[str, str]:
+    registered = datetime.fromisoformat(
+        registration_timestamp.replace("Z", "+00:00")
+    )
+    started = registered + timedelta(minutes=1)
+    completed = registered + timedelta(minutes=2)
+    return (
+        started.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        completed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+    )
 
 
 def test_nested_locator_redaction_does_not_mutate_source():
@@ -82,10 +95,13 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     output = tmp_path / "result.json"
     output.write_text('{"result":"passed"}\n', encoding="utf-8")
     output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
     service.record_run(RecordRun(
         protocol_id=frozen.protocol_id,
-        started_at="2026-09-07T02:00:00Z",
-        completed_at="2026-09-07T02:01:00Z",
+        started_at=started_at,
+        completed_at=completed_at,
         analysis_code_hash="a" * 64,
         environment_hash="e" * 64,
         output_artifacts=[DatasetArtifact(
@@ -283,10 +299,13 @@ def test_included_locator_package_replays_protocol_hash(tmp_path: Path) -> None:
     output = tmp_path / "result.json"
     output.write_text('{"result":"passed"}\n', encoding="utf-8")
     output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
     recorded = service.record_run(RecordRun(
         protocol_id=frozen.protocol_id,
-        started_at="2026-09-07T02:00:00Z",
-        completed_at="2026-09-07T02:01:00Z",
+        started_at=started_at,
+        completed_at=completed_at,
         analysis_code_hash="a" * 64,
         environment_hash="e" * 64,
         output_artifacts=[DatasetArtifact(

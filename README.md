@@ -927,6 +927,9 @@ Stable protocol quality-gate, required custody-gate, calibration criterion,
 calibration, transformation, gate, and derived-observation IDs must be unique
 after trimming whitespace, so cosmetic padding cannot split one custody node
 into apparently separate provenance records.
+At protocol freeze, required custody-gate IDs must also be canonical without
+surrounding whitespace before they become calibration and registration
+commitments.
 Offset-aware transformation, gate-evaluation, and derived-observation times must
 also follow their declared input and calibration prerequisites. This establishes
 internal chronology, not an externally authenticated timestamp.
