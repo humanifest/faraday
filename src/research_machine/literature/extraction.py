@@ -16,6 +16,13 @@ _LAYERS = {"observed", "derived", "model-dependent", "inferred", "hypothesized",
 _DIRECTIONS = {"supports", "weakens", "mixed", "null", "not_applicable"}
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def create_extraction(screening_path: Path, expected_sha256: str,
                       review: dict[str, Any], output: Path) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_screening_sha256")
@@ -34,7 +41,7 @@ def create_extraction(screening_path: Path, expected_sha256: str,
     if not isinstance(decisions, list):
         raise ValidationError("screening decisions must be an array")
     included = {
-        _text(item.get("source_id"), "screening source_id").strip()
+        _canonical_text(item.get("source_id"), "screening source_id")
         for item in decisions
         if isinstance(item, dict) and item.get("decision") == "include"
     }
@@ -42,7 +49,7 @@ def create_extraction(screening_path: Path, expected_sha256: str,
         raise ValidationError("extraction requires at least one included source")
     if not isinstance(review, dict) or set(review) != {"reviewer", "source_reviews"}:
         raise ValidationError("extraction review requires exactly reviewer and source_reviews")
-    reviewer = _text(review["reviewer"], "extraction reviewer")
+    reviewer = _canonical_text(review["reviewer"], "extraction reviewer")
     source_reviews = review["source_reviews"]
     if not isinstance(source_reviews, list):
         raise ValidationError("source_reviews must be an array")
@@ -53,7 +60,7 @@ def create_extraction(screening_path: Path, expected_sha256: str,
             "source_id", "status", "reason", "records"
         }:
             raise ValidationError("each source review requires exactly source_id, status, reason, and records")
-        source_id = _text(source_review["source_id"], "extraction source_id").strip()
+        source_id = _canonical_text(source_review["source_id"], "extraction source_id")
         if source_id in by_source:
             raise ValidationError("duplicate extraction source review")
         if source_id not in included:
@@ -61,7 +68,7 @@ def create_extraction(screening_path: Path, expected_sha256: str,
         status, records = source_review["status"], source_review["records"]
         if status not in {"extracted", "no_extractable_claim"} or not isinstance(records, list):
             raise ValidationError("source extraction status or records are invalid")
-        _text(source_review["reason"], "source extraction reason")
+        reason = _canonical_text(source_review["reason"], "source extraction reason")
         if (status == "extracted") != bool(records):
             raise ValidationError("extracted sources require records; no_extractable_claim sources require none")
         normalized_records = []
@@ -70,9 +77,10 @@ def create_extraction(screening_path: Path, expected_sha256: str,
                         "epistemic_layer", "result_direction", "uncertainty", "notes"}
             if not isinstance(record, dict) or set(record) != required:
                 raise ValidationError("extraction record fields do not match the documented contract")
-            normalized = {key: _text(record[key], f"extraction {key}") for key in required}
-            normalized["extraction_id"] = normalized["extraction_id"].strip()
-            normalized["study_id"] = normalized["study_id"].strip()
+            normalized = {
+                key: _canonical_text(record[key], f"extraction {key}")
+                for key in required
+            }
             identifier = normalized["extraction_id"]
             if identifier in extraction_ids:
                 raise ValidationError("duplicate extraction_id")
@@ -83,7 +91,7 @@ def create_extraction(screening_path: Path, expected_sha256: str,
                 raise ValidationError("invalid extraction result_direction")
             normalized_records.append(normalized)
         by_source[source_id] = {"source_id": source_id, "status": status,
-                                "reason": source_review["reason"].strip(),
+                                "reason": reason,
                                 "records": sorted(normalized_records, key=lambda item: item["extraction_id"])}
     if set(by_source) != included:
         raise ValidationError("source reviews must cover exactly all included sources")

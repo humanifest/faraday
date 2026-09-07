@@ -873,9 +873,11 @@ screening bytes are hash-pinned and excluded sources cannot enter extraction.
 These records are reviewer assertions, not accepted facts or scientific evidence.
 The machine has not yet verified the cited passage, authenticated the reviewer,
 assessed risk of bias, reconciled independent extractors, or synthesized effects.
-Extraction source, study, and claim IDs are normalized before coverage and
-duplicate checks, preventing whitespace-padded reports from becoming separate
-claims or study groupings.
+Extraction reviewer text, pinned screening source IDs, extraction source IDs,
+study IDs, claim IDs, evidence locations, uncertainty, and notes must be
+canonical without surrounding whitespace before coverage and duplicate checks,
+preventing whitespace-padded reports from becoming separate claims or study
+groupings.
 `research literature verify-citations` adds a second, hash-bound review covering
 every extracted claim. The expected extraction hash must be canonical lowercase
 SHA-256 before it can pin the extraction bytes. The citation reviewer must

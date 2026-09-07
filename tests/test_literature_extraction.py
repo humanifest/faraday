@@ -1,4 +1,5 @@
 """Synthetic literature records, not source validation or scientific evidence."""
+import hashlib
 import json
 
 import pytest
@@ -57,13 +58,10 @@ def test_extraction_cli_is_write_once_and_non_evidentiary(tmp_path, capsys):
         create_extraction(screening, digest, extraction_review(), output)
 
 
-def test_extraction_normalizes_source_study_and_record_ids(tmp_path):
+def test_extraction_preserves_canonical_source_study_and_record_ids(tmp_path):
     screening, digest = prepared_screening(tmp_path)
     review = extraction_review()
-    review["source_reviews"][0]["source_id"] = " s0 "
     record = review["source_reviews"][0]["records"][0]
-    record["extraction_id"] = " ext-1 "
-    record["study_id"] = " study-1 "
     result = create_extraction(screening, digest, review, tmp_path / "extraction")
     source_review = result["source_reviews"][0]
     assert source_review["source_id"] == "s0"
@@ -71,7 +69,7 @@ def test_extraction_normalizes_source_study_and_record_ids(tmp_path):
     assert source_review["records"][0]["study_id"] == "study-1"
 
 
-@pytest.mark.parametrize("failure", ["hash", "excluded", "missing", "duplicate", "padded_duplicate", "duplicate_source", "location", "layer", "empty"])
+@pytest.mark.parametrize("failure", ["hash", "excluded", "missing", "duplicate", "padded_id", "duplicate_source", "location", "layer", "empty"])
 def test_invalid_extraction_never_publishes(tmp_path, failure):
     screening, digest = prepared_screening(tmp_path)
     review = extraction_review()
@@ -80,13 +78,11 @@ def test_invalid_extraction_never_publishes(tmp_path, failure):
     elif failure == "excluded": review["source_reviews"][0]["source_id"] = "s1"
     elif failure == "missing": review["source_reviews"] = []
     elif failure == "duplicate": review["source_reviews"][0]["records"].append(dict(record))
-    elif failure == "padded_duplicate":
-        duplicate = dict(record)
-        duplicate["extraction_id"] = " ext-1 "
-        review["source_reviews"][0]["records"].append(duplicate)
+    elif failure == "padded_id":
+        record["extraction_id"] = " ext-1 "
     elif failure == "duplicate_source":
         duplicate = dict(review["source_reviews"][0])
-        duplicate["source_id"] = " s0 "
+        duplicate["source_id"] = "s0"
         review["source_reviews"].append(duplicate)
     elif failure == "location": record["evidence_location"] = ""
     elif failure == "layer": record["epistemic_layer"] = "fact"
@@ -94,6 +90,51 @@ def test_invalid_extraction_never_publishes(tmp_path, failure):
         review["source_reviews"][0]["records"] = []
     output = tmp_path / "extraction"
     with pytest.raises(ValidationError):
+        create_extraction(screening, digest, review, output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    ("target", "value", "message"),
+    [
+        ("reviewer", " Extraction fixture", "extraction reviewer must be canonical"),
+        ("source_id", " s0", "extraction source_id must be canonical"),
+        ("source_reason", " One relevant claim", "source extraction reason must be canonical"),
+        ("extraction_id", "ext-1 ", "extraction extraction_id must be canonical"),
+        ("study_id", " study-1", "extraction study_id must be canonical"),
+        ("claim_text", " The source reports a synthetic difference.", "extraction claim_text must be canonical"),
+        ("evidence_location", "page 2, table 1 ", "extraction evidence_location must be canonical"),
+        ("uncertainty", " Synthetic fixture uncertainty", "extraction uncertainty must be canonical"),
+        ("notes", "Requires independent citation verification ", "extraction notes must be canonical"),
+    ],
+)
+def test_extraction_review_text_must_be_canonical(tmp_path, target, value, message):
+    screening, digest = prepared_screening(tmp_path)
+    review = extraction_review()
+    if target == "reviewer":
+        review["reviewer"] = value
+    elif target == "source_id":
+        review["source_reviews"][0]["source_id"] = value
+    elif target == "source_reason":
+        review["source_reviews"][0]["reason"] = value
+    else:
+        review["source_reviews"][0]["records"][0][target] = value
+    output = tmp_path / "extraction"
+    with pytest.raises(ValidationError, match=message):
+        create_extraction(screening, digest, review, output)
+    assert not output.exists()
+
+
+def test_extraction_rejects_noncanonical_pinned_screening_source_id(tmp_path):
+    screening, digest = prepared_screening(tmp_path)
+    record = json.loads(screening.read_text())
+    record["decisions"][0]["source_id"] = " s0 "
+    screening.write_text(json.dumps(record, sort_keys=True) + "\n")
+    digest = hashlib.sha256(screening.read_bytes()).hexdigest()
+    review = extraction_review()
+    review["source_reviews"][0]["source_id"] = " s0 "
+    output = tmp_path / "extraction"
+    with pytest.raises(ValidationError, match="screening source_id must be canonical"):
         create_extraction(screening, digest, review, output)
     assert not output.exists()
 
