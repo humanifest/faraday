@@ -623,7 +623,9 @@ reference index such as `question:<id>`, `claim:<id>`, `hypothesis:<id>`,
 `ethics_review_event:<id>`; proposal
 `evidence_refs` must cite only those typed, prefix-checked handles, so an
 optional collaborator cannot smuggle uncited external claims across the provider
-boundary. It does not call a provider, modify the inquiry, accept a finding,
+boundary. Context handles, suggestion IDs, evidence references, and review
+decisions are checked after trimming, so whitespace padding cannot create a
+second apparent citation or review obligation. It does not call a provider, modify the inquiry, accept a finding,
 create evidence, or authorize an action. Any accepted idea must still be
 translated deliberately through the normal question, hypothesis, protocol-freeze,
 ethics, custody, run, and evidence commands.

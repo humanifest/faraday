@@ -197,6 +197,12 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
             ),
             "evidence_refs are not present in the frozen context",
         ),
+        (
+            lambda proposal: proposal["suggestions"][0].update(
+                {"evidence_refs": ["claim:claim-1", " claim:claim-1 "]}
+            ),
+            "evidence_refs must be unique",
+        ),
     ],
 )
 def test_proposal_fails_closed_on_missing_scientific_boundaries(
@@ -205,6 +211,7 @@ def test_proposal_fails_closed_on_missing_scientific_boundaries(
     context = {
         "context_version": 1,
         "purpose": "Stress-test the design.",
+        "context_reference_index": [{"ref": "claim:claim-1", "kind": "claim"}],
         "write_boundary": {
             "context_is_read_only": True,
             "provider_required": False,
@@ -216,6 +223,32 @@ def test_proposal_fails_closed_on_missing_scientific_boundaries(
     proposal_path = tmp_path / "proposal.json"
     proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
     with pytest.raises(ValidationError, match=message):
+        validate_collaborator_proposal(
+            Path(snapshot["context_file"]),
+            snapshot["context_sha256"],
+            proposal_path,
+            tmp_path / "validated",
+        )
+    assert not (tmp_path / "validated").exists()
+
+
+def test_proposal_suggestion_ids_are_unique_after_trimming(tmp_path: Path) -> None:
+    context = {
+        "context_version": 1,
+        "purpose": "Stress-test the design.",
+        "write_boundary": {
+            "context_is_read_only": True,
+            "provider_required": False,
+        },
+    }
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(snapshot["context_sha256"])
+    duplicate = dict(proposal["suggestions"][0])
+    duplicate["suggestion_id"] = " suggestion-1 "
+    proposal["suggestions"].append(duplicate)
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+    with pytest.raises(ValidationError, match="duplicate collaborator suggestion_id"):
         validate_collaborator_proposal(
             Path(snapshot["context_file"]),
             snapshot["context_sha256"],
@@ -261,7 +294,7 @@ def test_proposal_rejects_stale_context_and_duplicate_json_keys(tmp_path: Path) 
         (
             [
                 {"ref": "question:q1", "kind": "open_question"},
-                {"ref": "question:q1", "kind": "open_question"},
+                {"ref": " question:q1 ", "kind": "open_question"},
             ],
             "duplicate collaborator context reference",
         ),
@@ -430,6 +463,17 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
                 {"disposition": "reject", "domain_route": "design.revise"}
             ),
             "domain_route must be none",
+        ),
+        (
+            lambda review: review["decisions"].append(
+                {
+                    "suggestion_id": " suggestion-1 ",
+                    "disposition": "defer",
+                    "rationale": "A padded duplicate cannot become another review.",
+                    "domain_route": "none",
+                }
+            ),
+            "duplicate collaborator review suggestion_id",
         ),
     ],
 )

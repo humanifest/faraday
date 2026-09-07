@@ -164,9 +164,10 @@ def _string_array(value: Any, field: str, *, nonempty: bool = True) -> list[str]
         raise ValidationError(
             f"collaborator proposal {field} must contain only non-empty strings"
         )
-    if len(set(value)) != len(value):
+    normalized = [item.strip() for item in value]
+    if len(set(normalized)) != len(normalized):
         raise ValidationError(f"collaborator proposal {field} must be unique")
-    return value
+    return normalized
 
 
 def _context_reference_ids(context: dict[str, Any]) -> set[str]:
@@ -188,6 +189,7 @@ def _context_reference_ids(context: dict[str, Any]) -> set[str]:
         prefix = _CONTEXT_REFERENCE_PREFIXES.get(kind)
         if prefix is None:
             raise ValidationError(f"collaborator context_reference_index[{index}].kind is unsupported")
+        ref = ref.strip()
         if not ref.startswith(prefix):
             raise ValidationError(
                 f"collaborator context_reference_index[{index}].ref must match kind {kind}"
@@ -283,7 +285,7 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
         if not isinstance(suggestion, dict):
             raise ValidationError(f"{label} must be an object")
         _exact_fields(suggestion, _SUGGESTION_FIELDS, label)
-        suggestion_id = _text(suggestion["suggestion_id"], "suggestion_id")
+        suggestion_id = _text(suggestion["suggestion_id"], "suggestion_id").strip()
         if suggestion_id in identifiers:
             raise ValidationError(f"duplicate collaborator suggestion_id: {suggestion_id}")
         identifiers.add(suggestion_id)
@@ -456,7 +458,7 @@ def adjudicate_collaborator_proposal(
     _text(reviewer["role"], "reviewer.role")
 
     suggestions = proposal["suggestions"]
-    suggestions_by_id = {item["suggestion_id"]: item for item in suggestions}
+    suggestions_by_id = {item["suggestion_id"].strip(): item for item in suggestions}
     decisions = review["decisions"]
     if not isinstance(decisions, list):
         raise ValidationError("collaborator proposal review decisions must be an array")
@@ -467,7 +469,7 @@ def adjudicate_collaborator_proposal(
         if not isinstance(decision, dict):
             raise ValidationError(f"{label} must be an object")
         _exact_fields(decision, _DECISION_FIELDS, label)
-        suggestion_id = _text(decision["suggestion_id"], "decision.suggestion_id")
+        suggestion_id = _text(decision["suggestion_id"], "decision.suggestion_id").strip()
         if suggestion_id in seen:
             raise ValidationError(f"duplicate collaborator review suggestion_id: {suggestion_id}")
         if suggestion_id not in suggestions_by_id:

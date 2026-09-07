@@ -750,7 +750,9 @@ suggestion has `review_only` authority. The context now includes a compact
 reference index for inquiry, question, claim, hypothesis, evidence, dataset,
 protocol, run, and ethics-review-event records, and proposal `evidence_refs`
 must cite only those frozen typed handles; each handle prefix must match its
-declared context kind. The resulting record remains `pending_human_review`,
+declared context kind. Context handles, suggestion IDs, evidence references, and
+review decisions are checked after trimming, so whitespace padding cannot create
+a second apparent citation or review obligation. The resulting record remains `pending_human_review`,
 scientifically ineligible, and unable to authorize or write anything. Neither
 command invokes a model, so this workflow has no provider or API-cost dependency.
 All canonical changes retain the existing domain commands and scientific gates.
