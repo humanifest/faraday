@@ -23,6 +23,26 @@ def test_holm_adjustment_is_monotone_and_input_order_invariant():
         item["hypothesis_id"]: item["holm_adjusted_p_value"] for item in result["results"]}
 
 
+def test_holm_adjustment_normalizes_selector_handles_not_family_ids():
+    result = holm_adjustment(
+        {**SPEC, "hypothesis_column": " hypothesis ", "p_value_column": " p ", "family_name": " family "},
+        [{"hypothesis": "h1", "p": "0.01"}, {"hypothesis": "h2", "p": "0.04"},
+         {"hypothesis": "h3", "p": "0.03"}],
+    )
+
+    assert result["family_name"] == "family"
+    assert result["family_hypothesis_ids"] == ["h1", "h2", "h3"]
+    assert [item["hypothesis_id"] for item in result["results"]] == ["h1", "h2", "h3"]
+
+
+def test_holm_adjustment_rejects_duplicate_normalized_selector_handles():
+    with pytest.raises(ValidationError, match="distinct hypothesis_column and p_value_column"):
+        holm_adjustment(
+            {**SPEC, "hypothesis_column": "p", "p_value_column": " p "},
+            [{"p": "0.01"}],
+        )
+
+
 @pytest.mark.parametrize("rows", [
     [{"hypothesis": "h1", "p": ""}], [{"hypothesis": "", "p": "0.1"}],
     [{"hypothesis": "h1", "p": "-0.1"}], [{"hypothesis": "h1", "p": "1.1"}],

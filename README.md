@@ -25,10 +25,12 @@ count. This is planning provenance, not preregistration or scientific evidence.
 
 `holm_adjustment` requires the exact prespecified `family_hypothesis_ids`, a
 stable family name, and alpha. The input must contain every member exactly once;
-missing, substituted, or extra hypotheses fail before adjustment. The result
-retains the family and returns deterministic monotone Holm-adjusted p-values.
-This protects the arithmetic family boundary but does not prove that the family,
-tests, alpha, or chronology are scientifically appropriate.
+missing, substituted, or extra hypotheses fail before adjustment. CSV selector
+handles and the displayed family name are normalized, while family member IDs
+remain strict canonical strings. The result retains the family and returns
+deterministic monotone Holm-adjusted p-values. This protects the arithmetic
+family boundary but does not prove that the family, tests, alpha, or chronology
+are scientifically appropriate.
 
 Protocols with secondary outcomes must also freeze a typed outcome-role plan.
 `confirmatory_outcomes` and `exploratory_outcomes` must partition the primary and

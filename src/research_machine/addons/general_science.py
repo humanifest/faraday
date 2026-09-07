@@ -686,6 +686,11 @@ def holm_adjustment(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[st
     if any(not isinstance(value, str) or not value.strip()
            for value in (hypothesis_column, p_value_column, family_name)):
         raise ValidationError("holm_adjustment requires non-blank hypothesis_column, p_value_column, and family_name")
+    hypothesis_column = hypothesis_column.strip()
+    p_value_column = p_value_column.strip()
+    family_name = family_name.strip()
+    if hypothesis_column == p_value_column:
+        raise ValidationError("holm_adjustment requires distinct hypothesis_column and p_value_column")
     family_hypothesis_ids = spec.get("family_hypothesis_ids")
     if (
         not isinstance(family_hypothesis_ids, list)
@@ -744,7 +749,7 @@ def holm_adjustment(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[st
                 "reject_at_alpha": adjusted_by_index[index] <= float(alpha)}
                for index, identifier, p_value in observed]
     return {
-        "method": "holm_step_down", "family_name": family_name.strip(),
+        "method": "holm_step_down", "family_name": family_name,
         "family_hypothesis_ids": list(family_hypothesis_ids),
         "family_size": family_size, "alpha": float(alpha), "results": results,
         "rejected_hypothesis_ids": [item["hypothesis_id"] for item in results if item["reject_at_alpha"]],

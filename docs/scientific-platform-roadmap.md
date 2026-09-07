@@ -279,13 +279,15 @@ units, deterministic fixtures, adversarial cases, and explicit claim ceilings.
 
 Multiplicity execution now requires `family_hypothesis_ids` as an exact frozen
 member set for Holm adjustment. Missing, substituted, duplicate, extra, blank, or
-noncanonical identifiers reject before calculation; row order does not affect the
-adjusted values. The result preserves the exact family list and alpha. This closes
-selective input omission inside the executable method. Protocols with secondary
-outcomes now separately freeze an exact, disjoint confirmatory/exploratory outcome
-partition, method, and alpha contract: exploratory studies cannot acquire a
-confirmatory family, while confirmatory studies must retain the primary outcome
-and use `single_test` or `holm` according to family size. The guided interview is
+noncanonical identifiers reject before calculation; CSV selector handles and the
+family display name are normalized without relaxing canonical member IDs, and row
+order does not affect the adjusted values. The result preserves the exact family
+list and alpha. This closes selective input omission inside the executable
+method. Protocols with secondary outcomes now separately freeze an exact,
+disjoint confirmatory/exploratory outcome partition, method, and alpha contract:
+exploratory studies cannot acquire a confirmatory family, while confirmatory
+studies must retain the primary outcome and use `single_test` or `holm` according
+to family size. The guided interview is
 provider-free and emits the same typed structure. Holm protocols now freeze an
 acyclic multi-step workflow that separates the primary estimate from explicit
 confirmatory tests. Each test binds exact specification and implementation
