@@ -797,10 +797,10 @@ checks exact unique dataset/run summaries, and requires every run to bind the
 packaged protocol and included inputs. Run semantics are also recomputed:
 analysis mode, dataset roles, synthetic propagation, unique and required gates,
 output-bound gate evidence, prerequisites, validity status, workflow-component
-status, and evidence eligibility. The verifier applies the same nonblank,
-trimmed-unique identity rules to packaged protocol requirements, run gates, and
-run-gate prerequisites that canonical intake uses, closing package-only
-ambiguity before a package can be trusted independently.
+status, and evidence eligibility. The verifier requires packaged protocol
+requirements, run gates, and run-gate prerequisites to be nonblank, unique, and
+canonical without surrounding whitespace before coverage checks, closing package-
+only ambiguity before a package can be trusted independently.
 When a package includes locators, verification also recomputes the packaged
 protocol, dataset, and run frozen hash commitments from the unredacted bytes;
 redacted packages preserve but cannot independently replay locator-bearing

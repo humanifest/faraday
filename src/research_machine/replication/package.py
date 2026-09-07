@@ -21,7 +21,7 @@ from research_machine.domain.models import (
 )
 from research_machine.application.policies import (
     require_sha256,
-    require_text,
+    require_canonical_text,
     validate_quality_gates,
 )
 from research_machine.application.protocol_integrity import protocol_commitment
@@ -147,7 +147,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
             )
             protocol = ExperimentProtocol.from_dict(protocol_value)
             protocol_gate_ids = [
-                require_text(gate_id, "quality_requirements item")
+                require_canonical_text(gate_id, "quality_requirements item")
                 for gate_id in protocol.quality_requirements
             ]
             if len(protocol_gate_ids) != len(set(protocol_gate_ids)):

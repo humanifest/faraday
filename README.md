@@ -601,12 +601,12 @@ It also reconstructs dataset lineage, rejects duplicate IDs, missing ancestors,
 cycles, and unrelated extras, requires manifest dataset/run IDs to match the
 records exactly, and verifies that every run binds the packaged protocol and
 uses only included datasets.
-It normalizes the packaged protocol's required-gate identities and rejects
-duplicates before run checks. For every run it also recomputes analysis-mode and
+The packaged protocol's required-gate identities must be nonblank, unique, and
+canonical before run checks. For every run it also recomputes analysis-mode and
 dataset-role compatibility, synthetic propagation, unique quality gates, required
 protocol-gate coverage, passed-gate output evidence, prerequisite satisfaction,
 run validity, and final scientific-evidence eligibility. Gate IDs and
-prerequisite references must be nonblank, unique, and canonical without
+prerequisite references must also be nonblank, unique, and canonical without
 surrounding whitespace before package verification accepts the run, so malformed
 package metadata cannot survive independent verification. Packages exported with
 `--include-locators` also
