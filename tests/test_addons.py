@@ -697,6 +697,35 @@ def test_analysis_refuses_overwrite_and_undeclared_claim_ceiling(
 
 
 @pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("method", " descriptive_summary ", "method must be canonical"),
+        ("analysis_id", " padded-analysis ", "analysis_id must be canonical"),
+        ("analysis_id", "", "analysis_id must be canonical"),
+    ],
+)
+def test_analysis_rejects_noncanonical_provenance_handles(
+    tmp_path: Path, capsys, field, value, message
+) -> None:
+    data = tmp_path / "observations.csv"
+    data.write_text("x\n1\n2\n")
+    spec = tmp_path / "analysis.json"
+    command = {
+        "method": "descriptive_summary",
+        "columns": ["x"],
+        "claim_ceiling": "Synthetic fixture only.",
+    }
+    command[field] = value
+    spec.write_text(json.dumps(command))
+
+    assert main([
+        "--json", "analysis", "run", "--spec-file", str(spec),
+        "--data-file", str(data), "--output", str(tmp_path / "output"),
+    ]) == 2
+    assert message in json.loads(capsys.readouterr().err)["error"]["message"]
+
+
+@pytest.mark.parametrize(
     ("header", "message"),
     [
         (" x \n1\n2\n", "canonical"),

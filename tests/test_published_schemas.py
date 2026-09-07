@@ -118,6 +118,18 @@ def test_identity_checked_analysis_matches_published_schema():
         jsonschema.validate({**command, "unit_column": " "}, schema)
 
 
+def test_analysis_schema_rejects_padded_analysis_id():
+    schema = json.loads((SCHEMAS / "general-analysis.schema.json").read_text())
+    command = {
+        "method": "descriptive_summary",
+        "columns": ["x"],
+        "analysis_id": " padded ",
+        "claim_ceiling": "Synthetic fixture",
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
 def test_analysis_schema_fields_match_shared_execution_contract():
     from research_machine.addons.contracts import ANALYSIS_SPEC_FIELDS
 

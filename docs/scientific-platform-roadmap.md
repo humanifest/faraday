@@ -246,6 +246,9 @@ requirements cannot depend on whitespace-normalized handles.
 Those method requirements must also come from the shared analysis specification
 vocabulary used by execution, preventing an add-on from registering a method
 whose required input could never pass the executor's unknown-field gate.
+Executable analysis specs now reject padded method IDs before registry lookup
+and padded or blank `analysis_id` values before result construction, keeping
+method resolution and analysis identity as exact provenance handles.
 Add-on manifests now apply the same canonical duplicate-free validation to
 capabilities, protocol kinds, and dataset media types, and the published manifest
 schema rejects padded contract handles before they reach local loading.

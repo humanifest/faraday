@@ -17,7 +17,7 @@
   ],
   "properties": {
     "method": {"enum": ["descriptive_summary", "missingness_report", "pearson_correlation", "permutation_mean_difference", "independent_mean_difference_ci", "adjusted_linear_effect", "paired_mean_difference_ci", "holm_adjustment"]},
-    "analysis_id": {"type": "string", "minLength": 1},
+    "analysis_id": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
     "columns": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
     "x_column": {"type": "string", "minLength": 1},
     "y_column": {"type": "string", "minLength": 1},

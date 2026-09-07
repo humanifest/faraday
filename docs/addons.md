@@ -28,6 +28,10 @@ canonical without surrounding whitespace, duplicate-free, and part of Faraday's
 published analysis specification vocabulary. Add-ons that need a new executable
 field must extend that shared contract deliberately instead of declaring a
 method requirement the executor cannot accept.
+Analysis specifications must name the add-on method exactly; padded method IDs
+fail validation before registry lookup. Optional `analysis_id` values are also
+canonical provenance handles without surrounding whitespace, so result identities
+cannot depend on display normalization.
 Methods also declare a typed `maximum_inference_level`: `computation_only`,
 `descriptive`, `association`, or `design_conditional_effect`. This value is
 included in the result and receipt. During protocol-bound execution the resolved

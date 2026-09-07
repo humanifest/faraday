@@ -255,8 +255,22 @@ def _read_spec(path: Path) -> tuple[dict[str, Any], str]:
     unknown = sorted(set(value) - ANALYSIS_SPEC_FIELDS)
     if unknown:
         raise ValidationError("unknown analysis specification fields: " + ", ".join(unknown))
-    if not isinstance(value.get("method"), str):
+    method = value.get("method")
+    if not isinstance(method, str) or not method.strip():
         raise ValidationError("analysis specification requires method")
+    if method != method.strip():
+        raise ValidationError(
+            "analysis specification method must be canonical without surrounding whitespace"
+        )
+    analysis_id = value.get("analysis_id")
+    if analysis_id is not None and (
+        not isinstance(analysis_id, str)
+        or not analysis_id.strip()
+        or analysis_id != analysis_id.strip()
+    ):
+        raise ValidationError(
+            "analysis specification analysis_id must be canonical without surrounding whitespace"
+        )
     if "unit_column" in value and value["method"] not in {
         "independent_mean_difference_ci", "adjusted_linear_effect",
         "permutation_mean_difference",
