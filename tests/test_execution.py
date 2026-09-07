@@ -424,6 +424,17 @@ def run_command(protocol_id: str, status: QualityGateStatus, **overrides) -> Rec
 def test_passed_quality_gate_requires_output_bound_evidence_and_passed_prerequisites(tmp_path: Path) -> None:
     service, hypothesis_id = prepared_service(tmp_path)
     protocol = frozen_formal_protocol(service, hypothesis_id)
+    with pytest.raises(ValidationError, match="quality gate id must be canonical"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            quality_gates=[QualityGateResult(
+                " proof-check",
+                QualityGateStatus.PASSED,
+                "Padded gate handle",
+                details={"evidence_sha256": "c" * 64},
+            )],
+        ))
     with pytest.raises(ValidationError, match="evidence_sha256"):
         service.record_run(run_command(
             protocol.protocol_id, QualityGateStatus.PASSED,

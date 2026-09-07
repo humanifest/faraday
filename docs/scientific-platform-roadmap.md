@@ -70,6 +70,9 @@ whitespace, exist, and pass before the dependent gate may pass. This turns a pas
 summary into a hash-linked prerequisite receipt; it verifies local run linkage
 and disposition, not the scientific adequacy of the underlying test or the truth
 of its interpretation.
+Recorded quality-gate IDs now have the same canonical-handle requirement as
+their prerequisites and frozen protocol requirements; run intake rejects padded
+gate IDs instead of trimming them into a matching obligation.
 
 Run-deviation delivery: every automatically evidence-eligible run now requires
 an explicit `protocol_deviation_disclosure`. Silence is retained as

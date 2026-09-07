@@ -2077,7 +2077,7 @@ def validate_quality_gates(
     for gate in gates:
         if not isinstance(gate, QualityGateResult):
             raise ValidationError("quality_gates must contain QualityGateResult values")
-        gate_id = require_text(gate.gate_id, "quality gate id")
+        gate_id = require_canonical_text(gate.gate_id, "quality gate id")
         if gate_id in seen:
             raise ValidationError(f"duplicate quality gate id: {gate_id}")
         if not isinstance(gate.status, QualityGateStatus):

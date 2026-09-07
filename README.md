@@ -1040,6 +1040,9 @@ padded locators and media types before custody, dataset, run, or review
 receipts can be built. Custody record actors and retained verification
 identities follow the same rule, so cosmetic whitespace cannot split or obscure
 custody provenance.
+Run quality-gate IDs follow the same exact-handle rule: a recorded gate result
+with surrounding whitespace is rejected instead of being trimmed into a frozen
+required gate or prerequisite relation.
 At protocol freeze, required custody-gate IDs must also be canonical without
 surrounding whitespace before they become calibration and registration
 commitments. Calibration criterion IDs, calibration IDs, quantities, units, and
