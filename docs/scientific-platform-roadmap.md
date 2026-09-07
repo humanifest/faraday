@@ -600,12 +600,13 @@ protocol-registration workflow.
 Revision delivery: `design revise` accepts a revised brief, parent hypothesis,
 and reason; `design interview --revise-hypothesis` collects fresh answers and
 the reason interactively. Both create a new unreviewed, lineage-linked proposal
-through the canonical service. Its provenance retains the brief, scaffold audit,
-and inquiry-wide IDs of datasets, protocols, runs, and evidence registered before
-the revision. Earlier records and initial drafts are untouched. Cancellation
-before submission creates no revision. This is neither a frozen-protocol
-amendment nor proof of blinding; researcher exposure remains unknown. Review and
-evidence are not inherited.
+through the canonical service. Its provenance retains the exact canonical reason,
+brief, scaffold audit, and inquiry-wide IDs of datasets, protocols, runs, and
+evidence registered before the revision; padded reasons are rejected rather than
+trimmed into a different provenance record. Earlier records and initial drafts
+are untouched. Cancellation before submission creates no revision. This is
+neither a frozen-protocol amendment nor proof of blinding; researcher exposure
+remains unknown. Review and evidence are not inherited.
 Protocol amendments now require structured timing (`before_collection`,
 `during_collection`, `after_collection`, `after_analysis`, or `unknown`) and
 evidence exposure (`not_seen`, `aggregate_seen`, `full_data_seen`, or `unknown`).

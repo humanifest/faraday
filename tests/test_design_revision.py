@@ -97,13 +97,24 @@ def test_interactive_revision_and_cancellation(tmp_path, monkeypatch, capsys, ca
     assert service.verify_ledger()["valid"]
 
 
-@pytest.mark.parametrize("parent,reason", [("unknown", "Revision"), ("unknown", " ")])
-def test_invalid_revision_does_not_write(tmp_path, parent, reason):
+@pytest.mark.parametrize(
+    "parent,reason,match",
+    [
+        ("unknown", "Revision", None),
+        ("unknown", " ", None),
+        (None, " Padded revision reason ", "canonical"),
+    ],
+)
+def test_invalid_revision_does_not_write(tmp_path, parent, reason, match):
     service = make_service(tmp_path)
     service.init_workspace()
     service.create_inquiry(CreateInquiry(title="Fixture", initial_statement="Question"))
+    parent_id = service.propose_hypothesis(ProposeHypothesis(statement="Fixture")).hypothesis_id
+    if parent is None:
+        parent = parent_id
     before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
-    with pytest.raises(ValidationError):
+    expectation = pytest.raises(ValidationError, match=match) if match else pytest.raises(ValidationError)
+    with expectation:
         revise_design(service, {"title": "Fixture", "question": "Question", "decision": "Decision",
                       "outcome": "Score", "unit_of_observation": "unit"},
                       hypothesis_id=parent, reason=reason)

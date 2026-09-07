@@ -16,6 +16,8 @@ def revise_design(
 ) -> dict[str, Any]:
     if not isinstance(reason, str) or not reason.strip():
         raise ValidationError("a non-blank revision reason is required")
+    if reason != reason.strip():
+        raise ValidationError("revision reason must be canonical without surrounding whitespace")
     scaffold = scaffold_design(brief)
     proposal = scaffold["artifacts"]["hypothesis-proposal.json"]
     state = service.show_inquiry(inquiry_id)
@@ -38,7 +40,7 @@ def revise_design(
     # proposal. No second mutable draft store or inherited review decision.
     provenance = json.dumps({
         "record_type": "guided_design_revision", "version": 2,
-        "reason": reason.strip(), "brief": brief,
+        "reason": reason, "brief": brief,
         "scaffold": scaffold,
         "chronology": chronology,
     }, sort_keys=True, ensure_ascii=False, allow_nan=False)
