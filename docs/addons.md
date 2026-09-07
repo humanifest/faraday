@@ -362,8 +362,9 @@ Python code execution from that exact add-on, so never load an unreviewed path.
 Later, Python packages may publish an entry point in the
 `research_machine.addons` group. The loaded object (or zero-argument factory)
 must return `research_machine.addons.AddonManifest`. Identifiers are stable and
-globally unique; duplicate add-on, method, required-spec, media-type, or adapter
-configuration identifiers fail closed. Registry validation rejects padded method
+globally unique; duplicate add-on, method, capability, protocol-kind,
+dataset-media-type, required-spec, media-type, or adapter configuration
+identifiers fail closed. Registry validation rejects padded manifest, method,
 and adapter contract handles instead of normalizing them.
 
 An add-on should contain:

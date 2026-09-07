@@ -139,3 +139,19 @@ def test_general_addon_manifest_matches_published_schema():
     instrument_manifest["instrument_adapters"][0]["authority"] = "passes_quality_gates"
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instrument_manifest, schema)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("capabilities", ["csv-ingestion "]),
+        ("protocol_kinds", ["observational "]),
+        ("dataset_media_types", ["text/csv "]),
+    ],
+)
+def test_addon_manifest_schema_rejects_padded_metadata_handles(field, value):
+    schema = json.loads((SCHEMAS / "addon-manifest.schema.json").read_text())
+    manifest = MANIFEST.describe()
+    manifest[field] = value
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(manifest, schema)

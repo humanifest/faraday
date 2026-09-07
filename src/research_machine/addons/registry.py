@@ -92,8 +92,28 @@ class AddonRegistry:
     def _validate(manifest: AddonManifest) -> None:
         if not _IDENTIFIER.fullmatch(manifest.addon_id):
             raise ValidationError("add-on id must be a stable lowercase identifier")
-        if not manifest.name.strip() or not manifest.version.strip():
-            raise ValidationError("add-on name and version are required")
+        for field in ("name", "version", "discipline", "description"):
+            value = getattr(manifest, field)
+            if not isinstance(value, str) or not value.strip():
+                raise ValidationError(f"add-on {field} is required")
+        _canonical_values(
+            manifest.capabilities,
+            "add-on capabilities",
+            manifest.addon_id,
+            allow_empty=True,
+        )
+        _canonical_values(
+            manifest.protocol_kinds,
+            "add-on protocol_kinds",
+            manifest.addon_id,
+            allow_empty=True,
+        )
+        _canonical_values(
+            manifest.dataset_media_types,
+            "add-on dataset_media_types",
+            manifest.addon_id,
+            allow_empty=True,
+        )
         seen: set[str] = set()
         for method in manifest.methods:
             if not _IDENTIFIER.fullmatch(method.method_id):

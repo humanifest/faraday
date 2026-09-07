@@ -269,6 +269,63 @@ def test_registry_rejects_unknown_machine_readable_inference_ceiling() -> None:
 
 
 @pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("name", " ", "name"),
+        ("version", None, "version"),
+        ("discipline", "", "discipline"),
+        ("description", False, "description"),
+    ],
+)
+def test_registry_rejects_missing_manifest_metadata(field, value, message) -> None:
+    registry = AddonRegistry()
+    kwargs = {
+        "addon_id": "unsafe",
+        "name": "Unsafe",
+        "version": "1",
+        "discipline": "test",
+        "description": "Fixture",
+    }
+    kwargs[field] = value
+    with pytest.raises(ValidationError, match=message):
+        registry.register(AddonManifest(**kwargs))
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("capabilities", ("csv-ingestion ",), "capabilities"),
+        ("capabilities", ("csv-ingestion", "csv-ingestion"), "capabilities"),
+        ("protocol_kinds", ("observational ",), "protocol_kinds"),
+        ("protocol_kinds", ("observational", "observational"), "protocol_kinds"),
+        ("dataset_media_types", ("text/csv ",), "dataset_media_types"),
+        ("dataset_media_types", ("text/csv", "text/csv"), "dataset_media_types"),
+    ],
+)
+def test_registry_rejects_noncanonical_manifest_metadata_handles(
+    field, value, message
+) -> None:
+    registry = AddonRegistry()
+    kwargs = {
+        "capabilities": ("csv-ingestion",),
+        "protocol_kinds": ("observational",),
+        "dataset_media_types": ("text/csv",),
+    }
+    kwargs[field] = value
+    with pytest.raises(ValidationError, match=message):
+        registry.register(
+            AddonManifest(
+                "unsafe",
+                "Unsafe",
+                "1",
+                "test",
+                "Fixture",
+                **kwargs,
+            )
+        )
+
+
+@pytest.mark.parametrize(
     "required_fields",
     [("outcome_column ",), ("outcome_column", "outcome_column")],
 )

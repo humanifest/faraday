@@ -243,6 +243,9 @@ scientific capability declaration self-proving.
 Method manifest validation now rejects noncanonical or duplicate
 `required_spec_fields` before registration, so executable specification
 requirements cannot depend on whitespace-normalized handles.
+Add-on manifests now apply the same canonical duplicate-free validation to
+capabilities, protocol kinds, and dataset media types, and the published manifest
+schema rejects padded contract handles before they reach local loading.
 Instrument adapter manifest validation now also rejects noncanonical supported
 media types and required or optional configuration handles, duplicate entries,
 and required/optional overlap before an adapter can enter the registry. This
