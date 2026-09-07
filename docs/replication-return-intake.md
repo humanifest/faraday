@@ -24,7 +24,8 @@ The preflight performs these checks without writing canonical state:
 2. Every file's observed SHA-256 and optional byte count match the run record.
 3. Exactly one artifact matches the declared attestation locator and carries
    `artifact_role=independence_attestation`.
-4. The attestation-schema bytes match the supplied SHA-256 commitment.
+4. The attestation-schema commitment is a canonical lowercase SHA-256 digest,
+   and only then do the attestation-schema bytes have to match it.
 5. The schema uses only the machine's fail-closed Draft 2020-12 attestation
    profile, and the attestation satisfies every constraint in that schema.
 6. The attestation agrees with the run on executor identity, replicated run,

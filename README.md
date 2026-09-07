@@ -1173,7 +1173,9 @@ records the resulting hashes and quality gates through `research run record`.
 
 Independent-replication returns receive an additional fail-closed intake. The
 same local artifact root and pinned attestation schema must be supplied to both
-preflight and record commands; details and the supported schema profile are in
+preflight and record commands. Trusted attestation-schema hashes must already be
+canonical lowercase SHA-256 digests; malformed commitments reject before schema
+bytes are compared or used. Details and the supported schema profile are in
 [docs/replication-return-intake.md](docs/replication-return-intake.md).
 
 ## Quick start

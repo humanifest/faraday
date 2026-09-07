@@ -59,6 +59,14 @@ def _sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def _is_canonical_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def _reject_nonfinite_json(value: str) -> None:
     raise ValueError(f"non-finite JSON number: {value}")
 
@@ -492,6 +500,10 @@ def verify_run_artifacts(
     schema_matches: bool | None = None
     schema_valid: bool | None = None
     attestation_consistent: bool | None = None
+    schema_commitment_is_canonical = (
+        expected_attestation_schema_sha256 is not None
+        and _is_canonical_sha256(expected_attestation_schema_sha256)
+    )
 
     if artifact_root is None:
         findings.append(
@@ -544,39 +556,58 @@ def verify_run_artifacts(
                     "independent replication requires the expected schema SHA-256",
                 )
             )
+    if (
+        expected_attestation_schema_sha256 is not None
+        and not schema_commitment_is_canonical
+    ):
+        findings.append(
+            _finding(
+                "ATTESTATION_SCHEMA_COMMITMENT_MALFORMED",
+                "attestation schema commitment must be a lowercase SHA-256 digest",
+                expected_sha256=expected_attestation_schema_sha256,
+            )
+        )
     if attestation_schema_path is not None:
-        schema_path = Path(attestation_schema_path).expanduser().resolve()
-        try:
-            schema_content = schema_path.read_bytes()
-        except OSError as exc:
+        if expected_attestation_schema_sha256 is None:
             findings.append(
                 _finding(
-                    "ATTESTATION_SCHEMA_READ_FAILED",
-                    "attestation schema could not be read",
-                    error=str(exc),
+                    "ATTESTATION_SCHEMA_COMMITMENT_REQUIRED",
+                    "a schema commitment is required when a schema path is supplied",
                 )
             )
-        else:
-            schema_hash = _sha256_bytes(schema_content)
-            schema_matches = schema_hash == expected_attestation_schema_sha256
-            if not schema_matches:
+        elif schema_commitment_is_canonical:
+            schema_path = Path(attestation_schema_path).expanduser().resolve()
+            try:
+                schema_content = schema_path.read_bytes()
+            except OSError as exc:
                 findings.append(
                     _finding(
-                        "ATTESTATION_SCHEMA_HASH_MISMATCH",
-                        "attestation schema bytes do not match the expected SHA-256",
-                        expected_sha256=expected_attestation_schema_sha256,
-                        observed_sha256=schema_hash,
+                        "ATTESTATION_SCHEMA_READ_FAILED",
+                        "attestation schema could not be read",
+                        error=str(exc),
                     )
                 )
-            schema_value, schema_error = _load_json_object(
-                schema_content,
-                label="attestation schema",
-                code_prefix="ATTESTATION_SCHEMA",
-            )
-            if schema_error is not None:
-                findings.append(schema_error)
             else:
-                schema = schema_value
+                schema_hash = _sha256_bytes(schema_content)
+                schema_matches = schema_hash == expected_attestation_schema_sha256
+                if not schema_matches:
+                    findings.append(
+                        _finding(
+                            "ATTESTATION_SCHEMA_HASH_MISMATCH",
+                            "attestation schema bytes do not match the expected SHA-256",
+                            expected_sha256=expected_attestation_schema_sha256,
+                            observed_sha256=schema_hash,
+                        )
+                    )
+                schema_value, schema_error = _load_json_object(
+                    schema_content,
+                    label="attestation schema",
+                    code_prefix="ATTESTATION_SCHEMA",
+                )
+                if schema_error is not None:
+                    findings.append(schema_error)
+                else:
+                    schema = schema_value
     elif expected_attestation_schema_sha256 is not None and not attestation_required:
         findings.append(
             _finding(

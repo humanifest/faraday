@@ -224,6 +224,57 @@ def test_artifact_integrity_passes_hash_schema_and_record_cross_checks(
     assert report.findings == []
 
 
+@pytest.mark.parametrize("expected_schema_hash", ["A" * 64, "0" * 63, " " + "0" * 64])
+def test_artifact_integrity_rejects_malformed_attestation_schema_commitment(
+    tmp_path: Path, expected_schema_hash: str
+) -> None:
+    target_run_id, root, schema_path, artifacts = _artifact_fixture(tmp_path)
+
+    report = verify_run_artifacts(
+        artifacts,
+        artifact_root=str(root),
+        actor="independent-lab",
+        analysis_code_hash="d" * 64,
+        run_metadata=_metadata(target_run_id),
+        attestation_schema_path=str(schema_path),
+        expected_attestation_schema_sha256=expected_schema_hash,
+    )
+
+    assert report.status == "failed"
+    assert report.attestation_schema_sha256 is None
+    assert report.attestation_schema_matches_commitment is None
+    assert {
+        finding["code"]
+        for finding in report.findings
+    } >= {"ATTESTATION_SCHEMA_COMMITMENT_MALFORMED"}
+    assert "ATTESTATION_SCHEMA_HASH_MISMATCH" not in {
+        finding["code"]
+        for finding in report.findings
+    }
+
+
+def test_artifact_integrity_rejects_unpinned_schema_path_without_attestation(
+    tmp_path: Path,
+) -> None:
+    _, root, schema_path, artifacts = _artifact_fixture(tmp_path)
+
+    report = verify_run_artifacts(
+        artifacts[:1],
+        artifact_root=str(root),
+        actor="independent-lab",
+        analysis_code_hash="d" * 64,
+        run_metadata={},
+        attestation_schema_path=str(schema_path),
+        expected_attestation_schema_sha256=None,
+    )
+
+    assert report.status == "failed"
+    assert {
+        finding["code"]
+        for finding in report.findings
+    } == {"ATTESTATION_SCHEMA_COMMITMENT_REQUIRED"}
+
+
 @pytest.mark.parametrize(
     ("mutation", "expected_code"),
     [
@@ -422,6 +473,39 @@ def test_run_preflight_rejects_unverified_replication_without_writing(
     with pytest.raises(ValidationError, match="artifact integrity preflight failed"):
         service.record_run(command, "replication")
     assert service.verify_ledger("replication") == before
+
+
+def test_run_preflight_rejects_noncanonical_attestation_schema_hash(
+    tmp_path: Path,
+) -> None:
+    service, protocol_id = _replication_service(tmp_path)
+    target_run_id, root, schema_path, artifacts = _artifact_fixture(tmp_path)
+    command = RecordRun(
+        protocol_id=protocol_id,
+        started_at="2026-09-03T08:15:00Z",
+        completed_at="2026-09-03T08:16:00Z",
+        analysis_code_hash="d" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=artifacts,
+        quality_gates=[
+            QualityGateResult(
+                gate_id="replication-check",
+                status=QualityGateStatus.PASSED,
+                summary="The independent checks passed.",
+                details={"evidence_sha256": artifacts[0].sha256},
+            )
+        ],
+        metadata=_metadata(target_run_id),
+        artifact_root=str(root),
+        attestation_schema_path=str(schema_path),
+        expected_attestation_schema_sha256=_sha256(schema_path).upper(),
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="expected_attestation_schema_sha256 must be 64 lowercase hex characters",
+    ):
+        service.preflight_run(command, "replication")
 
 
 def test_cli_rechecks_artifact_bytes_when_recording(
