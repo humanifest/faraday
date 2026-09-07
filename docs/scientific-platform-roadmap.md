@@ -968,8 +968,9 @@ compatibility, impute missing values, or authorize pooling.
 Effect preparation requires canonical frozen plan source IDs, extraction source
 IDs, mapped study/source/claim IDs, citation anchors, reviewer text, derivation
 scope, reasons, evidence locations, and derivation prose before coverage and
-duplicate checks. Effect verification still normalizes study and source handles
-before coverage checks.
+duplicate checks. Effect verification also requires canonical effect reviewer,
+retained study IDs, source-summary study IDs, verification reviewer, checked
+locations, and rationales before coverage checks.
 `research literature derive-effects` provides a reproducible alternative for
 `mean_difference` and `log_risk_ratio`: it computes estimates and standard errors
 from source-reported experimental and comparator arm summaries under canonical

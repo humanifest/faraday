@@ -13,6 +13,13 @@ from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def create_effect_verification(effects_path: Path, expected_sha256: str,
                                review: dict[str, Any], output: Path) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_effects_sha256")
@@ -26,15 +33,15 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
     if (not isinstance(effects, dict) or effects.get("effect_records_version") != 1
             or effects.get("derivation_scope") != "recomputed_from_source_reported_arm_summaries"):
         raise ValidationError("effect verification requires reproducibly derived effect records")
-    effect_reviewer = _text(effects.get("reviewer"), "effect reviewer")
+    effect_reviewer = _canonical_text(effects.get("reviewer"), "effect reviewer")
     records = effects.get("records")
     if not isinstance(records, list) or not records:
         raise ValidationError("effect verification requires effect records")
     statuses = {}
     for item in records:
-        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or not item["study_id"].strip():
+        if not isinstance(item, dict):
             raise ValidationError("effect record is malformed")
-        study_id = item["study_id"].strip()
+        study_id = _canonical_text(item.get("study_id"), "effect record study_id")
         if study_id in statuses or item.get("status") not in {"available", "unavailable"}:
             raise ValidationError("effect record study IDs or statuses are invalid")
         statuses[study_id] = item["status"]
@@ -45,9 +52,10 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
     for item in summaries:
         if (not isinstance(item, dict) or not isinstance(item.get("study_id"), str)
                 or not item["study_id"].strip()
+                or item["study_id"] != item["study_id"].strip()
                 or item.get("status") not in {"available", "unavailable"}):
             raise ValidationError("retained source summaries contain invalid or duplicate study IDs")
-        study_id = item["study_id"].strip()
+        study_id = item["study_id"]
         if study_id in summary_statuses:
             raise ValidationError("retained source summaries contain invalid or duplicate study IDs")
         summary_statuses[study_id] = item["status"]
@@ -55,8 +63,8 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
         raise ValidationError("retained source summaries must exactly match effect studies and statuses")
     if not isinstance(review, dict) or set(review) != {"reviewer", "assessments"}:
         raise ValidationError("effect verification requires exactly reviewer and assessments")
-    reviewer = _text(review["reviewer"], "effect verification reviewer")
-    if reviewer.strip().casefold() == effect_reviewer.strip().casefold():
+    reviewer = _canonical_text(review["reviewer"], "effect verification reviewer")
+    if reviewer.casefold() == effect_reviewer.casefold():
         raise ValidationError("effect verification reviewer must differ from the effect reviewer")
     assessments = review["assessments"]
     if not isinstance(assessments, list):
@@ -66,7 +74,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
     for item in assessments:
         if not isinstance(item, dict) or set(item) != required:
             raise ValidationError("effect verification assessment fields do not match the documented contract")
-        study_id = _text(item["study_id"], "effect verification study_id").strip()
+        study_id = _canonical_text(item["study_id"], "effect verification study_id")
         if study_id not in statuses or study_id in by_study:
             raise ValidationError("effect verification study_id is unknown or duplicated")
         values_match, calculation_matches = item["source_values_match"], item["calculation_matches"]
@@ -77,8 +85,8 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
             raise ValidationError("unavailable effects require null transcription and calculation checks")
         by_study[study_id] = {"study_id": study_id, "effect_status": statuses[study_id],
             "source_values_match": values_match, "calculation_matches": calculation_matches,
-            "checked_location": _text(item["checked_location"], "effect checked_location").strip(),
-            "rationale": _text(item["rationale"], "effect verification rationale").strip()}
+            "checked_location": _canonical_text(item["checked_location"], "effect checked_location"),
+            "rationale": _canonical_text(item["rationale"], "effect verification rationale")}
     if set(by_study) != set(statuses):
         raise ValidationError("effect verification must cover exactly all effect records")
     mismatches = [item["study_id"] for item in by_study.values()
