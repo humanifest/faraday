@@ -325,12 +325,16 @@ def _unit_structure(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[st
     column = spec.get("pair_column") if design == "paired" else spec.get("unit_column")
     if not isinstance(column, str) or not column.strip():
         raise ValidationError("protocol-bound analysis requires a non-empty unit or pair column")
+    if column != column.strip():
+        raise ValidationError("protocol-bound analysis unit or pair column must be canonical without surrounding whitespace")
     if column not in rows[0]:
         raise ValidationError("analysis unit or pair column is absent from the CSV")
     counts: dict[str, int] = {}
     mapping = []
     allocation = []
     group_column = spec.get("group_column")
+    if isinstance(group_column, str) and group_column.strip() and group_column != group_column.strip():
+        raise ValidationError("protocol-bound analysis group_column must be canonical without surrounding whitespace")
     for row_number, row in enumerate(rows, start=2):
         value = row.get(column)
         if not isinstance(value, str) or not value.strip():

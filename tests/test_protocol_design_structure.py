@@ -1057,7 +1057,7 @@ def test_protocol_freeze_rejects_nested_scaffold_placeholder():
         validate_protocol_freeze(protocol)
 
 
-@pytest.mark.parametrize("failure", [None, "design", "implementation", "specification", "unpinned", "input", "size", "role", "unit", "wrong_unit_column", "duplicate_unit", "allocation", "information_minimum", "differential_exclusion", "value_domain", "contract_method", "contract_outcome", "contract_group", "contract_levels", "contract_covariates", "contract_missingness", "contract_estimand", "contract_contrast", "contract_hypothesis", "contract_measurement", "measurement_column", "measurement_scale", "measurement_unit", "measurement_domain", "measurement_bounds", "contract_selector", "duplicate_selectors", "missing_result_selector"])
+@pytest.mark.parametrize("failure", [None, "design", "implementation", "specification", "unpinned", "input", "size", "role", "unit", "wrong_unit_column", "noncanonical_unit_column", "noncanonical_group_column", "duplicate_unit", "allocation", "information_minimum", "differential_exclusion", "value_domain", "contract_method", "contract_outcome", "contract_group", "contract_levels", "contract_covariates", "contract_missingness", "contract_estimand", "contract_contrast", "contract_hypothesis", "contract_measurement", "measurement_column", "measurement_scale", "measurement_unit", "measurement_domain", "measurement_bounds", "contract_selector", "duplicate_selectors", "missing_result_selector"])
 @pytest.mark.parametrize("kind", [ProtocolKind.OBSERVATIONAL, ProtocolKind.EXPERIMENTAL])
 def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, failure, kind):
     from research_machine.addons.execution import _implementation_hash
@@ -1077,8 +1077,10 @@ def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, fai
     _, digest = _implementation_hash(independent_mean_difference_ci)
     specification = json.dumps({"method": "independent_mean_difference_ci",
         "study_design": "paired" if failure == "design" else "independent_groups",
-        "outcome_column": "outcome", "group_column": "group", "groups": ["a", "b"],
-        **({} if failure == "unit" else {"unit_column": "other_unit" if failure == "wrong_unit_column" else "unit"}),
+        "outcome_column": "outcome",
+        "group_column": " group " if failure == "noncanonical_group_column" else "group",
+        "groups": ["a", "b"],
+        **({} if failure == "unit" else {"unit_column": "other_unit" if failure == "wrong_unit_column" else " unit " if failure == "noncanonical_unit_column" else "unit"}),
         "seed": 1, "bootstrap_resamples": 1000, "missing_data_policy": "complete_case",
         "estimand": "Mean outcome difference, group a minus group b.",
         "contrast_definition": "group a minus group b",

@@ -59,8 +59,9 @@ unit, categorical domain or strictly ordered numeric validity bounds, and exact
 missing-value codes. Protocol-bound execution validates the actual CSV values
 against those commitments before analysis and records the check in its receipt.
 CSV headers must be canonical and case-insensitively unique before any method
-runs, so source data cannot expose ambiguous executable columns. The execution
-gate also independently rejects noncanonical measurement column names,
+runs, so source data cannot expose ambiguous executable columns. Unit, pair, and
+group column handles used to derive execution receipts must also be canonical.
+The execution gate independently rejects noncanonical measurement column names,
 case-insensitive duplicate value-domain entries, overlapping observed/missing
 codes, and invalid bounds. These checks prevent silent recoding, out-of-domain
 categories, out-of-range values, fractional counts, and unregistered missing
