@@ -240,6 +240,11 @@ tamper tests reject altered nested checks or inconsistent receipt/result levels.
 This binds capability metadata to the same implementation/specification/input
 chain; it does not authenticate third-party add-on authors or make their
 scientific capability declaration self-proving.
+Instrument adapter manifest validation now also rejects noncanonical supported
+media types and required or optional configuration handles, duplicate entries,
+and required/optional overlap before an adapter can enter the registry. This
+keeps acquisition inspectors from relying on whitespace-normalized configuration
+schemas while preserving their low-authority metadata-only role.
 Observational causal analysis now freezes an exact ordered adjustment-column
 list that must equal the DAG audit's proposed adjustment set. The analysis
 specification must execute that same ordered covariate list, and its group and

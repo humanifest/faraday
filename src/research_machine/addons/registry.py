@@ -18,6 +18,21 @@ from research_machine.domain.errors import NotFoundError, ValidationError
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 
 
+def _canonical_values(
+    values: tuple[str, ...], field: str, owner: str, *, allow_empty: bool = False
+) -> tuple[str, ...]:
+    if not values and not allow_empty:
+        raise ValidationError(f"{field} are required canonical non-blank strings: {owner}")
+    if any(
+        not isinstance(value, str) or not value.strip() or value != value.strip()
+        for value in values
+    ):
+        raise ValidationError(f"{field} are required canonical non-blank strings: {owner}")
+    if len(set(values)) != len(values):
+        raise ValidationError(f"{field} must not contain duplicates: {owner}")
+    return values
+
+
 class AddonRegistry:
     """Validated registry for bundled and installed scientific extensions."""
 
@@ -114,28 +129,24 @@ class AddonRegistry:
                 raise ValidationError(
                     f"instrument adapter metadata is incomplete: {adapter.adapter_id}"
                 )
-            if not adapter.supported_media_types or any(
-                not isinstance(value, str) or not value.strip()
-                for value in adapter.supported_media_types
-            ):
-                raise ValidationError(
-                    f"instrument adapter supported_media_types are required: {adapter.adapter_id}"
-                )
-            if len(set(adapter.required_config_fields)) != len(
-                adapter.required_config_fields
-            ) or any(
-                not isinstance(value, str) or not value.strip()
-                for value in adapter.required_config_fields
-            ):
-                raise ValidationError(
-                    f"instrument adapter required_config_fields are invalid: {adapter.adapter_id}"
-                )
-            if len(set(adapter.optional_config_fields)) != len(
-                adapter.optional_config_fields
-            ) or any(
-                not isinstance(value, str) or not value.strip()
-                for value in adapter.optional_config_fields
-            ) or set(adapter.optional_config_fields) & set(adapter.required_config_fields):
+            _canonical_values(
+                adapter.supported_media_types,
+                "instrument adapter supported_media_types",
+                adapter.adapter_id,
+            )
+            required_config_fields = _canonical_values(
+                adapter.required_config_fields,
+                "instrument adapter required_config_fields",
+                adapter.adapter_id,
+                allow_empty=True,
+            )
+            optional_config_fields = _canonical_values(
+                adapter.optional_config_fields,
+                "instrument adapter optional_config_fields",
+                adapter.adapter_id,
+                allow_empty=True,
+            )
+            if set(optional_config_fields) & set(required_config_fields):
                 raise ValidationError(
                     f"instrument adapter optional_config_fields are invalid: {adapter.adapter_id}"
                 )

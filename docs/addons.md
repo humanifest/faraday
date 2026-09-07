@@ -1,8 +1,10 @@
 # Scientific add-ons
 
 Add-ons may declare `InstrumentAdapter` inspectors with stable IDs, supported
-media types, and explicit required and optional configuration fields. The core
-rejects undeclared media types, passes an immutable source-byte snapshot and a committed configuration, then
+media types, and explicit required and optional configuration fields. Adapter
+media-type and configuration-field handles must be canonical without surrounding
+whitespace, duplicate-free, and split cleanly between required and optional
+fields. The core rejects undeclared media types, passes an immutable source-byte snapshot and a committed configuration, then
 accepts only bounded acquisition metadata. It independently hashes the source,
 binds the actual implementation-module bytes, rejects source/config/code mutation
 and unknown or non-JSON output, and publishes a write-once non-evidence inspection
@@ -357,7 +359,9 @@ Python code execution from that exact add-on, so never load an unreviewed path.
 Later, Python packages may publish an entry point in the
 `research_machine.addons` group. The loaded object (or zero-argument factory)
 must return `research_machine.addons.AddonManifest`. Identifiers are stable and
-globally unique; duplicate add-on or method identifiers fail closed.
+globally unique; duplicate add-on, method, media-type, or adapter configuration
+identifiers fail closed. Registry validation rejects padded adapter contract
+handles instead of normalizing them.
 
 An add-on should contain:
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from research_machine.addons.models import AddonManifest, AnalysisMethod
+from research_machine.addons.models import AddonManifest, AnalysisMethod, InstrumentAdapter
 from research_machine.addons.general_science import (
     descriptive_summary,
     independent_mean_difference_ci,
@@ -266,6 +266,62 @@ def test_registry_rejects_unknown_machine_readable_inference_ceiling() -> None:
         registry.register(
             AddonManifest("unsafe", "Unsafe", "1", "test", "Fixture", methods=(method,))
         )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("supported_media_types", ("application/json ",), "supported_media_types"),
+        ("supported_media_types", ("application/json", "application/json"), "supported_media_types"),
+        ("required_config_fields", ("device_id ",), "required_config_fields"),
+        ("required_config_fields", ("device_id", "device_id"), "required_config_fields"),
+        ("optional_config_fields", (" calibration_id",), "optional_config_fields"),
+        ("optional_config_fields", ("calibration_id", "calibration_id"), "optional_config_fields"),
+        ("overlap", (), "optional_config_fields"),
+    ],
+)
+def test_registry_rejects_noncanonical_instrument_adapter_contract_fields(
+    field, value, message
+) -> None:
+    registry = AddonRegistry()
+    adapter = InstrumentAdapter(
+        "fixture_adapter",
+        "Fixture adapter",
+        "Inspects synthetic fixture bytes.",
+        ("application/json",),
+        ("device_id",),
+        lambda source, config: {},
+        optional_config_fields=("calibration_id",),
+    )
+    if field == "overlap":
+        adapter = InstrumentAdapter(
+            adapter.adapter_id,
+            adapter.title,
+            adapter.description,
+            adapter.supported_media_types,
+            adapter.required_config_fields,
+            adapter.inspector,
+            optional_config_fields=("device_id",),
+        )
+    else:
+        adapter = InstrumentAdapter(
+            adapter.adapter_id,
+            adapter.title,
+            adapter.description,
+            value if field == "supported_media_types" else adapter.supported_media_types,
+            value if field == "required_config_fields" else adapter.required_config_fields,
+            adapter.inspector,
+            optional_config_fields=(
+                value if field == "optional_config_fields"
+                else adapter.optional_config_fields
+            ),
+        )
+
+    with pytest.raises(ValidationError, match=message):
+        registry.register(AddonManifest(
+            "adapter_fixture", "Adapter fixture", "1", "test", "Fixture",
+            instrument_adapters=(adapter,),
+        ))
 
 
 def test_cli_lists_addons_without_initializing_workspace(tmp_path: Path, capsys) -> None:
