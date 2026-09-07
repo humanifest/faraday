@@ -827,6 +827,10 @@ all preserved. Any non-independent or unclear pair forces `review_required`,
 preventing silent double counting. Registration IDs, populations, settings,
 recruitment periods, sample sizes, and cited locations support review but do not
 prove cohort independence or authorize synthesis.
+Bias assessment and reconciliation normalize study, source, registration, and
+relationship-pair handles before coverage and duplicate checks, so
+reviewer-entered whitespace cannot create separate provenance identities after
+citation review.
 `research literature evidence-map` verifies every hash link from extraction
 through citation review, bias assessment, and reconciled study identities before
 joining claims. It assigns deterministic, conservative interpretive ceilings

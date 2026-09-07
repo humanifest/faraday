@@ -56,17 +56,41 @@ def test_nonindependent_relationship_is_preserved_and_requires_review(tmp_path, 
     assert result["relationship_counts"][relationship] == 1
 
 
-@pytest.mark.parametrize("failure", ["hash", "same-reviewer", "missing-study", "source", "sample", "missing-pair", "duplicate-pair", "location"])
+def test_reconciliation_normalizes_study_source_and_registration_handles(tmp_path):
+    bias, digest = bias_file(tmp_path)
+    candidate = review()
+    candidate["studies"][0]["study_id"] = " study-1 "
+    candidate["studies"][0]["source_ids"] = [" s1 ", "s1-followup "]
+    candidate["studies"][0]["registration_ids"] = [" reg-1 "]
+    candidate["relationships"][0]["study_ids"] = [" study-2 ", "study-1 "]
+    result = create_study_reconciliation(bias, digest, candidate, tmp_path / "reconciliation")
+    assert result["studies"][0]["study_id"] == "study-1"
+    assert result["studies"][0]["source_ids"] == ["s1", "s1-followup"]
+    assert result["studies"][0]["registration_ids"] == ["reg-1"]
+    assert result["relationships"][0]["study_ids"] == ["study-1", "study-2"]
+
+
+@pytest.mark.parametrize("failure", ["hash", "same-reviewer", "missing-study", "duplicate-study", "source", "padded-source-duplicate", "registration-duplicate", "sample", "missing-pair", "duplicate-pair", "padded-duplicate-pair", "location"])
 def test_invalid_reconciliation_never_publishes(tmp_path, failure):
     bias, digest = bias_file(tmp_path)
     candidate = review()
     if failure == "hash": digest = "0" * 64
     elif failure == "same-reviewer": candidate["reviewer"] = " bias REVIEWER "
     elif failure == "missing-study": candidate["studies"].pop()
+    elif failure == "duplicate-study":
+        duplicate = dict(candidate["studies"][0])
+        duplicate["study_id"] = " study-1 "
+        candidate["studies"].append(duplicate)
     elif failure == "source": candidate["studies"][0]["source_ids"].pop()
+    elif failure == "padded-source-duplicate": candidate["studies"][0]["source_ids"] = ["s1", " s1 "]
+    elif failure == "registration-duplicate": candidate["studies"][0]["registration_ids"] = ["reg-1", " reg-1 "]
     elif failure == "sample": candidate["studies"][0]["sample_size"] = True
     elif failure == "missing-pair": candidate["relationships"] = []
     elif failure == "duplicate-pair": candidate["relationships"].append(dict(candidate["relationships"][0]))
+    elif failure == "padded-duplicate-pair":
+        duplicate = dict(candidate["relationships"][0])
+        duplicate["study_ids"] = [" study-1 ", "study-2 "]
+        candidate["relationships"].append(duplicate)
     elif failure == "location": candidate["relationships"][0]["evidence_locations"] = []
     output = tmp_path / "reconciliation"
     with pytest.raises(ValidationError):

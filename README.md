@@ -672,9 +672,12 @@ label. Extraction source, study, and claim IDs are normalized before coverage an
 duplicate checks, preventing whitespace-padded reports from becoming separate
 claims or study groupings. Citation verification applies the same normalized
 claim-ID coverage, so padded assessment IDs cannot create duplicate or missing
-independent reviews. This makes the review trail inspectable while still refusing
-to turn retrieved or reviewer-entered source claims into Faraday scientific
-evidence.
+independent reviews. Bias assessment and study-identity reconciliation also
+normalize study, source, registration, and relationship-pair handles before
+coverage checks, preventing reviewer-entered whitespace from splitting or merging
+provenance after citation review. This makes the review trail inspectable while
+still refusing to turn retrieved or reviewer-entered source claims into Faraday
+scientific evidence.
 
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim

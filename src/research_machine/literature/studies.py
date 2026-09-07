@@ -41,11 +41,14 @@ def create_study_reconciliation(
     for item in bias_assessments:
         if not isinstance(item, dict):
             raise ValidationError("bias study assessment must be an object")
-        study_id = _text(item.get("study_id"), "bias study_id")
+        study_id = _text(item.get("study_id"), "bias study_id").strip()
         source_ids = item.get("source_ids")
         if (not isinstance(source_ids, list) or not source_ids
                 or any(not isinstance(source, str) or not source.strip() for source in source_ids)):
             raise ValidationError("bias study source_ids must be non-empty text")
+        source_ids = [source.strip() for source in source_ids]
+        if len(source_ids) != len(set(source_ids)):
+            raise ValidationError("bias study source_ids must be unique after normalization")
         if study_id in studies:
             raise ValidationError("bias assessment contains duplicate study_id")
         studies[study_id] = sorted(source_ids)
@@ -66,18 +69,23 @@ def create_study_reconciliation(
     for item in metadata:
         if not isinstance(item, dict) or set(item) != required_study:
             raise ValidationError("reconciled study metadata fields do not match the documented contract")
-        study_id = _text(item["study_id"], "reconciled study_id")
+        study_id = _text(item["study_id"], "reconciled study_id").strip()
         if study_id not in studies or study_id in by_study:
             raise ValidationError("reconciled study_id is unknown or duplicated")
         source_ids = item["source_ids"]
-        if (not isinstance(source_ids, list) or len(source_ids) != len(set(source_ids))
+        if (not isinstance(source_ids, list)
+                or any(not isinstance(source, str) or not source.strip() for source in source_ids)):
+            raise ValidationError("reconciled source_ids must exactly match the bias assessment")
+        source_ids = [source.strip() for source in source_ids]
+        if (len(source_ids) != len(set(source_ids))
                 or set(source_ids) != set(studies[study_id])):
             raise ValidationError("reconciled source_ids must exactly match the bias assessment")
         registration_ids = item["registration_ids"]
         if (not isinstance(registration_ids, list)
                 or any(not isinstance(value, str) or not value.strip() for value in registration_ids)
-                or len(registration_ids) != len(set(registration_ids))):
+                or len({value.strip() for value in registration_ids}) != len(registration_ids)):
             raise ValidationError("registration_ids must be unique non-empty text")
+        registration_ids = [value.strip() for value in registration_ids]
         sample_size = item["sample_size"]
         if isinstance(sample_size, bool) or not isinstance(sample_size, int) or sample_size <= 0:
             raise ValidationError("study sample_size must be a positive integer")
@@ -104,7 +112,10 @@ def create_study_reconciliation(
             raise ValidationError("study relationship fields do not match the documented contract")
         pair = item["study_ids"]
         if (not isinstance(pair, list) or len(pair) != 2
-                or any(value not in studies for value in pair) or pair[0] == pair[1]):
+                or any(not isinstance(value, str) or not value.strip() for value in pair)):
+            raise ValidationError("study_ids must name two distinct assessed studies")
+        pair = [value.strip() for value in pair]
+        if (any(value not in studies for value in pair) or pair[0] == pair[1]):
             raise ValidationError("study_ids must name two distinct assessed studies")
         key = tuple(sorted(pair))
         if key in by_pair:
@@ -116,6 +127,7 @@ def create_study_reconciliation(
         if (not isinstance(locations, list) or not locations
                 or any(not isinstance(value, str) or not value.strip() for value in locations)):
             raise ValidationError("study relationships require evidence_locations")
+        locations = [value.strip() for value in locations]
         by_pair[key] = {
             "study_ids": list(key), "relationship": relationship,
             "rationale": _text(item["rationale"], "relationship rationale").strip(),

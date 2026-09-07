@@ -65,8 +65,8 @@ def create_bias_assessment(
     for claim in claims:
         if not isinstance(claim, dict):
             raise ValidationError("citation assessment must be an object")
-        study_id = _text(claim.get("study_id"), "citation study_id")
-        source_id = _text(claim.get("source_id"), "citation source_id")
+        study_id = _text(claim.get("study_id"), "citation study_id").strip()
+        source_id = _text(claim.get("source_id"), "citation source_id").strip()
         studies.setdefault(study_id, set()).add(source_id)
 
     if not isinstance(review, dict) or set(review) != {"reviewer", "assessments"}:
@@ -84,7 +84,7 @@ def create_bias_assessment(
             "study_id", "study_design", "source_ids", "domains", "notes"
         }:
             raise ValidationError("each bias assessment requires study_id, study_design, source_ids, domains, and notes")
-        study_id = _text(assessment["study_id"], "bias study_id")
+        study_id = _text(assessment["study_id"], "bias study_id").strip()
         if study_id not in studies:
             raise ValidationError("bias assessment references an unknown study_id")
         if study_id in by_study:
@@ -92,9 +92,10 @@ def create_bias_assessment(
         source_ids = assessment["source_ids"]
         if (not isinstance(source_ids, list)
                 or any(not isinstance(item, str) or not item.strip() for item in source_ids)
-                or len(source_ids) != len(set(source_ids))
-                or set(source_ids) != studies[study_id]):
+                or len({item.strip() for item in source_ids}) != len(source_ids)
+                or {item.strip() for item in source_ids} != studies[study_id]):
             raise ValidationError("bias source_ids must exactly cover citation-reviewed sources for the study")
+        source_ids = [item.strip() for item in source_ids]
         domains = assessment["domains"]
         if not isinstance(domains, list):
             raise ValidationError("bias domains must be an array")
@@ -115,6 +116,7 @@ def create_bias_assessment(
                     or any(not isinstance(item, str) or not item.strip() for item in locations)
                     or (judgment != "not_applicable" and not locations)):
                 raise ValidationError("applicable bias domains require non-empty evidence_locations")
+            locations = [item.strip() for item in locations]
             by_domain[name] = {
                 "domain": name, "judgment": judgment,
                 "rationale": _text(domain["rationale"], "bias rationale").strip(),
