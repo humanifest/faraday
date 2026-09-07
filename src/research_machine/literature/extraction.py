@@ -9,6 +9,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 _LAYERS = {"observed", "derived", "model-dependent", "inferred", "hypothesized", "speculative"}
@@ -17,6 +18,7 @@ _DIRECTIONS = {"supports", "weakens", "mixed", "null", "not_applicable"}
 
 def create_extraction(screening_path: Path, expected_sha256: str,
                       review: dict[str, Any], output: Path) -> dict[str, Any]:
+    expected_sha256 = require_sha256(expected_sha256, "expected_screening_sha256")
     try:
         content = screening_path.read_bytes()
         screening = json.loads(content)

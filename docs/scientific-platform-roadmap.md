@@ -855,7 +855,9 @@ screening decision or criterion citation.
 `research literature extract --screening-file <screening>
 --expected-screening-sha256 <hash> --review-file <review>
 --output <new-directory>` creates a separate write-once extraction record for
-every included source. Each extracted claim must identify its source, reviewer-
+every included source. The expected screening hash must use the same canonical
+lowercase SHA-256 form before it can pin the screening bytes. Each extracted
+claim must identify its source, reviewer-
 declared study, exact evidence location, epistemic layer, result direction, and
 uncertainty; included sources with no extractable claim remain explicit. The
 screening bytes are hash-pinned and excluded sources cannot enter extraction.
@@ -910,7 +912,8 @@ creating apparent new claims or studies.
 outcome, qualitative or quantitative mode, effect measure, contrast definition, statistical model,
 minimum independent-study count, eligibility, missing-statistics, heterogeneity,
 multiplicity, subgroup, sensitivity, conclusion, and deviation policies against
-the completed screening hash. It belongs before extraction. The artifact records
+the completed screening hash. It also requires a canonical lowercase SHA-256
+screening hash before binding the plan to those bytes. It belongs before extraction. The artifact records
 commitments but cannot prove external chronology or that the chosen methods are
 appropriate; later synthesis must verify this plan and declare every departure.
 `research literature synthesize` now executes the frozen qualitative branch. It

@@ -707,7 +707,9 @@ verification, and bias assessment. Screening source IDs and criterion references
 are normalized before coverage and duplicate checks, so whitespace padding
 cannot create a second apparent screening decision or criterion citation. The
 trusted snapshot hash supplied to screening must be a canonical lowercase
-SHA-256 digest before it can pin the source bytes.
+SHA-256 digest before it can pin the source bytes. Downstream extraction and
+synthesis-planning commands apply the same canonical hash contract when they
+pin a screening record.
 
 Downstream literature evidence maps retain the extraction location, independent
 citation-review location and rationale, and study-level bias-domain judgments

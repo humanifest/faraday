@@ -7,21 +7,12 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 
-def _require_sha256(value: Any, field: str) -> str:
-    if (
-        not isinstance(value, str)
-        or len(value) != 64
-        or any(character not in "0123456789abcdef" for character in value)
-    ):
-        raise ValidationError(f"{field} must be a lowercase SHA-256 digest")
-    return value
-
-
 def create_screening(snapshot_path: Path, expected_sha256: str, review: dict[str, Any], output: Path) -> dict[str, Any]:
-    expected_sha256 = _require_sha256(expected_sha256, "expected_snapshot_sha256")
+    expected_sha256 = require_sha256(expected_sha256, "expected_snapshot_sha256")
     content = snapshot_path.read_bytes()
     if hashlib.sha256(content).hexdigest() != expected_sha256:
         raise ValidationError("screening snapshot does not match the expected SHA-256")

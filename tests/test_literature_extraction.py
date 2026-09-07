@@ -96,3 +96,12 @@ def test_invalid_extraction_never_publishes(tmp_path, failure):
     with pytest.raises(ValidationError):
         create_extraction(screening, digest, review, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("expected", [" 0123", "A" * 64, "g" * 64, "0" * 63, "0" * 65])
+def test_extraction_rejects_malformed_expected_screening_hash(tmp_path, expected):
+    screening, _ = prepared_screening(tmp_path)
+    output = tmp_path / "extraction"
+    with pytest.raises(ValidationError, match="expected_screening_sha256 must be a lowercase SHA-256 digest"):
+        create_extraction(screening, expected, extraction_review(), output)
+    assert not output.exists()

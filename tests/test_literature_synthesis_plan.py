@@ -75,3 +75,12 @@ def test_invalid_synthesis_plan_never_publishes(tmp_path, failure):
     with pytest.raises(ValidationError):
         create_synthesis_plan(screening, digest, candidate, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("expected", [" 0123", "A" * 64, "g" * 64, "0" * 63, "0" * 65])
+def test_synthesis_plan_rejects_malformed_expected_screening_hash(tmp_path, expected):
+    screening, _ = screening_file(tmp_path)
+    output = tmp_path / "plan"
+    with pytest.raises(ValidationError, match="expected_screening_sha256 must be a lowercase SHA-256 digest"):
+        create_synthesis_plan(screening, expected, spec(), output)
+    assert not output.exists()
