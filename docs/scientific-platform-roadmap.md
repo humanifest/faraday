@@ -243,6 +243,9 @@ scientific capability declaration self-proving.
 Method manifest validation now rejects noncanonical or duplicate
 `required_spec_fields` before registration, so executable specification
 requirements cannot depend on whitespace-normalized handles.
+Those method requirements must also come from the shared analysis specification
+vocabulary used by execution, preventing an add-on from registering a method
+whose required input could never pass the executor's unknown-field gate.
 Add-on manifests now apply the same canonical duplicate-free validation to
 capabilities, protocol kinds, and dataset media types, and the published manifest
 schema rejects padded contract handles before they reach local loading.

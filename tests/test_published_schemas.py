@@ -118,6 +118,13 @@ def test_identity_checked_analysis_matches_published_schema():
         jsonschema.validate({**command, "unit_column": " "}, schema)
 
 
+def test_analysis_schema_fields_match_shared_execution_contract():
+    from research_machine.addons.contracts import ANALYSIS_SPEC_FIELDS
+
+    schema = json.loads((SCHEMAS / "general-analysis.schema.json").read_text())
+    assert set(schema["properties"]) == set(ANALYSIS_SPEC_FIELDS)
+
+
 def test_general_addon_manifest_matches_published_schema():
     from research_machine.addons.models import AddonManifest, InstrumentAdapter
 

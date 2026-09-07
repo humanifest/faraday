@@ -342,6 +342,17 @@ def test_registry_rejects_noncanonical_method_required_spec_fields(
         )
 
 
+def test_registry_rejects_required_spec_fields_unknown_to_execution() -> None:
+    registry = AddonRegistry()
+    method = AnalysisMethod(
+        "unsafe", "Unsafe", "Fixture", ("domain_specific_threshold",), lambda spec, rows: {},
+    )
+    with pytest.raises(ValidationError, match="not supported analysis specification fields"):
+        registry.register(
+            AddonManifest("unsafe", "Unsafe", "1", "test", "Fixture", methods=(method,))
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [

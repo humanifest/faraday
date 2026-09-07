@@ -24,7 +24,10 @@ add-on manifest schema requires the same field. An add-on cannot enter the
 execution registry with an omitted conclusion bound.
 Declared `required_spec_fields` are exact executable handles: empty tuples are
 allowed for methods with no required inputs, but any supplied field must be
-canonical without surrounding whitespace and duplicate-free.
+canonical without surrounding whitespace, duplicate-free, and part of Faraday's
+published analysis specification vocabulary. Add-ons that need a new executable
+field must extend that shared contract deliberately instead of declaring a
+method requirement the executor cannot accept.
 Methods also declare a typed `maximum_inference_level`: `computation_only`,
 `descriptive`, `association`, or `design_conditional_effect`. This value is
 included in the result and receipt. During protocol-bound execution the resolved

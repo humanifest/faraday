@@ -15,38 +15,9 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import Any
 
+from research_machine.addons.contracts import ANALYSIS_SPEC_FIELDS
 from research_machine.addons.registry import AddonRegistry
 from research_machine.domain.errors import ValidationError
-
-_SPEC_FIELDS = {
-    "method",
-    "analysis_id",
-    "columns",
-    "x_column",
-    "y_column",
-    "outcome_column",
-    "group_column",
-    "groups",
-    "permutations",
-    "seed",
-    "study_design",
-    "pair_column",
-    "unit_column",
-    "covariate_columns",
-    "bootstrap_resamples",
-    "confidence_level",
-    "missing_data_policy",
-    "purpose",
-    "estimand",
-    "contrast_definition",
-    "claim_ceiling",
-    "parameters",
-    "hypothesis_column",
-    "p_value_column",
-    "family_name",
-    "family_hypothesis_ids",
-    "alpha",
-}
 
 _MEASUREMENT_SCALE_TYPES = {"binary", "nominal", "ordinal", "interval", "ratio", "count"}
 _CATEGORICAL_SCALE_TYPES = {"binary", "nominal", "ordinal"}
@@ -281,7 +252,7 @@ def _read_spec(path: Path) -> tuple[dict[str, Any], str]:
         raise ValidationError(f"invalid analysis specification: {exc}") from exc
     if not isinstance(value, dict):
         raise ValidationError("analysis specification must be a JSON object")
-    unknown = sorted(set(value) - _SPEC_FIELDS)
+    unknown = sorted(set(value) - ANALYSIS_SPEC_FIELDS)
     if unknown:
         raise ValidationError("unknown analysis specification fields: " + ", ".join(unknown))
     if not isinstance(value.get("method"), str):

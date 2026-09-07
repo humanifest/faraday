@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from importlib.metadata import entry_points
 from pathlib import Path
 
+from research_machine.addons.contracts import ANALYSIS_SPEC_FIELDS
 from research_machine.addons.models import (
     AddonManifest,
     AnalysisMethod,
@@ -130,6 +131,13 @@ class AddonRegistry:
                 method.method_id,
                 allow_empty=True,
             )
+            unsupported = sorted(set(method.required_spec_fields) - ANALYSIS_SPEC_FIELDS)
+            if unsupported:
+                raise ValidationError(
+                    "method required_spec_fields are not supported analysis "
+                    f"specification fields: {method.method_id}: "
+                    + ", ".join(unsupported)
+                )
             if (not isinstance(method.maximum_claim_ceiling, str)
                     or not method.maximum_claim_ceiling.strip()):
                 raise ValidationError(
