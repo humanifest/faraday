@@ -305,8 +305,11 @@ def _read_csv(content: bytes) -> list[dict[str, str]]:
             reader = csv.DictReader(handle)
             if not reader.fieldnames or any(not name for name in reader.fieldnames):
                 raise ValidationError("CSV requires a non-empty header with named columns")
-            if len(set(reader.fieldnames)) != len(reader.fieldnames):
-                raise ValidationError("CSV header contains duplicate columns")
+            if any(name != name.strip() for name in reader.fieldnames):
+                raise ValidationError("CSV header names must be canonical without surrounding whitespace")
+            normalized = [name.casefold() for name in reader.fieldnames]
+            if len(set(normalized)) != len(normalized):
+                raise ValidationError("CSV header contains duplicate columns after case-insensitive normalization")
             rows = list(reader)
     except UnicodeDecodeError as exc:
         raise ValidationError("CSV must be UTF-8") from exc

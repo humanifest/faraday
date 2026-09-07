@@ -555,6 +555,30 @@ def test_analysis_refuses_overwrite_and_undeclared_claim_ceiling(
     assert (output / "preserved.txt").read_text() == "keep"
 
 
+@pytest.mark.parametrize(
+    ("header", "message"),
+    [
+        (" x \n1\n2\n", "canonical"),
+        ("x,X\n1,2\n3,4\n", "case-insensitive"),
+    ],
+)
+def test_analysis_rejects_ambiguous_csv_headers(tmp_path: Path, capsys, header, message) -> None:
+    data = tmp_path / "observations.csv"
+    data.write_text(header)
+    spec = tmp_path / "analysis.json"
+    spec.write_text(json.dumps({
+        "method": "descriptive_summary",
+        "columns": ["x"],
+        "claim_ceiling": "Synthetic header fixture only.",
+    }))
+
+    assert main([
+        "--json", "analysis", "run", "--spec-file", str(spec),
+        "--data-file", str(data), "--output", str(tmp_path / "output"),
+    ]) == 2
+    assert message in json.loads(capsys.readouterr().err)["error"]["message"]
+
+
 def test_researcher_claim_cannot_widen_method_ceiling(tmp_path, capsys):
     data = tmp_path / "synthetic.csv"
     data.write_text("x\n1\n2\n")

@@ -57,11 +57,12 @@ the truth of source observations.
 Executable measurement definitions now freeze the data column's scale type,
 unit, categorical domain or strictly ordered numeric validity bounds, and exact
 missing-value codes. Protocol-bound execution validates the actual CSV values
-against those
-commitments before analysis and records the check in its receipt. This prevents
-silent recoding, out-of-domain categories, out-of-range values, fractional
-counts, and unregistered missing encodings; it does not prove measurement
-validity or calibration.
+against those commitments before analysis and records the check in its receipt.
+CSV headers must be canonical and case-insensitively unique before any method
+runs, so source data cannot expose ambiguous executable columns. These checks
+prevent silent recoding, out-of-domain categories, out-of-range values,
+fractional counts, and unregistered missing encodings; they do not prove
+measurement validity or calibration.
 
 `./research --workspace PATH analysis run-draft --execution-directory OUTPUT
 --expected-receipt-sha256 TRUSTED_HASH` returns a review-only run draft from a

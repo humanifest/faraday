@@ -17,7 +17,8 @@ methods without changing its epistemic rules or canonical state.
 - Cross-disciplinary CSV summaries, correlation, and seeded permutation testing;
   summary, correlation, two-group estimators, adjusted models, and missingness
   methods normalize requested column or comparison handles before duplicate or
-  distinct-handle checks and result construction.
+  distinct-handle checks and result construction, and CSV headers are canonical
+  and case-insensitively unique before any method runs.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit
