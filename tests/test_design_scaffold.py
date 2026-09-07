@@ -882,6 +882,18 @@ def test_scaffold_carries_reviewable_information_and_attrition_thresholds():
     assert dictionary["maximum_group_excluded_fraction_difference"] == 0.05
     assert dictionary["missingness_assessment"]["missingness_assessment_gate_id"] == "missingness-assessed"
     assert "missingness-assessed" in planned["artifacts"]["protocol-draft.json"]["quality_requirements"]
+    padded = scaffold_design({**brief, "minimum_analyzable_units": 20,
+                               "maximum_excluded_fraction": 0.1,
+                               "maximum_group_excluded_fraction_difference": 0.05,
+                               "missingness_assumption": " Unavailable outcomes do not materially distort the contrast.",
+                               "missingness_assessment_plan": "Inspect total and group-specific patterns.",
+                               "missingness_failure_response": "Stop primary interpretation.",
+                               "missingness_assessment_kind": "empirical_diagnostic",
+                               "missingness_assessment_gate_id": "missingness-assessed "})
+    assert "MISSINGNESS_ASSESSMENT_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
+    assert padded["status"] == "blocked"
 
 
 @pytest.mark.parametrize("study_type", ["causal", "correlational", "exploratory", "descriptive"])

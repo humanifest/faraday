@@ -705,7 +705,10 @@ identities.
 The provider-free design interview and scaffold elicit the same minimum count,
 maximum total exclusion fraction, and maximum between-group exclusion-rate
 difference, as well as the full missingness-assessment contract. Missing answers
-remain explicit audit warnings;
+remain explicit audit warnings; supplied missingness assumptions, assessment
+plans, failure responses, kind labels, and gate IDs with surrounding whitespace
+now receive a blocking guided finding before the draft protocol can treat them
+as quality requirements.
 supplied numeric thresholds are carried into the reviewable data-dictionary
 draft for later analysis-contract freeze and are never selected automatically
 from a desired result.

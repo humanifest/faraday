@@ -206,6 +206,8 @@ The same contract must state the missingness assumption that would make the
 complete-case analysis interpretable, how it will be assessed, whether that
 assessment is an empirical diagnostic, design-record review, external validation,
 or substantive judgment, what happens if it fails, and a dedicated required gate.
+Guided review rejects surrounding whitespace in those missingness-assessment
+fields before the gate can populate a draft protocol.
 The bundled descriptive summary, Pearson correlation, two-group estimators,
 adjusted model, and missingness report require canonical requested column,
 comparison, covariate, unit, pair, and family handles before duplicate or

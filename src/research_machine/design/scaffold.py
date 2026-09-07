@@ -1038,6 +1038,15 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "The complete-case analysis has no complete prospective missingness assessment contract.",
             "State the missingness assumption, assessment plan and kind, failure response, and a dedicated required gate before freezing analysis.",
         )
+    elif any(
+        brief[field] != brief[field].strip()
+        for field in missingness_fields
+    ):
+        add(
+            "MISSINGNESS_ASSESSMENT_NONCANONICAL", "error",
+            "The missingness assessment contract contains text or a gate handle with surrounding whitespace.",
+            "Use exact unpadded missingness assumptions, assessment plans, failure responses, kind labels, and gate IDs before review.",
+        )
     if "human_participants" not in brief:
         add("HUMAN_SCOPE_UNRESOLVED", "error", "It is unknown whether this study involves people or data about people.", "Explicitly assess human-participant and human-data involvement; an omitted answer is not clearance.")
     if brief.get("human_participants"):
