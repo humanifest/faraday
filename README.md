@@ -1152,7 +1152,10 @@ generated or replayed.
   optional archival check. Runs without a passed local artifact verification may
   be recorded for audit but remain evidence-ineligible. Faraday retains the run
   artifact root and replays the exact receipt before evidence admission,
-  inquiry display, rigor audit, and synthesis. Evidence records preserve the
+  inquiry display, rigor audit, and synthesis. Retained run artifact roots and
+  attestation-schema paths must be canonical unpadded text, and schema hash
+  commitments must be canonical lowercase SHA-256 digests, before receipts can
+  be generated or replayed. Evidence records preserve the
   admission-time protocol, dataset, output, and ethics checks without claiming
   that these checks validate scientific interpretation. The receipt also
   commits every immutable evidence field, so later changes to direction, scope,

@@ -6,7 +6,7 @@ import hashlib
 import json
 
 from research_machine.application.artifact_integrity import verify_run_artifacts
-from research_machine.application.policies import require_sha256, require_text
+from research_machine.application.policies import require_canonical_text, require_sha256
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import ResearchRun
 
@@ -40,10 +40,14 @@ def reverify_run_artifacts(run: ResearchRun) -> dict[str, object]:
         raise ValidationError(
             f"run {run.run_id} lacks passed service-generated artifact integrity"
         )
-    root = require_text(run.metadata.get("run_artifact_root"), "run artifact root")
+    root = require_canonical_text(
+        run.metadata.get("run_artifact_root"), "run artifact root"
+    )
     schema_path = run.metadata.get("run_attestation_schema_path")
     if schema_path is not None:
-        schema_path = require_text(schema_path, "run attestation schema path")
+        schema_path = require_canonical_text(
+            schema_path, "run attestation schema path"
+        )
     schema_sha256 = run.metadata.get("expected_attestation_schema_sha256")
     if schema_sha256 is not None:
         schema_sha256 = require_sha256(

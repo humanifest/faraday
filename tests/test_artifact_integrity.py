@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from research_machine.application.commands import (
     ProposeHypothesis,
     RecordRun,
 )
+from research_machine.application.run_integrity import reverify_run_artifacts
 from research_machine.application.json_schema_profile import (
     AttestationSchemaProfileError,
     validate_attestation_schema,
@@ -506,6 +508,95 @@ def test_run_preflight_rejects_noncanonical_attestation_schema_hash(
         match="expected_attestation_schema_sha256 must be 64 lowercase hex characters",
     ):
         service.preflight_run(command, "replication")
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("artifact_root", "{root} ", "artifact_root must be canonical"),
+        (
+            "attestation_schema_path",
+            "{schema} ",
+            "attestation_schema_path must be canonical",
+        ),
+    ],
+)
+def test_run_artifact_receipt_paths_must_be_canonical_at_intake(
+    tmp_path: Path, field: str, value: str, message: str
+) -> None:
+    service, protocol_id = _replication_service(tmp_path)
+    target_run_id, root, schema_path, artifacts = _artifact_fixture(tmp_path)
+    if value == "{root} ":
+        value = f"{root} "
+    elif value == "{schema} ":
+        value = f"{schema_path} "
+    command = RecordRun(
+        protocol_id=protocol_id,
+        started_at="2026-09-03T08:15:00Z",
+        completed_at="2026-09-03T08:16:00Z",
+        analysis_code_hash="d" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=artifacts,
+        quality_gates=[
+            QualityGateResult(
+                gate_id="replication-check",
+                status=QualityGateStatus.PASSED,
+                summary="The independent checks passed.",
+                details={"evidence_sha256": artifacts[0].sha256},
+            )
+        ],
+        metadata=_metadata(target_run_id),
+        artifact_root=str(root),
+        attestation_schema_path=str(schema_path),
+        expected_attestation_schema_sha256=_sha256(schema_path),
+    )
+
+    with pytest.raises(ValidationError, match=message):
+        service.preflight_run(replace(command, **{field: value}), "replication")
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        ("run_artifact_root", "run artifact root must be canonical"),
+        ("run_attestation_schema_path", "run attestation schema path must be canonical"),
+    ],
+)
+def test_run_artifact_replay_rejects_padded_retained_paths(
+    tmp_path: Path, field: str, message: str
+) -> None:
+    service, protocol_id = _replication_service(tmp_path)
+    target_run_id, root, schema_path, artifacts = _artifact_fixture(tmp_path)
+    run = service.record_run(
+        RecordRun(
+            protocol_id=protocol_id,
+            started_at="2026-09-03T08:15:00Z",
+            completed_at="2026-09-03T08:16:00Z",
+            analysis_code_hash="d" * 64,
+            environment_hash="e" * 64,
+            output_artifacts=artifacts,
+            quality_gates=[
+                QualityGateResult(
+                    gate_id="replication-check",
+                    status=QualityGateStatus.PASSED,
+                    summary="The independent checks passed.",
+                    details={"evidence_sha256": artifacts[0].sha256},
+                )
+            ],
+            metadata=_metadata(target_run_id),
+            artifact_root=str(root),
+            attestation_schema_path=str(schema_path),
+            expected_attestation_schema_sha256=_sha256(schema_path),
+        ),
+        "replication",
+    )
+    tampered = replace(
+        run,
+        metadata={**run.metadata, field: f" {run.metadata[field]} "},
+    )
+
+    with pytest.raises(ValidationError, match=message):
+        reverify_run_artifacts(tampered)
 
 
 def test_cli_rechecks_artifact_bytes_when_recording(

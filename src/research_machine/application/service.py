@@ -2386,11 +2386,23 @@ class ResearchService:
             if command.expected_attestation_schema_sha256 is not None
             else None
         )
+        artifact_root = (
+            require_canonical_text(command.artifact_root, "artifact_root")
+            if command.artifact_root is not None
+            else None
+        )
+        attestation_schema_path = (
+            require_canonical_text(
+                command.attestation_schema_path, "attestation_schema_path"
+            )
+            if command.attestation_schema_path is not None
+            else None
+        )
         verify_artifacts = any(
             value is not None
             for value in (
-                command.artifact_root,
-                command.attestation_schema_path,
+                artifact_root,
+                attestation_schema_path,
                 expected_attestation_schema_sha256,
             )
         ) or isinstance(
@@ -2399,11 +2411,11 @@ class ResearchService:
         artifact_integrity = (
             verify_run_artifacts(
                 outputs,
-                artifact_root=command.artifact_root,
+                artifact_root=artifact_root,
                 actor=self.actor,
                 analysis_code_hash=analysis_code_hash,
                 run_metadata=command.metadata,
-                attestation_schema_path=command.attestation_schema_path,
+                attestation_schema_path=attestation_schema_path,
                 expected_attestation_schema_sha256=(expected_attestation_schema_sha256),
             )
             if verify_artifacts
@@ -2414,7 +2426,7 @@ class ResearchService:
         if execution_handoff is not None:
             if not isinstance(execution_handoff, dict):
                 raise ValidationError("execution_handoff must be an object")
-            if command.artifact_root is None:
+            if artifact_root is None:
                 raise ValidationError("execution_handoff requires artifact_root for receipt and output verification")
             try:
                 receipt_sha256 = execution_handoff["receipt_sha256"]
@@ -2422,7 +2434,7 @@ class ResearchService:
                 raise ValidationError("execution_handoff lacks receipt_sha256") from exc
             from research_machine.addons.receipt import verify_execution_output
             verified_handoff = verify_execution_output(
-                Path(command.artifact_root),
+                Path(artifact_root),
                 require_sha256(receipt_sha256, "execution_handoff.receipt_sha256"),
             )
             if verified_handoff != execution_handoff:
@@ -3123,13 +3135,13 @@ class ResearchService:
                     else {}
                 ),
                 **(
-                    {"run_artifact_root": str(Path(command.artifact_root).expanduser().resolve())}
-                    if artifact_integrity is not None and command.artifact_root is not None
+                    {"run_artifact_root": str(Path(artifact_root).expanduser().resolve())}
+                    if artifact_integrity is not None and artifact_root is not None
                     else {}
                 ),
                 **(
-                    {"run_attestation_schema_path": str(Path(command.attestation_schema_path).expanduser().resolve())}
-                    if command.attestation_schema_path is not None
+                    {"run_attestation_schema_path": str(Path(attestation_schema_path).expanduser().resolve())}
+                    if attestation_schema_path is not None
                     else {}
                 ),
                 **(

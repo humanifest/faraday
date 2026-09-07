@@ -86,8 +86,10 @@ also requires a passed verification of every declared output under an explicit
 local artifact root. Runs lacking that verification remain recordable but cannot
 cross the evidence boundary. The canonical run retains its resolved root,
 integrity receipt, and any pinned attestation-schema location and commitment.
-Pinned attestation-schema commitments must be canonical lowercase SHA-256
-digests before schema bytes are read as trusted comparison material.
+Retained run artifact roots and attestation-schema paths must be canonical
+unpadded text, and pinned attestation-schema commitments must be canonical
+lowercase SHA-256 digests, before schema bytes are read as trusted comparison
+material or receipts are replayed.
 Evidence admission revalidates the frozen protocol, current protected dataset
 bytes and custody, current run-output bytes, and applicable ethics status, then
 preserves a bounded admission receipt. Inquiry display, rigor audit, and
