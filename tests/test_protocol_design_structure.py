@@ -337,9 +337,18 @@ def test_measurement_custody_requirement_ids_are_unambiguous_at_freeze() -> None
 def test_quality_requirement_ids_are_unambiguous_at_freeze() -> None:
     protocol = replace(
         _multi_step_protocol(),
-        quality_requirements=["integrity", "missingness-assessed", " integrity "],
+        quality_requirements=["integrity", "missingness-assessed", "integrity"],
     )
     with pytest.raises(ValidationError, match="quality_requirements"):
+        validate_protocol_freeze(protocol)
+
+
+def test_quality_requirement_ids_must_be_canonical_at_freeze() -> None:
+    protocol = replace(
+        _multi_step_protocol(),
+        quality_requirements=["integrity", "missingness-assessed "],
+    )
+    with pytest.raises(ValidationError, match="canonical"):
         validate_protocol_freeze(protocol)
 
 

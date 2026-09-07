@@ -936,10 +936,14 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         raise ValidationError("only draft protocols can be frozen")
     if not isinstance(protocol.causal_claim, bool):
         raise ValidationError("causal_claim must be true or false")
-    quality_requirement_ids = [
-        require_text(gate_id, "quality_requirements item").strip()
-        for gate_id in protocol.quality_requirements
-    ]
+    quality_requirement_ids = []
+    for gate_id in protocol.quality_requirements:
+        canonical_gate_id = require_text(gate_id, "quality_requirements item")
+        if canonical_gate_id != gate_id:
+            raise ValidationError(
+                "quality_requirements items must be canonical without surrounding whitespace"
+            )
+        quality_requirement_ids.append(canonical_gate_id)
     quality_requirement_set = set(quality_requirement_ids)
     if protocol.causal_claim:
         from research_machine.design.causal import audit_causal_identification

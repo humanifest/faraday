@@ -207,6 +207,9 @@ presented under a passed gate. The provider-free run template emits these slots
 from the frozen protocol. This creates an artifact-linked assessment chain; it
 does not turn a diagnostic into proof of an untestable identification assumption
 or authenticate the interpretation at the named location.
+Protocol freeze now rejects noncanonical `quality_requirements` IDs before gate
+membership is evaluated, preventing padded required-gate names from satisfying
+causal, control, validity, or missingness bindings through silent trimming.
 Non-skipped causal gates now preserve negative and ambiguous assessments with the
 same exact artifact linkage. Gate/result semantics are enforced: passed means all
 mapped results are `consistent_with_assumption`, warning requires at least one

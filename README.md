@@ -245,6 +245,9 @@ run's output artifacts. Missing or failed gates make the run invalid. A failed
 assessment remains recordable as an invalid run; a contradictory result cannot
 be mislabeled as a passed gate. “Consistent with” means only that the registered
 diagnostic did not trigger its failure response—it does not verify the assumption.
+Protocol freeze rejects noncanonical `quality_requirements` gate IDs, so padded
+gate names cannot satisfy causal, control, validity, or missingness bindings by
+being silently trimmed first.
 Every assumption also freezes its assessment kind as `empirical_diagnostic`,
 `design_record_review`, `external_validation`, or `substantive_judgment`.
 Run intake requires the result to preserve that classification, preventing a
