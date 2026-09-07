@@ -65,7 +65,9 @@ research-notebook-preflight frozen-source.ipynb \
 
 The protected runner accepts the same manifest and hash options. When present,
 it performs the static preflight before loading the notebook runtime or
-starting a kernel.
+starting a kernel. Expected source and manifest hashes must already be canonical
+lowercase SHA-256 values; uppercase, padded, or malformed values fail as input
+errors rather than being normalized.
 
 ## Scope
 

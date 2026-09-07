@@ -1119,7 +1119,8 @@ partially executed notebook and an execution receipt when a later cell raises,
 then exits nonzero. A failure before runtime or kernel launch writes a
 `pre_execution_failure` receipt with `kernel_started: false` and no executed
 notebook. It refuses to overwrite prior output or receipts and can enforce the
-frozen source hash:
+frozen source hash. Expected source and dependency-manifest hashes must be
+canonical lowercase SHA-256 values before they can pin bytes:
 
 ```bash
 pip install -e '.[notebook]'
@@ -1134,7 +1135,8 @@ research-notebook frozen-source.ipynb executed.ipynb \
 The same dependency check should run before protocol freeze. It parses one
 literal `EXPECTED_HASHES` assignment with Python's AST but never executes a
 notebook cell, then compares that mapping with the manifest and the actual
-files:
+files. Expected source and manifest hashes use the same canonical lowercase
+SHA-256 contract:
 
 ```bash
 research-notebook-preflight frozen-source.ipynb \

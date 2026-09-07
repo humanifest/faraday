@@ -317,7 +317,7 @@ def preflight_notebook_dependencies(
     findings: list[dict[str, Any]] = []
     if expected_source_sha256 is not None:
         expected_source_sha256 = _validate_sha256(
-            expected_source_sha256.lower(), label="expected source sha256"
+            expected_source_sha256, label="expected source sha256"
         )
         if source_sha256 != expected_source_sha256:
             findings.append(
@@ -330,7 +330,7 @@ def preflight_notebook_dependencies(
             )
     if expected_manifest_sha256 is not None:
         expected_manifest_sha256 = _validate_sha256(
-            expected_manifest_sha256.lower(), label="expected manifest sha256"
+            expected_manifest_sha256, label="expected manifest sha256"
         )
         if manifest_sha256 != expected_manifest_sha256:
             findings.append(

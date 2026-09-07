@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable, Protocol, Sequence
 
 from research_machine.executors.notebook_preflight import (
+    _validate_sha256,
     preflight_notebook_dependencies,
 )
 
@@ -200,13 +201,14 @@ def execute_protected_notebook(
 
     source_bytes = source_path.read_bytes()
     source_sha256 = _sha256_bytes(source_bytes)
-    if (
-        expected_source_sha256 is not None
-        and source_sha256 != expected_source_sha256.lower()
-    ):
+    if expected_source_sha256 is not None:
+        expected_source_sha256 = _validate_sha256(
+            expected_source_sha256, label="expected source sha256"
+        )
+    if expected_source_sha256 is not None and source_sha256 != expected_source_sha256:
         raise ValueError(
             "source hash mismatch: "
-            f"expected {expected_source_sha256.lower()}, observed {source_sha256}"
+            f"expected {expected_source_sha256}, observed {source_sha256}"
         )
 
     if dependency_manifest_path is not None:

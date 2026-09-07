@@ -87,6 +87,38 @@ def test_three_way_preflight_passes_without_kernel(tmp_path: Path) -> None:
     assert {item.status for item in report.dependencies} == {"passed"}
 
 
+@pytest.mark.parametrize("field", ["source", "manifest"])
+def test_expected_preflight_hashes_must_be_canonical_lowercase(
+    tmp_path: Path, field: str
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    dependency = workspace / "input.bin"
+    dependency.write_bytes(b"fixed input")
+    hashes = {"input.bin": _sha256(dependency)}
+    source = workspace / "source.ipynb"
+    manifest = workspace / "dependencies.json"
+    _write_notebook(source, hashes)
+    _write_manifest(manifest, hashes)
+    source_hash = _sha256(source)
+    manifest_hash = _sha256(manifest)
+    if field == "source":
+        source_hash = source_hash.upper()
+        message = "expected source sha256 must be 64 lowercase hexadecimal characters"
+    else:
+        manifest_hash = manifest_hash.upper()
+        message = "expected manifest sha256 must be 64 lowercase hexadecimal characters"
+
+    with pytest.raises(NotebookPreflightInputError, match=message):
+        preflight_notebook_dependencies(
+            source,
+            manifest,
+            workspace_root=workspace,
+            expected_source_sha256=source_hash,
+            expected_manifest_sha256=manifest_hash,
+        )
+
+
 def test_notebook_literal_typo_is_reported_even_when_files_match_manifest(
     tmp_path: Path,
 ) -> None:

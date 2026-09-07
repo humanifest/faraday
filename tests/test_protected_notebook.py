@@ -157,6 +157,26 @@ def test_hash_mismatch_rejects_before_runtime_or_output(tmp_path: Path) -> None:
     assert not output.exists()
 
 
+def test_uppercase_expected_source_hash_rejects_before_runtime_or_output(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.ipynb"
+    output = tmp_path / "executed.ipynb"
+    source.write_text(json.dumps(source_notebook()))
+    runtime = FakeRuntime(failed_notebook(), RuntimeError("must not run"))
+
+    with pytest.raises(ValueError, match="expected source sha256 must be 64 lowercase"):
+        execute_protected_notebook(
+            source,
+            output,
+            expected_source_sha256=hashlib.sha256(source.read_bytes()).hexdigest().upper(),
+            runtime=runtime,
+        )
+
+    assert runtime.execute_calls == 0
+    assert not output.exists()
+
+
 def test_dependency_preflight_rejects_before_runtime_or_output(
     tmp_path: Path,
 ) -> None:
