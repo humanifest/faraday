@@ -839,6 +839,17 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
     else:
         check_ids = [item["check_id"] for item in validity_checks]
         gate_ids = [item["assessment_gate_id"] for item in validity_checks]
+        if any(
+            item[field] != item[field].strip()
+            for item in validity_checks
+            for field in _VALIDITY_CHECK_FIELDS
+        ):
+            add(
+                "MEASUREMENT_VALIDITY_CHECK_NONCANONICAL",
+                "error",
+                "Primary measurement validity checks contain text or gate handles with surrounding whitespace.",
+                "Use exact unpadded check IDs, evidence types, validity claims, assessment procedures, acceptance criteria, failure responses, and gate IDs before review.",
+            )
         if len(set(check_ids)) != len(check_ids):
             add("MEASUREMENT_VALIDITY_CHECK_DUPLICATE", "error", "Primary measurement validity check IDs are not unique.", "Give each prospective validity check one stable unique ID.")
         if len(set(gate_ids)) != len(gate_ids):

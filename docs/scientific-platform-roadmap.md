@@ -476,6 +476,10 @@ response, and dedicated required gate. The provider-free interview collects the
 same contract and emits `measurement-validity-plan-draft.json`. Gate IDs cannot
 be reused across validity, control, causal-assumption, or missingness purposes;
 the plan never counts as an observed pass or proof of construct validity.
+Guided validity-check canonicalization now blocks surrounding whitespace in
+check IDs, evidence-type labels, validity claims, assessment procedures,
+acceptance criteria, failure responses, and gate IDs before the draft protocol
+can treat those gates as ready for review.
 Canonical validity-commitment delivery: `MeasurementValidityCheck` is now a
 typed protocol field with an exact target measurement ID. CLI parsing, the
 published protocol schema, service construction, serialization, and freeze

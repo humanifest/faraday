@@ -172,6 +172,19 @@ def test_confirmatory_measurement_requires_structured_validity_decision_rules():
     assert "QUALITY_GATE_PURPOSE_COLLISION" in {
         item["code"] for item in collision["findings"]
     }
+    padded = scaffold_design({
+        **base,
+        "measurement_validity_checks": [
+            _validity_check(
+                check_id=" primary-validity ",
+                gate_id="primary-validity-assessed ",
+            ),
+        ],
+    })
+    assert "MEASUREMENT_VALIDITY_CHECK_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
+    assert padded["status"] == "blocked"
 
 
 def test_unit_identity_column_is_explicit_and_shared_by_all_guided_artifacts():
