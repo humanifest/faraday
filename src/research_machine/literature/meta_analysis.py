@@ -122,7 +122,10 @@ def execute_meta_analysis(
         if not isinstance(assessment, dict):
             raise ValidationError("effect-verification assessment is malformed")
         study_id = assessment.get("study_id")
-        if not isinstance(study_id, str) or not study_id.strip() or study_id in verification_by_study:
+        if not isinstance(study_id, str) or not study_id.strip():
+            raise ValidationError("effect-verification assessments require unique study IDs")
+        study_id = study_id.strip()
+        if study_id in verification_by_study:
             raise ValidationError("effect-verification assessments require unique study IDs")
         source_values_match = assessment.get("source_values_match")
         calculation_matches = assessment.get("calculation_matches")
@@ -166,10 +169,13 @@ def execute_meta_analysis(
     study_provenance = []
     seen = set()
     for item in raw_records:
-        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or item["study_id"] in seen:
+        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or not item["study_id"].strip():
             raise ValidationError("effect records contain invalid or duplicate study IDs")
-        seen.add(item["study_id"])
-        verification = verification_by_study.get(item["study_id"])
+        study_id = item["study_id"].strip()
+        if study_id in seen:
+            raise ValidationError("effect records contain invalid or duplicate study IDs")
+        seen.add(study_id)
+        verification = verification_by_study.get(study_id)
         if verification is None:
             raise ValidationError("effect verification must cover every pooled effect record")
         if verification["effect_status"] != item.get("status"):
@@ -182,14 +188,17 @@ def execute_meta_analysis(
             if not isinstance(claim, dict):
                 raise ValidationError("mapped claim provenance is malformed")
             extraction_id = claim.get("extraction_id")
-            if not isinstance(extraction_id, str) or not extraction_id.strip() or extraction_id in claim_ids:
+            if not isinstance(extraction_id, str) or not extraction_id.strip():
+                raise ValidationError("mapped claim provenance requires unique extraction IDs")
+            extraction_id = extraction_id.strip()
+            if extraction_id in claim_ids:
                 raise ValidationError("mapped claim provenance requires unique extraction IDs")
             claim_ids.append(extraction_id)
         risk = item.get("risk_of_bias")
         if risk not in {"low", "some_concerns", "high", "unclear"}:
             raise ValidationError("effect records require a valid risk_of_bias")
         study_provenance.append({
-            "study_id": item["study_id"],
+            "study_id": study_id,
             "effect_status": item.get("status"),
             "risk_of_bias": risk,
             "mapped_claim_ids": claim_ids,
@@ -198,7 +207,7 @@ def execute_meta_analysis(
         if item.get("status") == "unavailable":
             if verification["source_values_match"] is not None or verification["calculation_matches"] is not None:
                 raise ValidationError("unavailable effects require not-applicable verification checks")
-            unavailable.append({"study_id": item["study_id"], "reason": item.get("reason")})
+            unavailable.append({"study_id": study_id, "reason": item.get("reason")})
             continue
         if item.get("status") != "available":
             raise ValidationError("effect record status is invalid")
@@ -209,7 +218,7 @@ def execute_meta_analysis(
                 or isinstance(variance, bool) or not isinstance(variance, (int, float))
                 or not math.isfinite(variance) or variance <= 0):
             raise ValidationError("available effects require finite estimates and positive variances")
-        available.append({"study_id": item["study_id"], "estimate": float(estimate),
+        available.append({"study_id": study_id, "estimate": float(estimate),
                           "variance": float(variance), "risk_of_bias": risk,
                           "mapped_claim_ids": claim_ids})
     minimum = plan.get("minimum_independent_studies")

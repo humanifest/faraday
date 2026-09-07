@@ -685,9 +685,10 @@ IDs and citation-review anchors, after checking the extraction source set agains
 the synthesis plan's frozen included sources. Effect preparation and independent
 effect verification normalize study and source handles before their coverage and
 duplicate checks, so quantitative artifacts inherit the same provenance identity
-rules as the qualitative review trail. Meta-analysis requires those links and
-reports a compact `study_provenance` table for available and unavailable studies,
-so a pooled estimate cannot shed the reviewed claim boundary or hide studies with
+rules as the qualitative review trail. Meta-analysis replays normalized study and
+claim IDs when joining prepared effects to independent verification, then reports
+a compact `study_provenance` table for available and unavailable studies, so a
+pooled estimate cannot shed the reviewed claim boundary or hide studies with
 missing compatible statistics. The same table retains the independent
 source-transcription and arithmetic verification status for each effect record,
 and pooling replays the retained effect-status contract: available effects must
