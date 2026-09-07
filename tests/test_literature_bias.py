@@ -49,31 +49,68 @@ def test_bias_cli_computes_conservative_overall_and_is_write_once(tmp_path, caps
         create_bias_assessment(verification, digest, review("high"), output)
 
 
-def test_bias_assessment_normalizes_study_and_source_handles(tmp_path):
+def test_bias_assessment_preserves_canonical_study_and_source_handles(tmp_path):
     verification, digest = verification_file(tmp_path)
-    candidate = review()
-    candidate["assessments"][0]["study_id"] = " study-1 "
-    candidate["assessments"][0]["source_ids"] = [" s1 ", "s2 "]
-    result = create_bias_assessment(verification, digest, candidate, tmp_path / "bias")
+    result = create_bias_assessment(verification, digest, review(), tmp_path / "bias")
     assert result["assessments"][0]["study_id"] == "study-1"
     assert result["assessments"][0]["source_ids"] == ["s1", "s2"]
+    assert result["assessments"][0]["domains"][0]["evidence_locations"] == ["methods"]
 
 
-@pytest.mark.parametrize("failure", ["hash", "unclean", "same-reviewer", "missing-study", "duplicate-study", "source", "padded-source-duplicate", "domain", "location", "judgment"])
+@pytest.mark.parametrize("failure", [
+    "hash",
+    "unclean",
+    "same-reviewer",
+    "padded-reviewer",
+    "padded-prior-reviewer",
+    "padded-citation-study",
+    "padded-citation-source",
+    "missing-study",
+    "duplicate-study",
+    "source",
+    "padded-study",
+    "padded-source",
+    "padded-source-duplicate",
+    "domain",
+    "location",
+    "padded-location",
+    "padded-rationale",
+    "padded-design",
+    "padded-notes",
+    "judgment",
+])
 def test_invalid_bias_assessment_never_publishes(tmp_path, failure):
     verification, digest = verification_file(tmp_path, "review_required" if failure == "unclean" else "citation_review_recorded")
     candidate = review()
     if failure == "hash": digest = "0" * 64
-    elif failure == "same-reviewer": candidate["reviewer"] = " citation VERIFIER "
+    elif failure == "same-reviewer": candidate["reviewer"] = "Citation verifier"
+    elif failure == "padded-reviewer": candidate["reviewer"] = " Bias reviewer "
+    elif failure in {"padded-prior-reviewer", "padded-citation-study", "padded-citation-source"}:
+        value = json.loads(verification.read_text())
+        if failure == "padded-prior-reviewer":
+            value["citation_reviewer"] = " Citation verifier "
+        elif failure == "padded-citation-study":
+            value["assessments"][0]["study_id"] = " study-1 "
+        elif failure == "padded-citation-source":
+            value["assessments"][0]["source_id"] = " s1 "
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+        verification.write_bytes(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
     elif failure == "missing-study": candidate["assessments"] = []
     elif failure == "duplicate-study":
         duplicate = dict(candidate["assessments"][0])
-        duplicate["study_id"] = " study-1 "
+        duplicate["study_id"] = "study-1"
         candidate["assessments"].append(duplicate)
     elif failure == "source": candidate["assessments"][0]["source_ids"] = ["s1"]
+    elif failure == "padded-study": candidate["assessments"][0]["study_id"] = " study-1 "
+    elif failure == "padded-source": candidate["assessments"][0]["source_ids"] = [" s1 ", "s2"]
     elif failure == "padded-source-duplicate": candidate["assessments"][0]["source_ids"] = ["s1", " s1 "]
     elif failure == "domain": candidate["assessments"][0]["domains"].pop()
     elif failure == "location": candidate["assessments"][0]["domains"][0]["evidence_locations"] = []
+    elif failure == "padded-location": candidate["assessments"][0]["domains"][0]["evidence_locations"] = [" methods "]
+    elif failure == "padded-rationale": candidate["assessments"][0]["domains"][0]["rationale"] = " Fixture rationale "
+    elif failure == "padded-design": candidate["assessments"][0]["study_design"] = " synthetic fixture "
+    elif failure == "padded-notes": candidate["assessments"][0]["notes"] = " Generic fixture assessment "
     elif failure == "judgment": candidate["assessments"][0]["domains"][0]["judgment"] = "safe"
     output = tmp_path / "bias"
     with pytest.raises(ValidationError):

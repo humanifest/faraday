@@ -733,10 +733,12 @@ claims or study groupings. Citation verification also requires canonical
 extraction reviewer, source, study, claim, evidence-location, citation-reviewer,
 checked-location, and rationale text before coverage and duplicate checks, so
 the independent review cannot trim a second apparent assessment or rewrite the
-pinned extraction trail. Bias assessment and study-identity reconciliation also
-normalize study, source, registration, and relationship-pair handles before
-coverage checks, preventing reviewer-entered whitespace from splitting or merging
-provenance after citation review. Evidence-map construction and qualitative
+pinned extraction trail. Bias assessment now requires canonical prior reviewer,
+citation study/source, bias reviewer, study/source, design, domain-location,
+rationale, and note text before coverage checks, preventing reviewer-entered
+whitespace from splitting or merging provenance after citation review.
+Study-identity reconciliation still normalizes study, source, registration, and
+relationship-pair handles before coverage checks. Evidence-map construction and qualitative
 synthesis replay the normalized extraction, study, source, and bias-domain
 handles before joining or counting claims, so the final qualitative artifact
 cannot reintroduce hidden duplicate identities. This makes the review trail

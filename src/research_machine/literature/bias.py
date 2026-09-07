@@ -25,6 +25,13 @@ _DOMAINS = (
 _JUDGMENTS = {"low", "some_concerns", "high", "unclear", "not_applicable"}
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def _overall(domains: list[dict[str, Any]]) -> str:
     values = {item["judgment"] for item in domains}
     if "high" in values:
@@ -57,8 +64,8 @@ def create_bias_assessment(
         raise ValidationError("bias assessment requires a completed citation review without unsupported or unclear claims")
 
     prior_reviewers = {
-        _text(verification.get("extraction_reviewer"), "extraction reviewer").strip().casefold(),
-        _text(verification.get("citation_reviewer"), "citation reviewer").strip().casefold(),
+        _canonical_text(verification.get("extraction_reviewer"), "extraction reviewer").casefold(),
+        _canonical_text(verification.get("citation_reviewer"), "citation reviewer").casefold(),
     }
     claims = verification.get("assessments")
     if not isinstance(claims, list) or not claims:
@@ -67,14 +74,14 @@ def create_bias_assessment(
     for claim in claims:
         if not isinstance(claim, dict):
             raise ValidationError("citation assessment must be an object")
-        study_id = _text(claim.get("study_id"), "citation study_id").strip()
-        source_id = _text(claim.get("source_id"), "citation source_id").strip()
+        study_id = _canonical_text(claim.get("study_id"), "citation study_id")
+        source_id = _canonical_text(claim.get("source_id"), "citation source_id")
         studies.setdefault(study_id, set()).add(source_id)
 
     if not isinstance(review, dict) or set(review) != {"reviewer", "assessments"}:
         raise ValidationError("bias review requires exactly reviewer and assessments")
-    reviewer = _text(review["reviewer"], "bias reviewer")
-    if reviewer.strip().casefold() in prior_reviewers:
+    reviewer = _canonical_text(review["reviewer"], "bias reviewer")
+    if reviewer.casefold() in prior_reviewers:
         raise ValidationError("bias reviewer must be independent of extraction and citation reviewers")
     assessments = review["assessments"]
     if not isinstance(assessments, list):
@@ -86,18 +93,18 @@ def create_bias_assessment(
             "study_id", "study_design", "source_ids", "domains", "notes"
         }:
             raise ValidationError("each bias assessment requires study_id, study_design, source_ids, domains, and notes")
-        study_id = _text(assessment["study_id"], "bias study_id").strip()
+        study_id = _canonical_text(assessment["study_id"], "bias study_id")
         if study_id not in studies:
             raise ValidationError("bias assessment references an unknown study_id")
         if study_id in by_study:
             raise ValidationError("duplicate study bias assessment")
         source_ids = assessment["source_ids"]
         if (not isinstance(source_ids, list)
-                or any(not isinstance(item, str) or not item.strip() for item in source_ids)
-                or len({item.strip() for item in source_ids}) != len(source_ids)
-                or {item.strip() for item in source_ids} != studies[study_id]):
+                or any(not isinstance(item, str) or not item.strip() or item != item.strip()
+                       for item in source_ids)
+                or len(set(source_ids)) != len(source_ids)
+                or set(source_ids) != studies[study_id]):
             raise ValidationError("bias source_ids must exactly cover citation-reviewed sources for the study")
-        source_ids = [item.strip() for item in source_ids]
         domains = assessment["domains"]
         if not isinstance(domains, list):
             raise ValidationError("bias domains must be an array")
@@ -115,13 +122,13 @@ def create_bias_assessment(
                 raise ValidationError("invalid risk-of-bias judgment")
             locations = domain["evidence_locations"]
             if (not isinstance(locations, list)
-                    or any(not isinstance(item, str) or not item.strip() for item in locations)
+                    or any(not isinstance(item, str) or not item.strip() or item != item.strip()
+                           for item in locations)
                     or (judgment != "not_applicable" and not locations)):
                 raise ValidationError("applicable bias domains require non-empty evidence_locations")
-            locations = [item.strip() for item in locations]
             by_domain[name] = {
                 "domain": name, "judgment": judgment,
-                "rationale": _text(domain["rationale"], "bias rationale").strip(),
+                "rationale": _canonical_text(domain["rationale"], "bias rationale"),
                 "evidence_locations": locations,
             }
         if set(by_domain) != set(_DOMAINS):
@@ -129,11 +136,11 @@ def create_bias_assessment(
         normalized_domains = [by_domain[name] for name in _DOMAINS]
         by_study[study_id] = {
             "study_id": study_id,
-            "study_design": _text(assessment["study_design"], "study_design").strip(),
+            "study_design": _canonical_text(assessment["study_design"], "study_design"),
             "source_ids": sorted(source_ids),
             "domains": normalized_domains,
             "overall_judgment": _overall(normalized_domains),
-            "notes": _text(assessment["notes"], "bias notes").strip(),
+            "notes": _canonical_text(assessment["notes"], "bias notes"),
         }
     if set(by_study) != set(studies):
         raise ValidationError("bias assessments must cover exactly all citation-reviewed studies")
