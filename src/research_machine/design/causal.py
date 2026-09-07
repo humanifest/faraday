@@ -31,7 +31,10 @@ CAUSAL_ASSESSMENT_KINDS = frozenset({
 def _node_id(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValidationError(f"{field} must be non-blank text")
-    return value.strip()
+    text = value.strip()
+    if text != value:
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
 
 
 def audit_causal_identification(spec: dict[str, Any]) -> dict[str, Any]:
@@ -109,14 +112,18 @@ def audit_causal_identification(spec: dict[str, Any]) -> dict[str, Any]:
             not isinstance(strategies, list)
             or len(strategies) != 2
             or any(not isinstance(item, str) or not item.strip() for item in strategies)
-            or len({item.strip() for item in strategies}) != 2
+            or any(item.strip() != item for item in strategies)
+            or len(set(strategies)) != 2
         ):
-            raise ValidationError("causal_estimand.exposure_strategies must contain exactly two distinct non-blank strategies")
+            raise ValidationError(
+                "causal_estimand.exposure_strategies must contain exactly two "
+                "distinct canonical non-blank strategies"
+            )
         causal_estimand = {
             field: _node_id(raw_estimand[field], f"causal_estimand.{field}")
             for field in estimand_fields - {"exposure_strategies"}
         }
-        causal_estimand["exposure_strategies"] = [item.strip() for item in strategies]
+        causal_estimand["exposure_strategies"] = list(strategies)
     raw_edges = spec.get("edges")
     if not isinstance(raw_edges, list):
         raise ValidationError("edges must be an array")

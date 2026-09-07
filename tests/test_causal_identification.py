@@ -177,6 +177,64 @@ def test_causal_estimand_is_structured_and_bound_to_graph_outcome() -> None:
         audit_causal_identification(duplicate_strategies)
 
 
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda spec: spec["nodes"][0].update({"id": " treatment"}),
+            "nodes\\[0\\].id",
+        ),
+        (
+            lambda spec: spec.update({"exposure": "treatment "}),
+            "exposure",
+        ),
+        (
+            lambda spec: spec["edges"][0].update({"cause": " baseline"}),
+            "edges\\[0\\].cause",
+        ),
+        (
+            lambda spec: spec.update({"proposed_adjustment_set": [" baseline"]}),
+            "proposed_adjustment_set item",
+        ),
+        (
+            lambda spec: spec["assumptions"][0].update({"assessment_gate_id": " integrity"}),
+            "assumptions\\[0\\].assessment_gate_id",
+        ),
+    ],
+)
+def test_causal_audit_rejects_noncanonical_graph_commitments(mutate, message) -> None:
+    spec = _confounded(["baseline"])
+    mutate(spec)
+    with pytest.raises(ValidationError, match=message):
+        audit_causal_identification(spec)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("target_hypothesis_id", " h1", "causal_estimand.target_hypothesis_id"),
+        ("description", "Mean outcome difference, group a minus group b. ", "causal_estimand.description"),
+        ("population", " Eligible study units in the registered setting.", "causal_estimand.population"),
+        ("outcome_variable", "outcome ", "causal_estimand.outcome_variable"),
+    ],
+)
+def test_causal_estimand_rejects_noncanonical_text(field, value, message) -> None:
+    spec = _confounded(["baseline"])
+    spec["causal_estimand"][field] = value
+    with pytest.raises(ValidationError, match=message):
+        audit_causal_identification(spec)
+
+
+def test_causal_estimand_rejects_noncanonical_exposure_strategies() -> None:
+    spec = _confounded(["baseline"])
+    spec["causal_estimand"]["exposure_strategies"] = [
+        "assign treatment",
+        " assign control",
+    ]
+    with pytest.raises(ValidationError, match="canonical non-blank strategies"):
+        audit_causal_identification(spec)
+
+
 def test_provider_free_causal_audit_cli_hashes_its_input(tmp_path, capsys) -> None:
     path = tmp_path / "causal.json"
     path.write_text(json.dumps(_confounded(["baseline"])), encoding="utf-8")

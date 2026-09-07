@@ -232,6 +232,11 @@ cover positivity, consistency, interference, temporal order, measurement
 validity, and selection bias. Missing, duplicate, blank, unsupported, or
 assignment-inconsistent entries block the audit. Coverage is a preregistration
 check, not evidence that an assumption holds.
+Causal-identification specifications must use canonical text for graph nodes,
+edge endpoints, exposure/outcome handles, proposed adjustment variables,
+assumption register fields, and structured estimand fields. The audit rejects
+surrounding whitespace instead of trimming it into a different DAG, gate, or
+target estimand before hashing.
 Each assumption also names a frozen protocol quality gate. The gate must be a
 declared `quality_requirement`; a passed run must include an exact
 `causal_assumption_results` entry with the observed diagnostic, interpretation,

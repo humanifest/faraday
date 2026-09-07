@@ -273,6 +273,11 @@ the same primary hypothesis and estimand in the analysis contract. This prevents
 an undefined “causal effect,” target switching, and silent disagreement between
 design and analysis; it does not establish that the target is scientifically
 appropriate or identifiable in the real data-generating process.
+Causal audit inputs now reject noncanonical surrounding whitespace across graph
+node IDs, edge endpoints, exposure/outcome handles, adjustment variables,
+assumption fields, estimand fields, and the two exposure strategies before the
+audit result or input digest can become a protocol commitment. This preserves the
+researcher's supplied identifiers exactly rather than silently rewriting a DAG.
 
 Add tidy/tabular validation, confidence intervals, linear and generalized-linear
 models, paired and repeated-measure comparisons, power/precision planning,
