@@ -752,10 +752,11 @@ IDs and citation-review anchors, after checking the extraction source set agains
 the synthesis plan's frozen included sources. Trusted plan, evidence-map,
 effect-record, effect-verification, and deviation hashes must be canonical
 lowercase SHA-256 digests before later synthesis commands can bind those
-artifacts. Effect preparation and independent
-effect verification normalize study and source handles before their coverage and
-duplicate checks, so quantitative artifacts inherit the same provenance identity
-rules as the qualitative review trail. Meta-analysis replays normalized study and
+artifacts. Effect preparation now requires canonical frozen plan source IDs,
+extraction source IDs, mapped study/source/claim IDs, citation anchors, reviewer
+text, derivation scope, reasons, evidence locations, and derivation prose before
+coverage and duplicate checks. Independent effect verification still normalizes
+study and source handles before its coverage checks. Meta-analysis replays normalized study and
 claim IDs when joining prepared effects to independent verification, then reports
 a compact `study_provenance` table for available and unavailable studies, so a
 pooled estimate cannot shed the reviewed claim boundary or hide studies with

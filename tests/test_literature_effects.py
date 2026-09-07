@@ -77,30 +77,22 @@ def test_insufficient_effects_is_recorded(tmp_path):
     assert result["status"] == "insufficient_effects"
 
 
-def test_effect_records_normalize_study_and_source_handles(tmp_path):
+def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
-    value = json.loads(plan.read_text())
-    value["included_source_ids_at_freeze"] = [" source-fixture "]
-    plan_sha = write_json(plan, value)
-    value = json.loads(extraction.read_text())
-    value["source_reviews"][0]["source_id"] = " source-fixture "
-    extraction_sha = write_json(extraction, value)
-    value = json.loads(evidence_map.read_text())
-    value["inputs"]["extraction_sha256"] = extraction_sha
-    value["claims"][0]["study_id"] = " study-1 "
-    value["claims"][0]["source_id"] = " source-fixture "
-    map_sha = write_json(evidence_map, value)
-    candidate = review()
-    candidate["records"][0]["study_id"] = " study-1 "
-    result = create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, candidate, tmp_path / "effects")
+    result = create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, review(), tmp_path / "effects")
     assert result["records"][0]["study_id"] == "study-1"
     assert result["records"][0]["mapped_claims"][0]["source_id"] == "source-fixture"
+    assert result["records"][0]["evidence_location"] == "table 2"
 
 
 @pytest.mark.parametrize("failure", [
     "plan-hash", "map-hash", "measure", "missing", "duplicate", "padded-duplicate",
     "extraction-source-duplicate", "nan", "se", "bool-n", "unavailable-value",
-    "plan-source-missing", "plan-source-drift", "map-provenance",
+    "plan-source-missing", "plan-source-drift", "padded-plan-source",
+    "padded-extraction-source", "padded-map-study", "padded-map-source",
+    "padded-map-extraction", "padded-map-citation-location", "map-provenance",
+    "padded-reviewer", "padded-reason", "padded-location", "padded-derivation",
+    "padded-derivation-scope",
 ])
 def test_invalid_effect_records_never_publish(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
@@ -113,7 +105,7 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     elif failure == "padded-duplicate": candidate["records"][1]["study_id"] = " study-1 "
     elif failure == "extraction-source-duplicate":
         value = json.loads(extraction.read_text())
-        value["source_reviews"].append({"source_id": " source-fixture "})
+        value["source_reviews"].append({"source_id": "source-fixture"})
         write_json(extraction, value)
     elif failure == "nan": candidate["records"][0]["estimate"] = float("nan")
     elif failure == "se": candidate["records"][0]["standard_error"] = 0
@@ -127,13 +119,40 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
         value = json.loads(plan.read_text())
         value["included_source_ids_at_freeze"] = ["other-source"]
         plan_sha = write_json(plan, value)
+    elif failure == "padded-plan-source":
+        value = json.loads(plan.read_text())
+        value["included_source_ids_at_freeze"] = [" source-fixture "]
+        plan_sha = write_json(plan, value)
+    elif failure == "padded-extraction-source":
+        value = json.loads(extraction.read_text())
+        value["source_reviews"][0]["source_id"] = " source-fixture "
+        extraction_sha = write_json(extraction, value)
+        value = json.loads(evidence_map.read_text())
+        value["inputs"]["extraction_sha256"] = extraction_sha
+        map_sha = write_json(evidence_map, value)
+    elif failure in {"padded-map-study", "padded-map-source", "padded-map-extraction", "padded-map-citation-location"}:
+        value = json.loads(evidence_map.read_text())
+        if failure == "padded-map-study":
+            value["claims"][0]["study_id"] = " study-1 "
+        elif failure == "padded-map-source":
+            value["claims"][0]["source_id"] = " source-fixture "
+        elif failure == "padded-map-extraction":
+            value["claims"][0]["extraction_id"] = " claim-1 "
+        elif failure == "padded-map-citation-location":
+            value["claims"][0]["citation_checked_location"] = " page fixture "
+        map_sha = write_json(evidence_map, value)
     elif failure == "map-provenance":
         value = json.loads(evidence_map.read_text())
         value["claims"][0]["citation_checked_location"] = ""
         map_sha = write_json(evidence_map, value)
+    elif failure == "padded-reviewer": candidate["reviewer"] = " Effect reviewer "
+    elif failure == "padded-reason": candidate["records"][0]["reason"] = " Fixture record "
+    elif failure == "padded-location": candidate["records"][0]["evidence_location"] = " table 2 "
+    elif failure == "padded-derivation": candidate["records"][0]["derivation"] = " Reported estimate and standard error "
     output = tmp_path / "effects"
     with pytest.raises(ValidationError):
-        create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, candidate, output)
+        kwargs = {"derivation_scope": " reviewer_reported_effect_and_standard_error "} if failure == "padded-derivation-scope" else {}
+        create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, candidate, output, **kwargs)
     assert not output.exists()
 
 

@@ -25,6 +25,13 @@ def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
     return value, hashlib.sha256(content).hexdigest()
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def create_effect_records(
     plan_path: Path,
     expected_plan_sha256: str,
@@ -55,17 +62,17 @@ def create_effect_records(
         raise ValidationError("effect records require an extraction from the plan's pinned screening")
     plan_sources = plan.get("included_source_ids_at_freeze")
     if (not isinstance(plan_sources, list)
-            or any(not isinstance(item, str) or not item.strip() for item in plan_sources)
-            or len({item.strip() for item in plan_sources}) != len(plan_sources)):
+            or any(not isinstance(item, str) or not item.strip() or item != item.strip()
+                   for item in plan_sources)
+            or len(set(plan_sources)) != len(plan_sources)):
         raise ValidationError("effect records require frozen included source IDs from the synthesis plan")
-    plan_sources = [item.strip() for item in plan_sources]
     extraction_sources = [
         item.get("source_id") for item in extraction.get("source_reviews", [])
         if isinstance(item, dict)
     ]
-    if any(not isinstance(item, str) or not item.strip() for item in extraction_sources):
+    if any(not isinstance(item, str) or not item.strip() or item != item.strip()
+           for item in extraction_sources):
         raise ValidationError("effect records extraction contains invalid source IDs")
-    extraction_sources = [item.strip() for item in extraction_sources]
     if len(extraction_sources) != len(set(extraction_sources)):
         raise ValidationError("effect records extraction contains duplicate source IDs")
     if sorted(plan_sources) != sorted(extraction_sources):
@@ -79,15 +86,14 @@ def create_effect_records(
     claims = evidence_map.get("claims")
     if not isinstance(claims, list) or not claims:
         raise ValidationError("effect records require mapped claims")
-    studies = {item.get("study_id").strip() for item in claims if isinstance(item, dict) and isinstance(item.get("study_id"), str)}
-    if None in studies or any(not isinstance(item, str) or not item.strip() for item in studies):
-        raise ValidationError("evidence map contains invalid study IDs")
+    studies = set()
     study_biases: dict[str, str] = {}
     study_claims: dict[str, list[dict[str, Any]]] = {}
     for claim in claims:
         if not isinstance(claim, dict) or claim.get("risk_of_bias") not in {"low", "some_concerns", "high", "unclear"}:
             raise ValidationError("mapped claims require a valid study risk_of_bias")
-        study_id = _text(claim.get("study_id"), "mapped claim study_id").strip()
+        study_id = _canonical_text(claim.get("study_id"), "mapped claim study_id")
+        studies.add(study_id)
         prior = study_biases.setdefault(study_id, claim["risk_of_bias"])
         if prior != claim["risk_of_bias"]:
             raise ValidationError("mapped claims disagree on study risk_of_bias")
@@ -99,15 +105,16 @@ def create_effect_records(
             "citation_verdict": claim.get("citation_verdict"),
             "citation_checked_location": claim.get("citation_checked_location"),
         }
-        if any(not isinstance(value, str) or not value.strip() for value in claim_summary.values()):
+        if any(not isinstance(value, str) or not value.strip() or value != value.strip()
+               for value in claim_summary.values()):
             raise ValidationError("mapped claims require retained citation provenance before effect preparation")
         study_claims.setdefault(study_id, []).append(
-            {key: value.strip() for key, value in claim_summary.items()}
+            dict(claim_summary)
         )
 
     if not isinstance(review, dict) or set(review) != {"reviewer", "records"}:
         raise ValidationError("effect review requires exactly reviewer and records")
-    reviewer = _text(review["reviewer"], "effect reviewer")
+    reviewer = _canonical_text(review["reviewer"], "effect reviewer")
     records = review["records"]
     if not isinstance(records, list):
         raise ValidationError("effect records must be an array")
@@ -118,7 +125,7 @@ def create_effect_records(
     for item in records:
         if not isinstance(item, dict) or set(item) != required:
             raise ValidationError("effect record fields do not match the documented contract")
-        study_id = _text(item["study_id"], "effect study_id").strip()
+        study_id = _canonical_text(item["study_id"], "effect study_id")
         if study_id not in studies or study_id in by_study:
             raise ValidationError("effect study_id is unknown or duplicated")
         status = item["status"]
@@ -126,9 +133,9 @@ def create_effect_records(
             raise ValidationError("effect status must be available or unavailable")
         if item["effect_measure"] != expected_measure:
             raise ValidationError("effect measure must exactly match the frozen synthesis plan")
-        reason = _text(item["reason"], "effect reason").strip()
-        location = _text(item["evidence_location"], "effect evidence_location").strip()
-        derivation = _text(item["derivation"], "effect derivation").strip()
+        reason = _canonical_text(item["reason"], "effect reason")
+        location = _canonical_text(item["evidence_location"], "effect evidence_location")
+        derivation = _canonical_text(item["derivation"], "effect derivation")
         estimate, standard_error, sample_size = item["estimate"], item["standard_error"], item["sample_size"]
         if status == "available":
             if (isinstance(estimate, bool) or not isinstance(estimate, (int, float))
@@ -157,7 +164,7 @@ def create_effect_records(
         "extraction_sha256": extraction_sha, "evidence_map_sha256": map_sha},
         "plan_id": plan.get("plan_id"), "snapshot_id": plan.get("snapshot_id"),
         "reviewer": reviewer, "effect_measure": expected_measure,
-        "derivation_scope": _text(derivation_scope, "effect derivation_scope").strip(),
+        "derivation_scope": _canonical_text(derivation_scope, "effect derivation_scope"),
         "contrast_definition": contrast_definition,
         "source_summaries": source_summaries,
         "records": [by_study[item] for item in sorted(by_study)], "study_count": len(studies),

@@ -965,9 +965,11 @@ records and count against the frozen minimum-study requirement. This validates
 finite values, positive variance, coverage, review provenance, and plan
 consistency, but does not reproduce source calculations, prove outcome
 compatibility, impute missing values, or authorize pooling.
-Effect preparation and effect verification normalize study and source handles
-before coverage and duplicate checks, preserving the upstream provenance identity
-contract across quantitative artifacts.
+Effect preparation requires canonical frozen plan source IDs, extraction source
+IDs, mapped study/source/claim IDs, citation anchors, reviewer text, derivation
+scope, reasons, evidence locations, and derivation prose before coverage and
+duplicate checks. Effect verification still normalizes study and source handles
+before coverage checks.
 `research literature derive-effects` provides a reproducible alternative for
 `mean_difference` and `log_risk_ratio`: it computes estimates and standard errors
 from source-reported experimental and comparator arm summaries under canonical
