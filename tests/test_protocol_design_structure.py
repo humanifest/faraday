@@ -291,7 +291,7 @@ def test_measurement_contract_rejects_normalized_observed_missing_overlap() -> N
         scale_type="nominal",
         unit="category",
         admissible_values=["detected"],
-        missing_value_codes=[" detected "],
+        missing_value_codes=["detected"],
         valid_min=None,
         valid_max=None,
     )
@@ -331,6 +331,46 @@ def test_measurement_contract_rejects_noncanonical_measurement_handles(change, m
     protocol = _human_protocol(human_subjects=False)
     measurements = _analysis_measurements(protocol.primary_outcome, protocol.controls[0])
     measurements[0] = replace(measurements[0], **change)
+    with pytest.raises(ValidationError, match=message):
+        validate_protocol_freeze(replace(protocol, measurement_definitions=measurements))
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"observable": " Numeric synthetic outcome "}, "observable must be canonical"),
+        ({"input_condition": " all eligible rows "}, "input_condition must be canonical"),
+        ({"evaluation_point": " registered endpoint "}, "evaluation_point must be canonical"),
+        ({"convention": " higher is larger "}, "convention must be canonical"),
+        ({"aggregation": " mean by registered group "}, "aggregation must be canonical"),
+        ({"tolerance": " exact fixture parsing "}, "tolerance must be canonical"),
+        ({"expected_behavior": " Reported regardless of direction "}, "expected_behavior must be canonical"),
+        ({"unit": " fixture units "}, "unit must be canonical"),
+        ({"admissible_values": [" observed "]}, "admissible_values item must be canonical"),
+        ({"missing_value_codes": [" <blank> "]}, "missing_value_codes item must be canonical"),
+    ],
+)
+def test_measurement_contract_rejects_noncanonical_measurement_semantics(change, message) -> None:
+    protocol = _human_protocol(human_subjects=False)
+    measurements = _analysis_measurements(protocol.primary_outcome, protocol.controls[0])
+    measurements[0] = replace(measurements[0], **change)
+    with pytest.raises(ValidationError, match=message):
+        validate_protocol_freeze(replace(protocol, measurement_definitions=measurements))
+
+
+@pytest.mark.parametrize(
+    ("parameter_values", "message"),
+    [
+        ({" scale ": "fixture units"}, "parameter_values key must be canonical"),
+        ({"scale": " fixture units "}, "parameter_values\\['scale'\\] must be canonical"),
+    ],
+)
+def test_measurement_contract_rejects_noncanonical_parameter_bindings(
+    parameter_values, message
+) -> None:
+    protocol = _human_protocol(human_subjects=False)
+    measurements = _analysis_measurements(protocol.primary_outcome, protocol.controls[0])
+    measurements[0] = replace(measurements[0], parameter_values=parameter_values)
     with pytest.raises(ValidationError, match=message):
         validate_protocol_freeze(replace(protocol, measurement_definitions=measurements))
 

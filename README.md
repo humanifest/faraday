@@ -56,10 +56,11 @@ input bytes. The paired materialization and execution receipts establish a local
 byte chain; they do not authenticate chronology, executors, scientific gates, or
 the truth of source observations.
 
-Executable measurement definitions now freeze the measurement ID, registered
-target, data column's scale type, unit, categorical domain or strictly ordered
+Executable measurement definitions now freeze canonical measurement IDs,
+registered targets, observable semantics, parameter bindings, temporal roles,
+data columns, scale types, units, categorical domains or strictly ordered
 numeric validity bounds, and exact missing-value codes. Protocol freeze rejects
-noncanonical measurement IDs, registered targets, executable measurement
+noncanonical measurement text or value-domain entries, executable measurement
 columns, case-insensitive column reuse across measurement definitions, and
 non-exposure measurements that occupy identity, assignment, or capture-time
 columns. When an analysis contract is present, protocol freeze also requires

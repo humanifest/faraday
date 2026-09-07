@@ -1806,6 +1806,14 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
     observed_targets: list[tuple[MeasurementRole, str]] = []
     for index, definition in enumerate(definitions):
         prefix = f"measurement_definitions[{index}]"
+        def require_canonical_text(value: str, field_name: str) -> str:
+            text = require_text(value, field_name)
+            if text != value:
+                raise ValidationError(
+                    f"{field_name} must be canonical without surrounding whitespace"
+                )
+            return text
+
         measurement_id = require_text(
             definition.measurement_id, f"{prefix}.measurement_id"
         )
@@ -1834,7 +1842,9 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
             "tolerance",
             "expected_behavior",
         ):
-            require_text(getattr(definition, field_name), f"{prefix}.{field_name}")
+            require_canonical_text(
+                getattr(definition, field_name), f"{prefix}.{field_name}"
+            )
         if (
             not isinstance(definition.parameter_values, dict)
             or not definition.parameter_values
@@ -1843,8 +1853,8 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
                 f"{prefix}.parameter_values must be a non-empty object"
             )
         for name, value in definition.parameter_values.items():
-            require_text(name, f"{prefix}.parameter_values key")
-            require_text(value, f"{prefix}.parameter_values[{name!r}]")
+            require_canonical_text(name, f"{prefix}.parameter_values key")
+            require_canonical_text(value, f"{prefix}.parameter_values[{name!r}]")
         if (
             definition.temporal_role
             and definition.temporal_role not in MEASUREMENT_TEMPORAL_ROLES
@@ -1871,14 +1881,15 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
                 raise ValidationError(
                     f"{prefix}.scale_type must classify every executable data column"
                 )
-            require_text(definition.unit, f"{prefix}.unit")
+            require_canonical_text(definition.unit, f"{prefix}.unit")
             normalized_domains: dict[str, list[str]] = {}
             for field_name in ("admissible_values", "missing_value_codes"):
                 values = getattr(definition, field_name)
                 if not isinstance(values, list):
                     raise ValidationError(f"{prefix}.{field_name} must be a list")
                 normalized = [
-                    require_text(item, f"{prefix}.{field_name} item") for item in values
+                    require_canonical_text(item, f"{prefix}.{field_name} item")
+                    for item in values
                 ]
                 if len(set(normalized)) != len(normalized):
                     raise ValidationError(f"{prefix}.{field_name} must contain unique values")
