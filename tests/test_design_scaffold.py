@@ -601,6 +601,22 @@ def test_controls_and_confounds_must_have_unique_scientific_labels():
     assert "CONFOUND_LABEL_NONCANONICAL" in {
         item["code"] for item in duplicated_confounds["findings"]
     }
+    padded_definition = scaffold_design({
+        **base,
+        "controls": ["Blank sample"],
+        "control_definitions": [{
+            "control_id": " blank-control ",
+            "registered_control": "Blank sample",
+            "family": "negative",
+            "purpose": "Detect contamination",
+            "expected_behavior": "No signal",
+            "evaluation_gate_id": "blank-control-evaluated ",
+        }],
+    })
+    assert "CONTROL_DEFINITION_NONCANONICAL" in {
+        item["code"] for item in padded_definition["findings"]
+    }
+    assert padded_definition["status"] == "blocked"
 
 
 def test_stopping_count_does_not_supply_information_justification(tmp_path, capsys):

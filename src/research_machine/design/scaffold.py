@@ -609,6 +609,17 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
     if definitions:
         targets = [item["registered_control"] for item in definitions]
         ids = [item["control_id"] for item in definitions]
+        if any(
+            value != value.strip()
+            for item in definitions
+            for value in item.values()
+        ):
+            add(
+                "CONTROL_DEFINITION_NONCANONICAL",
+                "error",
+                "Structured controls contain text, IDs, targets, families, expectations, or gate handles with surrounding whitespace.",
+                "Use exact unpadded control definition fields before review so protocol gates and evidence partitions bind the same controls.",
+            )
         if set(targets) != set(brief.get("controls", [])) or len(set(targets)) != len(targets) or len(set(ids)) != len(ids):
             add("CONTROL_COVERAGE_INVALID", "error", "Structured controls do not uniquely cover the named controls.", "Provide one uniquely identified definition for each named control.")
         for item in definitions:

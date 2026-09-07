@@ -36,7 +36,8 @@ the registered controls exactly with canonical, unique identities and link to
 required quality gates; surrounding whitespace in registered control names,
 control IDs, target names, families, purposes, expected behaviors, or
 evaluation-gate handles now fails at freeze before
-coverage is checked. Expected
+coverage is checked. Guided scaffolding now emits the same blocking finding
+before those structured definitions become protocol-review drafts. Expected
 scientific behavior is not itself a quality-gate pass condition. Definitions are
 hash-bound; absent definitions preserve legacy commitments without retroactively
 claiming a control audit. The provider-free interview collects family, purpose,
