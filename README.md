@@ -164,8 +164,9 @@ JSON Pointer that resolves in those bytes. Synthesis retains this provenance and
 keeps unexpected control behavior visible. A passed gate means the control was
 evaluated as required; it does not mean the scientific outcome was favorable.
 Protocol freeze rejects noncanonical registered control names and
-control-definition IDs, targets, and gate handles before checking coverage, so a
-padded control cannot become a different evidence-partition target.
+control-definition IDs, targets, families, purposes, expected behaviors, and
+gate handles before checking coverage, so a padded control cannot become a
+different evidence-partition target.
 Evidence derived from that run must then account for the complete frozen control
 set: each registered control appears exactly once in `controls_passed` or
 `controls_failed`, as determined by its structured result. Omissions, duplicates,
@@ -416,12 +417,13 @@ required gates. They remain plans—not evidence that validity has been shown.
 Validity gates cannot be reused for control, causal-assumption, or missingness
 assessments.
 During canonical protocol construction, each check must be bound to the exact
-reviewed `measurement_id`; stable check IDs, measurement bindings, and
-assessment-gate IDs must be canonical without surrounding whitespace, and the
-check and gate IDs must be unique. The typed checks survive serialization and
-are part of the frozen protocol commitment, so later changes to a validity
-claim, criterion, procedure, failure response, or gate invalidate the protocol
-hash. Older protocols without this optional typed field remain readable; guided
+reviewed `measurement_id`; stable check IDs, measurement bindings,
+evidence-type labels, validity claims, assessment plans, acceptance criteria,
+failure responses, and assessment-gate IDs must be canonical without surrounding
+whitespace, and the check and gate IDs must be unique. The typed checks survive
+serialization and are part of the frozen protocol commitment, so later changes
+to a validity claim, criterion, procedure, failure response, or gate invalidate
+the protocol hash. Older protocols without this optional typed field remain readable; guided
 confirmatory designs do not pass readiness without it.
 Run templates expose the exact required result shape for each validity check.
 Every performed validity gate must bind its observed diagnostic and

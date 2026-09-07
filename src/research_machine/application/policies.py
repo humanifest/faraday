@@ -61,6 +61,15 @@ def require_text(value: str, field_name: str) -> str:
     return normalized
 
 
+def require_canonical_text(value: str, field_name: str) -> str:
+    text = require_text(value, field_name)
+    if text != value:
+        raise ValidationError(
+            f"{field_name} must be canonical without surrounding whitespace"
+        )
+    return text
+
+
 def require_text_list(values: Sequence[str], field_name: str) -> list[str]:
     if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
         raise ValidationError(f"{field_name} must be a list of text values")
@@ -1659,16 +1668,13 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                     "measurement_validity_checks must contain MeasurementValidityCheck values"
                 )
             for name, value in check.to_dict().items():
-                require_text(value, f"measurement validity check {name}")
+                require_canonical_text(value, f"measurement validity check {name}")
             for name, value in (
                 ("check_id", check.check_id),
                 ("measurement_id", check.measurement_id),
                 ("assessment_gate_id", check.assessment_gate_id),
             ):
-                if value.strip() != value:
-                    raise ValidationError(
-                        "measurement validity check IDs and gate bindings must be canonical without surrounding whitespace"
-                    )
+                require_canonical_text(value, f"measurement validity check {name}")
             if check.evidence_type not in {
                 "criterion", "convergent", "discriminant", "known_groups",
                 "test_retest", "inter_rater", "content", "calibration", "other",
@@ -1713,13 +1719,7 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             if not isinstance(control, ControlDefinition):
                 raise ValidationError("control_definitions must contain ControlDefinition objects")
             for name, value in control.to_dict().items():
-                require_text(value, f"control definition {name}")
-            for name in ("control_id", "registered_control", "evaluation_gate_id"):
-                value = getattr(control, name)
-                if require_text(value, f"control definition {name}") != value:
-                    raise ValidationError(
-                        f"control definition {name} must be canonical without surrounding whitespace"
-                    )
+                require_canonical_text(value, f"control definition {name}")
             if control.family not in CONTROL_FAMILIES:
                 raise ValidationError("unsupported control family")
             control_id = control.control_id
@@ -1806,33 +1806,17 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
     observed_targets: list[tuple[MeasurementRole, str]] = []
     for index, definition in enumerate(definitions):
         prefix = f"measurement_definitions[{index}]"
-        def require_canonical_text(value: str, field_name: str) -> str:
-            text = require_text(value, field_name)
-            if text != value:
-                raise ValidationError(
-                    f"{field_name} must be canonical without surrounding whitespace"
-                )
-            return text
-
-        measurement_id = require_text(
+        measurement_id = require_canonical_text(
             definition.measurement_id, f"{prefix}.measurement_id"
         )
-        if measurement_id != definition.measurement_id:
-            raise ValidationError(
-                f"{prefix}.measurement_id must be canonical without surrounding whitespace"
-            )
         if measurement_id in identifiers:
             raise ValidationError(f"duplicate measurement_id: {measurement_id}")
         identifiers.add(measurement_id)
         if not isinstance(definition.role, MeasurementRole):
             raise ValidationError(f"{prefix}.role must be a MeasurementRole")
-        target = require_text(
+        target = require_canonical_text(
             definition.registered_target, f"{prefix}.registered_target"
         )
-        if target != definition.registered_target:
-            raise ValidationError(
-                f"{prefix}.registered_target must be canonical without surrounding whitespace"
-            )
         for field_name in (
             "observable",
             "input_condition",

@@ -216,6 +216,43 @@ def test_measurement_validity_check_handles_must_be_canonical_at_freeze(
         validate_protocol_freeze(bound)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("evidence_type", " criterion "),
+        ("validity_claim", " The primary measurement agrees with a traceable reference. "),
+        ("assessment_plan", " Blindly compare the prespecified subset before analysis unlock. "),
+        ("acceptance_criterion", " At least 95% of comparisons differ by no more than two units. "),
+        ("failure_response", " Stop primary interpretation and investigate measurement failure. "),
+    ],
+)
+def test_measurement_validity_check_semantics_must_be_canonical_at_freeze(
+    field, value
+) -> None:
+    protocol = _multi_step_protocol()
+    check = MeasurementValidityCheck(
+        check_id="primary-reference-agreement",
+        measurement_id="primary-measurement",
+        evidence_type="criterion",
+        validity_claim="The primary measurement agrees with a traceable reference.",
+        assessment_plan="Blindly compare the prespecified subset before analysis unlock.",
+        acceptance_criterion="At least 95% of comparisons differ by no more than two units.",
+        failure_response="Stop primary interpretation and investigate measurement failure.",
+        assessment_gate_id="measurement-validity-assessed",
+    )
+    bound = replace(
+        protocol,
+        measurement_validity_checks=[replace(check, **{field: value})],
+        quality_requirements=[*protocol.quality_requirements, "measurement-validity-assessed"],
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match=f"measurement validity check {field} must be canonical",
+    ):
+        validate_protocol_freeze(bound)
+
+
 def test_calibration_acceptance_ids_are_unambiguous_at_freeze() -> None:
     protocol = replace(
         _human_protocol(human_subjects=False),

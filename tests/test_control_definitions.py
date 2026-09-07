@@ -147,6 +147,25 @@ def test_control_definition_handles_must_be_canonical_at_freeze(field):
         )
 
 
+@pytest.mark.parametrize(
+    "field",
+    ["family", "purpose", "expected_behavior"],
+)
+def test_control_definition_semantics_must_be_canonical_at_freeze(field):
+    protocol = _protocol()
+    control = replace(
+        protocol.control_definitions[0],
+        **{field: " " + getattr(protocol.control_definitions[0], field) + " "},
+    )
+    with pytest.raises(
+        ValidationError,
+        match=f"control definition {field} must be canonical",
+    ):
+        validate_protocol_freeze(
+            replace(protocol, control_definitions=[control])
+        )
+
+
 def test_registered_control_names_must_be_canonical_at_freeze():
     protocol = _protocol()
     with pytest.raises(ValidationError, match="protocol controls"):

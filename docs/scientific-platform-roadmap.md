@@ -33,7 +33,8 @@ and `evaluation_gate_id`. Families are positive, negative, sham, replay,
 random_time, adversarial, reference, and other. Supplied definitions must cover
 the registered controls exactly with canonical, unique identities and link to
 required quality gates; surrounding whitespace in registered control names,
-control IDs, target names, or evaluation-gate handles now fails at freeze before
+control IDs, target names, families, purposes, expected behaviors, or
+evaluation-gate handles now fails at freeze before
 coverage is checked. Expected
 scientific behavior is not itself a quality-gate pass condition. Definitions are
 hash-bound; absent definitions preserve legacy commitments without retroactively
@@ -473,8 +474,8 @@ typed protocol field with an exact target measurement ID. CLI parsing, the
 published protocol schema, service construction, serialization, and freeze
 validation preserve it. The complete check set participates in the protocol
 hash; unknown measurement IDs, unsupported evidence types, absent required
-gates, duplicate IDs, noncanonical check or gate bindings, and cross-purpose
-gate reuse fail before freeze. This protects the prospective plan but does not
+gates, duplicate IDs, noncanonical check text or gate bindings, and
+cross-purpose gate reuse fail before freeze. This protects the prospective plan but does not
 authenticate reviewer identity or establish that the chosen check is
 scientifically sufficient.
 Artifact-bound validity-result delivery: run templates and intake now require
