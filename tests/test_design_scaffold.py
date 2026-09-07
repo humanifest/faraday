@@ -852,6 +852,13 @@ def test_confirmatory_scaffold_binds_estimand_contrast_null_and_support_rule():
         "confidence_level": 0.95,
     })
     assert "CONTRAST_GROUP_LABEL_NONCANONICAL" in {item["code"] for item in padded["findings"]}
+    padded_ceiling = scaffold_design({
+        **base,
+        "higher_level_conclusions_unsupported": [" No causal conclusion"],
+    })
+    assert "UNSUPPORTED_CONCLUSION_NONCANONICAL" in {
+        item["code"] for item in padded_ceiling["findings"]
+    }
 
 
 def test_scaffold_carries_reviewable_information_and_attrition_thresholds():
@@ -893,6 +900,23 @@ def test_scaffold_carries_reviewable_information_and_attrition_thresholds():
     assert "MISSINGNESS_ASSESSMENT_NONCANONICAL" in {
         item["code"] for item in padded["findings"]
     }
+    assert padded["status"] == "blocked"
+
+
+def test_review_commitment_lists_must_be_canonical_before_drafting():
+    base = {
+        "title": "Review commitment fixture", "question": "Question",
+        "decision": "Decision", "outcome": "score", "unit_of_observation": "unit",
+        "human_participants": False,
+    }
+    padded = scaffold_design({
+        **base,
+        "exclusions": [" Exclude broken sensors"],
+        "falsification_conditions": ["Null effect in the registered interval "],
+    })
+    codes = {item["code"] for item in padded["findings"]}
+    assert "EXCLUSION_RULE_NONCANONICAL" in codes
+    assert "FALSIFICATION_CONDITION_NONCANONICAL" in codes
     assert padded["status"] == "blocked"
 
 

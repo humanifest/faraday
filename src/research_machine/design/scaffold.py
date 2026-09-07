@@ -385,6 +385,17 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
     require_canonical_list_items("contrast_groups", "CONTRAST_GROUP_LABEL_NONCANONICAL", "Contrast groups")
     require_canonical_list_items("controls", "CONTROL_LABEL_NONCANONICAL", "Controls")
     require_canonical_list_items("confounds", "CONFOUND_LABEL_NONCANONICAL", "Confounds")
+    require_canonical_list_items("exclusions", "EXCLUSION_RULE_NONCANONICAL", "Exclusion rules")
+    require_canonical_list_items(
+        "falsification_conditions",
+        "FALSIFICATION_CONDITION_NONCANONICAL",
+        "Falsification conditions",
+    )
+    require_canonical_list_items(
+        "higher_level_conclusions_unsupported",
+        "UNSUPPORTED_CONCLUSION_NONCANONICAL",
+        "Unsupported-conclusion ceilings",
+    )
 
     def has_noncanonical_parameter_values(values: dict[str, str]) -> bool:
         return any(

@@ -443,6 +443,9 @@ flags unresolved causal comparisons, measurement units, calibration, controls,
 confounds, analysis commitments, and stopping rules. `research design interview`
 now collects plain-language answers without JSON authoring or an LLM, including
 predictions, alternatives, falsifiers, dependence, controls, and human-data scope.
+Guided review-list commitments, including exclusions, falsification conditions,
+and unsupported higher-level conclusions, now receive blocking findings when
+surrounding whitespace would otherwise be preserved in draft artifacts.
 For causal studies it can also collect the DAG and complete typed assumption
 register interactively, validate variable and edge references, and feed the same
 deterministic audit used by file-based and canonical workflows. Declining this

@@ -400,8 +400,11 @@ review-only hypothesis, protocol, typed primary-measurement, data-dictionary,
 and collection-plan drafts.
 It also gives plain-language structural findings for causal identification,
 measurement units and calibration, controls, confounds, stopping rules, and
-human-participant safeguards. It never creates canonical state, activates a
-hypothesis, freezes a protocol, or authorizes data collection.
+human-participant safeguards. Review-list commitments such as exclusions,
+falsification conditions, and unsupported higher-level conclusions must be
+canonical without surrounding whitespace before they are treated as draft
+protocol, hypothesis, or conclusion-contract text. It never creates canonical
+state, activates a hypothesis, freezes a protocol, or authorizes data collection.
 
 The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,
