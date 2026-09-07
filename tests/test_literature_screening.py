@@ -1,3 +1,4 @@
+import hashlib
 import json
 import pytest
 
@@ -37,17 +38,15 @@ def test_screening_cli_preserves_duplicate_disagreement(tmp_path, capsys):
         create_screening(snapshot, digest, review, tmp_path / "screening")
 
 
-def test_screening_normalizes_source_and_criterion_references(tmp_path):
+def test_screening_preserves_canonical_source_and_criterion_references(tmp_path):
     snapshot, digest, review = setup_snapshot(tmp_path)
-    review["decisions"][0]["source_id"] = " a "
-    review["decisions"][0]["criterion_refs"] = [" inclusion:1 "]
     result = create_screening(snapshot, digest, review, tmp_path / "screening")
     included = result["decisions"][0]
     assert included["source_id"] == "a"
     assert included["criterion_refs"] == ["inclusion:1"]
 
 
-@pytest.mark.parametrize("failure", ["hash", "missing", "duplicate", "padded_duplicate", "reason", "criterion", "duplicate_criterion", "no_criterion"])
+@pytest.mark.parametrize("failure", ["hash", "missing", "duplicate", "padded_source", "reason", "criterion", "padded_criterion", "duplicate_criterion", "no_criterion"])
 def test_invalid_screening_never_publishes(tmp_path, failure):
     path, digest, review = setup_snapshot(tmp_path)
     if failure == "hash":
@@ -56,18 +55,54 @@ def test_invalid_screening_never_publishes(tmp_path, failure):
         review["decisions"].pop()
     elif failure == "duplicate":
         review["decisions"][1]["source_id"] = "a"
-    elif failure == "padded_duplicate":
-        review["decisions"][1]["source_id"] = " a "
+    elif failure == "padded_source":
+        review["decisions"][0]["source_id"] = " a "
     elif failure == "reason":
         review["decisions"][0]["reason"] = ""
     elif failure == "criterion":
         review["decisions"][0]["criterion_refs"] = ["inclusion:999"]
+    elif failure == "padded_criterion":
+        review["decisions"][0]["criterion_refs"] = [" inclusion:1 "]
     elif failure == "duplicate_criterion":
-        review["decisions"][0]["criterion_refs"] = ["inclusion:1", " inclusion:1 "]
+        review["decisions"][0]["criterion_refs"] = ["inclusion:1", "inclusion:1"]
     else:
         review["decisions"][0]["criterion_refs"] = []
     output = tmp_path / "screening"
     with pytest.raises(ValidationError):
+        create_screening(path, digest, review, output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("reviewer", " Synthetic reviewer", "reviewer must be canonical"),
+        ("source_id", " a", "screening source_id must be canonical"),
+        ("reason", " Fixture criteria met", "screening reason must be canonical"),
+        ("criterion_refs", ["inclusion:1 "], "criterion_refs item must be canonical"),
+    ],
+)
+def test_screening_review_text_must_be_canonical(tmp_path, field, value, message):
+    path, digest, review = setup_snapshot(tmp_path)
+    if field == "reviewer":
+        review[field] = value
+    else:
+        review["decisions"][0][field] = value
+    output = tmp_path / "screening"
+    with pytest.raises(ValidationError, match=message):
+        create_screening(path, digest, review, output)
+    assert not output.exists()
+
+
+def test_screening_rejects_noncanonical_pinned_snapshot_source_id(tmp_path):
+    path, digest, review = setup_snapshot(tmp_path)
+    snapshot = json.loads(path.read_text())
+    snapshot["sources"][0]["source_id"] = " a "
+    path.write_text(json.dumps(snapshot, sort_keys=True) + "\n")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    review["decisions"][0]["source_id"] = " a "
+    output = tmp_path / "screening"
+    with pytest.raises(ValidationError, match="source_id must be canonical"):
         create_screening(path, digest, review, output)
     assert not output.exists()
 

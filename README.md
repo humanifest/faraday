@@ -709,13 +709,14 @@ search tool as evidence authority:
 Each source in the manifest names a locally retained file. The snapshot hashes
 that file, records its primary/secondary/registry/preprint classification and
 screening criteria, and states that claims still require separate extraction,
-verification, and bias assessment. Screening source IDs and criterion references
-are normalized before coverage and duplicate checks, so whitespace padding
-cannot create a second apparent screening decision or criterion citation. The
-trusted snapshot hash supplied to screening must be a canonical lowercase
-SHA-256 digest before it can pin the source bytes. Downstream extraction and
-synthesis-planning commands apply the same canonical hash contract when they
-pin a screening record.
+verification, and bias assessment. Screening reviewer text, pinned source IDs,
+decision source IDs, reasons, and criterion references must be canonical without
+surrounding whitespace before coverage and duplicate checks, so whitespace
+padding cannot create a second apparent screening decision or criterion
+citation. The trusted snapshot hash supplied to screening must be a canonical
+lowercase SHA-256 digest before it can pin the source bytes. Downstream
+extraction and synthesis-planning commands apply the same canonical hash
+contract when they pin a screening record.
 
 Downstream literature evidence maps retain the extraction location, independent
 citation-review location and rationale, and study-level bias-domain judgments

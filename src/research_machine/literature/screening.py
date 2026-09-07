@@ -11,6 +11,13 @@ from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def create_screening(snapshot_path: Path, expected_sha256: str, review: dict[str, Any], output: Path) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_snapshot_sha256")
     content = snapshot_path.read_bytes()
@@ -25,12 +32,14 @@ def create_screening(snapshot_path: Path, expected_sha256: str, review: dict[str
     sources = snapshot.get("sources")
     if not isinstance(sources, list) or not sources or any(not isinstance(item, dict) for item in sources):
         raise ValidationError("snapshot sources must be non-empty objects")
-    source_ids = [_text(item.get("source_id"), "source_id").strip() for item in sources]
+    source_ids = [
+        _canonical_text(item.get("source_id"), "source_id") for item in sources
+    ]
     if len(set(source_ids)) != len(source_ids):
         raise ValidationError("snapshot has duplicate source IDs")
     if not isinstance(review, dict) or set(review) != {"reviewer", "decisions"}:
         raise ValidationError("screening review requires exactly reviewer and decisions")
-    reviewer = _text(review["reviewer"], "reviewer")
+    reviewer = _canonical_text(review["reviewer"], "reviewer")
     criteria = {}
     for kind in ("inclusion", "exclusion"):
         values = snapshot.get(f"{kind}_criteria", [])
@@ -45,29 +54,36 @@ def create_screening(snapshot_path: Path, expected_sha256: str, review: dict[str
     for item in decisions:
         if not isinstance(item, dict) or set(item) != {"source_id", "decision", "reason", "criterion_refs"}:
             raise ValidationError("each screening decision requires exactly source_id, decision, reason, and criterion_refs")
-        source_id = _text(item["source_id"], "screening source_id").strip()
+        source_id = _canonical_text(item["source_id"], "screening source_id")
         if source_id in by_id:
             raise ValidationError("duplicate screening decision")
         if item["decision"] not in ("include", "exclude", "unresolved"):
             raise ValidationError("screening decision must be include, exclude, or unresolved")
-        _text(item["reason"], "screening reason")
+        reason = _canonical_text(item["reason"], "screening reason")
         refs = item["criterion_refs"]
         if not isinstance(refs, list) or any(not isinstance(ref, str) or not ref.strip() for ref in refs):
             raise ValidationError("screening criterion_refs must reference criteria in the pinned snapshot")
-        refs = [ref.strip() for ref in refs]
+        refs = [
+            _canonical_text(ref, "screening criterion_refs item")
+            for ref in refs
+        ]
         if any(ref not in criteria for ref in refs):
             raise ValidationError("screening criterion_refs must reference criteria in the pinned snapshot")
         if len(refs) != len(set(refs)):
             raise ValidationError("duplicate screening criterion reference")
         if item["decision"] != "unresolved" and not refs:
             raise ValidationError("include/exclude decisions require at least one criterion reference")
-        by_id[source_id] = {**item, "source_id": source_id, "criterion_refs": refs}
+        by_id[source_id] = {
+            **item, "source_id": source_id, "reason": reason, "criterion_refs": refs
+        }
     if set(by_id) != set(source_ids):
         raise ValidationError("screening decisions must cover exactly the snapshot source IDs")
     groups: dict[str, list[str]] = {}
     for source in sources:
         digest = _text(source.get("retained_file_sha256"), "retained_file_sha256")
-        groups.setdefault(digest, []).append(_text(source["source_id"], "source_id").strip())
+        groups.setdefault(digest, []).append(
+            _canonical_text(source["source_id"], "source_id")
+        )
     conflicts = [sorted(ids) for _, ids in sorted(groups.items())
                  if len({by_id[source_id]["decision"] for source_id in ids}) > 1]
     counts = {decision: sum(item["decision"] == decision for item in decisions)
