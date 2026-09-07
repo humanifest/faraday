@@ -369,6 +369,23 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
     def add(code: str, severity: str, message: str, remediation: str) -> None:
         findings.append(DesignFinding(code, severity, message, remediation))
 
+    def require_canonical_list_items(key: str, code: str, label: str) -> None:
+        values = _text_list(brief, key)
+        if any(item != item.strip() for item in values):
+            add(
+                code,
+                "error",
+                f"{label} contain labels with surrounding whitespace.",
+                "Use exact stable labels without padding so review artifacts, coverage checks, gates, and execution handles bind the same scientific roles.",
+            )
+
+    require_canonical_list_items("secondary_outcomes", "SECONDARY_OUTCOME_LABEL_NONCANONICAL", "Secondary outcomes")
+    require_canonical_list_items("confirmatory_outcomes", "CONFIRMATORY_OUTCOME_LABEL_NONCANONICAL", "Confirmatory outcomes")
+    require_canonical_list_items("exploratory_outcomes", "EXPLORATORY_OUTCOME_LABEL_NONCANONICAL", "Exploratory outcomes")
+    require_canonical_list_items("contrast_groups", "CONTRAST_GROUP_LABEL_NONCANONICAL", "Contrast groups")
+    require_canonical_list_items("controls", "CONTROL_LABEL_NONCANONICAL", "Controls")
+    require_canonical_list_items("confounds", "CONFOUND_LABEL_NONCANONICAL", "Confounds")
+
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
     normalized_outcomes = [item.strip().casefold() for item in secondary_outcomes]
     if len(set(normalized_outcomes)) != len(normalized_outcomes):

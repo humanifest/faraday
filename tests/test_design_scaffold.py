@@ -427,6 +427,9 @@ def test_secondary_outcomes_require_exact_typed_measurement_coverage():
     assert "OUTCOME_ROLE_CONFLICT" in {item["code"] for item in conflicted["findings"]}
     duplicated = scaffold_design({**base, "secondary_outcomes": ["Errors", " errors "]})
     assert "SECONDARY_OUTCOME_DUPLICATE" in {item["code"] for item in duplicated["findings"]}
+    assert "SECONDARY_OUTCOME_LABEL_NONCANONICAL" in {
+        item["code"] for item in duplicated["findings"]
+    }
     policy = "Primary score is the sole confirmatory outcome; classify all other outcomes prospectively."
     omitted = scaffold_design({**base, "secondary_outcomes": ["Response time", "Errors"],
                                "confirmatory_outcomes": ["Primary score"],
@@ -434,6 +437,17 @@ def test_secondary_outcomes_require_exact_typed_measurement_coverage():
                                "multiplicity_method": "single_test", "multiplicity_alpha": 0.05,
                                "multiple_testing_policy": policy})
     assert "MULTIPLICITY_OUTCOME_PARTITION_INVALID" in {item["code"] for item in omitted["findings"]}
+    padded_roles = scaffold_design({**base, "secondary_outcomes": ["Response time", "Errors"],
+                                    "confirmatory_outcomes": [" Primary score"],
+                                    "exploratory_outcomes": [" Response time", "Errors "],
+                                    "multiplicity_method": "single_test", "multiplicity_alpha": 0.05,
+                                    "multiple_testing_policy": policy})
+    assert "CONFIRMATORY_OUTCOME_LABEL_NONCANONICAL" in {
+        item["code"] for item in padded_roles["findings"]
+    }
+    assert "EXPLORATORY_OUTCOME_LABEL_NONCANONICAL" in {
+        item["code"] for item in padded_roles["findings"]
+    }
     substituted = scaffold_design({**base, "secondary_outcomes": ["Response time", "Errors"],
                                    "confirmatory_outcomes": ["Primary score"],
                                    "exploratory_outcomes": ["Response time", "Favorable surrogate"],
@@ -503,11 +517,17 @@ def test_controls_and_confounds_must_have_unique_scientific_labels():
     assert "CONTROL_DUPLICATE" in {
         item["code"] for item in duplicated_controls["findings"]
     }
+    assert "CONTROL_LABEL_NONCANONICAL" in {
+        item["code"] for item in duplicated_controls["findings"]
+    }
     duplicated_confounds = scaffold_design({
         **base,
-        "confounds": ["Tray position", "tray POSITION"],
+        "confounds": ["Tray position", " tray POSITION "],
     })
     assert "CONFOUND_DUPLICATE" in {
+        item["code"] for item in duplicated_confounds["findings"]
+    }
+    assert "CONFOUND_LABEL_NONCANONICAL" in {
         item["code"] for item in duplicated_confounds["findings"]
     }
 
@@ -728,6 +748,13 @@ def test_confirmatory_scaffold_binds_estimand_contrast_null_and_support_rule():
         "confidence_level": 0.95,
     })
     assert "CONTRAST_GROUPS_INVALID" in {item["code"] for item in malformed["findings"]}
+    padded = scaffold_design({
+        **base, "primary_estimand": "Mean difference", "contrast_definition": "A minus B",
+        "contrast_groups": [" A", "B "], "expected_effect_direction": "positive",
+        "null_value": 0.0, "support_rule": "interval_excludes_null",
+        "confidence_level": 0.95,
+    })
+    assert "CONTRAST_GROUP_LABEL_NONCANONICAL" in {item["code"] for item in padded["findings"]}
 
 
 def test_scaffold_carries_reviewable_information_and_attrition_thresholds():

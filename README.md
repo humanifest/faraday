@@ -474,6 +474,10 @@ including equal or inverted numeric bounds, then emits an ordered
 `secondary-measurement-definitions-draft.json`. The
 provider-free interview can collect each contract; skipped answers remain an
 explicit coverage blocker rather than generating a plausible surrogate.
+Secondary, confirmatory, exploratory, control, confound, and contrast-group
+role labels must be canonical without surrounding whitespace before normalized
+duplicate or coverage checks can pass, so draft artifacts cannot preserve a
+padded handle that the audit only matched after trimming.
 Registered controls now require the same exact ordered measurement coverage.
 Each control measurement preserves its observable, input condition, parameters,
 evaluation point, convention, aggregation, tolerance, expected behavior, and

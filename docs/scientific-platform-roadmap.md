@@ -542,6 +542,11 @@ remains a prospective commitment, not evidence that the control passed.
 Control and confound labels are now checked for case/whitespace-normalized
 duplicates before downstream definitions, measurements, gates, or causal graph
 roles can treat one repeated label as multiple distinct scientific roles.
+Guided role-label canonicalization delivery: secondary, confirmatory,
+exploratory, control, confound, and contrast-group lists now receive explicit
+blocking findings when a label has surrounding whitespace. The audit still
+reports normalized duplicate and coverage failures, but padded handles cannot be
+treated as exact simply because trimming made a comparison succeed.
 Guided sample-size integration delivery: design briefs can carry any supported
 deterministic planning input or exact receipt. The scaffold recomputes it,
 retains the receipt in both the protocol and a dedicated review artifact, and
