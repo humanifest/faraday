@@ -90,6 +90,60 @@ def _artifact_set_sha256(artifacts: Sequence[DatasetArtifact]) -> str:
     return _sha256_bytes(content)
 
 
+def _artifact_declaration_findings(
+    artifacts: Sequence[DatasetArtifact],
+) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    locators: set[str] = set()
+    digests: set[str] = set()
+    for artifact in artifacts:
+        if artifact.locator != artifact.locator.strip():
+            findings.append(
+                _finding(
+                    "ARTIFACT_LOCATOR_NONCANONICAL",
+                    "artifact locator must be canonical without surrounding whitespace",
+                    locator=artifact.locator,
+                )
+            )
+        if not _is_canonical_sha256(artifact.sha256):
+            findings.append(
+                _finding(
+                    "ARTIFACT_SHA256_NONCANONICAL",
+                    "artifact SHA-256 must be a lowercase digest",
+                    locator=artifact.locator,
+                    sha256=artifact.sha256,
+                )
+            )
+        if artifact.media_type != artifact.media_type.strip():
+            findings.append(
+                _finding(
+                    "ARTIFACT_MEDIA_TYPE_NONCANONICAL",
+                    "artifact media type must be canonical without surrounding whitespace",
+                    locator=artifact.locator,
+                    media_type=artifact.media_type,
+                )
+            )
+        if artifact.locator in locators:
+            findings.append(
+                _finding(
+                    "ARTIFACT_LOCATOR_DUPLICATE",
+                    "artifact locators must be unique",
+                    locator=artifact.locator,
+                )
+            )
+        if artifact.sha256 in digests:
+            findings.append(
+                _finding(
+                    "ARTIFACT_SHA256_DUPLICATE",
+                    "artifact SHA-256 digests must be unique",
+                    sha256=artifact.sha256,
+                )
+            )
+        locators.add(artifact.locator)
+        digests.add(artifact.sha256)
+    return findings
+
+
 def _safe_artifact_path(
     root: Path, locator: str
 ) -> tuple[Path | None, dict[str, Any] | None]:
@@ -512,6 +566,8 @@ def verify_run_artifacts(
         expected_attestation_schema_sha256 is not None
         and _is_canonical_sha256(expected_attestation_schema_sha256)
     )
+
+    findings.extend(_artifact_declaration_findings(artifacts))
 
     if artifact_root is None:
         findings.append(

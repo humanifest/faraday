@@ -345,6 +345,55 @@ def test_dataset_artifact_media_type_must_be_canonical() -> None:
         ])
 
 
+def test_artifact_integrity_reports_duplicate_artifact_declarations(
+    tmp_path: Path,
+) -> None:
+    target_run_id, root, schema_path, artifacts = _artifact_fixture(tmp_path)
+
+    report = verify_run_artifacts(
+        [*artifacts, artifacts[0]],
+        artifact_root=str(root),
+        actor="independent-lab",
+        analysis_code_hash="d" * 64,
+        run_metadata=_metadata(target_run_id),
+        attestation_schema_path=str(schema_path),
+        expected_attestation_schema_sha256=_sha256(schema_path),
+    )
+
+    assert report.status == "failed"
+    finding_codes = {finding["code"] for finding in report.findings}
+    assert "ARTIFACT_LOCATOR_DUPLICATE" in finding_codes
+    assert "ARTIFACT_SHA256_DUPLICATE" in finding_codes
+
+
+def test_artifact_integrity_reports_noncanonical_artifact_declarations(
+    tmp_path: Path,
+) -> None:
+    target_run_id, root, schema_path, artifacts = _artifact_fixture(tmp_path)
+    artifacts[0] = DatasetArtifact(
+        " result.json ",
+        artifacts[0].sha256.upper(),
+        size_bytes=artifacts[0].size_bytes,
+        media_type=" application/json ",
+    )
+
+    report = verify_run_artifacts(
+        artifacts,
+        artifact_root=str(root),
+        actor="independent-lab",
+        analysis_code_hash="d" * 64,
+        run_metadata=_metadata(target_run_id),
+        attestation_schema_path=str(schema_path),
+        expected_attestation_schema_sha256=_sha256(schema_path),
+    )
+
+    finding_codes = {finding["code"] for finding in report.findings}
+    assert report.status == "failed"
+    assert "ARTIFACT_LOCATOR_NONCANONICAL" in finding_codes
+    assert "ARTIFACT_SHA256_NONCANONICAL" in finding_codes
+    assert "ARTIFACT_MEDIA_TYPE_NONCANONICAL" in finding_codes
+
+
 def test_artifact_integrity_rejects_duplicate_attestation_keys(
     tmp_path: Path,
 ) -> None:

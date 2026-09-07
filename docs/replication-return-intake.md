@@ -19,8 +19,10 @@ research --workspace .research --actor <independent-executor> run preflight \
 
 The preflight performs these checks without writing canonical state:
 
-1. Every output locator is relative, contains no parent traversal, crosses no
-   symbolic link, resolves below the supplied root, and names a regular file.
+1. Every output declaration uses canonical unpadded locators, lowercase SHA-256
+   digests, canonical media types, unique locators, and unique digests. Locators
+   must also be relative, contain no parent traversal, cross no symbolic link,
+   resolve below the supplied root, and name a regular file.
 2. Every file's observed SHA-256 and optional byte count match the run record.
 3. Exactly one artifact matches the declared attestation locator and carries
    `artifact_role=independence_attestation`.

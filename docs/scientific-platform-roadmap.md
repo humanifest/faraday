@@ -92,10 +92,11 @@ integrity receipt, and any pinned attestation-schema location and commitment.
 Retained run artifact roots and attestation-schema paths must be canonical
 unpadded text, and pinned attestation-schema commitments must be canonical
 lowercase SHA-256 digests, before schema bytes are read as trusted comparison
-material or receipts are replayed. Output artifact locators and media types
-pass through the same canonical shared validator before dataset, run, custody,
-or review receipts can rely on them, so JSON-vs-human-inspectable labels cannot
-be changed by padding.
+material or receipts are replayed. Output artifact declarations must use
+canonical unpadded locators, lowercase SHA-256 digests, canonical media types,
+unique locators, and unique digests before local preflight can pass. The same
+canonical shared validator protects dataset, run, custody, or review receipts,
+so JSON-vs-human-inspectable labels cannot be changed by padding.
 Independent-replication admission now applies the same exact-handle rule to
 clean-room metadata: independence dimensions, allowed-input locators,
 contamination disclosures, and the attestation artifact locator are rejected
