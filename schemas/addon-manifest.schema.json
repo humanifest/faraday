@@ -7,19 +7,19 @@
   "required": ["addon_id", "name", "version", "discipline", "description", "methods", "instrument_adapters", "capabilities", "protocol_kinds", "dataset_media_types"],
   "properties": {
     "addon_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
-    "name": {"type": "string", "pattern": "\\S"},
-    "version": {"type": "string", "pattern": "\\S"},
-    "discipline": {"type": "string", "pattern": "\\S"},
-    "description": {"type": "string", "pattern": "\\S"},
+    "name": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
+    "version": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
+    "discipline": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
+    "description": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
     "methods": {"type": "array", "items": {
       "type": "object", "additionalProperties": false,
       "required": ["method_id", "title", "description", "required_spec_fields", "maximum_claim_ceiling", "maximum_inference_level"],
       "properties": {
         "method_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
-        "title": {"type": "string", "pattern": "\\S"},
-        "description": {"type": "string", "pattern": "\\S"},
+        "title": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
+        "description": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
         "required_spec_fields": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
-        "maximum_claim_ceiling": {"type": "string", "pattern": "\\S"},
+        "maximum_claim_ceiling": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
         "maximum_inference_level": {"enum": ["computation_only", "descriptive", "association", "design_conditional_effect"]}
       }
     }},
@@ -28,8 +28,8 @@
       "required": ["adapter_id", "title", "description", "supported_media_types", "required_config_fields", "optional_config_fields", "authority"],
       "properties": {
         "adapter_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
-        "title": {"type": "string", "pattern": "\\S"},
-        "description": {"type": "string", "pattern": "\\S"},
+        "title": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
+        "description": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
         "supported_media_types": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
         "required_config_fields": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
         "optional_config_fields": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
@@ -39,6 +39,6 @@
     "capabilities": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
     "protocol_kinds": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
     "dataset_media_types": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
-    "documentation": {"type": "string"}
+    "documentation": {"type": "string", "pattern": "^(|\\S(?:.*\\S)?)$"}
   }
 }

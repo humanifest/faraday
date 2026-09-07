@@ -1003,7 +1003,10 @@ exports redact the operational root.
 
 ## Measurement custody
 
-Instrument add-ons may expose bounded `InstrumentAdapter` inspectors. Run one
+Instrument add-ons may expose bounded `InstrumentAdapter` inspectors. Add-on
+registry validation rejects padded manifest, method, adapter, documentation, and
+method claim-ceiling text before an extension can expose executable authority.
+Run one
 with `measurement inspect-source --adapter ADAPTER_ID --source-file FILE
 --media-type TYPE --config-file CONFIG --output DIRECTORY`. Faraday requires the
 type to match the adapter's declared supported media types, snapshots and hashes the bytes,

@@ -174,3 +174,43 @@ def test_addon_manifest_schema_rejects_padded_metadata_handles(field, value):
     manifest[field] = value
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(manifest, schema)
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("name",), " General Science Toolkit"),
+        (("version",), "8.0.0 "),
+        (("discipline",), " cross-disciplinary"),
+        (("description",), "Deterministic toolkit. "),
+        (("documentation",), " docs/addons.md"),
+        (("methods", 0, "title"), " Descriptive summary"),
+        (("methods", 0, "description"), "Summarize values. "),
+        (("methods", 0, "maximum_claim_ceiling"), "Description only. "),
+        (("instrument_adapters", 0, "title"), " Fixture reader"),
+        (("instrument_adapters", 0, "description"), "Fixture reader. "),
+    ],
+)
+def test_addon_manifest_schema_rejects_padded_metadata_text(path, value):
+    from research_machine.addons.models import AddonManifest, InstrumentAdapter
+
+    schema = json.loads((SCHEMAS / "addon-manifest.schema.json").read_text())
+    manifest = AddonManifest(
+        "instrument_fixture", "Instrument fixture", "1", "test", "Fixture",
+        methods=MANIFEST.methods,
+        instrument_adapters=(InstrumentAdapter(
+            "fixture_reader", "Fixture reader", "Fixture metadata reader",
+            ("application/octet-stream",), ("device_id",), lambda raw, config: {},
+            ("timezone",),
+        ),),
+        capabilities=MANIFEST.capabilities,
+        protocol_kinds=MANIFEST.protocol_kinds,
+        dataset_media_types=MANIFEST.dataset_media_types,
+        documentation="docs/addons.md",
+    ).describe()
+    target = manifest
+    for part in path[:-1]:
+        target = target[part]
+    target[path[-1]] = value
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(manifest, schema)

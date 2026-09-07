@@ -348,6 +348,31 @@ def test_registry_rejects_missing_manifest_metadata(field, value, message) -> No
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
+        ("name", " Unsafe", "add-on name"),
+        ("version", "1 ", "add-on version"),
+        ("discipline", " test", "add-on discipline"),
+        ("description", "Fixture ", "add-on description"),
+        ("documentation", " docs/addons.md", "add-on documentation"),
+    ],
+)
+def test_registry_rejects_padded_manifest_metadata_text(field, value, message) -> None:
+    registry = AddonRegistry()
+    kwargs = {
+        "addon_id": "unsafe",
+        "name": "Unsafe",
+        "version": "1",
+        "discipline": "test",
+        "description": "Fixture",
+        "documentation": "docs/addons.md",
+    }
+    kwargs[field] = value
+    with pytest.raises(ValidationError, match=message):
+        registry.register(AddonManifest(**kwargs))
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
         ("capabilities", ("csv-ingestion ",), "capabilities"),
         ("capabilities", ("csv-ingestion", "csv-ingestion"), "capabilities"),
         ("protocol_kinds", ("observational ",), "protocol_kinds"),
@@ -410,6 +435,32 @@ def test_registry_rejects_required_spec_fields_unknown_to_execution() -> None:
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
+        ("title", " Unsafe", "method title"),
+        ("description", "Fixture ", "method description"),
+        ("maximum_claim_ceiling", " Calculation only. ", "method maximum_claim_ceiling"),
+    ],
+)
+def test_registry_rejects_padded_method_metadata_text(field, value, message) -> None:
+    registry = AddonRegistry()
+    kwargs = {
+        "method_id": "unsafe",
+        "title": "Unsafe",
+        "description": "Fixture",
+        "required_spec_fields": (),
+        "runner": lambda spec, rows: {},
+        "maximum_claim_ceiling": "Calculation only.",
+    }
+    kwargs[field] = value
+    method = AnalysisMethod(**kwargs)
+    with pytest.raises(ValidationError, match=message):
+        registry.register(
+            AddonManifest("unsafe", "Unsafe", "1", "test", "Fixture", methods=(method,))
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
         ("supported_media_types", ("application/json ",), "supported_media_types"),
         ("supported_media_types", ("application/json", "application/json"), "supported_media_types"),
         ("required_config_fields", ("device_id ",), "required_config_fields"),
@@ -456,6 +507,38 @@ def test_registry_rejects_noncanonical_instrument_adapter_contract_fields(
             ),
         )
 
+    with pytest.raises(ValidationError, match=message):
+        registry.register(AddonManifest(
+            "adapter_fixture", "Adapter fixture", "1", "test", "Fixture",
+            instrument_adapters=(adapter,),
+        ))
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("title", " Fixture adapter", "instrument adapter title"),
+        (
+            "description",
+            "Inspects synthetic fixture bytes. ",
+            "instrument adapter description",
+        ),
+    ],
+)
+def test_registry_rejects_padded_instrument_adapter_metadata_text(
+    field, value, message
+) -> None:
+    registry = AddonRegistry()
+    kwargs = {
+        "adapter_id": "fixture_adapter",
+        "title": "Fixture adapter",
+        "description": "Inspects synthetic fixture bytes.",
+        "supported_media_types": ("application/json",),
+        "required_config_fields": ("device_id",),
+        "inspector": lambda source, config: {},
+    }
+    kwargs[field] = value
+    adapter = InstrumentAdapter(**kwargs)
     with pytest.raises(ValidationError, match=message):
         registry.register(AddonManifest(
             "adapter_fixture", "Adapter fixture", "1", "test", "Fixture",

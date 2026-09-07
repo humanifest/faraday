@@ -381,7 +381,8 @@ must return `research_machine.addons.AddonManifest`. Identifiers are stable and
 globally unique; duplicate add-on, method, capability, protocol-kind,
 dataset-media-type, required-spec, media-type, or adapter configuration
 identifiers fail closed. Registry validation rejects padded manifest, method,
-and adapter contract handles instead of normalizing them.
+and adapter contract handles, descriptive metadata, documentation locators, and
+method claim ceilings instead of normalizing them.
 
 An add-on should contain:
 

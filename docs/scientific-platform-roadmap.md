@@ -267,6 +267,10 @@ method resolution and analysis identity as exact provenance handles.
 Add-on manifests now apply the same canonical duplicate-free validation to
 capabilities, protocol kinds, and dataset media types, and the published manifest
 schema rejects padded contract handles before they reach local loading.
+Registry validation and the published schema now also reject padded manifest,
+method, adapter, documentation, and method claim-ceiling text, so extension
+authority and receipt-facing limitations bind exact local manifest bytes instead
+of silently normalized prose.
 Instrument adapter manifest validation now also rejects noncanonical supported
 media types and required or optional configuration handles, duplicate entries,
 and required/optional overlap before an adapter can enter the registry. This

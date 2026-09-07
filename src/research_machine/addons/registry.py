@@ -34,6 +34,18 @@ def _canonical_values(
     return values
 
 
+def _canonical_text(
+    value: str, field: str, owner: str, *, allow_empty: bool = False
+) -> str:
+    if not isinstance(value, str):
+        raise ValidationError(f"{field} is required canonical text: {owner}")
+    if value != value.strip():
+        raise ValidationError(f"{field} is required canonical text: {owner}")
+    if not allow_empty and not value:
+        raise ValidationError(f"{field} is required canonical text: {owner}")
+    return value
+
+
 class AddonRegistry:
     """Validated registry for bundled and installed scientific extensions."""
 
@@ -95,8 +107,11 @@ class AddonRegistry:
             raise ValidationError("add-on id must be a stable lowercase identifier")
         for field in ("name", "version", "discipline", "description"):
             value = getattr(manifest, field)
-            if not isinstance(value, str) or not value.strip():
-                raise ValidationError(f"add-on {field} is required")
+            _canonical_text(value, f"add-on {field}", manifest.addon_id)
+        _canonical_text(
+            manifest.documentation, "add-on documentation", manifest.addon_id,
+            allow_empty=True,
+        )
         _canonical_values(
             manifest.capabilities,
             "add-on capabilities",
@@ -123,8 +138,10 @@ class AddonRegistry:
                 )
             if method.method_id in seen:
                 raise ValidationError(f"duplicate method in add-on: {method.method_id}")
-            if not method.title.strip() or not method.description.strip():
-                raise ValidationError(f"method metadata is incomplete: {method.method_id}")
+            _canonical_text(method.title, "method title", method.method_id)
+            _canonical_text(
+                method.description, "method description", method.method_id
+            )
             _canonical_values(
                 method.required_spec_fields,
                 "method required_spec_fields",
@@ -138,11 +155,11 @@ class AddonRegistry:
                     f"specification fields: {method.method_id}: "
                     + ", ".join(unsupported)
                 )
-            if (not isinstance(method.maximum_claim_ceiling, str)
-                    or not method.maximum_claim_ceiling.strip()):
-                raise ValidationError(
-                    f"method maximum_claim_ceiling must be non-blank text: {method.method_id}"
-                )
+            _canonical_text(
+                method.maximum_claim_ceiling,
+                "method maximum_claim_ceiling",
+                method.method_id,
+            )
             if method.maximum_inference_level not in INFERENCE_LEVELS:
                 raise ValidationError(
                     f"method maximum_inference_level is unsupported: {method.method_id}"
@@ -159,10 +176,14 @@ class AddonRegistry:
                 raise ValidationError(
                     f"duplicate instrument adapter in add-on: {adapter.adapter_id}"
                 )
-            if not adapter.title.strip() or not adapter.description.strip():
-                raise ValidationError(
-                    f"instrument adapter metadata is incomplete: {adapter.adapter_id}"
-                )
+            _canonical_text(
+                adapter.title, "instrument adapter title", adapter.adapter_id
+            )
+            _canonical_text(
+                adapter.description,
+                "instrument adapter description",
+                adapter.adapter_id,
+            )
             _canonical_values(
                 adapter.supported_media_types,
                 "instrument adapter supported_media_types",
