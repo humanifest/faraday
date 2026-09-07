@@ -973,6 +973,12 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         add("STOPPING_RULE_MISSING", "warning", "No sample-size, precision, or stopping rule is declared.", "Set a sample-size, precision target, or fixed stopping condition before inspecting results.")
     if not brief.get("sample_size_justification", "").strip():
         add("SAMPLE_SIZE_JUSTIFICATION_MISSING", "warning", "The planned information amount has no separate justification.", "State the precision or power target and assumptions, or explain the feasibility limit and resulting inferential limitations. Count independent units, not repeated rows; a stopping count alone is not a justification.")
+    elif brief["sample_size_justification"] != brief["sample_size_justification"].strip():
+        add(
+            "SAMPLE_SIZE_JUSTIFICATION_NONCANONICAL", "error",
+            "The sample-size justification contains surrounding whitespace.",
+            "Use exact unpadded planning rationale before it enters review artifacts or the protocol planning commitment.",
+        )
     planning_receipt = None
     if brief.get("sample_size_plan"):
         try:

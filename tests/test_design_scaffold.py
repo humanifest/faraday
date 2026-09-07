@@ -631,6 +631,14 @@ def test_stopping_count_does_not_supply_information_justification(tmp_path, caps
     result = json.loads(capsys.readouterr().out)["result"]
     assert finding not in {item["code"] for item in result["findings"]}
     assert result["artifacts"]["data-dictionary-draft.json"]["sample_size_justification"] == brief["sample_size_justification"]
+    padded = scaffold_design({
+        **brief,
+        "sample_size_justification": " " + brief["sample_size_justification"],
+    })
+    assert "SAMPLE_SIZE_JUSTIFICATION_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
+    assert padded["status"] == "blocked"
 
 
 def test_guided_design_recomputes_and_audits_sample_size_decision():

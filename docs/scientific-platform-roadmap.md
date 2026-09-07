@@ -567,6 +567,8 @@ rejects invalid calculations, premature canonical target IDs, ordinary
 difference power used for a practical-significance conclusion, and mismatched
 direction or equivalence strategies. Target binding remains a later reviewed
 protocol step; planning assumptions are not achieved power or design validity.
+Separate feasibility-limited planning justifications must also be canonical
+without surrounding whitespace before they enter review artifacts.
 Cross-contract planning-coherence delivery: guided audits now compare a valid
 receipt with the declared analysis design, minimum analyzable units, maximum
 exclusion fraction, confirmatory alpha, confidence level, effect threshold, and

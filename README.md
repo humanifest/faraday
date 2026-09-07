@@ -512,6 +512,8 @@ and premature target IDs. Canonical hypothesis, measurement, and unit IDs are
 bound later during executable protocol construction. Absence of a machine plan
 remains visible and may instead be accompanied by an honest feasibility-limited
 justification; no planner establishes validity or guarantees achieved power.
+That separate justification must also be canonical without surrounding
+whitespace before it enters review artifacts.
 The guided audit also cross-checks the receipt against the rest of the design:
 analysis dependence structure, minimum analyzable count, exclusion ceiling,
 confirmatory alpha, interval level, practical/equivalence threshold, and
