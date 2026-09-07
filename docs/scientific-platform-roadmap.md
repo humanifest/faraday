@@ -945,9 +945,11 @@ enforces the frozen included-source set and minimum independent-study count; and
 retains every null, adverse, mixed, hypothesis-only, and high-bias claim while
 reporting directional and ceiling counts. The synthesis artifact also preserves
 the retained citation and bias-domain provenance for each claim, preventing a
-later reader from seeing only an unsupported ceiling label. It normalizes copied
-claim, study, source, and bias-domain handles before counting studies or
-publishing the qualitative artifact. It never treats claim counts as effect
+later reader from seeing only an unsupported ceiling label. It requires canonical
+frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
+IDs, citation provenance, and bias-domain provenance before joining claims or
+publishing the qualitative artifact, so padded map artifacts cannot be silently
+rewritten into a synthesis. It never treats claim counts as effect
 sizes or authors a substantive conclusion. Quantitative plans fail closed until
 effect-size extraction, variance checks, heterogeneity diagnostics, and validated
 pooling are available.

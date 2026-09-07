@@ -94,25 +94,8 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     assert result["inputs"]["synthesis_deviations_sha256"] == deviations_sha
 
 
-def test_qualitative_synthesis_normalizes_source_and_claim_handles(tmp_path):
+def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_path):
     plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(tmp_path)
-    value = json.loads(plan.read_text())
-    value["included_source_ids_at_freeze"] = [" s1 "]
-    plan_sha = write_json(plan, value)
-    value = json.loads(extraction.read_text())
-    value["source_reviews"][0]["source_id"] = " s1 "
-    extraction_sha = write_json(extraction, value)
-    value = json.loads(evidence_map.read_text())
-    value["inputs"]["extraction_sha256"] = extraction_sha
-    value["claims"][0]["extraction_id"] = " e1 "
-    value["claims"][0]["study_id"] = " study-1 "
-    value["claims"][0]["source_id"] = " s1 "
-    value["claims"][0]["bias_domain_judgments"][0]["domain"] = " selection "
-    value["claims"][0]["bias_domain_judgments"][0]["evidence_locations"] = [" table 1 "]
-    map_sha = write_json(evidence_map, value)
-    value = json.loads(deviations.read_text())
-    value["synthesis_plan_sha256"] = plan_sha
-    deviations_sha = write_json(deviations, value)
     result = execute_qualitative_synthesis(
         plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha,
         tmp_path / "synthesis",
@@ -124,7 +107,29 @@ def test_qualitative_synthesis_normalizes_source_and_claim_handles(tmp_path):
     assert result["claims"][0]["bias_domain_judgments"][0]["evidence_locations"] == ["table 1"]
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "map-hash", "quantitative", "screening", "source-drift", "padded-source-duplicate", "map-link", "snapshot", "claim", "padded-claim-duplicate", "deviation-plan"])
+@pytest.mark.parametrize("failure", [
+    "plan-hash",
+    "map-hash",
+    "quantitative",
+    "screening",
+    "source-drift",
+    "padded-plan-source",
+    "padded-source-duplicate",
+    "padded-extraction-source",
+    "map-link",
+    "snapshot",
+    "claim",
+    "padded-claim-id",
+    "padded-claim-duplicate",
+    "padded-claim-study",
+    "padded-claim-source",
+    "padded-extracted-location",
+    "padded-citation-location",
+    "padded-citation-rationale",
+    "padded-domain",
+    "padded-domain-location",
+    "deviation-plan",
+])
 def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(tmp_path, synthesis_type="quantitative" if failure == "quantitative" else "qualitative")
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -133,18 +138,54 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
         value = json.loads(extraction.read_text()); value["screening_sha256"] = "2" * 64; write_json(extraction, value)
     elif failure == "source-drift":
         value = json.loads(plan.read_text()); value["included_source_ids_at_freeze"] = ["other-source"]; plan_sha = write_json(plan, value)
+    elif failure == "padded-plan-source":
+        value = json.loads(plan.read_text()); value["included_source_ids_at_freeze"] = [" s1 "]; plan_sha = write_json(plan, value)
+        value = json.loads(deviations.read_text()); value["synthesis_plan_sha256"] = plan_sha; deviations_sha = write_json(deviations, value)
     elif failure == "padded-source-duplicate":
         value = json.loads(extraction.read_text()); value["source_reviews"].append({"source_id": " s1 "}); write_json(extraction, value)
+    elif failure == "padded-extraction-source":
+        value = json.loads(extraction.read_text())
+        value["source_reviews"][0]["source_id"] = " s1 "
+        extraction_sha = write_json(extraction, value)
+        value = json.loads(evidence_map.read_text()); value["inputs"]["extraction_sha256"] = extraction_sha; map_sha = write_json(evidence_map, value)
     elif failure == "map-link":
         value = json.loads(evidence_map.read_text()); value["inputs"]["extraction_sha256"] = "0" * 64; map_sha = write_json(evidence_map, value)
     elif failure == "snapshot":
         value = json.loads(evidence_map.read_text()); value["snapshot_id"] = "other"; map_sha = write_json(evidence_map, value)
     elif failure == "claim":
         value = json.loads(evidence_map.read_text()); del value["claims"][0]["uncertainty"]; map_sha = write_json(evidence_map, value)
+    elif failure in {
+        "padded-claim-id",
+        "padded-claim-study",
+        "padded-claim-source",
+        "padded-extracted-location",
+        "padded-citation-location",
+        "padded-citation-rationale",
+        "padded-domain",
+        "padded-domain-location",
+    }:
+        value = json.loads(evidence_map.read_text())
+        if failure == "padded-claim-id":
+            value["claims"][0]["extraction_id"] = " e1 "
+        elif failure == "padded-claim-study":
+            value["claims"][0]["study_id"] = " study-1 "
+        elif failure == "padded-claim-source":
+            value["claims"][0]["source_id"] = " s1 "
+        elif failure == "padded-extracted-location":
+            value["claims"][0]["extracted_evidence_location"] = " page 1 "
+        elif failure == "padded-citation-location":
+            value["claims"][0]["citation_checked_location"] = " page 1 "
+        elif failure == "padded-citation-rationale":
+            value["claims"][0]["citation_rationale"] = " fixture reviewer check "
+        elif failure == "padded-domain":
+            value["claims"][0]["bias_domain_judgments"][0]["domain"] = " selection "
+        elif failure == "padded-domain-location":
+            value["claims"][0]["bias_domain_judgments"][0]["evidence_locations"] = [" table 1 "]
+        map_sha = write_json(evidence_map, value)
     elif failure == "padded-claim-duplicate":
         value = json.loads(evidence_map.read_text())
         duplicate = dict(value["claims"][0])
-        duplicate["extraction_id"] = " e1 "
+        duplicate["extraction_id"] = "e1"
         value["claims"].append(duplicate)
         map_sha = write_json(evidence_map, value)
     elif failure == "deviation-plan":

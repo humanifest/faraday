@@ -24,6 +24,13 @@ def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
     return value, hashlib.sha256(content).hexdigest()
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def execute_qualitative_synthesis(
     plan_path: Path,
     expected_plan_sha256: str,
@@ -74,17 +81,17 @@ def execute_qualitative_synthesis(
         raise ValidationError("synthesis plan and extraction do not bind the same screening artifact")
     plan_sources = plan.get("included_source_ids_at_freeze")
     if (not isinstance(plan_sources, list)
-            or any(not isinstance(item, str) or not item.strip() for item in plan_sources)
-            or len({item.strip() for item in plan_sources}) != len(plan_sources)):
+            or any(not isinstance(item, str) or not item.strip() or item != item.strip()
+                   for item in plan_sources)
+            or len(set(plan_sources)) != len(plan_sources)):
         raise ValidationError("qualitative synthesis requires frozen included source IDs from the plan")
-    plan_sources = [item.strip() for item in plan_sources]
     extraction_sources = [
         item.get("source_id") for item in extraction.get("source_reviews", [])
         if isinstance(item, dict)
     ]
-    if any(not isinstance(item, str) or not item.strip() for item in extraction_sources):
+    if any(not isinstance(item, str) or not item.strip() or item != item.strip()
+           for item in extraction_sources):
         raise ValidationError("qualitative synthesis extraction contains invalid source IDs")
-    extraction_sources = [item.strip() for item in extraction_sources]
     if len(extraction_sources) != len(set(extraction_sources)):
         raise ValidationError("qualitative synthesis extraction contains duplicate source IDs")
     if sorted(plan_sources) != sorted(extraction_sources):
@@ -112,15 +119,12 @@ def execute_qualitative_synthesis(
     for claim in claims:
         if not isinstance(claim, dict) or set(claim) != required_claim_fields:
             raise ValidationError("evidence-map claim fields do not match the synthesis contract")
-        extraction_id = claim["extraction_id"]
-        if not isinstance(extraction_id, str) or not extraction_id.strip():
-            raise ValidationError("evidence-map extraction IDs must be unique non-empty text")
-        extraction_id = extraction_id.strip()
+        extraction_id = _canonical_text(claim["extraction_id"], "evidence-map extraction_id")
         if extraction_id in seen:
             raise ValidationError("evidence-map extraction IDs must be unique non-empty text")
         seen.add(extraction_id)
-        study_id = _text(claim["study_id"], "evidence-map study_id").strip()
-        source_id = _text(claim["source_id"], "evidence-map source_id").strip()
+        study_id = _canonical_text(claim["study_id"], "evidence-map study_id")
+        source_id = _canonical_text(claim["source_id"], "evidence-map source_id")
         if claim["result_direction"] not in {"supports", "weakens", "mixed", "null", "not_applicable"}:
             raise ValidationError("evidence-map result direction is invalid")
         if claim["interpretive_ceiling"] not in {
@@ -129,7 +133,8 @@ def execute_qualitative_synthesis(
         }:
             raise ValidationError("evidence-map interpretive ceiling is invalid")
         for field in ("extracted_evidence_location", "citation_checked_location", "citation_rationale"):
-            if not isinstance(claim[field], str) or not claim[field].strip():
+            if (not isinstance(claim[field], str) or not claim[field].strip()
+                    or claim[field] != claim[field].strip()):
                 raise ValidationError("evidence-map claim provenance fields must be non-empty text")
         bias_domains = claim["bias_domain_judgments"]
         if not isinstance(bias_domains, list) or not bias_domains:
@@ -139,16 +144,15 @@ def execute_qualitative_synthesis(
             if not isinstance(domain, dict) or set(domain) != {"domain", "judgment", "evidence_locations"}:
                 raise ValidationError("evidence-map bias-domain provenance is malformed")
             name, judgment, locations = domain["domain"], domain["judgment"], domain["evidence_locations"]
-            if not isinstance(name, str) or not name.strip():
-                raise ValidationError("evidence-map bias-domain names must be unique non-empty text")
-            name = name.strip()
+            name = _canonical_text(name, "evidence-map bias-domain")
             if name in seen_domains:
                 raise ValidationError("evidence-map bias-domain names must be unique non-empty text")
             seen_domains.add(name)
             if judgment not in {"low", "some_concerns", "high", "unclear", "not_applicable"}:
                 raise ValidationError("evidence-map bias-domain judgment is invalid")
             if (not isinstance(locations, list)
-                    or any(not isinstance(item, str) or not item.strip() for item in locations)
+                    or any(not isinstance(item, str) or not item.strip() or item != item.strip()
+                           for item in locations)
                     or (judgment != "not_applicable" and not locations)):
                 raise ValidationError("evidence-map bias-domain locations are invalid")
         normalized_claims.append({
@@ -157,8 +161,8 @@ def execute_qualitative_synthesis(
             "study_id": study_id,
             "source_id": source_id,
             "bias_domain_judgments": [
-                {**domain, "domain": domain["domain"].strip(),
-                 "evidence_locations": [item.strip() for item in domain["evidence_locations"]]}
+                {**domain, "domain": domain["domain"],
+                 "evidence_locations": domain["evidence_locations"]}
                 for domain in bias_domains
             ],
         })
