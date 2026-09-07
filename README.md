@@ -80,7 +80,8 @@ names, unsupported or noncanonical scale types, noncanonical units,
 case-insensitive duplicate value-domain entries, overlapping observed/missing
 codes, and invalid bounds. These checks prevent silent recoding, accidental
 numeric treatment of unknown scales, unit/group allocation hash corruption,
-out-of-domain categories, out-of-range values, fractional counts, and
+out-of-domain categories, padded numeric source encodings, out-of-range values,
+fractional counts, and
 unregistered missing encodings; they do not prove measurement validity or
 calibration.
 

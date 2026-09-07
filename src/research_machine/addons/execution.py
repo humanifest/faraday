@@ -458,6 +458,10 @@ def validate_measurement_values(
                         f"value outside the frozen categorical domain in {column!r} at CSV row {index}"
                     )
             else:
+                if raw != raw.strip():
+                    raise ValidationError(
+                        f"noncanonical numeric value in {column!r} at CSV row {index}"
+                    )
                 try:
                     value = float(raw)
                 except ValueError as exc:

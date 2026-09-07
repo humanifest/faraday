@@ -101,6 +101,19 @@ def test_measurement_value_validation_rejects_duplicate_normalized_columns():
         validate_measurement_values(rows, [first, second])
 
 
+def test_measurement_value_validation_rejects_padded_numeric_source_values():
+    rows = [{"outcome": " 1.5"}]
+    contract = _measurement_contract(
+        scale_type="ratio",
+        admissible_values=[],
+        valid_min=0.0,
+        valid_max=10.0,
+    )
+
+    with pytest.raises(ValidationError, match="noncanonical numeric value"):
+        validate_measurement_values(rows, [contract])
+
+
 @pytest.mark.parametrize(("expected", "effect"), [("positive", 0.1), ("negative", -0.1), ("two_sided", -2.0)])
 def test_supporting_direction_must_match_frozen_prediction(expected, effect) -> None:
     assert "uncertainty still governs" in validate_result_direction(
