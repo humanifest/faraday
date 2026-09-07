@@ -956,6 +956,37 @@ def test_conditional_human_review_requires_recorded_conditions() -> None:
     }
     result = scaffold_design(brief)
     assert "HUMAN_REVIEW_CONDITIONS_MISSING" in {item["code"] for item in result["findings"]}
+    padded_safeguard = scaffold_design({
+        **brief,
+        "consent_plan": " Written consent.",
+        "withdrawal_plan": "Withdrawal without penalty.",
+        "privacy_plan": "Pseudonymous records.",
+        "retention_deletion_plan": "Delete identifiers after retention.",
+        "risk_description": "Low risk.",
+        "vulnerable_population_plan": "Adults only.",
+        "data_security_plan": "Encrypted storage.",
+        "incidental_findings_plan": "Escalate safety-relevant findings.",
+    })
+    assert "HUMAN_SAFEGUARD_NONCANONICAL" in {
+        item["code"] for item in padded_safeguard["findings"]
+    }
+    padded_review = scaffold_design({
+        **brief,
+        "consent_plan": "Written consent.",
+        "withdrawal_plan": "Withdrawal without penalty.",
+        "privacy_plan": "Pseudonymous records.",
+        "retention_deletion_plan": "Delete identifiers after retention.",
+        "risk_description": "Low risk.",
+        "vulnerable_population_plan": "Adults only.",
+        "data_security_plan": "Encrypted storage.",
+        "incidental_findings_plan": "Escalate safety-relevant findings.",
+        "independent_review_receipt": " IRB-001",
+        "independent_review_conditions": ["Submit annual report "],
+    })
+    assert "HUMAN_REVIEW_NONCANONICAL" in {
+        item["code"] for item in padded_review["findings"]
+    }
+    assert padded_review["status"] == "blocked"
 
 
 @pytest.mark.parametrize("field", ["question", "consent_plan", "independent_review_receipt", "study_type", "analysis_commitment"])

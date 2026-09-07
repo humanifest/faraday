@@ -899,12 +899,15 @@ requirements, not a declaration that the machine can grant ethical approval.
 Human protocols also require distinct frozen plans for vulnerable-population
 eligibility and protections, encryption/access/security response, and incidental
 or safety-relevant findings. Generic privacy or risk prose cannot silently stand
-in for these decisions.
+in for these decisions. Guided review blocks surrounding whitespace in human
+safeguard plans before those text commitments enter the draft protocol.
 They must also name the independent-review artifact locator and hash. Freezing a
 human protocol requires `--review-artifact-root`; Faraday verifies the local file
 bytes and that the recorded decision does not postdate freeze, then stores a
 service-generated verification receipt. This does not authenticate the reviewer
-or determine whether the review was adequate.
+or determine whether the review was adequate. The scaffold likewise rejects
+padded review receipts, decision fields, artifact handles, digests, and
+conditional-approval obligations before local-byte verification is even staged.
 The receipt retains the local review-artifact root. Inquiry display, clearance
 checks, and local replication export re-hash the original review bytes and
 recompute the receipt exactly; missing, moved, changed, symlinked, or

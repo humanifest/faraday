@@ -1050,7 +1050,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
     if "human_participants" not in brief:
         add("HUMAN_SCOPE_UNRESOLVED", "error", "It is unknown whether this study involves people or data about people.", "Explicitly assess human-participant and human-data involvement; an omitted answer is not clearance.")
     if brief.get("human_participants"):
-        for field, code, label in (
+        human_plan_fields = (
             ("consent_plan", "HUMAN_CONSENT_MISSING", "consent and withdrawal"),
             ("privacy_plan", "HUMAN_PRIVACY_MISSING", "privacy and access"),
             ("withdrawal_plan", "HUMAN_WITHDRAWAL_MISSING", "withdrawal handling"),
@@ -1059,24 +1059,54 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             ("vulnerable_population_plan", "HUMAN_VULNERABILITY_PLAN_MISSING", "vulnerable-population eligibility and protections"),
             ("data_security_plan", "HUMAN_DATA_SECURITY_MISSING", "encryption, access control, and security response"),
             ("incidental_findings_plan", "HUMAN_INCIDENTAL_FINDINGS_MISSING", "incidental and safety-relevant findings"),
-        ):
+        )
+        for field, code, label in human_plan_fields:
             if not str(brief.get(field, "")).strip():
                 add(code, "error", f"Human-participant work lacks a {label} plan.", f"Document {label} before the study can proceed.")
+        if any(
+            isinstance(brief.get(field), str)
+            and brief[field]
+            and brief[field] != brief[field].strip()
+            for field, _, _ in human_plan_fields
+        ):
+            add(
+                "HUMAN_SAFEGUARD_NONCANONICAL", "error",
+                "Human-participant safeguard plans contain text with surrounding whitespace.",
+                "Use exact unpadded consent, withdrawal, privacy, retention, risk, vulnerability, security, and incidental-finding plans before review.",
+            )
         if not brief.get("independent_review", False):
             add("HUMAN_REVIEW_REQUIRED", "error", "Human-participant work is blocked pending qualified independent review.", "Obtain and record the applicable ethics, institutional, or qualified professional review.")
         elif not str(brief.get("independent_review_receipt", "")).strip():
             add("HUMAN_REVIEW_RECEIPT_MISSING", "error", "Qualified independent review is asserted without a review receipt.", "Record the review body's stable receipt or approval identifier before the study can proceed.")
         else:
-            for field, code, label in (
+            review_fields = (
                 ("independent_review_decision", "HUMAN_REVIEW_DECISION_MISSING", "decision status"),
                 ("independent_reviewer_role", "HUMAN_REVIEWER_ROLE_MISSING", "reviewer role"),
                 ("independent_reviewed_at", "HUMAN_REVIEW_TIME_MISSING", "decision timestamp"),
                 ("independent_review_scope", "HUMAN_REVIEW_SCOPE_MISSING", "review scope"),
                 ("independent_review_artifact_locator", "HUMAN_REVIEW_ARTIFACT_LOCATOR_MISSING", "review artifact locator"),
                 ("independent_review_artifact_sha256", "HUMAN_REVIEW_DIGEST_MISSING", "review artifact SHA-256"),
-            ):
+            )
+            for field, code, label in review_fields:
                 if not str(brief.get(field, "")).strip():
                     add(code, "error", f"Independent review lacks a {label}.", f"Record the {label} from the review artifact before the study can proceed.")
+            if (
+                brief["independent_review_receipt"] != brief["independent_review_receipt"].strip()
+                or any(
+                    isinstance(brief.get(field), str)
+                    and brief[field]
+                    and brief[field] != brief[field].strip()
+                    for field, _, _ in review_fields
+                )
+                or has_noncanonical_text_items(
+                    _text_list(brief, "independent_review_conditions")
+                )
+            ):
+                add(
+                    "HUMAN_REVIEW_NONCANONICAL", "error",
+                    "Independent-review receipt, decision, reviewer, timestamp, scope, artifact handle, digest, or conditions contain surrounding whitespace.",
+                    "Use exact unpadded human-review fields before they can enter the protocol commitment or local artifact verification flow.",
+                )
             decision = brief.get("independent_review_decision", "")
             if decision and decision not in {"approved", "approved_with_conditions"}:
                 add("HUMAN_REVIEW_NOT_APPROVED", "error", "Independent review does not record an approval decision.", "Do not proceed until qualified review records approval or approval with explicit conditions.")

@@ -1251,15 +1251,19 @@ Ethics-gate delivery: a human-subject protocol cannot freeze until its consent,
 withdrawal, privacy, retention/deletion, and risk plans are explicit and it
 also records separate vulnerable-population, data-security, and incidental-
 findings plans. These fields are hash-bound and presented alongside the recorded
-independent-review scope to downstream clients; the machine does not judge their
-substantive adequacy or grant approval. The protocol
+independent-review scope to downstream clients; guided scaffolding rejects
+surrounding whitespace in these safeguard-plan commitments before they become
+draft protocol text. The machine does not judge their substantive adequacy or
+grant approval. The protocol
 records a qualified independent-review receipt plus the reviewer role, decision,
 timestamp, scope, artifact SHA-256, and every conditional-approval obligation.
 Only approval or approval-with-conditions can clear the freeze gate, and all of
 these facts become part of the protocol commitment. The machine does not judge or
 substitute for qualified review; it prevents an absent review record from being
-silently treated as clearance. Human protocol freeze now additionally requires
-an artifact locator plus `--review-artifact-root`, verifies the review decision
+silently treated as clearance. Guided scaffolding also rejects padded review
+receipts, decision fields, artifact handles, digests, and conditions before
+drafting those commitments. Human protocol freeze now additionally requires an
+artifact locator plus `--review-artifact-root`, verifies the review decision
 bytes against the frozen SHA-256, checks that the decision does not postdate
 freeze, and stores a service-generated integrity receipt. This remains local byte
 and chronology verification—not authentication of reviewer identity,
