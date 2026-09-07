@@ -28,6 +28,15 @@ def _text(value: Any, field: str) -> str:
     return value
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(
+            f"measurement custody {field} must be canonical without surrounding whitespace"
+        )
+    return text
+
+
 def _digest(value: Any, field: str) -> str:
     value = _text(value, field)
     if len(value) != 64 or set(value) - _HEX:
@@ -46,11 +55,11 @@ def _timestamp(value: Any, field: str) -> datetime:
     return parsed
 
 
-def _normalized_text_sequence(values: Sequence[str], field: str) -> list[str]:
-    normalized = [_text(value, field).strip() for value in values]
-    if len(normalized) != len(set(normalized)):
+def _canonical_text_sequence(values: Sequence[str], field: str) -> list[str]:
+    items = [_canonical_text(value, field) for value in values]
+    if len(items) != len(set(items)):
         raise ValidationError(f"measurement custody {field} must be unique")
-    return normalized
+    return items
 
 
 def validate_measurement_custody(
@@ -74,7 +83,7 @@ def validate_measurement_custody(
     if unknown:
         raise ValidationError("unknown measurement custody fields: " + ", ".join(unknown))
     _text(receipt.get("receipt_id"), "receipt_id")
-    required_gate_ids = _normalized_text_sequence(
+    required_gate_ids = _canonical_text_sequence(
         required_gate_ids, "required_gate_ids"
     )
     evidence = receipt.get("evidence_artifacts")
@@ -121,7 +130,9 @@ def validate_measurement_custody(
         for field in ("transformation_id", "version", "performed_at", "implementation_locator", "output_locator"):
             _text(item.get(field), f"transformations[{index}].{field}")
         performed_at = _timestamp(item["performed_at"], f"transformations[{index}].performed_at")
-        identifier = item["transformation_id"].strip()
+        identifier = _canonical_text(
+            item["transformation_id"], f"transformations[{index}].transformation_id"
+        )
         if identifier in transformation_ids:
             raise ValidationError("measurement custody transformation_id must be unique")
         transformation_ids.add(identifier)
@@ -153,9 +164,9 @@ def validate_measurement_custody(
             raise ValidationError(
                 "measurement custody required calibration criteria must be CalibrationCriterion values"
             )
-        calibration_id = _text(
+        calibration_id = _canonical_text(
             criterion.calibration_id, "calibration criterion calibration_id"
-        ).strip()
+        )
         if calibration_id in criteria:
             raise ValidationError(
                 "measurement custody required calibration criteria must be unique"
@@ -169,7 +180,7 @@ def validate_measurement_custody(
         performed_at = _timestamp(item["performed_at"], "calibration.performed_at")
         if item.get("status") != "passed":
             raise ValidationError("measurement custody calibration status must be passed")
-        calibration_id = item["calibration_id"].strip()
+        calibration_id = _canonical_text(item["calibration_id"], "calibration.calibration_id")
         if calibration_id in calibration_ids:
             raise ValidationError("measurement custody calibration_id must be unique")
         calibration_ids.add(calibration_id)
@@ -179,7 +190,8 @@ def validate_measurement_custody(
             criterion = criteria.get(calibration_id)
             if criterion is None:
                 raise ValidationError(f"calibration {calibration_id} has no frozen acceptance criterion")
-            if item.get("criterion_id", "").strip() != criterion.criterion_id.strip():
+            criterion_id = _canonical_text(item.get("criterion_id"), "calibration.criterion_id")
+            if criterion_id != criterion.criterion_id:
                 raise ValidationError(f"calibration {calibration_id} does not reference its frozen criterion")
             if item.get("observed_unit") != criterion.unit:
                 raise ValidationError(f"calibration {calibration_id} observed_unit does not match its frozen criterion")
@@ -201,7 +213,7 @@ def validate_measurement_custody(
     for item in gates:
         if not isinstance(item, dict):
             raise ValidationError("each measurement quality gate must be an object")
-        gate_id = _text(item.get("gate_id"), "quality gate gate_id").strip()
+        gate_id = _canonical_text(item.get("gate_id"), "quality gate gate_id")
         if gate_id in gate_ids:
             raise ValidationError("measurement custody gate_id must be unique")
         gate_ids.add(gate_id)
@@ -213,7 +225,10 @@ def validate_measurement_custody(
             for value in prerequisites
         ):
             raise ValidationError(f"quality gate {gate_id} references an unavailable calibration prerequisite")
-        prerequisites = [value.strip() for value in prerequisites]
+        prerequisites = [
+            _canonical_text(value, f"quality gate {gate_id} prerequisite_calibration_ids item")
+            for value in prerequisites
+        ]
         if any(value not in calibration_ids for value in prerequisites):
             raise ValidationError(f"quality gate {gate_id} references an unavailable calibration prerequisite")
         if len(prerequisites) != len(set(prerequisites)):
@@ -250,7 +265,9 @@ def validate_measurement_custody(
     for item in observations:
         if not isinstance(item, dict):
             raise ValidationError("each derived observation must be an object")
-        identifier = _text(item.get("observation_id"), "derived observation observation_id").strip()
+        identifier = _canonical_text(
+            item.get("observation_id"), "derived observation observation_id"
+        )
         if identifier in observation_ids:
             raise ValidationError("measurement custody observation_id must be unique")
         observation_ids.add(identifier)
@@ -268,7 +285,10 @@ def validate_measurement_custody(
         if (not isinstance(observation_gates, list) or not observation_gates
                 or any(not isinstance(value, str) or not value.strip() for value in observation_gates)):
             raise ValidationError("derived observation quality_gate_ids must name passed measurement gates")
-        observation_gates = [value.strip() for value in observation_gates]
+        observation_gates = [
+            _canonical_text(value, "derived observation quality_gate_ids item")
+            for value in observation_gates
+        ]
         if any(value not in gate_ids for value in observation_gates):
             raise ValidationError("derived observation quality_gate_ids must name passed measurement gates")
         if len(observation_gates) != len(set(observation_gates)):

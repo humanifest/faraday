@@ -953,8 +953,8 @@ and supporting-evidence bytes. It persists the resulting integrity report, recei
 actor, and verification time inside the immutable dataset manifest.
 Stable protocol quality-gate, required custody-gate, calibration criterion,
 calibration, transformation, gate, and derived-observation IDs must be unique
-after trimming whitespace, so cosmetic padding cannot split one custody node
-into apparently separate provenance records.
+and canonical without surrounding whitespace, so cosmetic padding cannot split
+one custody node into apparently separate provenance records.
 At protocol freeze, required custody-gate IDs must also be canonical without
 surrounding whitespace before they become calibration and registration
 commitments. Calibration criterion IDs, calibration IDs, quantities, units, and
@@ -966,9 +966,9 @@ Measurement gates must cite the exact raw or derived artifact hashes they
 evaluate, and every derived observation must name the passed gates that clear its
 specific transformation output. A valid gate from another artifact cannot be
 reused as authorization. Calibration-prerequisite and clearing-gate references
-are normalized before uniqueness and coverage checks, so whitespace padding
+must be canonical before uniqueness and coverage checks, so whitespace padding
 cannot create a second apparent prerequisite or gate link. Required custody-gate
-and frozen calibration IDs are normalized at the same boundary before receipt
+and frozen calibration IDs must be canonical at the same boundary before receipt
 coverage is accepted.
 The receipt can be inspected before registration without any network service
 or LLM:

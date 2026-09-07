@@ -302,11 +302,12 @@ def test_optional_custody_is_validated_at_exploratory_registration(tmp_path, fai
 
 def test_custody_receipt_requires_lineage_calibration_and_required_gates() -> None:
     assert validate_measurement_custody(_receipt(), ["clock-sync"])["receipt_id"] == "mc-001"
-    assert validate_measurement_custody(_receipt(), [" clock-sync "])["receipt_id"] == "mc-001"
+    with pytest.raises(ValidationError, match="required_gate_ids must be canonical"):
+        validate_measurement_custody(_receipt(), [" clock-sync "])
     with pytest.raises(ValidationError, match="missing required gates"):
         validate_measurement_custody(_receipt(), ["sensor-validity"])
     with pytest.raises(ValidationError, match="required_gate_ids must be unique"):
-        validate_measurement_custody(_receipt(), ["clock-sync", " clock-sync "])
+        validate_measurement_custody(_receipt(), ["clock-sync", "clock-sync"])
 
 
 def _clock_criterion() -> CalibrationCriterion:
@@ -327,16 +328,24 @@ def test_custody_computes_calibration_acceptance_against_frozen_bounds() -> None
         "Keep synchronization error below the registered event-resolution limit.",
         lower_bound=0.0, upper_bound=1.0,
     )
-    assert validate_measurement_custody(receipt, ["clock-sync"], [padded]) == receipt
+    with pytest.raises(ValidationError, match="calibration criterion calibration_id must be canonical"):
+        validate_measurement_custody(receipt, ["clock-sync"], [padded])
     receipt["calibrations"][0]["observed_value"] = 1.01
     with pytest.raises(ValidationError, match="frozen upper bound"):
         validate_measurement_custody(receipt, ["clock-sync"], [_clock_criterion()])
 
 
-def test_required_calibration_criteria_are_unique_after_trimming() -> None:
-    duplicate = CalibrationCriterion(
+def test_required_calibration_criteria_ids_must_be_canonical_and_unique() -> None:
+    padded = CalibrationCriterion(
         "other-clock-residual", " clock ", "absolute clock residual", "ms",
         "A padded duplicate cannot become a second frozen calibration.",
+        lower_bound=0.0, upper_bound=1.0,
+    )
+    with pytest.raises(ValidationError, match="calibration criterion calibration_id must be canonical"):
+        validate_measurement_custody(_receipt(), ["clock-sync"], [_clock_criterion(), padded])
+    duplicate = CalibrationCriterion(
+        "other-clock-residual", "clock", "absolute clock residual", "ms",
+        "A duplicate cannot become a second frozen calibration.",
         lower_bound=0.0, upper_bound=1.0,
     )
     with pytest.raises(ValidationError, match="required calibration criteria"):
@@ -348,6 +357,7 @@ def test_required_calibration_criteria_are_unique_after_trimming() -> None:
     [
         ("observed_unit", "seconds", "observed_unit"),
         ("criterion_id", "post-hoc-threshold", "frozen criterion"),
+        ("criterion_id", " clock-residual ", "criterion_id must be canonical"),
         ("observed_value", float("nan"), "finite number"),
     ],
 )
@@ -368,7 +378,7 @@ def test_custody_rejects_calibration_that_does_not_match_frozen_criterion(field,
     ],
 )
 @pytest.mark.parametrize("padding", ["", " "])
-def test_custody_identifiers_are_unambiguous(section, key, padding):
+def test_custody_identifiers_must_be_canonical_and_unambiguous(section, key, padding):
     receipt = _receipt()
     duplicate = dict(receipt[section][0])
     duplicate[key] = padding + duplicate[key] + padding
@@ -383,7 +393,8 @@ def test_custody_identifiers_are_unambiguous(section, key, padding):
     else:
         duplicate["summary"] = "A different quality gate assessment"
     receipt[section].append(duplicate)
-    with pytest.raises(ValidationError, match=f"{key} must be unique"):
+    expected = f"{key} must be unique" if not padding else f"{key} must be canonical"
+    with pytest.raises(ValidationError, match=expected):
         validate_measurement_custody(receipt)
     duplicate[key] = "distinct-step-or-observation"
     assert validate_measurement_custody(receipt) == receipt
@@ -454,20 +465,22 @@ def test_gate_cannot_cite_missing_calibration():
         validate_measurement_custody(receipt)
 
 
-def test_gate_calibration_prerequisites_are_unique_after_trimming():
+def test_gate_calibration_prerequisites_must_be_canonical_and_unique():
     receipt = _receipt()
-    receipt["quality_gates"][0]["prerequisite_calibration_ids"] = [
-        "clock", " clock "
-    ]
+    receipt["quality_gates"][0]["prerequisite_calibration_ids"] = [" clock "]
+    with pytest.raises(ValidationError, match="prerequisite_calibration_ids item must be canonical"):
+        validate_measurement_custody(receipt)
+    receipt["quality_gates"][0]["prerequisite_calibration_ids"] = ["clock", "clock"]
     with pytest.raises(ValidationError, match="duplicate calibration prerequisites"):
         validate_measurement_custody(receipt)
 
 
-def test_derived_observation_gate_references_are_unique_after_trimming():
+def test_derived_observation_gate_references_must_be_canonical_and_unique():
     receipt = _receipt()
-    receipt["derived_observations"][0]["quality_gate_ids"] = [
-        "clock-sync", " clock-sync "
-    ]
+    receipt["derived_observations"][0]["quality_gate_ids"] = [" clock-sync "]
+    with pytest.raises(ValidationError, match="quality_gate_ids item must be canonical"):
+        validate_measurement_custody(receipt)
+    receipt["derived_observations"][0]["quality_gate_ids"] = ["clock-sync", "clock-sync"]
     with pytest.raises(ValidationError, match="duplicate quality_gate_ids"):
         validate_measurement_custody(receipt)
 

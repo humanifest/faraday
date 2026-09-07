@@ -1174,13 +1174,13 @@ and derived observations name their clearing gates. A cited gate must include
 that observation's exact transformation output among its prerequisites. This
 prevents a valid calibration or gate result from floating onto unrelated derived
 data while leaving scientific interpretation to review. Calibration-prerequisite
-and clearing-gate references are normalized before uniqueness and coverage
-checks, so whitespace padding cannot create a second apparent prerequisite or
-gate link. Frozen protocol `measurement_custody_requirements` and calibration
-criterion IDs, calibration IDs, quantities, units, and rationales must already
-be canonical without surrounding whitespace; receipt-side required custody-gate
-and frozen calibration IDs are normalized later before receipt coverage is
-accepted.
+and clearing-gate references must be canonical without surrounding whitespace
+before uniqueness and coverage checks, so whitespace padding cannot create a
+second apparent prerequisite or gate link. Frozen protocol
+`measurement_custody_requirements` and calibration criterion IDs, calibration
+IDs, quantities, units, and rationales must follow the same rule; receipt-side
+required custody-gate and frozen calibration IDs are rejected rather than
+silently normalized before receipt coverage is accepted.
 Custody-bearing protocols now freeze quantitative calibration acceptance
 criteria with stable criterion/calibration IDs, quantity, unit, rationale, and
 at least one finite bound. Dataset registration requires every named calibration,
