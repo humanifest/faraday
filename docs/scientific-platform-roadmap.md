@@ -464,6 +464,11 @@ one cannot satisfy the other. Confirmatory incompleteness blocks the draft,
 while exploratory work retains a warning. Causal primary outcomes must be
 post-exposure. The emitted measurement-definition draft now mirrors the
 canonical contract shape while remaining explicitly unreviewed.
+Guided measurement canonicalization delivery: primary, secondary, control, and
+causal measurement contracts now emit blocking findings for surrounding
+whitespace in scientific text, parameter keys and values, units, executable
+columns, admissible observed values, and missing-value codes before draft
+artifacts are treated as review-ready.
 Prospective measurement-validity delivery: confirmatory guided designs now
 require at least one structured validity check with a stable ID, evidence type,
 specific validity claim, assessment procedure, acceptance criterion, failure

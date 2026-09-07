@@ -386,6 +386,68 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
     require_canonical_list_items("controls", "CONTROL_LABEL_NONCANONICAL", "Controls")
     require_canonical_list_items("confounds", "CONFOUND_LABEL_NONCANONICAL", "Confounds")
 
+    def has_noncanonical_parameter_values(values: dict[str, str]) -> bool:
+        return any(
+            key != key.strip() or value != value.strip()
+            for key, value in values.items()
+        )
+
+    def has_noncanonical_text_items(values: list[str]) -> bool:
+        return any(value != value.strip() for value in values)
+
+    def measurement_contract_is_noncanonical(
+        measurement: dict[str, Any],
+        *,
+        optional_text_fields: set[str] | None = None,
+    ) -> bool:
+        optional_text_fields = optional_text_fields or set()
+        for key, value in measurement.items():
+            if key in {
+                "parameter_values", "admissible_values", "missing_value_codes",
+                "valid_min", "valid_max",
+            }:
+                continue
+            if key in optional_text_fields and value == "":
+                continue
+            if isinstance(value, str) and value != value.strip():
+                return True
+        return (
+            has_noncanonical_parameter_values(measurement["parameter_values"])
+            or has_noncanonical_text_items(measurement["admissible_values"])
+            or has_noncanonical_text_items(measurement["missing_value_codes"])
+        )
+
+    primary_measurement_fields = (
+        "outcome_data_column", "outcome_unit", "measurement_observable",
+        "measurement_input_condition", "measurement_evaluation_point",
+        "measurement_convention", "measurement_aggregation",
+        "measurement_tolerance", "measurement_expected_behavior",
+    )
+    if any(
+        isinstance(brief.get(field), str)
+        and brief[field]
+        and brief[field] != brief[field].strip()
+        for field in primary_measurement_fields
+    ) or has_noncanonical_parameter_values(
+        brief.get("measurement_parameter_values", {})
+    ):
+        add(
+            "MEASUREMENT_CONTRACT_NONCANONICAL",
+            "error",
+            "The primary measurement contract contains text or parameter bindings with surrounding whitespace.",
+            "Use exact unpadded measurement handles and scientific semantics before generating review artifacts or freezing a protocol.",
+        )
+    if (
+        has_noncanonical_text_items(_text_list(brief, "outcome_admissible_values"))
+        or has_noncanonical_text_items(_text_list(brief, "outcome_missing_value_codes"))
+    ):
+        add(
+            "MEASUREMENT_DOMAIN_NONCANONICAL",
+            "error",
+            "The primary measurement value domain contains encodings with surrounding whitespace.",
+            "Record observed-value and missing-value encodings exactly as they appear in source data, without padding.",
+        )
+
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
     normalized_outcomes = [item.strip().casefold() for item in secondary_outcomes]
     if len(set(normalized_outcomes)) != len(normalized_outcomes):
@@ -404,6 +466,13 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "Provide one complete measurement contract for each secondary outcome using its exact registered name; do not add surrogate or unregistered outcomes.",
         )
     for item in secondary_measurements:
+        if measurement_contract_is_noncanonical(item):
+            add(
+                "SECONDARY_MEASUREMENT_CONTRACT_NONCANONICAL",
+                "error",
+                f"Secondary outcome {item['outcome']} has padded measurement text, parameter bindings, or value-domain encodings.",
+                "Use exact unpadded measurement semantics and source-data encodings before review.",
+            )
         scale = item["scale_type"]
         admissible = item["admissible_values"]
         missing = item["missing_value_codes"]
@@ -554,6 +623,16 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "Provide one reproducible measurement definition for each control using its exact registered name; artifact-evaluated controls may leave data_column and value typing empty.",
         )
     for item in control_measurements:
+        if measurement_contract_is_noncanonical(
+            item,
+            optional_text_fields={"data_column", "scale_type", "unit"},
+        ):
+            add(
+                "CONTROL_MEASUREMENT_CONTRACT_NONCANONICAL",
+                "error",
+                f"Control {item['control']} has padded measurement text, parameter bindings, or value-domain encodings.",
+                "Use exact unpadded control measurement semantics and source-data encodings before review.",
+            )
         scale = item["scale_type"]
         column = item["data_column"]
         admissible = item["admissible_values"]
@@ -605,6 +684,13 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                 "Define one exposure measurement and one measurement for each proposed adjustment variable; do not omit, rename, duplicate, or add variables.",
             )
     for item in causal_measurements:
+        if measurement_contract_is_noncanonical(item):
+            add(
+                "CAUSAL_MEASUREMENT_CONTRACT_NONCANONICAL",
+                "error",
+                f"Causal variable {item['variable']} has padded measurement text, parameter bindings, or value-domain encodings.",
+                "Use exact unpadded causal measurement semantics and source-data encodings before review.",
+            )
         variable = item["variable"]
         role = item["role"]
         scale = item["scale_type"]

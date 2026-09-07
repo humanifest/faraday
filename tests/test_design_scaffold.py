@@ -126,6 +126,14 @@ def test_primary_observable_is_not_substituted_by_validity_evidence():
     assert complete["artifacts"]["measurement-definition-draft.json"]["observable"] == (
         "Mean marked-stem height in millimetres"
     )
+    padded = scaffold_design({
+        **base,
+        "measurement_observable": " Mean marked-stem height in millimetres ",
+        "measurement_parameter_values": {" ruler_resolution": "1 mm "},
+    })
+    assert "MEASUREMENT_CONTRACT_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
 
 
 def test_confirmatory_measurement_requires_structured_validity_decision_rules():
@@ -328,6 +336,26 @@ def test_causal_measurements_exactly_cover_exposure_and_adjustment_set():
     assert "CAUSAL_MEASUREMENT_DOMAIN_INVALID" in {
         item["code"] for item in degenerate_covariate["findings"]
     }
+    padded = scaffold_design({
+        **base,
+        "causal_measurements": [
+            _causal_measurement(
+                "treatment",
+                "exposure",
+                "treatment",
+                admissible_values=["treated", "control "],
+            ),
+            _causal_measurement(
+                "baseline",
+                "covariate",
+                "baseline",
+                observable=" Recorded baseline",
+            ),
+        ],
+    })
+    assert "CAUSAL_MEASUREMENT_CONTRACT_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
 
 
 def test_secondary_outcomes_require_distinct_roles_and_multiplicity_plan():
@@ -422,6 +450,19 @@ def test_secondary_outcomes_require_exact_typed_measurement_coverage():
     assert "SECONDARY_MEASUREMENT_DOMAIN_INVALID" in {
         item["code"] for item in degenerate["findings"]
     }
+    padded = scaffold_design({
+        **base,
+        "secondary_measurements": [
+            _secondary_measurement("Response time", " response_time"),
+            _secondary_measurement(
+                "Errors", "errors", scale_type="count", unit="count",
+                valid_min=0, valid_max=20, missing_value_codes=["<blank> "],
+            ),
+        ],
+    })
+    assert "SECONDARY_MEASUREMENT_CONTRACT_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
     conflicted = scaffold_design({**base, "secondary_outcomes": ["primary SCORE"]})
     assert conflicted["status"] == "blocked"
     assert "OUTCOME_ROLE_CONFLICT" in {item["code"] for item in conflicted["findings"]}
@@ -491,6 +532,23 @@ def test_controls_require_exact_reproducible_measurement_coverage():
     })
     assert "CONTROL_MEASUREMENT_DOMAIN_INVALID" in {
         item["code"] for item in degenerate["findings"]
+    }
+    padded = scaffold_design({
+        **base,
+        "control_measurements": [
+            _control_measurement(
+                "Blank sample",
+                expected_behavior=" Remains below detection",
+            ),
+            _control_measurement(
+                "Reference sample",
+                "reference_value",
+                parameter_values={"instrument": " balance "},
+            ),
+        ],
+    })
+    assert "CONTROL_MEASUREMENT_CONTRACT_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
     }
     substituted = scaffold_design({
         **base,
@@ -683,6 +741,16 @@ def test_scaffold_emits_typed_measurement_draft_and_rejects_incompatible_analysi
     assert measurement["analysis_family"] == "custom_reviewed"
     assert "ANALYSIS_SCALE_INCOMPATIBLE" not in {
         item["code"] for item in valid["findings"]
+    }
+    padded = scaffold_design({
+        **base,
+        "outcome_scale": "ordinal",
+        "outcome_admissible_values": ["worse", " same", "better"],
+        "outcome_missing_value_codes": ["not_recorded "],
+        "primary_analysis_family": "custom_reviewed",
+    })
+    assert "MEASUREMENT_DOMAIN_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
     }
 
 

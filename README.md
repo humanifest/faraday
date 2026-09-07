@@ -412,6 +412,11 @@ bindings, evaluation point, coding convention, aggregation, tolerance, expected
 behavior, and temporal role. The observable is distinct from the separately
 retained construct-validity plan; evidence that a ruler or instrument is valid
 does not define which quantity was recorded.
+Guided primary, secondary, control, and causal measurement contracts reject
+surrounding whitespace in scientific text, parameter keys and values, units,
+columns, admissible observed values, and missing-value codes before emitting
+review drafts, so later exact protocol commitments do not inherit a handle that
+was only apparently valid after trimming.
 Confirmatory work must also define at least one structured prospective validity
 check with its evidence type, validity claim, assessment procedure, acceptance
 criterion, failure response, and dedicated quality gate. These checks are
