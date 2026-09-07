@@ -321,6 +321,21 @@ def test_measurement_contract_rejects_ambiguous_executable_columns(change, messa
 
 
 @pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"measurement_id": " primary-measurement "}, "measurement_id must be canonical"),
+        ({"registered_target": " Human effect "}, "registered_target must be canonical"),
+    ],
+)
+def test_measurement_contract_rejects_noncanonical_measurement_handles(change, message) -> None:
+    protocol = _human_protocol(human_subjects=False)
+    measurements = _analysis_measurements(protocol.primary_outcome, protocol.controls[0])
+    measurements[0] = replace(measurements[0], **change)
+    with pytest.raises(ValidationError, match=message):
+        validate_protocol_freeze(replace(protocol, measurement_definitions=measurements))
+
+
+@pytest.mark.parametrize(
     ("field", "value", "message"),
     [
         ("method", " independent_mean_difference_ci", "analysis_contract.method"),

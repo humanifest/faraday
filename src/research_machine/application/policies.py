@@ -1809,6 +1809,10 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
         measurement_id = require_text(
             definition.measurement_id, f"{prefix}.measurement_id"
         )
+        if measurement_id != definition.measurement_id:
+            raise ValidationError(
+                f"{prefix}.measurement_id must be canonical without surrounding whitespace"
+            )
         if measurement_id in identifiers:
             raise ValidationError(f"duplicate measurement_id: {measurement_id}")
         identifiers.add(measurement_id)
@@ -1817,6 +1821,10 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
         target = require_text(
             definition.registered_target, f"{prefix}.registered_target"
         )
+        if target != definition.registered_target:
+            raise ValidationError(
+                f"{prefix}.registered_target must be canonical without surrounding whitespace"
+            )
         for field_name in (
             "observable",
             "input_condition",
