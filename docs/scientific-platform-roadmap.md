@@ -986,10 +986,11 @@ locations, and rationales before coverage checks.
 `research literature derive-effects` provides a reproducible alternative for
 `mean_difference` and `log_risk_ratio`: it computes estimates and standard errors
 from source-reported experimental and comparator arm summaries under canonical
-lowercase trusted plan and evidence-map hashes and the frozen contrast
-definition. Zero-event risk-ratio studies fail closed rather than receiving an
-undeclared continuity correction. This reproduces arithmetic from entered
-summaries, not the source transcription or participant-level analysis.
+lowercase trusted plan and evidence-map hashes and a canonical frozen contrast
+definition. A padded contrast is rejected rather than rewritten before effect
+records are created. Zero-event risk-ratio studies fail closed rather than
+receiving an undeclared continuity correction. This reproduces arithmetic from
+entered summaries, not the source transcription or participant-level analysis.
 The exact arm summaries used for reproducible derivation are retained inside the
 hashed effect-record artifact, closing the prior gap where computations were
 reproducible during execution but their numeric inputs were not persisted.

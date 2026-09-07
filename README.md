@@ -769,9 +769,11 @@ lowercase SHA-256 digests before later synthesis commands can bind those
 artifacts. Effect preparation now requires canonical frozen plan source IDs,
 extraction source IDs, mapped study/source/claim IDs, citation anchors, reviewer
 text, derivation scope, reasons, evidence locations, and derivation prose before
-coverage and duplicate checks. Independent effect verification also requires
-canonical effect reviewer, retained study IDs, source-summary study IDs,
-verification reviewer, checked locations, and rationales before coverage checks.
+coverage and duplicate checks; reproducible effect derivation also rejects a
+padded frozen contrast definition before preserving it in the effect-record
+artifact. Independent effect verification also requires canonical effect
+reviewer, retained study IDs, source-summary study IDs, verification reviewer,
+checked locations, and rationales before coverage checks.
 Meta-analysis now requires canonical prepared-effect study IDs, mapped claim
 IDs, verification study IDs, and checked locations before joining prepared
 effects to independent verification, then reports a compact `study_provenance`

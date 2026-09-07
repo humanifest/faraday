@@ -41,6 +41,8 @@ def derive_effect_records(plan_path: Path, expected_plan_sha256: str, extraction
     contrast = plan.get("contrast_definition")
     if not isinstance(contrast, str) or not contrast.strip() or contrast == "not_applicable":
         raise ValidationError("effect derivation requires a frozen contrast_definition")
+    if contrast != contrast.strip():
+        raise ValidationError("effect derivation contrast_definition must be canonical without surrounding whitespace")
     if not isinstance(summaries, dict) or set(summaries) != {"reviewer", "records"}:
         raise ValidationError("effect summaries require exactly reviewer and records")
     reviewer = _text(summaries["reviewer"], "effect derivation reviewer")

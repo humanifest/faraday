@@ -75,6 +75,20 @@ def test_invalid_or_undeclared_derivation_never_publishes(tmp_path, failure):
     assert not output.exists()
 
 
+def test_effect_derivation_rejects_padded_frozen_contrast(tmp_path):
+    plan, _, extraction, evidence_map, map_sha = artifacts(tmp_path)
+    plan_sha = update_measure(plan, "mean_difference")
+    value = json.loads(plan.read_text())
+    value["contrast_definition"] = " experimental versus comparator "
+    encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+    plan.write_bytes(encoded)
+    plan_sha = hashlib.sha256(encoded).hexdigest()
+    output = tmp_path / "effects"
+    with pytest.raises(ValidationError, match="contrast_definition must be canonical"):
+        derive_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, summaries(), output)
+    assert not output.exists()
+
+
 @pytest.mark.parametrize(("field", "expected"), [
     ("plan", "A" * 64),
     ("map", "g" * 64),
