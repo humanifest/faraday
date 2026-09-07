@@ -60,6 +60,8 @@ missing-value codes. Protocol freeze rejects noncanonical executable measurement
 columns, case-insensitive column reuse across measurement definitions, and
 non-exposure measurements that occupy identity, assignment, or capture-time
 columns. When an analysis contract is present, protocol freeze also requires
+its executable method, selectors, column handles, contrast text, ordered levels,
+and missingness-gate handles to be canonical without surrounding whitespace, and
 the identity, unit, assignment, and capture-time structural columns to be
 distinct. Protocol-bound execution validates the actual CSV values against
 those commitments before analysis and records the check in its receipt.

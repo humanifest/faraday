@@ -265,6 +265,59 @@ def test_measurement_contract_rejects_ambiguous_executable_columns(change, messa
         validate_protocol_freeze(replace(protocol, measurement_definitions=measurements))
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("method", " independent_mean_difference_ci", "analysis_contract.method"),
+        ("outcome_column", "outcome ", "analysis_contract.outcome_column"),
+        ("group_column", " group", "analysis_contract.group_column"),
+        (
+            "effect_estimate_path",
+            " /result/mean_difference_first_minus_second",
+            "analysis_contract.effect_estimate_path",
+        ),
+        (
+            "contrast_definition",
+            " group a minus group b",
+            "analysis_contract.contrast_definition",
+        ),
+        (
+            "missingness_assessment_gate_id",
+            "missingness-assessed ",
+            "analysis_contract.missingness_assessment_gate_id",
+        ),
+    ],
+)
+def test_analysis_contract_rejects_noncanonical_text_handles(
+    field: str, value: str, message: str
+) -> None:
+    protocol = _multi_step_protocol()
+    contract = replace(protocol.analysis_contract, **{field: value})
+    with pytest.raises(ValidationError, match=message):
+        validate_protocol_freeze(replace(protocol, analysis_contract=contract))
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("groups", [" a", "b"], "analysis_contract.groups"),
+        ("contrast_groups", ["a", "b "], "analysis_contract.contrast_groups"),
+        (
+            "adjustment_columns",
+            [" baseline"],
+            "analysis_contract.adjustment_columns",
+        ),
+    ],
+)
+def test_analysis_contract_rejects_noncanonical_list_handles(
+    field: str, value: list[str], message: str
+) -> None:
+    protocol = _multi_step_protocol()
+    contract = replace(protocol.analysis_contract, **{field: value})
+    with pytest.raises(ValidationError, match=message):
+        validate_protocol_freeze(replace(protocol, analysis_contract=contract))
+
+
 def test_measurement_custody_requirement_ids_are_unambiguous_at_freeze() -> None:
     protocol = replace(
         _human_protocol(human_subjects=False),

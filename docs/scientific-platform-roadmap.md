@@ -713,7 +713,9 @@ column, group column, ordered contrast levels, estimand, and missing-data policy
 Freeze requires that named hypothesis to be reviewed and its `primary_estimand`
 to match the contract exactly. It must also name a typed primary measurement;
 that definition's registered `data_column` must match the contract and executed
-outcome column. Protocol-bound
+outcome column. Freeze rejects noncanonical executable analysis-contract handles,
+selectors, ordered levels, and contrast text before the contract enters the
+protocol hash. Protocol-bound
 execution compares each parsed field to that frozen contract. The executed
 semantics and contract are retained in the receipt and revalidated during run
 handoff, preventing an unchanged hash from masking an originally misaligned

@@ -1037,8 +1037,50 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         contract = protocol.analysis_contract
         if not isinstance(contract, AnalysisContract):
             raise ValidationError("analysis_contract must be an AnalysisContract")
-        for name in ("primary_hypothesis_id", "primary_measurement_id", "method", "outcome_column", "group_column", "estimand", "missing_data_policy", "assignment_type", "effect_estimate_path", "uncertainty_path", "missingness_assumption", "missingness_assessment_plan", "missingness_failure_response", "missingness_assessment_kind", "missingness_assessment_gate_id"):
-            require_text(getattr(contract, name), f"analysis_contract.{name}")
+
+        def require_canonical_contract_text(value: object, field: str) -> str:
+            text = require_text(value, field)
+            if text != value:
+                raise ValidationError(
+                    f"{field} must be canonical without surrounding whitespace"
+                )
+            return text
+
+        def require_canonical_contract_list(
+            values: Sequence[object], field: str
+        ) -> list[str]:
+            canonical_values = require_unique_text_list(values, field)
+            if list(values) != canonical_values:
+                raise ValidationError(
+                    f"{field} items must be canonical without surrounding whitespace"
+                )
+            return canonical_values
+
+        for name in (
+            "primary_hypothesis_id",
+            "primary_measurement_id",
+            "method",
+            "outcome_column",
+            "group_column",
+            "estimand",
+            "missing_data_policy",
+            "assignment_type",
+            "effect_estimate_path",
+            "uncertainty_path",
+            "missingness_assumption",
+            "missingness_assessment_plan",
+            "missingness_failure_response",
+            "missingness_assessment_kind",
+            "missingness_assessment_gate_id",
+        ):
+            require_canonical_contract_text(
+                getattr(contract, name), f"analysis_contract.{name}"
+            )
+        if contract.contrast_definition:
+            require_canonical_contract_text(
+                contract.contrast_definition,
+                "analysis_contract.contrast_definition",
+            )
         if contract.missingness_assessment_kind not in {
             "empirical_diagnostic", "design_record_review", "external_validation",
             "substantive_judgment",
@@ -1111,10 +1153,15 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             )
         if contract.primary_hypothesis_id not in protocol.hypotheses_tested:
             raise ValidationError("analysis_contract.primary_hypothesis_id must name a tested hypothesis")
-        groups = require_unique_text_list(contract.groups, "analysis_contract.groups")
+        groups = require_canonical_contract_list(
+            contract.groups, "analysis_contract.groups"
+        )
         if len(groups) != 2:
             raise ValidationError("analysis_contract.groups must contain exactly two distinct levels")
-        require_unique_text_list(
+        require_canonical_contract_list(
+            contract.contrast_groups, "analysis_contract.contrast_groups"
+        )
+        require_canonical_contract_list(
             contract.adjustment_columns, "analysis_contract.adjustment_columns"
         )
         if contract.missing_data_policy != "complete_case":
