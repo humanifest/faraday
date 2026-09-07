@@ -228,6 +228,27 @@ def test_calibration_acceptance_ids_are_unambiguous_at_freeze() -> None:
         ))
 
 
+def test_measurement_contract_rejects_normalized_observed_missing_overlap() -> None:
+    protocol = _human_protocol(human_subjects=False)
+    measurements = _analysis_measurements(protocol.primary_outcome, protocol.controls[0])
+    measurements[0] = replace(
+        measurements[0],
+        scale_type="nominal",
+        unit="category",
+        admissible_values=["detected"],
+        missing_value_codes=[" detected "],
+        valid_min=None,
+        valid_max=None,
+    )
+    with pytest.raises(
+        ValidationError,
+        match="missing-value codes cannot also be admissible observations",
+    ):
+        validate_protocol_freeze(
+            replace(protocol, measurement_definitions=measurements)
+        )
+
+
 def test_measurement_custody_requirement_ids_are_unambiguous_at_freeze() -> None:
     protocol = replace(
         _human_protocol(human_subjects=False),

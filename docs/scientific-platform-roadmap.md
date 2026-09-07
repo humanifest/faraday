@@ -483,8 +483,9 @@ the prior gap between measurement-set drafts and the collection schema.
 Secondary measurement-coverage delivery: each registered secondary outcome now
 requires one ordered, exact-name, full typed measurement contract in guided
 briefs. Coverage rejects omissions, duplicates, substitutions, and unregistered
-surrogates; secondary domains receive the same categorical, missing-code,
-strict numeric-range, non-negativity, and integer-count checks. The provider-free
+surrogates; secondary domains receive the same categorical, normalized
+observed/missing overlap, missing-code, strict numeric-range, non-negativity,
+and integer-count checks. The provider-free
 interview can collect these definitions outcome by outcome and emits an ordered
 secondary measurement-set draft without auto-filling skipped answers.
 Control measurement-coverage delivery: every guided registered control now

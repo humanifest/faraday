@@ -1713,6 +1713,7 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
                     f"{prefix}.scale_type must classify every executable data column"
                 )
             require_text(definition.unit, f"{prefix}.unit")
+            normalized_domains: dict[str, list[str]] = {}
             for field_name in ("admissible_values", "missing_value_codes"):
                 values = getattr(definition, field_name)
                 if not isinstance(values, list):
@@ -1722,7 +1723,11 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
                 ]
                 if len(set(normalized)) != len(normalized):
                     raise ValidationError(f"{prefix}.{field_name} must contain unique values")
-            if set(definition.admissible_values) & set(definition.missing_value_codes):
+                normalized_domains[field_name] = normalized
+            if (
+                set(normalized_domains["admissible_values"])
+                & set(normalized_domains["missing_value_codes"])
+            ):
                 raise ValidationError(
                     f"{prefix} missing-value codes cannot also be admissible observations"
                 )
