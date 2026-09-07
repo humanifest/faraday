@@ -1011,6 +1011,22 @@ def test_conditional_human_review_requires_recorded_conditions() -> None:
         item["code"] for item in padded_review["findings"]
     }
     assert padded_review["status"] == "blocked"
+    malformed_digest = scaffold_design({
+        **brief,
+        "consent_plan": "Written consent.",
+        "withdrawal_plan": "Withdrawal without penalty.",
+        "privacy_plan": "Pseudonymous records.",
+        "retention_deletion_plan": "Delete identifiers after retention.",
+        "risk_description": "Low risk.",
+        "vulnerable_population_plan": "Adults only.",
+        "data_security_plan": "Encrypted storage.",
+        "incidental_findings_plan": "Escalate safety-relevant findings.",
+        "independent_review_artifact_sha256": "B" * 64,
+    })
+    assert "HUMAN_REVIEW_DIGEST_INVALID" in {
+        item["code"] for item in malformed_digest["findings"]
+    }
+    assert malformed_digest["status"] == "blocked"
 
 
 @pytest.mark.parametrize("field", ["question", "consent_plan", "independent_review_receipt", "study_type", "analysis_commitment"])

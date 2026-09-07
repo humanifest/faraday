@@ -909,8 +909,9 @@ human protocol requires `--review-artifact-root`; Faraday verifies the local fil
 bytes and that the recorded decision does not postdate freeze, then stores a
 service-generated verification receipt. This does not authenticate the reviewer
 or determine whether the review was adequate. The scaffold likewise rejects
-padded review receipts, decision fields, artifact handles, digests, and
-conditional-approval obligations before local-byte verification is even staged.
+padded review receipts, decision fields, artifact handles, and
+conditional-approval obligations, and rejects malformed non-lowercase or
+non-hex review artifact digests before local-byte verification is even staged.
 The receipt retains the local review-artifact root. Inquiry display, clearance
 checks, and local replication export re-hash the original review bytes and
 recompute the receipt exactly; missing, moved, changed, symlinked, or

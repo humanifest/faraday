@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import re
 from typing import Any
 from research_machine.domain.models import (
     ControlDefinition, CONTROL_FAMILIES, MEASUREMENT_TEMPORAL_ROLES,
@@ -41,6 +42,7 @@ _VALIDITY_EVIDENCE_TYPES = {
     "criterion", "convergent", "discriminant", "known_groups", "test_retest",
     "inter_rater", "content", "calibration", "other",
 }
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,10 @@ def _text_list(brief: dict[str, Any], key: str) -> list[str]:
     if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
         raise ValueError(f"design brief field {key} must be an array of non-blank strings")
     return value
+
+
+def _is_canonical_sha256(value: str) -> bool:
+    return bool(_SHA256.fullmatch(value))
 
 
 def validate_brief(brief: dict[str, Any]) -> None:
@@ -1121,6 +1127,13 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             decision = brief.get("independent_review_decision", "")
             if decision and decision not in {"approved", "approved_with_conditions"}:
                 add("HUMAN_REVIEW_NOT_APPROVED", "error", "Independent review does not record an approval decision.", "Do not proceed until qualified review records approval or approval with explicit conditions.")
+            digest = brief.get("independent_review_artifact_sha256", "")
+            if digest and not _is_canonical_sha256(digest):
+                add(
+                    "HUMAN_REVIEW_DIGEST_INVALID", "error",
+                    "Independent review artifact SHA-256 is not a canonical lowercase digest.",
+                    "Record the exact 64-character lowercase hexadecimal SHA-256 of the review artifact before staging local-byte verification.",
+                )
             if decision == "approved_with_conditions" and not _text_list(brief, "independent_review_conditions"):
                 add("HUMAN_REVIEW_CONDITIONS_MISSING", "error", "Conditional approval does not record its conditions.", "Record every condition so the frozen protocol preserves the obligations.")
     dedicated_gate_ids = [
