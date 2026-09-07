@@ -1663,6 +1663,7 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
             "measurement_definitions must contain MeasurementDefinition values"
         )
     identifiers: set[str] = set()
+    data_columns: dict[str, str] = {}
     observed_targets: list[tuple[MeasurementRole, str]] = []
     for index, definition in enumerate(definitions):
         prefix = f"measurement_definitions[{index}]"
@@ -1705,6 +1706,17 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
                 f"{prefix}.temporal_role must be a supported temporal role"
             )
         if definition.data_column:
+            data_column = require_text(definition.data_column, f"{prefix}.data_column")
+            if data_column != definition.data_column:
+                raise ValidationError(
+                    f"{prefix}.data_column must be canonical without surrounding whitespace"
+                )
+            normalized_column = data_column.casefold()
+            if normalized_column in data_columns:
+                raise ValidationError(
+                    "measurement_definitions data_column values must be case-insensitively unique"
+                )
+            data_columns[normalized_column] = data_column
             if definition.scale_type not in {
                 "binary", "nominal", "ordinal", "interval", "ratio", "count",
                 "time_to_event",
@@ -1774,6 +1786,30 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
                     if bound is not None and not float(bound).is_integer():
                         raise ValidationError(f"{prefix}.count validity bounds must be integers")
         observed_targets.append((definition.role, target))
+
+    reserved_columns = {"observation_id", "unit_id", "condition", "captured_at"}
+    if protocol.unit_id_column:
+        reserved_columns.add(require_text(protocol.unit_id_column, "unit_id_column").casefold())
+    if protocol.analysis_contract is not None and protocol.analysis_contract.group_column:
+        reserved_columns.add(
+            require_text(
+                protocol.analysis_contract.group_column,
+                "analysis_contract.group_column",
+            ).casefold()
+        )
+    reserved_collisions = sorted(
+        definition.data_column
+        for definition in definitions
+        if definition.data_column
+        and definition.role is not MeasurementRole.EXPOSURE
+        and definition.data_column.casefold() in reserved_columns
+    )
+    if reserved_collisions:
+        raise ValidationError(
+            "measurement_definitions data_column values must be distinct from "
+            "identity, assignment, and capture-time columns: "
+            + ", ".join(reserved_collisions)
+        )
 
     expected_targets = (
         [(MeasurementRole.PRIMARY, protocol.primary_outcome)]

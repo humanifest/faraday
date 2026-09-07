@@ -473,7 +473,10 @@ interview now require an explicit primary outcome column rather than silently
 using `outcome`. The scaffold propagates that commitment into the measurement
 definition and data dictionary, rejects case-insensitive collisions across all
 dataset-backed primary, secondary, and control measurements, and protects the
-reserved identity, assignment, and capture-time columns.
+reserved identity, assignment, and capture-time columns. Canonical protocol
+freeze now independently rejects noncanonical executable measurement columns,
+case-insensitive column reuse across measurement definitions, and non-exposure
+measurements that occupy identity, assignment, or capture-time columns.
 Independent-unit schema delivery: whenever a guided design names an independent
 unit, it must also name the exact stable identifier column. That name now agrees
 across protocol, data dictionary, collection plan, and measurement-collision

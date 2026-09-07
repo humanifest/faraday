@@ -249,6 +249,22 @@ def test_measurement_contract_rejects_normalized_observed_missing_overlap() -> N
         )
 
 
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"data_column": " outcome "}, "data_column must be canonical"),
+        ({"data_column": "SECONDARY"}, "case-insensitively unique"),
+        ({"data_column": "group"}, "distinct from identity, assignment, and capture-time"),
+    ],
+)
+def test_measurement_contract_rejects_ambiguous_executable_columns(change, message) -> None:
+    protocol = _multi_step_protocol()
+    measurements = list(protocol.measurement_definitions)
+    measurements[0] = replace(measurements[0], **change)
+    with pytest.raises(ValidationError, match=message):
+        validate_protocol_freeze(replace(protocol, measurement_definitions=measurements))
+
+
 def test_measurement_custody_requirement_ids_are_unambiguous_at_freeze() -> None:
     protocol = replace(
         _human_protocol(human_subjects=False),
