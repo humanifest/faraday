@@ -837,7 +837,9 @@ unique-study counts; related publications and multiple reports of one study
 still require explicit study-level review.
 `research literature screen --snapshot-file <snapshot> --expected-snapshot-sha256
 <hash> --review-file <review> --output <new-directory>` records screening without
-editing the snapshot. Review JSON contains `reviewer` and `decisions`; each decision
+editing the snapshot. The expected snapshot hash must be a canonical lowercase
+SHA-256 digest before it can pin the source bytes. Review JSON contains
+`reviewer` and `decisions`; each decision
 contains `source_id`, `decision` (include/exclude/unresolved), `reason`, and
 `criterion_refs`. Criterion references such as `inclusion:1` and `exclusion:2`
 use one-based positions within the exact pinned snapshot. Include/exclude

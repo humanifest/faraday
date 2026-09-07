@@ -70,3 +70,12 @@ def test_invalid_screening_never_publishes(tmp_path, failure):
     with pytest.raises(ValidationError):
         create_screening(path, digest, review, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("expected", [" 0123", "A" * 64, "g" * 64, "0" * 63, "0" * 65])
+def test_screening_rejects_malformed_expected_snapshot_hash(tmp_path, expected):
+    path, _, review = setup_snapshot(tmp_path)
+    output = tmp_path / "screening"
+    with pytest.raises(ValidationError, match="expected_snapshot_sha256 must be a lowercase SHA-256 digest"):
+        create_screening(path, expected, review, output)
+    assert not output.exists()
