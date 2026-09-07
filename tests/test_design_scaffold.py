@@ -93,6 +93,28 @@ def test_measurement_columns_are_explicit_unique_and_not_reserved():
     }
 
 
+def test_required_brief_fields_must_be_canonical_before_drafting():
+    padded = scaffold_design({
+        "title": " Core fixture ",
+        "question": " Does the intervention change the score?",
+        "decision": "Choose a strategy ",
+        "outcome": " Score",
+        "unit_of_observation": "unit ",
+        "human_participants": False,
+    })
+    assert "CORE_BRIEF_FIELD_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
+    assert padded["status"] == "blocked"
+    assert padded["artifacts"]["protocol-draft.json"]["title"].startswith(" ")
+    assert padded["artifacts"]["hypothesis-proposal.json"]["statement"].endswith(
+        "score?"
+    )
+    assert padded["artifacts"]["hypothesis-proposal.json"]["statement"].startswith(
+        "[REVIEW REQUIRED]  "
+    )
+
+
 def test_primary_observable_is_not_substituted_by_validity_evidence():
     base = {
         "title": "Construct fixture", "question": "Question", "decision": "Decision",

@@ -385,6 +385,12 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                 "Use exact stable labels without padding so review artifacts, coverage checks, gates, and execution handles bind the same scientific roles.",
             )
 
+    if any(brief[field] != brief[field].strip() for field in _REQUIRED):
+        add(
+            "CORE_BRIEF_FIELD_NONCANONICAL", "error",
+            "A required design brief field contains surrounding whitespace.",
+            "Use exact unpadded title, question, decision, outcome, and unit-of-observation text before review drafts preserve them as inquiry, hypothesis, protocol, and collection commitments.",
+        )
     require_canonical_list_items("secondary_outcomes", "SECONDARY_OUTCOME_LABEL_NONCANONICAL", "Secondary outcomes")
     require_canonical_list_items("confirmatory_outcomes", "CONFIRMATORY_OUTCOME_LABEL_NONCANONICAL", "Confirmatory outcomes")
     require_canonical_list_items("exploratory_outcomes", "EXPLORATORY_OUTCOME_LABEL_NONCANONICAL", "Exploratory outcomes")

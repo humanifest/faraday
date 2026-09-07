@@ -400,7 +400,10 @@ review-only hypothesis, protocol, typed primary-measurement, data-dictionary,
 and collection-plan drafts.
 It also gives plain-language structural findings for causal identification,
 measurement units and calibration, controls, confounds, stopping rules, and
-human-participant safeguards. Review-list commitments such as exclusions,
+human-participant safeguards. Required brief fields for title, question,
+decision, outcome, and unit of observation must be canonical without surrounding
+whitespace before they become inquiry, hypothesis, protocol, or collection
+draft text. Review-list commitments such as exclusions,
 falsification conditions, and unsupported higher-level conclusions must be
 canonical without surrounding whitespace before they are treated as draft
 protocol, hypothesis, or conclusion-contract text. Prospective prose

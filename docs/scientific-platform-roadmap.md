@@ -443,6 +443,9 @@ flags unresolved causal comparisons, measurement units, calibration, controls,
 confounds, analysis commitments, and stopping rules. `research design interview`
 now collects plain-language answers without JSON authoring or an LLM, including
 predictions, alternatives, falsifiers, dependence, controls, and human-data scope.
+Required title, question, decision, outcome, and unit-of-observation fields now
+receive blocking findings when surrounding whitespace would otherwise be
+preserved as inquiry, hypothesis, protocol, or collection draft text.
 Guided review-list commitments, including exclusions, falsification conditions,
 and unsupported higher-level conclusions, now receive blocking findings when
 surrounding whitespace would otherwise be preserved in draft artifacts.
