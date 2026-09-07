@@ -237,3 +237,32 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     with pytest.raises(ValidationError):
         execute_meta_analysis(plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize(("field", "expected"), [
+    ("plan", "A" * 64),
+    ("effects", "g" * 64),
+    ("verification", "0" * 63),
+    ("deviations", "0" * 65),
+])
+def test_meta_analysis_rejects_malformed_expected_hashes(tmp_path, field, expected):
+    plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
+    if field == "plan":
+        plan_sha = expected
+        message = "expected_plan_sha256 must be a lowercase SHA-256 digest"
+    elif field == "effects":
+        effects_sha = expected
+        message = "expected_effects_sha256 must be a lowercase SHA-256 digest"
+    elif field == "verification":
+        verification_sha = expected
+        message = "expected_effect_verification_sha256 must be a lowercase SHA-256 digest"
+    else:
+        deviations_sha = expected
+        message = "expected_deviations_sha256 must be a lowercase SHA-256 digest"
+    output = tmp_path / "meta"
+    with pytest.raises(ValidationError, match=message):
+        execute_meta_analysis(
+            plan, plan_sha, effects, effects_sha, verification, verification_sha,
+            deviations, deviations_sha, output,
+        )
+    assert not output.exists()

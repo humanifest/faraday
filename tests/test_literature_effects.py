@@ -135,3 +135,21 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     with pytest.raises(ValidationError):
         create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, candidate, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize(("field", "expected"), [
+    ("plan", " A" * 32),
+    ("map", "g" * 64),
+])
+def test_effect_records_reject_malformed_expected_hashes(tmp_path, field, expected):
+    plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
+    if field == "plan":
+        plan_sha = expected
+        message = "expected_plan_sha256 must be a lowercase SHA-256 digest"
+    else:
+        map_sha = expected
+        message = "expected_evidence_map_sha256 must be a lowercase SHA-256 digest"
+    output = tmp_path / "effects"
+    with pytest.raises(ValidationError, match=message):
+        create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, review(), output)
+    assert not output.exists()

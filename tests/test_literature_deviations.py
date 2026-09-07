@@ -88,3 +88,12 @@ def test_invalid_deviation_disclosure_never_publishes(tmp_path, failure):
     with pytest.raises(ValidationError):
         create_synthesis_deviations(plan, digest, candidate, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("expected", [" 0123", "A" * 64, "g" * 64, "0" * 63, "0" * 65])
+def test_deviation_disclosure_rejects_malformed_expected_plan_hash(tmp_path, expected):
+    plan, _, _ = plan_file(tmp_path)
+    output = tmp_path / "deviations"
+    with pytest.raises(ValidationError, match="expected_plan_sha256 must be a lowercase SHA-256 digest"):
+        create_synthesis_deviations(plan, expected, disclosure(), output)
+    assert not output.exists()

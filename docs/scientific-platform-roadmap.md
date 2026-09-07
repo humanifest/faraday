@@ -924,47 +924,53 @@ screening hash before binding the plan to those bytes. It belongs before extract
 commitments but cannot prove external chronology or that the chosen methods are
 appropriate; later synthesis must verify this plan and declare every departure.
 `research literature synthesize` now executes the frozen qualitative branch. It
-verifies the plan, extraction, and full evidence-map lineage; enforces the frozen
-included-source set and minimum independent-study count; and retains every null,
-adverse, mixed, hypothesis-only, and high-bias claim while reporting directional
-and ceiling counts. The synthesis artifact also preserves the retained citation
-and bias-domain provenance for each claim, preventing a later reader from seeing
-only an unsupported ceiling label. It normalizes copied claim, study, source, and
-bias-domain handles before counting studies or publishing the qualitative
-artifact. It never treats claim counts as effect sizes or authors a substantive
-conclusion. Quantitative plans fail closed until effect-size extraction, variance
-checks, heterogeneity diagnostics, and validated pooling are available.
+verifies canonical lowercase trusted hashes for the plan, evidence map, and
+deviation declaration before checking extraction and full evidence-map lineage;
+enforces the frozen included-source set and minimum independent-study count; and
+retains every null, adverse, mixed, hypothesis-only, and high-bias claim while
+reporting directional and ceiling counts. The synthesis artifact also preserves
+the retained citation and bias-domain provenance for each claim, preventing a
+later reader from seeing only an unsupported ceiling label. It normalizes copied
+claim, study, source, and bias-domain handles before counting studies or
+publishing the qualitative artifact. It never treats claim counts as effect
+sizes or authors a substantive conclusion. Quantitative plans fail closed until
+effect-size extraction, variance checks, heterogeneity diagnostics, and validated
+pooling are available.
 The quantitative branch begins with `research literature prepare-effects`. It
-requires the frozen quantitative plan and its exact evidence-map lineage, then
-records exactly one effect measure, standard error, variance, and sample size per
-reconciled study. Each effect record also retains the mapped claim IDs, citation
-verdicts, citation-check locations, and interpretive ceilings that brought the
-study across the evidence-map boundary, and preparation rejects extraction source
-sets that do not match the plan's frozen included sources. Unavailable statistics
-must remain explicit null records and count against the frozen minimum-study
-requirement. This validates finite values, positive variance, coverage, review
-provenance, and plan consistency, but does not reproduce source calculations,
-prove outcome compatibility, impute missing values, or authorize pooling.
+requires canonical lowercase trusted hashes for the frozen quantitative plan and
+exact evidence-map lineage, then records exactly one effect measure, standard
+error, variance, and sample size per reconciled study. Each effect record also
+retains the mapped claim IDs, citation verdicts, citation-check locations, and
+interpretive ceilings that brought the study across the evidence-map boundary,
+and preparation rejects extraction source sets that do not match the plan's
+frozen included sources. Unavailable statistics must remain explicit null
+records and count against the frozen minimum-study requirement. This validates
+finite values, positive variance, coverage, review provenance, and plan
+consistency, but does not reproduce source calculations, prove outcome
+compatibility, impute missing values, or authorize pooling.
 Effect preparation and effect verification normalize study and source handles
 before coverage and duplicate checks, preserving the upstream provenance identity
 contract across quantitative artifacts.
 `research literature derive-effects` provides a reproducible alternative for
 `mean_difference` and `log_risk_ratio`: it computes estimates and standard errors
-from source-reported experimental and comparator arm summaries under the frozen
-contrast definition. Zero-event risk-ratio studies fail closed rather than
-receiving an undeclared continuity correction. This reproduces arithmetic from
-entered summaries, not the source transcription or participant-level analysis.
+from source-reported experimental and comparator arm summaries under canonical
+lowercase trusted plan and evidence-map hashes and the frozen contrast
+definition. Zero-event risk-ratio studies fail closed rather than receiving an
+undeclared continuity correction. This reproduces arithmetic from entered
+summaries, not the source transcription or participant-level analysis.
 The exact arm summaries used for reproducible derivation are retained inside the
 hashed effect-record artifact, closing the prior gap where computations were
 reproducible during execution but their numeric inputs were not persisted.
 `research literature verify-effects` requires a reviewer distinct from the
 effect reviewer to check both source transcription and reproduced arithmetic for
-every available study; unavailable studies receive explicit not-applicable
-checks. Any mismatch remains visible and blocks `pool-effects`. This authenticates
+every available study under a canonical lowercase effect-record hash;
+unavailable studies receive explicit not-applicable checks. Any mismatch remains
+visible and blocks `pool-effects`. This authenticates
 neither reviewer nor source content, but closes the cleanly-coded/wrongly-copied
 input path in the enforced quantitative workflow.
 `research literature pool-effects` performs deterministic inverse-variance
-pooling only after the quantitative plan and prepared-effect hashes agree. It
+pooling only after the quantitative plan, prepared-effect, effect-verification,
+and deviation hashes are canonical lowercase digests and agree. It
 enforces the frozen fixed-effect or random-effects model, requires at least two
 available independent-study effects and the frozen minimum, reports Cochran's Q,
 I-squared, DerSimonian-Laird tau-squared, a 95% confidence interval, a random-
@@ -999,11 +1005,12 @@ intercept, standard error, Student-t interval, and degrees of freedom without a
 binary publication-bias verdict. Non-estimability and the alternative causes of
 funnel asymmetry remain explicit.
 `research literature record-deviations` creates an immutable disclosure tied to
-the frozen synthesis-plan hash. Each departure identifies its workflow stage,
-frozen commitment, actual method, reason, timing, impact, and corrective action.
-It also names an inspectable evidence location for the deviation review. Changes
-after results were seen—or with unknown timing—force heightened review. The
-artifact also retains a compact frozen-plan commitment snapshot, and rejects
+the frozen synthesis-plan hash, after requiring that trusted plan hash to be a
+canonical lowercase digest. Each departure identifies its workflow stage, frozen
+commitment, actual method, reason, timing, impact, and corrective action. It also
+names an inspectable evidence location for the deviation review. Changes after
+results were seen—or with unknown timing—force heightened review. The artifact
+also retains a compact frozen-plan commitment snapshot, and rejects
 synthesis-type-incompatible stages such as qualitative effect preparation. It
 cannot amend the plan, retroactively preregister a choice, raise a claim ceiling,
 or authenticate the researcher's account.

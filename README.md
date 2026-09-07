@@ -736,7 +736,10 @@ claims into Faraday scientific evidence.
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim
 IDs and citation-review anchors, after checking the extraction source set against
-the synthesis plan's frozen included sources. Effect preparation and independent
+the synthesis plan's frozen included sources. Trusted plan, evidence-map,
+effect-record, effect-verification, and deviation hashes must be canonical
+lowercase SHA-256 digests before later synthesis commands can bind those
+artifacts. Effect preparation and independent
 effect verification normalize study and source handles before their coverage and
 duplicate checks, so quantitative artifacts inherit the same provenance identity
 rules as the qualitative review trail. Meta-analysis replays normalized study and

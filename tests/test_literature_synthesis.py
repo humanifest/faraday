@@ -153,3 +153,28 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
     with pytest.raises(ValidationError):
         execute_qualitative_synthesis(plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize(("field", "expected"), [
+    ("plan", "A" * 64),
+    ("map", "g" * 64),
+    ("deviations", "0" * 63),
+])
+def test_qualitative_synthesis_rejects_malformed_expected_hashes(tmp_path, field, expected):
+    plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(tmp_path)
+    if field == "plan":
+        plan_sha = expected
+        message = "expected_plan_sha256 must be a lowercase SHA-256 digest"
+    elif field == "map":
+        map_sha = expected
+        message = "expected_evidence_map_sha256 must be a lowercase SHA-256 digest"
+    else:
+        deviations_sha = expected
+        message = "expected_deviations_sha256 must be a lowercase SHA-256 digest"
+    output = tmp_path / "synthesis"
+    with pytest.raises(ValidationError, match=message):
+        execute_qualitative_synthesis(
+            plan, plan_sha, extraction, evidence_map, map_sha,
+            deviations, deviations_sha, output,
+        )
+    assert not output.exists()

@@ -11,6 +11,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.hashes import require_sha256
 
 
 _T_CRITICAL_975 = {
@@ -93,6 +94,14 @@ def execute_meta_analysis(
     expected_deviations_sha256: str,
     output: Path,
 ) -> dict[str, Any]:
+    expected_plan_sha256 = require_sha256(expected_plan_sha256, "expected_plan_sha256")
+    expected_effects_sha256 = require_sha256(expected_effects_sha256, "expected_effects_sha256")
+    expected_effect_verification_sha256 = require_sha256(
+        expected_effect_verification_sha256, "expected_effect_verification_sha256"
+    )
+    expected_deviations_sha256 = require_sha256(
+        expected_deviations_sha256, "expected_deviations_sha256"
+    )
     plan, plan_sha = _load(plan_path, "synthesis plan")
     effects, effects_sha = _load(effects_path, "effect records")
     effect_verification, effect_verification_sha = _load(effect_verification_path, "effect verification")

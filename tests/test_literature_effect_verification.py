@@ -72,3 +72,12 @@ def test_invalid_effect_verification_never_publishes(tmp_path, failure):
     output = tmp_path / "verification"
     with pytest.raises(ValidationError): create_effect_verification(effects, digest, candidate, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("expected", [" 0123", "A" * 64, "g" * 64, "0" * 63, "0" * 65])
+def test_effect_verification_rejects_malformed_expected_effects_hash(tmp_path, expected):
+    effects, _ = effects_file(tmp_path)
+    output = tmp_path / "verification"
+    with pytest.raises(ValidationError, match="expected_effects_sha256 must be a lowercase SHA-256 digest"):
+        create_effect_verification(effects, expected, review(), output)
+    assert not output.exists()

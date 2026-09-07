@@ -9,6 +9,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 
@@ -33,6 +34,13 @@ def execute_qualitative_synthesis(
     expected_deviations_sha256: str,
     output: Path,
 ) -> dict[str, Any]:
+    expected_plan_sha256 = require_sha256(expected_plan_sha256, "expected_plan_sha256")
+    expected_evidence_map_sha256 = require_sha256(
+        expected_evidence_map_sha256, "expected_evidence_map_sha256"
+    )
+    expected_deviations_sha256 = require_sha256(
+        expected_deviations_sha256, "expected_deviations_sha256"
+    )
     plan, plan_sha = _load(plan_path, "synthesis plan")
     extraction, extraction_sha = _load(extraction_path, "extraction")
     evidence_map, evidence_map_sha = _load(evidence_map_path, "evidence map")

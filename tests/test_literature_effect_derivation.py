@@ -73,3 +73,22 @@ def test_invalid_or_undeclared_derivation_never_publishes(tmp_path, failure):
     with pytest.raises(ValidationError):
         derive_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, candidate, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize(("field", "expected"), [
+    ("plan", "A" * 64),
+    ("map", "g" * 64),
+])
+def test_effect_derivation_rejects_malformed_expected_hashes(tmp_path, field, expected):
+    plan, _, extraction, evidence_map, map_sha = artifacts(tmp_path)
+    plan_sha = update_measure(plan, "mean_difference")
+    if field == "plan":
+        plan_sha = expected
+        message = "expected_plan_sha256 must be a lowercase SHA-256 digest"
+    else:
+        map_sha = expected
+        message = "expected_evidence_map_sha256 must be a lowercase SHA-256 digest"
+    output = tmp_path / "effects"
+    with pytest.raises(ValidationError, match=message):
+        derive_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, summaries(), output)
+    assert not output.exists()

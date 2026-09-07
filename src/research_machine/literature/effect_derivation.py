@@ -7,6 +7,7 @@ from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.effects import create_effect_records, _load
+from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 
@@ -27,6 +28,10 @@ def _finite(value: Any, field: str, *, positive: bool = False) -> float:
 def derive_effect_records(plan_path: Path, expected_plan_sha256: str, extraction_path: Path,
                           evidence_map_path: Path, expected_evidence_map_sha256: str,
                           summaries: dict[str, Any], output: Path) -> dict[str, Any]:
+    expected_plan_sha256 = require_sha256(expected_plan_sha256, "expected_plan_sha256")
+    expected_evidence_map_sha256 = require_sha256(
+        expected_evidence_map_sha256, "expected_evidence_map_sha256"
+    )
     plan, plan_sha = _load(plan_path, "synthesis plan")
     if plan_sha != expected_plan_sha256:
         raise ValidationError("effect derivation plan does not match the expected SHA-256")
