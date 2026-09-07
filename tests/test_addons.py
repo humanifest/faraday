@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from research_machine.addons.models import AddonManifest, AnalysisMethod
+from research_machine.addons.general_science import descriptive_summary
 from research_machine.addons.registry import (
     AddonRegistry,
     default_registry,
@@ -156,6 +157,17 @@ def test_default_registry_exposes_general_and_domain_addons() -> None:
     assert addon.addon_id == "general_science"
     assert "seed" in method.required_spec_fields
     assert method.maximum_inference_level == "design_conditional_effect"
+
+
+def test_descriptive_summary_normalizes_requested_columns() -> None:
+    result = descriptive_summary({"columns": [" x "]}, [{"x": "1"}, {"x": ""}])
+    assert result["summaries"]["x"]["n"] == 1
+    assert result["missing_by_column"] == {"x": 1}
+
+
+def test_descriptive_summary_rejects_duplicate_columns_after_normalization() -> None:
+    with pytest.raises(ValidationError, match="duplicates"):
+        descriptive_summary({"columns": ["x", " x "]}, [{"x": "1"}])
 
 
 def test_registry_rejects_duplicate_addon_ids() -> None:

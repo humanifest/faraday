@@ -44,8 +44,11 @@ def _summary(values: list[float]) -> dict[str, float | int | None]:
 
 def descriptive_summary(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[str, Any]:
     columns = spec.get("columns")
-    if not isinstance(columns, list) or not columns or any(not isinstance(item, str) or not item for item in columns):
+    if not isinstance(columns, list) or not columns or any(not isinstance(item, str) or not item.strip() for item in columns):
         raise ValidationError("descriptive_summary requires a non-empty columns array")
+    columns = [item.strip() for item in columns]
+    if len(set(columns)) != len(columns):
+        raise ValidationError("descriptive_summary columns must not contain duplicates")
     summaries: dict[str, Any] = {}
     missing: dict[str, int] = {}
     for name in columns:
