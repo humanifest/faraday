@@ -128,6 +128,37 @@ def test_registration_rejects_unrelated_receipt_without_writing(tmp_path, capsys
     ]) == 2
     assert "does not match expected_receipt_sha256" in capsys.readouterr().err
     assert not wrong_hash_record.exists()
+    padded_actor_record = tmp_path / "padded-actor-custody-record"
+    assert main([
+        "--workspace", str(tmp_path), "--actor", " codex ", "--json",
+        "measurement", "record",
+        "--protocol", protocol.protocol_id,
+        "--receipt-file", str(receipt_file),
+        "--expected-receipt-sha256", receipt_sha256,
+        "--artifact-root", str(tmp_path),
+        "--output", str(padded_actor_record),
+    ]) == 2
+    assert "actor must be canonical" in capsys.readouterr().err
+    assert not padded_actor_record.exists()
+    padded_recorded_by = dict(record)
+    padded_recorded_by["recorded_by"] = " codex "
+    padded_recorded_by_file = tmp_path / "padded-recorded-by-custody-record.json"
+    padded_recorded_by_file.write_text(
+        json.dumps(padded_recorded_by, indent=2, sort_keys=True) + "\n"
+    )
+    padded_recorded_by_sha256 = hashlib.sha256(
+        padded_recorded_by_file.read_bytes()
+    ).hexdigest()
+    assert main([
+        "--workspace", str(tmp_path), "--json", "measurement",
+        "verify-record",
+        "--protocol", protocol.protocol_id,
+        "--record-file", str(padded_recorded_by_file),
+        "--expected-record-sha256", padded_recorded_by_sha256,
+        "--receipt-file", str(receipt_file),
+        "--artifact-root", str(tmp_path),
+    ]) == 2
+    assert "recorded_by must be canonical" in capsys.readouterr().err
     derived_hash = receipt["transformations"][0]["output_sha256"]
     with pytest.raises(ValidationError, match="cover exactly"):
         service.register_dataset(RegisterDataset(

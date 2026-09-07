@@ -351,7 +351,7 @@ def _verify_custody_artifacts(
     integrity = verify_run_artifacts(
         artifacts,
         artifact_root=str(artifact_root.expanduser().resolve()),
-        actor=_text(actor, "actor"),
+        actor=_canonical_text(actor, "actor"),
         analysis_code_hash="",
         run_metadata={},
         attestation_schema_path=None,
@@ -384,8 +384,8 @@ def reverify_dataset_measurement_custody(
         raise ValidationError(
             f"dataset {dataset.dataset_id} lacks retained custody artifact root"
         )
-    verified_by = _text(verification.get("verified_by"), "verification actor")
-    verified_at = _text(verification.get("verified_at"), "verification time")
+    verified_by = _canonical_text(verification.get("verified_by"), "verification actor")
+    verified_at = _canonical_text(verification.get("verified_at"), "verification time")
     _timestamp(verified_at, "verification time")
     current_integrity = _verify_custody_artifacts(custody, Path(root), verified_by)
     expected = {
@@ -445,6 +445,7 @@ def create_measurement_custody_record(
     )
 
     integrity = _verify_custody_artifacts(custody, artifact_root, actor)
+    actor = _canonical_text(actor, "actor")
 
     record = {
         "custody_record_version": 1,
@@ -527,6 +528,7 @@ def verify_measurement_custody_record(
         raise ValidationError("unsupported measurement custody record")
     if record.get("scientific_evidence_eligible") is not False:
         raise ValidationError("measurement custody record must remain scientific-evidence ineligible")
+    _canonical_text(record.get("recorded_by"), "recorded_by")
     if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
         raise ValidationError("measurement custody record verification requires a frozen protocol")
     if record.get("protocol_id") != protocol.protocol_id or record.get("protocol_hash") != protocol.protocol_hash:
