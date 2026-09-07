@@ -90,6 +90,32 @@ def test_invalid_deviation_disclosure_never_publishes(tmp_path, failure):
     assert not output.exists()
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("reviewer", " Deviation reviewer", "deviation reviewer must be canonical"),
+        ("deviation_id", " d1", "deviation_id must be canonical"),
+        ("frozen_commitment", " Use reported standard errors", "frozen_commitment must be canonical"),
+        ("actual_method", "Derived one standard error from a confidence interval ", "actual_method must be canonical"),
+        ("reason", " Reported standard error unavailable", "deviation reason must be canonical"),
+        ("impact_assessment", "May introduce rounding error ", "impact_assessment must be canonical"),
+        ("corrective_action", " Sensitivity check", "corrective_action must be canonical"),
+        ("evidence_location", "review log section 2 ", "deviation evidence_location must be canonical"),
+    ],
+)
+def test_deviation_disclosure_text_must_be_canonical(tmp_path, field, value, message):
+    plan, digest, _ = plan_file(tmp_path)
+    candidate = disclosure()
+    if field == "reviewer":
+        candidate[field] = value
+    else:
+        candidate["deviations"][0][field] = value
+    output = tmp_path / "deviations"
+    with pytest.raises(ValidationError, match=message):
+        create_synthesis_deviations(plan, digest, candidate, output)
+    assert not output.exists()
+
+
 @pytest.mark.parametrize("expected", [" 0123", "A" * 64, "g" * 64, "0" * 63, "0" * 65])
 def test_deviation_disclosure_rejects_malformed_expected_plan_hash(tmp_path, expected):
     plan, _, _ = plan_file(tmp_path)

@@ -18,6 +18,13 @@ _STAGES = {"extraction", "citation_verification", "bias_assessment", "study_reco
 _TIMINGS = {"before_extraction", "before_synthesis", "after_results_seen", "unknown"}
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def create_synthesis_deviations(
     plan_path: Path,
     expected_sha256: str,
@@ -40,7 +47,7 @@ def create_synthesis_deviations(
         raise ValidationError("synthesis deviations require a plan with a supported synthesis_type")
     if not isinstance(disclosure, dict) or set(disclosure) != {"reviewer", "deviations"}:
         raise ValidationError("deviation disclosure requires exactly reviewer and deviations")
-    reviewer = _text(disclosure["reviewer"], "deviation reviewer")
+    reviewer = _canonical_text(disclosure["reviewer"], "deviation reviewer")
     deviations = disclosure["deviations"]
     if not isinstance(deviations, list):
         raise ValidationError("deviations must be an array")
@@ -50,7 +57,7 @@ def create_synthesis_deviations(
     for item in deviations:
         if not isinstance(item, dict) or set(item) != required:
             raise ValidationError("synthesis deviation fields do not match the documented contract")
-        deviation_id = _text(item["deviation_id"], "deviation_id").strip()
+        deviation_id = _canonical_text(item["deviation_id"], "deviation_id")
         if deviation_id in by_id:
             raise ValidationError("duplicate synthesis deviation_id")
         if item["stage"] not in _STAGES or item["timing"] not in _TIMINGS:
@@ -58,12 +65,12 @@ def create_synthesis_deviations(
         if synthesis_type == "qualitative" and item["stage"] == "effect_preparation":
             raise ValidationError("qualitative synthesis deviations cannot use the effect_preparation stage")
         by_id[deviation_id] = {"deviation_id": deviation_id, "stage": item["stage"],
-            "frozen_commitment": _text(item["frozen_commitment"], "frozen_commitment").strip(),
-            "actual_method": _text(item["actual_method"], "actual_method").strip(),
-            "reason": _text(item["reason"], "deviation reason").strip(), "timing": item["timing"],
-            "impact_assessment": _text(item["impact_assessment"], "impact_assessment").strip(),
-            "corrective_action": _text(item["corrective_action"], "corrective_action").strip(),
-            "evidence_location": _text(item["evidence_location"], "deviation evidence_location").strip()}
+            "frozen_commitment": _canonical_text(item["frozen_commitment"], "frozen_commitment"),
+            "actual_method": _canonical_text(item["actual_method"], "actual_method"),
+            "reason": _canonical_text(item["reason"], "deviation reason"), "timing": item["timing"],
+            "impact_assessment": _canonical_text(item["impact_assessment"], "impact_assessment"),
+            "corrective_action": _canonical_text(item["corrective_action"], "corrective_action"),
+            "evidence_location": _canonical_text(item["evidence_location"], "deviation evidence_location")}
     timing_counts = {timing: sum(item["timing"] == timing for item in by_id.values())
                      for timing in sorted(_TIMINGS)}
     elevated = bool(timing_counts["after_results_seen"] or timing_counts["unknown"])

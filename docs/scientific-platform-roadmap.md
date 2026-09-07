@@ -1016,12 +1016,14 @@ funnel asymmetry remain explicit.
 the frozen synthesis-plan hash, after requiring that trusted plan hash to be a
 canonical lowercase digest. Each departure identifies its workflow stage, frozen
 commitment, actual method, reason, timing, impact, and corrective action. It also
-names an inspectable evidence location for the deviation review. Changes after
-results were seen—or with unknown timing—force heightened review. The artifact
-also retains a compact frozen-plan commitment snapshot, and rejects
-synthesis-type-incompatible stages such as qualitative effect preparation. It
-cannot amend the plan, retroactively preregister a choice, raise a claim ceiling,
-or authenticate the researcher's account.
+names an inspectable evidence location for the deviation review. Reviewer and
+departure text must be canonical without surrounding whitespace before the
+artifact is hashed, so Faraday rejects padded disclosures rather than silently
+rewriting them. Changes after results were seen—or with unknown timing—force
+heightened review. The artifact also retains a compact frozen-plan commitment
+snapshot, and rejects synthesis-type-incompatible stages such as qualitative
+effect preparation. It cannot amend the plan, retroactively preregister a choice,
+raise a claim ceiling, or authenticate the researcher's account.
 Both qualitative synthesis and quantitative pooling now require this declaration,
 including an immutable `no_deviations_declared` artifact when none are reported.
 The declaration hash and frozen-plan snapshot are embedded in the result and
