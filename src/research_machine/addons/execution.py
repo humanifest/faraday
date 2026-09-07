@@ -338,6 +338,11 @@ def _unit_structure(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[st
     group_column = spec.get("group_column")
     if isinstance(group_column, str) and group_column.strip() and group_column != group_column.strip():
         raise ValidationError("protocol-bound analysis group_column must be canonical without surrounding whitespace")
+    if isinstance(group_column, str) and group_column.strip():
+        if group_column == column:
+            raise ValidationError("protocol-bound analysis group_column must be distinct from the unit or pair column")
+        if group_column not in rows[0]:
+            raise ValidationError("analysis group column is absent from the CSV")
     for row_number, row in enumerate(rows, start=2):
         value = row.get(column)
         if not isinstance(value, str) or not value.strip():

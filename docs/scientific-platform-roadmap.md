@@ -688,8 +688,9 @@ Protocols with a pinned analysis specification now also require a structured
 `unit_column`, or a paired estimator's `pair_column`, to that exact frozen name.
 The binding is retained in the execution receipt and revalidated during run-draft
 handoff. Unit, pair, and group column handles used to derive row-to-unit and
-allocation receipts must be canonical before those receipts are hashed. This
-verifies identifier-column consistency and the estimator's own
+allocation receipts must be canonical before those receipts are hashed, and the
+group handle must be distinct from the unit or pair handle. This verifies
+identifier-column consistency and the estimator's own
 duplicate/incomplete-unit checks; it does not prove that source rows were
 assigned to the correct real-world units.
 Execution now also derives a unit-structure receipt from the exact parsed CSV:
