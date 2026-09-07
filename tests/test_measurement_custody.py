@@ -435,6 +435,24 @@ def test_gate_cannot_cite_missing_calibration():
         validate_measurement_custody(receipt)
 
 
+def test_gate_calibration_prerequisites_are_unique_after_trimming():
+    receipt = _receipt()
+    receipt["quality_gates"][0]["prerequisite_calibration_ids"] = [
+        "clock", " clock "
+    ]
+    with pytest.raises(ValidationError, match="duplicate calibration prerequisites"):
+        validate_measurement_custody(receipt)
+
+
+def test_derived_observation_gate_references_are_unique_after_trimming():
+    receipt = _receipt()
+    receipt["derived_observations"][0]["quality_gate_ids"] = [
+        "clock-sync", " clock-sync "
+    ]
+    with pytest.raises(ValidationError, match="duplicate quality_gate_ids"):
+        validate_measurement_custody(receipt)
+
+
 @pytest.mark.parametrize("failure", ["missing_artifact_list", "unknown_artifact", "observation_gate", "gate_does_not_cover_output"])
 def test_measurement_gates_must_clear_the_exact_derived_artifact(failure):
     receipt = _receipt()

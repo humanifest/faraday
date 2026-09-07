@@ -1056,7 +1056,10 @@ Measurement quality gates now bind nonempty artifact prerequisites by SHA-256,
 and derived observations name their clearing gates. A cited gate must include
 that observation's exact transformation output among its prerequisites. This
 prevents a valid calibration or gate result from floating onto unrelated derived
-data while leaving scientific interpretation to review.
+data while leaving scientific interpretation to review. Calibration-prerequisite
+and clearing-gate references are normalized before uniqueness and coverage
+checks, so whitespace padding cannot create a second apparent prerequisite or
+gate link.
 Custody-bearing protocols now freeze quantitative calibration acceptance
 criteria with stable criterion/calibration IDs, quantity, unit, rationale, and
 at least one finite bound. Dataset registration requires every named calibration,

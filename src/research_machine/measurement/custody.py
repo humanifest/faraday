@@ -185,7 +185,13 @@ def validate_measurement_custody(
         evaluated_at = _timestamp(item.get("evaluated_at"), f"quality gate {gate_id}.evaluated_at")
         require_evidence(item, f"quality gate {gate_id}")
         prerequisites = item.get("prerequisite_calibration_ids", [])
-        if not isinstance(prerequisites, list) or any(not isinstance(value, str) or value not in calibration_ids for value in prerequisites):
+        if not isinstance(prerequisites, list) or any(
+            not isinstance(value, str) or not value.strip()
+            for value in prerequisites
+        ):
+            raise ValidationError(f"quality gate {gate_id} references an unavailable calibration prerequisite")
+        prerequisites = [value.strip() for value in prerequisites]
+        if any(value not in calibration_ids for value in prerequisites):
             raise ValidationError(f"quality gate {gate_id} references an unavailable calibration prerequisite")
         if len(prerequisites) != len(set(prerequisites)):
             raise ValidationError(f"quality gate {gate_id} has duplicate calibration prerequisites")
@@ -237,7 +243,10 @@ def validate_measurement_custody(
             raise ValidationError("derived observation predates its transformation output")
         observation_gates = item.get("quality_gate_ids")
         if (not isinstance(observation_gates, list) or not observation_gates
-                or any(not isinstance(value, str) or value not in gate_ids for value in observation_gates)):
+                or any(not isinstance(value, str) or not value.strip() for value in observation_gates)):
+            raise ValidationError("derived observation quality_gate_ids must name passed measurement gates")
+        observation_gates = [value.strip() for value in observation_gates]
+        if any(value not in gate_ids for value in observation_gates):
             raise ValidationError("derived observation quality_gate_ids must name passed measurement gates")
         if len(observation_gates) != len(set(observation_gates)):
             raise ValidationError("derived observation has duplicate quality_gate_ids")

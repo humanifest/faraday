@@ -880,7 +880,9 @@ internal chronology, not an externally authenticated timestamp.
 Measurement gates must cite the exact raw or derived artifact hashes they
 evaluate, and every derived observation must name the passed gates that clear its
 specific transformation output. A valid gate from another artifact cannot be
-reused as authorization.
+reused as authorization. Calibration-prerequisite and clearing-gate references
+are normalized before uniqueness and coverage checks, so whitespace padding
+cannot create a second apparent prerequisite or gate link.
 The receipt can be inspected before registration without any network service
 or LLM:
 
