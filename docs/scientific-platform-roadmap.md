@@ -1280,6 +1280,12 @@ protocol, not merely the same confirmatory or replication role. This prevents
 human-subject and prospective-analysis commitments from being silently replaced
 through cross-protocol derivation; deliberate reuse requires a separately
 auditable workflow rather than metadata relabeling.
+Literature synthesis-plan freezing now requires canonical plan IDs, reviewer
+text, questions, outcomes, effect measures, contrast definitions, subgroup and
+sensitivity entries, policy prose, conclusion rules, deviation policies, and
+included screening source IDs before hashing the plan. A padded prospective
+analysis rule or source handle is rejected instead of being trimmed into a
+different frozen commitment.
 
 Completion criterion: a new experiment can be initialized without manually
 authoring JSON while no generated hypothesis or protocol silently becomes

@@ -749,6 +749,12 @@ frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims. This makes the review trail
 inspectable while still refusing to turn retrieved or reviewer-entered source
 claims into Faraday scientific evidence.
+Synthesis-plan freezing likewise rejects padded plan IDs, reviewer text,
+research questions, primary outcomes, effect measures, contrast definitions,
+subgroup and sensitivity entries, policy prose, conclusion rules, deviation
+policies, and frozen included source IDs before hashing the plan, so the
+prospective synthesis commitment cannot silently normalize its own scope or
+analysis rule text.
 
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim

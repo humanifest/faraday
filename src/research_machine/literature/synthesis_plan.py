@@ -26,10 +26,18 @@ _QUANTITATIVE_SENSITIVITIES = {
 def _text_list(value: Any, field: str, *, allow_empty: bool = True) -> list[str]:
     if (not isinstance(value, list)
             or any(not isinstance(item, str) or not item.strip() for item in value)
+            or any(isinstance(item, str) and item != item.strip() for item in value)
             or len(value) != len(set(value))
             or (not allow_empty and not value)):
-        raise ValidationError(f"synthesis plan {field} must be a unique array of non-empty text")
-    return [item.strip() for item in value]
+        raise ValidationError(f"synthesis plan {field} must be a unique array of canonical non-empty text")
+    return value
+
+
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"synthesis plan {field} must be canonical without surrounding whitespace")
+    return text
 
 
 def create_synthesis_plan(
@@ -52,7 +60,9 @@ def create_synthesis_plan(
         raise ValidationError("synthesis planning requires a completed version 2 screening")
     included = sorted(item.get("source_id") for item in screening.get("decisions", [])
                       if isinstance(item, dict) and item.get("decision") == "include")
-    if not included or any(not isinstance(item, str) or not item.strip() for item in included):
+    if (not included
+            or any(not isinstance(item, str) or not item.strip() for item in included)
+            or any(isinstance(item, str) and item != item.strip() for item in included)):
         raise ValidationError("synthesis planning requires included source records")
 
     required = {
@@ -68,8 +78,8 @@ def create_synthesis_plan(
     model = specification["statistical_model"]
     if synthesis_type not in _TYPES or model not in _MODELS:
         raise ValidationError("invalid synthesis_type or statistical_model")
-    effect_measure = _text(specification["effect_measure"], "effect_measure").strip()
-    contrast_definition = _text(specification["contrast_definition"], "contrast_definition").strip()
+    effect_measure = _canonical_text(specification["effect_measure"], "effect_measure")
+    contrast_definition = _canonical_text(specification["contrast_definition"], "contrast_definition")
     if synthesis_type == "qualitative" and (effect_measure != "not_applicable" or model != "not_applicable"):
         raise ValidationError("qualitative synthesis requires not_applicable effect_measure and statistical_model")
     if synthesis_type == "qualitative" and contrast_definition != "not_applicable":
@@ -96,23 +106,23 @@ def create_synthesis_plan(
         "screening_sha256": digest,
         "snapshot_id": screening.get("snapshot_id"),
         "included_source_ids_at_freeze": included,
-        "plan_id": _text(specification["plan_id"], "plan_id").strip(),
-        "reviewer": _text(specification["reviewer"], "reviewer").strip(),
-        "research_question": _text(specification["research_question"], "research_question").strip(),
-        "primary_outcome": _text(specification["primary_outcome"], "primary_outcome").strip(),
+        "plan_id": _canonical_text(specification["plan_id"], "plan_id"),
+        "reviewer": _canonical_text(specification["reviewer"], "reviewer"),
+        "research_question": _canonical_text(specification["research_question"], "research_question"),
+        "primary_outcome": _canonical_text(specification["primary_outcome"], "primary_outcome"),
         "synthesis_type": synthesis_type,
         "effect_measure": effect_measure,
         "contrast_definition": contrast_definition,
         "statistical_model": model,
         "minimum_independent_studies": minimum,
-        "eligibility_policy": _text(specification["eligibility_policy"], "eligibility_policy").strip(),
-        "missing_statistics_policy": _text(specification["missing_statistics_policy"], "missing_statistics_policy").strip(),
-        "heterogeneity_policy": _text(specification["heterogeneity_policy"], "heterogeneity_policy").strip(),
-        "multiplicity_policy": _text(specification["multiplicity_policy"], "multiplicity_policy").strip(),
+        "eligibility_policy": _canonical_text(specification["eligibility_policy"], "eligibility_policy"),
+        "missing_statistics_policy": _canonical_text(specification["missing_statistics_policy"], "missing_statistics_policy"),
+        "heterogeneity_policy": _canonical_text(specification["heterogeneity_policy"], "heterogeneity_policy"),
+        "multiplicity_policy": _canonical_text(specification["multiplicity_policy"], "multiplicity_policy"),
         "subgroup_analyses": _text_list(specification["subgroup_analyses"], "subgroup_analyses"),
         "sensitivity_analyses": sensitivities,
-        "conclusion_rule": _text(specification["conclusion_rule"], "conclusion_rule").strip(),
-        "deviation_policy": _text(specification["deviation_policy"], "deviation_policy").strip(),
+        "conclusion_rule": _canonical_text(specification["conclusion_rule"], "conclusion_rule"),
+        "deviation_policy": _canonical_text(specification["deviation_policy"], "deviation_policy"),
         "status": "synthesis_plan_frozen",
         "scientific_evidence_eligible": False,
         "limitations": [

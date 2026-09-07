@@ -19,6 +19,15 @@ def screening_file(tmp_path, status="screening_recorded"):
     return path, hashlib.sha256(encoded).hexdigest()
 
 
+def padded_screening_file(tmp_path):
+    value = {"screening_version": 2, "status": "screening_recorded", "snapshot_id": "snap",
+        "decisions": [{"source_id": " s1", "decision": "include"}]}
+    encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+    path = tmp_path / "screening.json"
+    path.write_bytes(encoded)
+    return path, hashlib.sha256(encoded).hexdigest()
+
+
 def spec(synthesis_type="quantitative"):
     return {"plan_id": "plan-1", "reviewer": "Planner", "research_question": "Fixture question?",
         "primary_outcome": "Fixture outcome", "synthesis_type": synthesis_type,
@@ -74,6 +83,40 @@ def test_invalid_synthesis_plan_never_publishes(tmp_path, failure):
     output = tmp_path / "plan"
     with pytest.raises(ValidationError):
         create_synthesis_plan(screening, digest, candidate, output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("field", [
+    "plan_id", "reviewer", "research_question", "primary_outcome", "effect_measure",
+    "contrast_definition", "eligibility_policy", "missing_statistics_policy",
+    "heterogeneity_policy", "multiplicity_policy", "conclusion_rule", "deviation_policy",
+])
+def test_synthesis_plan_rejects_padded_commitment_text(tmp_path, field):
+    screening, digest = screening_file(tmp_path)
+    candidate = spec()
+    candidate[field] = f" {candidate[field]} "
+    output = tmp_path / "plan"
+    with pytest.raises(ValidationError, match="canonical"):
+        create_synthesis_plan(screening, digest, candidate, output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("field", ["subgroup_analyses", "sensitivity_analyses"])
+def test_synthesis_plan_rejects_padded_list_commitments(tmp_path, field):
+    screening, digest = screening_file(tmp_path)
+    candidate = spec()
+    candidate[field] = [f" {candidate[field][0]} "] if candidate[field] else [" subgroup "]
+    output = tmp_path / "plan"
+    with pytest.raises(ValidationError, match="canonical"):
+        create_synthesis_plan(screening, digest, candidate, output)
+    assert not output.exists()
+
+
+def test_synthesis_plan_rejects_padded_frozen_source_ids(tmp_path):
+    screening, digest = padded_screening_file(tmp_path)
+    output = tmp_path / "plan"
+    with pytest.raises(ValidationError, match="included source records"):
+        create_synthesis_plan(screening, digest, spec(), output)
     assert not output.exists()
 
 
