@@ -1307,7 +1307,10 @@ and chronology verification—not authentication of reviewer identity,
 qualifications, independence, or substantive adequacy.
 The original review verification now retains its local artifact root outside
 the scientific protocol hash and is exactly recomputed whenever human-subject
-clearance, inquiry display, or local replication export relies on it. Missing,
+clearance, inquiry display, or local replication export relies on it. Retained
+verifiers, verification scopes, review artifact roots, ethics review-event
+roots, and artifact locators must be canonical unpadded text before those local
+byte receipts can be generated or replayed. Missing,
 moved, changed, symlinked, or receipt-inconsistent source review material fails
 closed. Default exports redact this operational path; legacy packaged receipts
 remain semantically verifiable without claiming the recipient possesses the

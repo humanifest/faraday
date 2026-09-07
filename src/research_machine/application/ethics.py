@@ -83,8 +83,10 @@ def validate_original_review_artifact(
     if verification["verification_version"] != 1:
         raise ValidationError("independent-review verification version is unsupported")
     _time(verification["verified_at"], "independent-review verified_at")
-    _text(verification["verified_by"], "independent-review verified_by")
-    _text(verification["scope"], "independent-review verification scope")
+    verified_by = _canonical_text(
+        verification["verified_by"], "independent-review verified_by"
+    )
+    _canonical_text(verification["scope"], "independent-review verification scope")
     if verification["reviewer_identity_authenticated"] is not False:
         raise ValidationError("independent-review receipt cannot claim authenticated reviewer identity")
     if verification["substantive_adequacy_verified"] is not False:
@@ -95,11 +97,17 @@ def validate_original_review_artifact(
     if verify_current_artifact:
         current = verify_run_artifacts(
             [DatasetArtifact(
-                locator=_text(protocol.independent_review_artifact_locator, "independent-review artifact locator"),
+                locator=_canonical_text(
+                    protocol.independent_review_artifact_locator,
+                    "independent-review artifact locator",
+                ),
                 sha256=_digest(protocol.independent_review_artifact_sha256, "independent-review artifact SHA-256"),
             )],
-            artifact_root=_text(verification["review_artifact_root"], "independent-review artifact root"),
-            actor=verification["verified_by"], analysis_code_hash="", run_metadata={},
+            artifact_root=_canonical_text(
+                verification["review_artifact_root"],
+                "independent-review artifact root",
+            ),
+            actor=verified_by, analysis_code_hash="", run_metadata={},
             attestation_schema_path=None, expected_attestation_schema_sha256=None,
         ).to_dict()
         if current != retained:
@@ -177,6 +185,8 @@ def verify_ethics_condition_discharge(
     assessed_at = _time(receipt.get("assessed_at"), "assessed_at")
     reviewed_at = _time(protocol.independent_reviewed_at, "independent_reviewed_at")
     verification_time = _time(verified_at, "verification time")
+    verifier = _canonical_text(actor, "condition verification actor")
+    root = _canonical_text(artifact_root, "condition evidence artifact root")
     if assessed_at < reviewed_at:
         raise ValidationError("ethics condition discharge predates the independent review decision")
     if assessed_at > verification_time:
@@ -242,8 +252,8 @@ def verify_ethics_condition_discharge(
 
     report = verify_run_artifacts(
         validate_dataset_artifacts(artifacts),
-        artifact_root=artifact_root,
-        actor=actor,
+        artifact_root=root,
+        actor=verifier,
         analysis_code_hash="",
         run_metadata={},
         attestation_schema_path=None,
@@ -255,13 +265,14 @@ def verify_ethics_condition_discharge(
             + ", ".join(item["code"] for item in report.findings)
         )
     location_checks: list[dict[str, Any]] = []
-    root = Path(artifact_root).expanduser().resolve()
+    resolved_root = Path(root).expanduser().resolve()
     for condition in protocol.independent_review_conditions:
         result = by_condition[condition]
         artifact = evidence_by_hash[result["evidence_sha256"]]
         if artifact["media_type"] == "application/json":
             selected = _resolve_pointer(
-                _strict_json(root / artifact["locator"]), result["evidence_location"]
+                _strict_json(resolved_root / artifact["locator"]),
+                result["evidence_location"],
             )
             try:
                 selected_sha256 = hashlib.sha256(json.dumps(
@@ -295,8 +306,8 @@ def verify_ethics_condition_discharge(
     return {
         "verification_version": 1,
         "verified_at": verified_at,
-        "verified_by": actor,
-        "evidence_artifact_root": str(Path(artifact_root).expanduser().resolve()),
+        "verified_by": verifier,
+        "evidence_artifact_root": str(resolved_root),
         "discharge_receipt_sha256": hashlib.sha256(encoded).hexdigest(),
         "protocol_id": protocol.protocol_id,
         "protocol_hash": protocol.protocol_hash,
@@ -490,14 +501,17 @@ def validate_ethics_review_event_chain(
         if not isinstance(event.artifact_integrity, dict) or event.artifact_integrity.get("status") != "passed":
             raise ValidationError("ethics review event lacks passed artifact integrity")
         if verify_current_artifacts:
-            root = _text(event.review_artifact_root, "review event artifact root")
+            root = _canonical_text(event.review_artifact_root, "review event artifact root")
             current = verify_run_artifacts(
                 [DatasetArtifact(
-                    locator=_text(event.review_artifact_locator, "review event artifact locator"),
+                    locator=_canonical_text(
+                        event.review_artifact_locator,
+                        "review event artifact locator",
+                    ),
                     sha256=event.review_artifact_sha256,
                 )],
                 artifact_root=root,
-                actor=event.created_by,
+                actor=_canonical_text(event.created_by, "review event created_by"),
                 analysis_code_hash="",
                 run_metadata={},
                 attestation_schema_path=None,

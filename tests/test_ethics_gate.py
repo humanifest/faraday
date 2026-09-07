@@ -9,6 +9,7 @@ from datetime import datetime
 import pytest
 
 from research_machine.application.policies import validate_protocol_freeze
+from research_machine.application.ethics import validate_original_review_artifact
 from research_machine.application.service import _protocol_commitment
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import AnalysisMode, ExperimentProtocol, ProtocolKind, ControlDefinition
@@ -184,6 +185,11 @@ def test_human_protocol_freeze_verifies_review_artifact_bytes_without_writing_on
     with pytest.raises(ValidationError, match="review_artifact_root"):
         service.freeze_protocol(draft.protocol_id)
     assert ledger.read_bytes() == before
+    with pytest.raises(ValidationError, match="review_artifact_root.*canonical"):
+        service.freeze_protocol(
+            draft.protocol_id, review_artifact_root=f" {review_root} "
+        )
+    assert ledger.read_bytes() == before
     artifact.write_bytes(b"tampered")
     with pytest.raises(ValidationError, match="artifact verification failed"):
         service.freeze_protocol(draft.protocol_id, review_artifact_root=str(review_root))
@@ -195,6 +201,20 @@ def test_human_protocol_freeze_verifies_review_artifact_bytes_without_writing_on
     assert verification["review_artifact_root"] == str(review_root.resolve())
     assert verification["reviewer_identity_authenticated"] is False
     assert verification["substantive_adequacy_verified"] is False
+    for field, message in (
+        ("verified_by", "independent-review verified_by.*canonical"),
+        ("review_artifact_root", "independent-review artifact root.*canonical"),
+        ("scope", "independent-review verification scope.*canonical"),
+    ):
+        tampered_verification = dict(verification)
+        tampered_verification[field] = f" {tampered_verification[field]} "
+        with pytest.raises(ValidationError, match=message):
+            validate_original_review_artifact(
+                replace(
+                    frozen,
+                    independent_review_verification=tampered_verification,
+                )
+            )
     artifact.write_bytes(b"changed after protocol freeze")
     with pytest.raises(ValidationError, match="original independent-review artifact no longer matches"):
         service.show_inquiry()
@@ -225,6 +245,8 @@ def test_human_protocol_freeze_verifies_review_artifact_bytes_without_writing_on
         ("event_id", " ethics-manual", "event_id must be canonical"),
         ("effective_at", " 2026-09-02T12:00:00Z", "effective_at must be canonical"),
         ("expires_at", " 2026-12-31T23:59:59Z", "expires_at must be canonical"),
+        ("review_artifact_locator", " status.json", "review_artifact_locator must be canonical"),
+        ("review_artifact_root", "{root} ", "review_artifact_root must be canonical"),
     ],
 )
 def test_ethics_review_status_command_handles_must_be_canonical(
@@ -241,6 +263,8 @@ def test_ethics_review_status_command_handles_must_be_canonical(
     )
 
     with pytest.raises(ValidationError, match=message):
+        if value == "{root} ":
+            value = f"{status_root} "
         service.record_ethics_review_event(replace(command, **{field: value}))
 
 
@@ -270,6 +294,9 @@ def test_ethics_review_status_supersedes_handle_must_be_canonical(tmp_path) -> N
         ("effective_at", " 2026-09-02T12:00:00Z", "event effective_at must be canonical"),
         ("created_at", " 2026-09-02T12:00:00Z", "event created_at must be canonical"),
         ("supersedes_event_id", "{event_id} ", "supersedes_event_id must be canonical"),
+        ("review_artifact_locator", " suspension.json", "review event artifact locator must be canonical"),
+        ("review_artifact_root", "{root} ", "review event artifact root must be canonical"),
+        ("created_by", " test-researcher", "review event created_by must be canonical"),
     ],
 )
 def test_ethics_review_status_reads_fail_closed_on_noncanonical_chain_tampering(
@@ -287,6 +314,8 @@ def test_ethics_review_status_reads_fail_closed_on_noncanonical_chain_tampering(
         value = f"{frozen.protocol_id} "
     elif value == "{protocol_hash} ":
         value = f"{frozen.protocol_hash} "
+    elif value == "{root} ":
+        value = f"{status_root} "
     event_file = next(workspace.rglob(f"{event.event_id}.json"))
     tampered = json.loads(event_file.read_text(encoding="utf-8"))
     tampered[field] = value
@@ -392,6 +421,12 @@ def test_conditional_review_obligations_require_exact_artifact_backed_discharge_
     assert ledger.read_bytes() == before
     assert service.list_datasets() == []
     evidence.write_bytes(evidence_bytes)
+    with pytest.raises(ValidationError, match="condition evidence artifact root.*canonical"):
+        service.register_dataset(replace(
+            command,
+            ethics_artifact_root=f" {ethics_root} ",
+        ))
+    assert ledger.read_bytes() == before
     accepted = service.register_dataset(replace(
         command, ethics_artifact_root=str(ethics_root)
     ))
@@ -403,6 +438,15 @@ def test_conditional_review_obligations_require_exact_artifact_backed_discharge_
     assert verification["evidence_location_checks"][0]["location_kind"] == "json_pointer"
     assert verification["ongoing_controls_require_continued_monitoring"] is True
     assert verification["condition_truth_independently_established"] is False
+    from research_machine.application.ethics import reverify_ethics_condition_discharge
+    tampered_verification = dict(verification)
+    tampered_verification["verified_by"] = f" {tampered_verification['verified_by']} "
+    tampered = replace(
+        accepted,
+        metadata={**accepted.metadata, "ethics_condition_verification": tampered_verification},
+    )
+    with pytest.raises(ValidationError, match="condition verification actor.*canonical"):
+        reverify_ethics_condition_discharge(frozen, tampered)
     from research_machine.application.ethics import validate_ethics_conditions_for_run
     current = validate_ethics_conditions_for_run(
         frozen, [accepted], datetime.fromisoformat("2026-09-03T00:00:00+00:00")

@@ -1524,12 +1524,15 @@ class ResearchService:
                 raise ValidationError(
                     "human-subject protocol freeze requires review_artifact_root for independent-review byte verification"
                 )
+            canonical_review_root = require_canonical_text(
+                review_artifact_root, "review_artifact_root"
+            )
             review_report = verify_run_artifacts(
                 [DatasetArtifact(
                     locator=protocol.independent_review_artifact_locator,
                     sha256=protocol.independent_review_artifact_sha256,
                 )],
-                artifact_root=review_artifact_root,
+                artifact_root=canonical_review_root,
                 actor=self.actor,
                 analysis_code_hash="",
                 run_metadata={},
@@ -1550,7 +1553,7 @@ class ResearchService:
                 "verified_at": frozen_at.isoformat(),
                 "verified_by": self.actor,
                 "review_artifact_root": str(
-                    Path(review_artifact_root).expanduser().resolve()
+                    Path(canonical_review_root).expanduser().resolve()
                 ),
                 "artifact_integrity": review_report.to_dict(),
                 "scope": "local independent-review artifact byte identity and internal chronology",
@@ -1869,12 +1872,18 @@ class ResearchService:
             if effective < _parse_aware_timestamp(latest.effective_at, "prior effective_at"):
                 raise ValidationError("ethics review event effective_at cannot move backward")
         artifact_hash = require_sha256(command.review_artifact_sha256, "review_artifact_sha256")
+        review_artifact_locator = require_canonical_text(
+            command.review_artifact_locator, "review_artifact_locator"
+        )
+        review_artifact_root = require_canonical_text(
+            command.review_artifact_root, "review_artifact_root"
+        )
         report = verify_run_artifacts(
             [DatasetArtifact(
-                locator=require_text(command.review_artifact_locator, "review_artifact_locator"),
+                locator=review_artifact_locator,
                 sha256=artifact_hash,
             )],
-            artifact_root=require_text(command.review_artifact_root, "review_artifact_root"),
+            artifact_root=review_artifact_root,
             actor=self.actor, analysis_code_hash="", run_metadata={},
             attestation_schema_path=None, expected_attestation_schema_sha256=None,
         )
@@ -1887,10 +1896,10 @@ class ResearchService:
             protocol_id=protocol.protocol_id, protocol_hash=protocol.protocol_hash,
             status=status, effective_at=effective_at, expires_at=expires_at,
             reason=require_text(command.reason, "ethics review event reason"),
-            review_artifact_locator=command.review_artifact_locator,
+            review_artifact_locator=review_artifact_locator,
             review_artifact_sha256=artifact_hash,
             review_artifact_root=str(
-                Path(command.review_artifact_root).expanduser().resolve()
+                Path(review_artifact_root).expanduser().resolve()
             ),
             supersedes_event_id=supersedes_event_id,
             created_at=created_at, created_by=self.actor,

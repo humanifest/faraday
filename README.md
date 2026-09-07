@@ -934,6 +934,10 @@ checks, and local replication export re-hash the original review bytes and
 recompute the receipt exactly; missing, moved, changed, symlinked, or
 receipt-inconsistent material fails closed. The operational root is excluded
 from the protocol's scientific commitment and redacted from default exports.
+The retained verifier, verification scope, review artifact root, review-event
+root, and artifact locators must be canonical unpadded text before those local
+byte receipts can be created or replayed; these checks still do not authenticate
+reviewer identity or substantive adequacy.
 For `approved_with_conditions`, human-subject dataset registration additionally
 requires `metadata.ethics_condition_discharge` and `--ethics-artifact-root`.
 The discharge must cover every frozen condition exactly, bind each satisfied
