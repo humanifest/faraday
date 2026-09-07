@@ -59,8 +59,10 @@ unit, categorical domain or strictly ordered numeric validity bounds, and exact
 missing-value codes. Protocol freeze rejects noncanonical executable measurement
 columns, case-insensitive column reuse across measurement definitions, and
 non-exposure measurements that occupy identity, assignment, or capture-time
-columns. Protocol-bound execution validates the actual CSV values against those
-commitments before analysis and records the check in its receipt.
+columns. When an analysis contract is present, protocol freeze also requires
+the identity, unit, assignment, and capture-time structural columns to be
+distinct. Protocol-bound execution validates the actual CSV values against
+those commitments before analysis and records the check in its receipt.
 CSV headers must be canonical and case-insensitively unique before any method
 runs, so source data cannot expose ambiguous executable columns. Unit, pair, and
 group column handles used to derive execution receipts must also be canonical,

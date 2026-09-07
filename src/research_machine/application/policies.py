@@ -1134,6 +1134,24 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             raise ValidationError("allocation_sha256 is only valid for randomized_between_units assignment")
         if not protocol.measurement_definitions:
             raise ValidationError("analysis_contract requires typed measurement_definitions")
+        if protocol.unit_id_column:
+            structural_columns = [
+                "observation_id",
+                protocol.unit_id_column,
+                contract.group_column,
+                "captured_at",
+            ]
+            normalized_structural_columns = [
+                require_text(column, "structural column").casefold()
+                for column in structural_columns
+            ]
+            if len(set(normalized_structural_columns)) != len(
+                normalized_structural_columns
+            ):
+                raise ValidationError(
+                    "protocol structural columns for identity, unit, assignment, "
+                    "and capture time must be distinct"
+                )
     missing: list[str] = []
     required_text = {
         "experiment_id": protocol.experiment_id,

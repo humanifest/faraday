@@ -476,7 +476,9 @@ dataset-backed primary, secondary, and control measurements, and protects the
 reserved identity, assignment, and capture-time columns. Canonical protocol
 freeze now independently rejects noncanonical executable measurement columns,
 case-insensitive column reuse across measurement definitions, and non-exposure
-measurements that occupy identity, assignment, or capture-time columns.
+measurements that occupy identity, assignment, or capture-time columns. It also
+rejects collisions among the structural identity, unit, assignment, and capture
+time columns themselves.
 Independent-unit schema delivery: whenever a guided design names an independent
 unit, it must also name the exact stable identifier column. That name now agrees
 across protocol, data dictionary, collection plan, and measurement-collision
