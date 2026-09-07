@@ -834,6 +834,17 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         )
     if not brief.get("independent_unit") or "repeated_measures" not in brief:
         add("INDEPENDENCE_UNRESOLVED", "warning", "The independent sampling unit and repeated-observation structure are not fully declared.", "Name the independently sampled participant, pot, site, or other unit; state whether each contributes repeated observations. Count independent units separately from rows.")
+    if any(
+        isinstance(brief.get(field), str)
+        and brief[field]
+        and brief[field] != brief[field].strip()
+        for field in ("independent_unit", "unit_analysis_plan")
+    ):
+        add(
+            "DEPENDENCE_COMMITMENT_NONCANONICAL", "error",
+            "The dependence or unit-analysis commitment contains surrounding whitespace.",
+            "Use exact unpadded independent-unit and unit-analysis-plan text before protocol and data-dictionary drafts preserve row-to-unit semantics.",
+        )
     if not brief.get("analysis_design"):
         add("ANALYSIS_DESIGN_UNRESOLVED", "warning", "The analysis does not declare how observations depend on one another.", "Choose an independent, paired, clustered, repeated-measure, or descriptive design before selecting an estimator.")
     if brief.get("repeated_measures") and brief.get("analysis_design") == "independent_groups":

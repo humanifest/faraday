@@ -747,7 +747,9 @@ Dependence-audit delivery: briefs accept `independent_unit`, `repeated_measures`
 `repeated_measures`, or `descriptive`). Declared repeated observations combined
 with an independent-groups analysis block the scaffold. Missing declarations
 remain warnings; clustered/repeated-measure designs explicitly require method
-review. These declarations are preserved in the draft data dictionary. This is
+review. Supplied independent-unit labels and unit-analysis plans must be
+canonical without surrounding whitespace before these declarations are preserved
+in draft protocol or data-dictionary commitments. This is
 also enforced at canonical protocol freeze. Observational and experimental
 protocols must supply the complete declaration; partial declarations and repeated
 observations assigned independent analysis fail closed. Other protocol kinds

@@ -271,6 +271,24 @@ def test_unit_identity_column_is_explicit_and_shared_by_all_guided_artifacts():
     assert "UNIT_ID_COLUMN_NONCANONICAL" in {
         item["code"] for item in padded["findings"]
     }
+    padded_dependence = scaffold_design({
+        **base,
+        "independent_unit": " participant ",
+        "unit_id_column": "participant_key",
+        "repeated_measures": True,
+        "analysis_design": "paired",
+        "unit_analysis_plan": " Pair repeated rows within participant ",
+    })
+    assert "DEPENDENCE_COMMITMENT_NONCANONICAL" in {
+        item["code"] for item in padded_dependence["findings"]
+    }
+    assert padded_dependence["status"] == "blocked"
+    assert padded_dependence["artifacts"]["protocol-draft.json"][
+        "independent_unit"
+    ].startswith(" ")
+    assert padded_dependence["artifacts"]["data-dictionary-draft.json"][
+        "independent_unit"
+    ].startswith(" ")
 
     collision = scaffold_design({
         **base, "unit_id_column": "participant_key",
