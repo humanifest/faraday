@@ -133,26 +133,47 @@ def pearson_correlation(spec: dict[str, Any], rows: list[dict[str, str]]) -> dic
     return {"n": len(pairs), "pearson_r": numerator / denominator, "missing_pairs": missing}
 
 
-def _validate_group_labels(labels: Any) -> None:
+def _validate_group_labels(labels: Any) -> list[str]:
     if (
         not isinstance(labels, list) or len(labels) != 2
         or any(not isinstance(item, str) or not item.strip() for item in labels)
-        or labels[0] == labels[1]
     ):
         raise ValidationError("groups must contain exactly two distinct non-blank string labels")
+    labels = [item.strip() for item in labels]
+    if labels[0] == labels[1]:
+        raise ValidationError("groups must contain exactly two distinct non-blank string labels")
+    return labels
 
 
-def _comparison_exclusions(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[str, Any]:
+def _two_group_handles(spec: dict[str, Any], method: str) -> tuple[str, str, list[str]]:
+    outcome, group, labels = spec.get("outcome_column"), spec.get("group_column"), spec.get("groups")
+    if not isinstance(outcome, str) or not outcome.strip() or not isinstance(group, str) or not group.strip():
+        raise ValidationError(f"{method} requires outcome_column and group_column")
+    outcome = outcome.strip()
+    group = group.strip()
+    if outcome == group:
+        raise ValidationError(f"{method} requires distinct outcome_column and group_column")
+    return outcome, group, _validate_group_labels(labels)
+
+
+def _comparison_exclusions(
+    spec: dict[str, Any],
+    rows: list[dict[str, str]],
+    *,
+    outcome_column: str,
+    group_column: str,
+    groups: list[str],
+) -> dict[str, Any]:
     """Describe validated complete-case omissions without exposing unit IDs."""
     excluded = []
-    by_group = {label: 0 for label in spec["groups"]}
+    by_group = {label: 0 for label in groups}
     unassigned = 0
     for record, row in enumerate(rows, start=1):
-        missing_fields = [field for field in (spec["outcome_column"], spec["group_column"])
+        missing_fields = [field for field in (outcome_column, group_column)
                           if not row[field].strip()]
         if not missing_fields:
             continue
-        group = row[spec["group_column"]]
+        group = row[group_column].strip()
         if group in by_group:
             by_group[group] += 1
         else:
@@ -167,14 +188,9 @@ def _comparison_exclusions(spec: dict[str, Any], rows: list[dict[str, str]]) -> 
 
 
 def permutation_mean_difference(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[str, Any]:
-    outcome = spec.get("outcome_column")
-    group = spec.get("group_column")
-    labels = spec.get("groups")
+    outcome, group, labels = _two_group_handles(spec, "permutation_mean_difference")
     permutations = spec.get("permutations", 10000)
     seed = spec.get("seed")
-    if not isinstance(outcome, str) or not isinstance(group, str):
-        raise ValidationError("permutation_mean_difference requires outcome_column and group_column")
-    _validate_group_labels(labels)
     if not isinstance(permutations, int) or isinstance(permutations, bool) or not 100 <= permutations <= 1_000_000:
         raise ValidationError("permutations must be an integer from 100 to 1000000")
     if not isinstance(seed, int) or isinstance(seed, bool):
@@ -184,6 +200,9 @@ def permutation_mean_difference(spec: dict[str, Any], rows: list[dict[str, str]]
         unit_column = spec.get("unit_column")
         if not isinstance(unit_column, str) or not unit_column.strip():
             raise ValidationError("permutation_mean_difference unit_column must be non-blank")
+        unit_column = unit_column.strip()
+        if unit_column in {outcome, group}:
+            raise ValidationError("permutation_mean_difference unit_column must be distinct from outcome_column and group_column")
         units: set[str] = set()
         for index, row in enumerate(rows, start=2):
             unit = row.get(unit_column)
@@ -207,15 +226,14 @@ def permutation_mean_difference(spec: dict[str, Any], rows: list[dict[str, str]]
         raw, label = row.get(outcome), row.get(group)
         if raw is None or label is None:
             raise ValidationError("permutation-test column not found")
-        if label.strip() and label not in labels:
+        label = label.strip()
+        if label and label not in labels:
             raise ValidationError(f"unexpected group {label!r} at CSV row {index}")
-        if not raw.strip() or not label.strip():
+        if not raw.strip() or not label:
             if spec.get("missing_data_policy") != "complete_case":
                 raise ValidationError("missing observations require an explicit complete_case missing_data_policy")
             missing += 1
             continue
-        if label not in labels:
-            raise ValidationError(f"unexpected group {label!r} at CSV row {index}")
         try:
             value = float(raw)
         except ValueError as exc:
@@ -243,7 +261,9 @@ def permutation_mean_difference(spec: dict[str, Any], rows: list[dict[str, str]]
         "mean_difference_first_minus_second": observed,
         "two_sided_permutation_p": (extreme + 1) / (permutations + 1),
         "independent_unit_check": unit_check,
-        "exclusion_report": _comparison_exclusions(spec, rows),
+        "exclusion_report": _comparison_exclusions(
+            spec, rows, outcome_column=outcome, group_column=group, groups=labels
+        ),
         "permutations": permutations,
         "seed": seed,
         "missing_rows": missing,
@@ -278,10 +298,7 @@ def _two_groups(
     *,
     require_two_per_group: bool = True,
 ) -> tuple[list[float], list[float], list[str], int]:
-    outcome, group, labels = spec.get("outcome_column"), spec.get("group_column"), spec.get("groups")
-    if not isinstance(outcome, str) or not isinstance(group, str):
-        raise ValidationError(f"{method} requires outcome_column and group_column")
-    _validate_group_labels(labels)
+    outcome, group, labels = _two_group_handles(spec, method)
     first: list[float] = []
     second: list[float] = []
     missing = 0
@@ -289,15 +306,14 @@ def _two_groups(
         raw, label = row.get(outcome), row.get(group)
         if raw is None or label is None:
             raise ValidationError(f"{method} column not found")
-        if label.strip() and label not in labels:
+        label = label.strip()
+        if label and label not in labels:
             raise ValidationError(f"unexpected group {label!r} at CSV row {index}")
-        if not raw.strip() or not label.strip():
+        if not raw.strip() or not label:
             if spec.get("missing_data_policy") != "complete_case":
                 raise ValidationError("missing observations require an explicit complete_case missing_data_policy")
             missing += 1
             continue
-        if label not in labels:
-            raise ValidationError(f"unexpected group {label!r} at CSV row {index}")
         try:
             value = float(raw)
         except ValueError as exc:
@@ -315,11 +331,15 @@ def independent_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, st
     if spec.get("study_design") != "independent_groups":
         raise ValidationError("independent_mean_difference_ci requires study_design independent_groups")
     first, second, labels, missing = _two_groups(spec, rows, "independent_mean_difference_ci")
+    outcome, group, labels = _two_group_handles(spec, "independent_mean_difference_ci")
     unit_column = spec.get("unit_column")
     unit_check = {"status": "not_checked", "notice": "No independent-unit column supplied; independence is a declaration only."}
     if "unit_column" in spec:
         if not isinstance(unit_column, str) or not unit_column.strip():
             raise ValidationError("unit_column must be a non-blank column name")
+        unit_column = unit_column.strip()
+        if unit_column in {outcome, group}:
+            raise ValidationError("unit_column must be distinct from outcome_column and group_column")
         units: set[str] = set()
         for index, row in enumerate(rows, start=2):
             unit = row.get(unit_column)
@@ -348,7 +368,9 @@ def independent_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, st
         "groups": labels,
         "n_by_group": {labels[0]: len(first), labels[1]: len(second)},
         "independent_unit_check": unit_check,
-        "exclusion_report": _comparison_exclusions(spec, rows),
+        "exclusion_report": _comparison_exclusions(
+            spec, rows, outcome_column=outcome, group_column=group, groups=labels
+        ),
         "mean_by_group": {labels[0]: mean_first, labels[1]: mean_second},
         "mean_difference_first_minus_second": difference,
         "pooled_within_group_standard_deviation": pooled_standard_deviation,
@@ -402,19 +424,16 @@ def adjusted_linear_effect(spec: dict[str, Any], rows: list[dict[str, str]]) -> 
     method = "adjusted_linear_effect"
     if spec.get("study_design") != "independent_groups":
         raise ValidationError(f"{method} requires study_design independent_groups")
-    outcome, group, labels = (
-        spec.get("outcome_column"), spec.get("group_column"), spec.get("groups")
-    )
-    if not isinstance(outcome, str) or not outcome.strip() or not isinstance(group, str) or not group.strip():
-        raise ValidationError(f"{method} requires outcome_column and group_column")
-    _validate_group_labels(labels)
+    outcome, group, labels = _two_group_handles(spec, method)
     covariates = spec.get("covariate_columns")
     if (
         not isinstance(covariates, list)
         or not covariates
         or any(not isinstance(item, str) or not item.strip() for item in covariates)
-        or len(set(covariates)) != len(covariates)
     ):
+        raise ValidationError(f"{method} requires distinct non-blank covariate_columns")
+    covariates = [item.strip() for item in covariates]
+    if len(set(covariates)) != len(covariates):
         raise ValidationError(f"{method} requires distinct non-blank covariate_columns")
     if outcome in covariates or group in covariates:
         raise ValidationError("covariate_columns cannot include the outcome or group column")
@@ -428,6 +447,7 @@ def adjusted_linear_effect(spec: dict[str, Any], rows: list[dict[str, str]]) -> 
     unit_column = spec.get("unit_column")
     if not isinstance(unit_column, str) or not unit_column.strip():
         raise ValidationError(f"{method} requires a non-blank unit_column")
+    unit_column = unit_column.strip()
     if unit_column in {outcome, group, *covariates}:
         raise ValidationError("unit_column must be distinct from modeled columns")
 
@@ -451,7 +471,8 @@ def adjusted_linear_effect(spec: dict[str, Any], rows: list[dict[str, str]]) -> 
         label = row.get(group)
         if label is None:
             raise ValidationError(f"column not found: {group}")
-        if label.strip() and label not in labels:
+        label = label.strip()
+        if label and label not in labels:
             raise ValidationError(f"unexpected group {label!r} at CSV row {csv_row}")
         missing_fields: list[str] = []
         for column in required:
@@ -599,13 +620,14 @@ def paired_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, str]]) 
     pair_column = spec.get("pair_column")
     if not isinstance(pair_column, str) or not pair_column.strip():
         raise ValidationError("paired_mean_difference_ci requires pair_column")
-    for field in ("outcome_column", "group_column"):
-        if not isinstance(spec.get(field), str) or not spec[field].strip():
-            raise ValidationError(f"paired_mean_difference_ci requires {field}")
+    pair_column = pair_column.strip()
+    outcome, group, labels = _two_group_handles(spec, "paired_mean_difference_ci")
+    if pair_column in {outcome, group}:
+        raise ValidationError("paired_mean_difference_ci pair_column must be distinct from outcome_column and group_column")
     # Validate every submitted row before numeric parsing can discard missing
     # observations. This method has no registered exclusion policy.
     for index, row in enumerate(rows, start=2):
-        for column in (pair_column, spec.get("outcome_column"), spec.get("group_column")):
+        for column in (pair_column, outcome, group):
             value = row.get(column)
             if not isinstance(value, str) or not value.strip():
                 raise ValidationError(
@@ -619,13 +641,14 @@ def paired_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, str]]) 
         require_two_per_group=False,
     )
     del first, second
-    outcome, group = spec["outcome_column"], spec["group_column"]
     pairs: dict[str, dict[str, float]] = {}
     for index, row in enumerate(rows, start=2):
         raw, label, pair_id = row.get(outcome), row.get(group), row.get(pair_column)
         if raw is None or label is None or pair_id is None:
             raise ValidationError("paired_mean_difference_ci column not found")
         value = float(raw)
+        label = label.strip()
+        pair_id = pair_id.strip()
         if pair_id in pairs and label in pairs[pair_id]:
             raise ValidationError(f"duplicate observation for pair {pair_id!r} and group {label!r} at CSV row {index}")
         pairs.setdefault(pair_id, {})[label] = value

@@ -46,6 +46,24 @@ def test_adjusted_linear_effect_recovers_registered_conditional_contrast():
     assert result["robust_confidence_interval"]["upper"] >= 2
 
 
+def test_adjusted_linear_effect_normalizes_model_handles():
+    """Synthetic fixture: padded model handles must resolve to one executable contract."""
+    spec = {
+        **_adjusted_spec(),
+        "outcome_column": " outcome ",
+        "group_column": " group ",
+        "groups": [" treatment ", " control "],
+        "covariate_columns": [" baseline "],
+        "unit_column": " unit ",
+    }
+    result = adjusted_linear_effect(spec, _adjusted_fixture())
+
+    assert result["groups"] == ["treatment", "control"]
+    assert result["adjustment_columns"] == ["baseline"]
+    assert result["independent_unit_check"]["column"] == "unit"
+    assert result["n_by_group"] == {"treatment": 4, "control": 4}
+
+
 @pytest.mark.parametrize("scale,offset", [(1000, 0), (0.001, 0), (10, -17)])
 def test_adjusted_linear_effect_respects_positive_outcome_unit_conversion(scale, offset):
     original = adjusted_linear_effect(_adjusted_spec(), _adjusted_fixture())
@@ -92,6 +110,12 @@ def test_adjusted_linear_effect_reports_registered_complete_case_exclusions():
         )
 
 
+def test_adjusted_linear_effect_rejects_duplicate_normalized_covariates():
+    spec = {**_adjusted_spec(), "covariate_columns": ["baseline", " baseline "]}
+    with pytest.raises(ValidationError, match="distinct non-blank covariate_columns"):
+        adjusted_linear_effect(spec, _adjusted_fixture())
+
+
 @pytest.mark.parametrize("design", ["paired", "independent_groups"])
 @pytest.mark.parametrize("scale,offset", [(1000, 0), (0.001, 0), (1, 273.15), (10, -17)])
 def test_effect_estimates_respect_positive_unit_conversion(design, scale, offset):
@@ -115,6 +139,26 @@ def test_effect_estimates_respect_positive_unit_conversion(design, scale, offset
         assert converted["pooled_within_group_standard_deviation"] == pytest.approx(
             scale * original["pooled_within_group_standard_deviation"]
         )
+
+
+def test_paired_mean_difference_normalizes_pair_and_comparison_handles():
+    rows = [{"pair": str(i), "group": group, "outcome": str(value)}
+            for i, pair in enumerate([(1, 3), (4, 7)])
+            for group, value in zip(["control", "treatment"], pair)]
+    spec = {
+        "outcome_column": " outcome ",
+        "group_column": " group ",
+        "groups": [" treatment ", " control "],
+        "pair_column": " pair ",
+        "study_design": "paired",
+        "seed": 42,
+        "bootstrap_resamples": 1000,
+    }
+    result = paired_mean_difference_ci(spec, rows)
+
+    assert result["groups"] == ["treatment", "control"]
+    assert result["n_pairs"] == 2
+    assert result["mean_difference_first_minus_second"] == pytest.approx(2.5)
 
 
 @pytest.mark.parametrize("method", [independent_mean_difference_ci, permutation_mean_difference])

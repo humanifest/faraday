@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 
 from research_machine.addons.models import AddonManifest, AnalysisMethod
-from research_machine.addons.general_science import descriptive_summary, pearson_correlation
+from research_machine.addons.general_science import (
+    descriptive_summary,
+    independent_mean_difference_ci,
+    pearson_correlation,
+    permutation_mean_difference,
+)
 from research_machine.addons.registry import (
     AddonRegistry,
     default_registry,
@@ -189,6 +194,50 @@ def test_descriptive_summary_normalizes_requested_columns() -> None:
 def test_descriptive_summary_rejects_duplicate_columns_after_normalization() -> None:
     with pytest.raises(ValidationError, match="duplicates"):
         descriptive_summary({"columns": ["x", " x "]}, [{"x": "1"}])
+
+
+def test_permutation_mean_difference_normalizes_comparison_handles() -> None:
+    """Synthetic fixture: padded comparison handles cannot fork result provenance."""
+    result = permutation_mean_difference(
+        {
+            "outcome_column": " outcome ",
+            "group_column": " group ",
+            "groups": [" treatment ", " control "],
+            "permutations": 100,
+            "seed": 7,
+            "missing_data_policy": "complete_case",
+            "unit_column": " unit ",
+        },
+        [
+            {"unit": "u1", "group": "treatment", "outcome": "4"},
+            {"unit": "u2", "group": "treatment", "outcome": "5"},
+            {"unit": "u3", "group": "control", "outcome": "1"},
+            {"unit": "u4", "group": "control", "outcome": "2"},
+            {"unit": "u5", "group": " treatment ", "outcome": ""},
+        ],
+    )
+
+    assert result["groups"] == ["treatment", "control"]
+    assert result["n_by_group"] == {"treatment": 2, "control": 2}
+    assert result["independent_unit_check"]["column"] == "unit"
+    assert result["exclusion_report"]["excluded_by_group"] == {"treatment": 1, "control": 0}
+    assert result["missing_rows"] == 1
+
+
+def test_independent_mean_difference_rejects_duplicate_normalized_handles() -> None:
+    """Synthetic fixture: whitespace cannot hide duplicate executable columns."""
+    with pytest.raises(ValidationError, match="distinct outcome_column and group_column"):
+        independent_mean_difference_ci(
+            {
+                "study_design": "independent_groups",
+                "outcome_column": "value",
+                "group_column": " value ",
+                "groups": ["a", "b"],
+                "seed": 1,
+                "bootstrap_resamples": 1000,
+            },
+            [{"value": "1"}, {"value": "2"}, {"value": "3"}, {"value": "4"}],
+        )
 
 
 def test_registry_rejects_duplicate_addon_ids() -> None:
