@@ -206,8 +206,8 @@ def test_calibration_acceptance_ids_are_unambiguous_at_freeze() -> None:
             calibration_acceptance_criteria=[
                 *protocol.calibration_acceptance_criteria,
                 CalibrationCriterion(
-                    " clock-residual ", "other-clock", "alternate residual", "ms",
-                    "A cosmetically padded criterion ID cannot become a new criterion.",
+                    "clock-residual", "other-clock", "alternate residual", "ms",
+                    "A duplicate criterion ID cannot become a new criterion.",
                     lower_bound=0.0, upper_bound=1.0,
                 ),
             ],
@@ -220,12 +220,35 @@ def test_calibration_acceptance_ids_are_unambiguous_at_freeze() -> None:
             calibration_acceptance_criteria=[
                 *protocol.calibration_acceptance_criteria,
                 CalibrationCriterion(
-                    "other-residual", " clock ", "alternate residual", "ms",
-                    "A cosmetically padded calibration ID cannot become a new calibration.",
+                    "other-residual", "clock", "alternate residual", "ms",
+                    "A duplicate calibration ID cannot become a new calibration.",
                     lower_bound=0.0, upper_bound=1.0,
                 ),
             ],
         ))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("criterion_id", "clock-residual "), ("calibration_id", " clock")],
+)
+def test_calibration_acceptance_ids_must_be_canonical_at_freeze(field, value) -> None:
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        measurement_custody_requirements=["clock-sync"],
+        calibration_acceptance_criteria=[
+            replace(
+                CalibrationCriterion(
+                    "clock-residual", "clock", "absolute clock residual", "ms",
+                    "Keep synchronization error below the registered event limit.",
+                    lower_bound=0.0, upper_bound=1.0,
+                ),
+                **{field: value},
+            ),
+        ],
+    )
+    with pytest.raises(ValidationError, match="canonical"):
+        validate_protocol_freeze(protocol)
 
 
 def test_measurement_contract_rejects_normalized_observed_missing_overlap() -> None:
