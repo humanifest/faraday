@@ -623,6 +623,9 @@ inconclusive, and contradicted results. Verified analysis-result citations use a
 resolving absolute JSON Pointer. Deterministic synthesis exposes the frozen
 assumption and every recorded disposition. This closes an accountability gap but
 does not make any diagnostic sufficient to establish ignorability.
+The bundled missingness report normalizes requested diagnostic columns before
+duplicate checks and pattern counting, preventing whitespace-padded specifications
+from creating separate apparent missingness fields.
 The provider-free design interview and scaffold elicit the same minimum count,
 maximum total exclusion fraction, and maximum between-group exclusion-rate
 difference, as well as the full missingness-assessment contract. Missing answers

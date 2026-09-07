@@ -61,6 +61,7 @@ def missingness_report(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict
         not isinstance(item, str) or not item.strip() for item in columns
     ):
         raise ValidationError("missingness_report requires a non-empty columns array")
+    columns = [item.strip() for item in columns]
     if len(set(columns)) != len(columns):
         raise ValidationError("missingness_report columns must not contain duplicates")
     if not rows:
