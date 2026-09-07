@@ -329,6 +329,14 @@ def _core_attestation_findings(
                 observed=attested_dimensions,
             )
         )
+    elif len(set(attested_dimensions)) != len(attested_dimensions):
+        findings.append(
+            _finding(
+                "ATTESTATION_INDEPENDENCE_DIMENSIONS_DUPLICATE",
+                "attested independence dimensions must not contain duplicates",
+                observed=attested_dimensions,
+            )
+        )
 
     manifest = attestation.get("allowed_input_manifest")
     allowed_inputs = independence.get("allowed_inputs")

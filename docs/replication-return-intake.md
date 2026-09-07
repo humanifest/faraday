@@ -30,7 +30,9 @@ The preflight performs these checks without writing canonical state:
    profile, and the attestation satisfies every constraint in that schema.
 6. The attestation agrees with the run on executor identity, replicated run,
    analysis-code hash, design, independence dimensions, prior implementation
-   access, allowed-input manifest, and contamination disclosures.
+   access, allowed-input manifest, and contamination disclosures. The core
+   agreement check also rejects duplicate attested independence dimensions even
+   when the pinned schema omits `uniqueItems`.
 
 Any failure produces `status=would_reject`, an `artifact_integrity` report with
 stable finding codes, and no run ID or ledger event. Recording must repeat the
@@ -54,7 +56,9 @@ allowed-input locators, contamination disclosures, and the attestation artifact
 locator must be canonical without surrounding whitespace before evidence can use
 the replication tag. Dimensions, allowed-input entries, and contamination
 disclosures must also be duplicate-free, so repeated declarations cannot make a
-replication record appear broader or better disclosed.
+replication record appear broader or better disclosed. Attestation dimensions
+are checked again during local artifact intake, independent of the schema's
+optional array-uniqueness rule.
 
 ## Supported schema profile
 

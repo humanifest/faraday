@@ -378,6 +378,42 @@ def test_artifact_integrity_rejects_duplicate_attestation_keys(
     }
 
 
+def test_artifact_integrity_rejects_duplicate_attested_dimensions_without_schema_rule(
+    tmp_path: Path,
+) -> None:
+    target_run_id, root, schema_path, artifacts = _artifact_fixture(tmp_path)
+    schema = _schema(target_run_id)
+    schema["properties"]["independence_dimensions"].pop("uniqueItems")
+    schema_path.write_text(json.dumps(schema), encoding="utf-8")
+    attestation_path = root / "attestation.json"
+    attestation = _attestation(target_run_id)
+    attestation["independence_dimensions"] = [
+        "executor", "implementation", "executor"
+    ]
+    attestation_path.write_text(json.dumps(attestation), encoding="utf-8")
+    artifacts[1] = DatasetArtifact(
+        "attestation.json",
+        _sha256(attestation_path),
+        size_bytes=attestation_path.stat().st_size,
+        metadata={"artifact_role": "independence_attestation"},
+    )
+
+    report = verify_run_artifacts(
+        artifacts,
+        artifact_root=str(root),
+        actor="independent-lab",
+        analysis_code_hash="d" * 64,
+        run_metadata=_metadata(target_run_id),
+        attestation_schema_path=str(schema_path),
+        expected_attestation_schema_sha256=_sha256(schema_path),
+    )
+
+    assert report.status == "failed"
+    assert "ATTESTATION_INDEPENDENCE_DIMENSIONS_DUPLICATE" in {
+        finding["code"] for finding in report.findings
+    }
+
+
 def test_machine_reserved_integrity_receipt_cannot_be_self_supplied(
     tmp_path: Path,
 ) -> None:

@@ -102,7 +102,9 @@ contamination disclosures, and the attestation artifact locator are rejected
 when padded instead of being trimmed into a qualifying replication claim.
 Dimensions, allowed-input entries, and contamination disclosures are also
 duplicate-free, preventing repeated metadata from widening the apparent
-clean-room disclosure.
+clean-room disclosure. Local attestation intake independently rejects duplicate
+attested independence dimensions even if the pinned schema omits an array
+uniqueness constraint.
 Evidence admission revalidates the frozen protocol, current protected dataset
 bytes and custody, current run-output bytes, and applicable ethics status, then
 preserves a bounded admission receipt. Inquiry display, rigor audit, and

@@ -1474,7 +1474,9 @@ artifact carrying `artifact_role=independence_attestation`. Before recording,
 the local artifact bytes and sizes must match the declarations, the attestation
 must satisfy a committed schema, and its core fields must agree with the run.
 Those clean-room metadata handles must be canonical without surrounding
-whitespace and duplicate-free before evidence can use the replication tag.
+whitespace and duplicate-free before evidence can use the replication tag; the
+core attestation agreement check independently rejects duplicate attested
+independence dimensions even when the pinned schema is permissive.
 A different actor string plus a cosmetic code edit is therefore insufficient. Known-result
 reproduction requires a passed `known-result-reproduction` quality gate. Novel
 predictions and empirical tests require active hypotheses and protected
