@@ -758,15 +758,16 @@ text, derivation scope, reasons, evidence locations, and derivation prose before
 coverage and duplicate checks. Independent effect verification also requires
 canonical effect reviewer, retained study IDs, source-summary study IDs,
 verification reviewer, checked locations, and rationales before coverage checks.
-Meta-analysis replays normalized study and
-claim IDs when joining prepared effects to independent verification, then reports
-a compact `study_provenance` table for available and unavailable studies, so a
-pooled estimate cannot shed the reviewed claim boundary or hide studies with
-missing compatible statistics. The same table retains the independent
-source-transcription and arithmetic verification status for each effect record,
-and pooling replays the retained effect-status contract: available effects must
-carry clean source and calculation checks, while unavailable effects must remain
-not-applicable rather than acquiring after-the-fact numeric-looking verification.
+Meta-analysis now requires canonical prepared-effect study IDs, mapped claim
+IDs, verification study IDs, and checked locations before joining prepared
+effects to independent verification, then reports a compact `study_provenance`
+table for available and unavailable studies, so a pooled estimate cannot shed the
+reviewed claim boundary, rewrite padded provenance handles, or hide studies with
+missing compatible statistics. The same table retains the independent source-
+transcription and arithmetic verification status for each effect record, and
+pooling replays the retained effect-status contract: available effects must carry
+clean source and calculation checks, while unavailable effects must remain not-
+applicable rather than acquiring after-the-fact numeric-looking verification.
 Literature deviation declarations retain a compact snapshot of the frozen
 synthesis-plan commitments, and qualitative synthesis or quantitative pooling
 must match that snapshot before recording a result. Each declared departure

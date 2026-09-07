@@ -170,26 +170,35 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     assert result["deviations"] == value["deviations"]
 
 
-def test_meta_analysis_normalizes_effect_and_verification_handles(tmp_path):
+@pytest.mark.parametrize(("artifact", "field"), [
+    ("effects-study", "effect record study_id"),
+    ("mapped-claim", "mapped claim extraction_id"),
+    ("verification-study", "effect-verification assessment study_id"),
+    ("verification-location", "effect-verification assessment checked_location"),
+])
+def test_meta_analysis_requires_canonical_effect_and_verification_handles(tmp_path, artifact, field):
     plan, plan_sha, effects, _, verification, _, deviations, deviations_sha = artifacts(tmp_path, count=2)
-    value = json.loads(effects.read_text())
-    value["records"][0]["study_id"] = " s1 "
-    value["records"][0]["mapped_claims"][0]["extraction_id"] = " claim-1 "
-    effects_sha = write_json(effects, value)
-    value = json.loads(verification.read_text())
-    value["effect_records_sha256"] = effects_sha
-    value["assessments"][0]["study_id"] = "s1 "
-    verification_sha = write_json(verification, value)
-    result = execute_meta_analysis(
-        plan, plan_sha, effects, effects_sha, verification, verification_sha,
-        deviations, deviations_sha, tmp_path / "meta"
-    )
-    assert result["study_provenance"][0]["study_id"] == "s1"
-    assert result["study_provenance"][0]["mapped_claim_ids"] == ["claim-1"]
-    assert result["study_provenance"][0]["effect_verification"]["study_id"] == "s1"
+    effect_value = json.loads(effects.read_text())
+    verification_value = json.loads(verification.read_text())
+    if artifact == "effects-study":
+        effect_value["records"][0]["study_id"] = " s1 "
+    elif artifact == "mapped-claim":
+        effect_value["records"][0]["mapped_claims"][0]["extraction_id"] = " claim-1 "
+    elif artifact == "verification-study":
+        verification_value["assessments"][0]["study_id"] = "s1 "
+    else:
+        verification_value["assessments"][0]["checked_location"] = " table 1 "
+    effects_sha = write_json(effects, effect_value)
+    verification_value["effect_records_sha256"] = effects_sha
+    verification_sha = write_json(verification, verification_value)
+    with pytest.raises(ValidationError, match=field):
+        execute_meta_analysis(
+            plan, plan_sha, effects, effects_sha, verification, verification_sha,
+            deviations, deviations_sha, tmp_path / "meta"
+        )
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "padded-duplicate", "bias", "claim-provenance", "padded-claim-duplicate", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -206,15 +215,13 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(effects.read_text()); value["records"][0]["variance"] = 0; effects_sha = write_json(effects, value)
     elif failure == "duplicate":
         value = json.loads(effects.read_text()); value["records"][1]["study_id"] = "s1"; effects_sha = write_json(effects, value)
-    elif failure == "padded-duplicate":
-        value = json.loads(effects.read_text()); value["records"][1]["study_id"] = " s1 "; effects_sha = write_json(effects, value)
     elif failure == "bias":
         value = json.loads(effects.read_text()); value["records"][0]["risk_of_bias"] = "safe"; effects_sha = write_json(effects, value)
     elif failure == "claim-provenance":
         value = json.loads(effects.read_text()); value["records"][0]["mapped_claims"] = []; effects_sha = write_json(effects, value)
-    elif failure == "padded-claim-duplicate":
+    elif failure == "duplicate-claim":
         value = json.loads(effects.read_text())
-        value["records"][0]["mapped_claims"].append({"extraction_id": " claim-1 "})
+        value["records"][0]["mapped_claims"].append({"extraction_id": "claim-1"})
         effects_sha = write_json(effects, value)
     elif failure == "verification-provenance":
         value = json.loads(verification.read_text()); value["assessments"][0]["checked_location"] = ""; verification_sha = write_json(verification, value)

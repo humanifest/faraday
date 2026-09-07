@@ -49,6 +49,14 @@ def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
     return value, hashlib.sha256(content).hexdigest()
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError(f"{field} must be non-empty text")
+    if value != value.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return value
+
+
 def _weighted(records: list[dict[str, Any]], tau_squared: float = 0.0) -> tuple[float, float]:
     weights = [1.0 / (item["variance"] + tau_squared) for item in records]
     total = sum(weights)
@@ -130,10 +138,9 @@ def execute_meta_analysis(
     for assessment in verification_assessments:
         if not isinstance(assessment, dict):
             raise ValidationError("effect-verification assessment is malformed")
-        study_id = assessment.get("study_id")
-        if not isinstance(study_id, str) or not study_id.strip():
-            raise ValidationError("effect-verification assessments require unique study IDs")
-        study_id = study_id.strip()
+        study_id = _canonical_text(
+            assessment.get("study_id"), "effect-verification assessment study_id"
+        )
         if study_id in verification_by_study:
             raise ValidationError("effect-verification assessments require unique study IDs")
         source_values_match = assessment.get("source_values_match")
@@ -144,15 +151,16 @@ def execute_meta_analysis(
         effect_status = assessment.get("effect_status")
         if effect_status not in {"available", "unavailable"}:
             raise ValidationError("effect-verification assessment must retain effect status")
-        checked_location = assessment.get("checked_location")
-        if not isinstance(checked_location, str) or not checked_location.strip():
-            raise ValidationError("effect-verification assessment requires an inspectable location")
+        checked_location = _canonical_text(
+            assessment.get("checked_location"),
+            "effect-verification assessment checked_location",
+        )
         verification_by_study[study_id] = {
             "study_id": study_id,
             "effect_status": effect_status,
             "source_values_match": source_values_match,
             "calculation_matches": calculation_matches,
-            "checked_location": checked_location.strip(),
+            "checked_location": checked_location,
         }
     deviation_status = deviations.get("status")
     if (deviations.get("synthesis_deviations_version") != 1
@@ -178,9 +186,9 @@ def execute_meta_analysis(
     study_provenance = []
     seen = set()
     for item in raw_records:
-        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or not item["study_id"].strip():
+        if not isinstance(item, dict):
             raise ValidationError("effect records contain invalid or duplicate study IDs")
-        study_id = item["study_id"].strip()
+        study_id = _canonical_text(item.get("study_id"), "effect record study_id")
         if study_id in seen:
             raise ValidationError("effect records contain invalid or duplicate study IDs")
         seen.add(study_id)
@@ -196,10 +204,9 @@ def execute_meta_analysis(
         for claim in mapped_claims:
             if not isinstance(claim, dict):
                 raise ValidationError("mapped claim provenance is malformed")
-            extraction_id = claim.get("extraction_id")
-            if not isinstance(extraction_id, str) or not extraction_id.strip():
-                raise ValidationError("mapped claim provenance requires unique extraction IDs")
-            extraction_id = extraction_id.strip()
+            extraction_id = _canonical_text(
+                claim.get("extraction_id"), "mapped claim extraction_id"
+            )
             if extraction_id in claim_ids:
                 raise ValidationError("mapped claim provenance requires unique extraction IDs")
             claim_ids.append(extraction_id)

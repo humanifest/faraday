@@ -1004,9 +1004,10 @@ unavailable studies retain not-applicable checks. Unavailable studies remain
 disclosed. The executor does not interpret effect direction, reproduce source
 calculations, or authorize causal, clinical, practical, or publication
 conclusions.
-Meta-analysis normalizes effect-record study IDs, verification study IDs, and
-mapped claim IDs before provenance joins, so padded identifiers cannot create
-duplicate pooled records or hide required verification coverage.
+Meta-analysis now requires canonical effect-record study IDs, verification study
+IDs, mapped claim IDs, and verification checked locations before provenance
+joins, so padded identifiers cannot be silently rewritten while creating
+duplicate pooled records or hiding required verification coverage.
 Random-effects confidence and prediction intervals now use a conservative
 modified Hartung-Knapp standard error with tabulated Student-t critical values;
 the conventional standard error remains reported for auditability. Leave-one-out
