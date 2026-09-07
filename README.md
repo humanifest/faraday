@@ -675,9 +675,12 @@ claim-ID coverage, so padded assessment IDs cannot create duplicate or missing
 independent reviews. Bias assessment and study-identity reconciliation also
 normalize study, source, registration, and relationship-pair handles before
 coverage checks, preventing reviewer-entered whitespace from splitting or merging
-provenance after citation review. This makes the review trail inspectable while
-still refusing to turn retrieved or reviewer-entered source claims into Faraday
-scientific evidence.
+provenance after citation review. Evidence-map construction and qualitative
+synthesis replay the normalized extraction, study, source, and bias-domain
+handles before joining or counting claims, so the final qualitative artifact
+cannot reintroduce hidden duplicate identities. This makes the review trail
+inspectable while still refusing to turn retrieved or reviewer-entered source
+claims into Faraday scientific evidence.
 
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim

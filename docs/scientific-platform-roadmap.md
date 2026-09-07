@@ -840,6 +840,9 @@ bias-domain judgments with their cited locations, so the ceiling remains tied to
 inspectable review anchors. The write-once map cannot authorize a conclusion,
 pooled estimate, causal claim, recommendation, or publication; it is the
 inspectable input boundary for later registered synthesis.
+Evidence-map construction normalizes extraction, study, source, and bias-domain
+handles before every provenance join, preventing padded upstream artifacts from
+creating apparent new claims or studies.
 `research literature plan-synthesis` freezes the research question, primary
 outcome, qualitative or quantitative mode, effect measure, contrast definition, statistical model,
 minimum independent-study count, eligibility, missing-statistics, heterogeneity,
@@ -853,9 +856,11 @@ included-source set and minimum independent-study count; and retains every null,
 adverse, mixed, hypothesis-only, and high-bias claim while reporting directional
 and ceiling counts. The synthesis artifact also preserves the retained citation
 and bias-domain provenance for each claim, preventing a later reader from seeing
-only an unsupported ceiling label. It never treats claim counts as effect sizes
-or authors a substantive conclusion. Quantitative plans fail closed until effect-size extraction,
-variance checks, heterogeneity diagnostics, and validated pooling are available.
+only an unsupported ceiling label. It normalizes copied claim, study, source, and
+bias-domain handles before counting studies or publishing the qualitative
+artifact. It never treats claim counts as effect sizes or authors a substantive
+conclusion. Quantitative plans fail closed until effect-size extraction, variance
+checks, heterogeneity diagnostics, and validated pooling are available.
 The quantitative branch begins with `research literature prepare-effects`. It
 requires the frozen quantitative plan and its exact evidence-map lineage, then
 records exactly one effect measure, standard error, variance, and sample size per

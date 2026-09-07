@@ -64,9 +64,42 @@ def test_evidence_map_cli_verifies_chain_and_bounds_claim(tmp_path, capsys):
         create_evidence_map(extraction, verification, bias, reconciliation, digest, output)
 
 
+def test_evidence_map_normalizes_join_handles(tmp_path):
+    extraction, verification, bias, reconciliation, digest = chain(tmp_path)
+    value = json.loads(extraction.read_text())
+    value["source_reviews"][0]["source_id"] = " s1 "
+    value["source_reviews"][0]["records"][0]["extraction_id"] = " e1 "
+    value["source_reviews"][0]["records"][0]["study_id"] = " study-1 "
+    extraction_sha = write_json(extraction, value)
+    value = json.loads(verification.read_text())
+    value["extraction_sha256"] = extraction_sha
+    value["assessments"][0]["extraction_id"] = "e1 "
+    value["assessments"][0]["study_id"] = "study-1 "
+    value["assessments"][0]["source_id"] = "s1 "
+    verification_sha = write_json(verification, value)
+    value = json.loads(bias.read_text())
+    value["citation_verification_sha256"] = verification_sha
+    value["assessments"][0]["study_id"] = " study-1 "
+    value["assessments"][0]["domains"][0]["domain"] = " selection "
+    value["assessments"][0]["domains"][0]["evidence_locations"] = [" table 1 "]
+    bias_sha = write_json(bias, value)
+    value = json.loads(reconciliation.read_text())
+    value["bias_assessment_sha256"] = bias_sha
+    value["studies"][0]["study_id"] = " study-1 "
+    digest = write_json(reconciliation, value)
+    result = create_evidence_map(extraction, verification, bias, reconciliation, digest, tmp_path / "map")
+    assert result["claims"][0]["extraction_id"] == "e1"
+    assert result["claims"][0]["study_id"] == "study-1"
+    assert result["claims"][0]["source_id"] == "s1"
+    assert result["claims"][0]["bias_domain_judgments"][0]["domain"] == "selection"
+    assert result["claims"][0]["bias_domain_judgments"][0]["evidence_locations"] == ["table 1"]
+
+
 @pytest.mark.parametrize("failure", [
     "terminal-hash", "extraction-link", "verification-link", "bias-link", "unresolved",
-    "coverage", "citation-provenance", "bias-provenance",
+    "coverage", "padded-extraction-duplicate", "padded-citation-duplicate",
+    "padded-bias-duplicate", "padded-reconciliation-duplicate",
+    "citation-provenance", "bias-provenance",
 ])
 def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
     extraction, verification, bias, reconciliation, digest = chain(tmp_path)
@@ -83,6 +116,34 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         value = json.loads(verification.read_text()); value["assessments"] = []; verification_sha = write_json(verification, value)
         value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure == "padded-extraction-duplicate":
+        value = json.loads(extraction.read_text())
+        duplicate = dict(value["source_reviews"][0]["records"][0])
+        duplicate["extraction_id"] = " e1 "
+        value["source_reviews"][0]["records"].append(duplicate)
+        extraction_sha = write_json(extraction, value)
+        value = json.loads(verification.read_text()); value["extraction_sha256"] = extraction_sha; verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure == "padded-citation-duplicate":
+        value = json.loads(verification.read_text())
+        duplicate = dict(value["assessments"][0])
+        duplicate["extraction_id"] = " e1 "
+        value["assessments"].append(duplicate)
+        verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure == "padded-bias-duplicate":
+        value = json.loads(bias.read_text())
+        duplicate = dict(value["assessments"][0])
+        duplicate["study_id"] = " study-1 "
+        value["assessments"].append(duplicate)
+        bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure == "padded-reconciliation-duplicate":
+        value = json.loads(reconciliation.read_text())
+        value["studies"].append({"study_id": " study-1 "})
+        digest = write_json(reconciliation, value)
     elif failure == "citation-provenance":
         value = json.loads(verification.read_text()); value["assessments"][0]["checked_location"] = ""; verification_sha = write_json(verification, value)
         value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)

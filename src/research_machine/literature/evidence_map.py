@@ -9,6 +9,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.snapshot import _text
 
 
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
@@ -63,38 +64,51 @@ def create_evidence_map(
 
     citation_by_id = {}
     for item in verification.get("assessments", []):
-        if not isinstance(item, dict) or not isinstance(item.get("extraction_id"), str):
+        if not isinstance(item, dict) or not isinstance(item.get("extraction_id"), str) or not item["extraction_id"].strip():
             raise ValidationError("citation assessments are malformed")
-        if item["extraction_id"] in citation_by_id:
+        extraction_id = item["extraction_id"].strip()
+        if extraction_id in citation_by_id:
             raise ValidationError("citation assessments contain duplicate extraction_id")
-        citation_by_id[item["extraction_id"]] = item
+        citation_by_id[extraction_id] = {**item, "extraction_id": extraction_id}
     bias_by_study = {}
     for item in bias.get("assessments", []):
-        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str):
+        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or not item["study_id"].strip():
             raise ValidationError("bias assessments are malformed")
-        if item["study_id"] in bias_by_study:
+        study_id = item["study_id"].strip()
+        if study_id in bias_by_study:
             raise ValidationError("bias assessments contain duplicate study_id")
-        bias_by_study[item["study_id"]] = item
-    reconciled_studies = {item.get("study_id") for item in reconciliation.get("studies", [])
-                          if isinstance(item, dict)}
+        bias_by_study[study_id] = {**item, "study_id": study_id}
+    reconciled_studies = set()
+    for item in reconciliation.get("studies", []):
+        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or not item["study_id"].strip():
+            raise ValidationError("reconciled studies are malformed")
+        study_id = item["study_id"].strip()
+        if study_id in reconciled_studies:
+            raise ValidationError("reconciled studies contain duplicate study_id")
+        reconciled_studies.add(study_id)
 
     claims = []
     seen = set()
     for source_review in extraction.get("source_reviews", []):
         if not isinstance(source_review, dict):
             raise ValidationError("extraction source reviews are malformed")
-        source_id = source_review.get("source_id")
+        source_id = _text(source_review.get("source_id"), "extraction source_id").strip()
         for record in source_review.get("records", []):
             if not isinstance(record, dict):
                 raise ValidationError("extraction records are malformed")
             extraction_id, study_id = record.get("extraction_id"), record.get("study_id")
-            if not isinstance(extraction_id, str) or extraction_id in seen:
+            if not isinstance(extraction_id, str) or not extraction_id.strip():
                 raise ValidationError("extraction records contain invalid or duplicate extraction_id")
+            extraction_id = extraction_id.strip()
+            if extraction_id in seen:
+                raise ValidationError("extraction records contain invalid or duplicate extraction_id")
+            study_id = _text(study_id, "extraction study_id").strip()
             seen.add(extraction_id)
             citation = citation_by_id.get(extraction_id)
             study_bias = bias_by_study.get(study_id)
             if (citation is None or study_bias is None or study_id not in reconciled_studies
-                    or citation.get("source_id") != source_id or citation.get("study_id") != study_id):
+                    or _text(citation.get("source_id"), "citation source_id").strip() != source_id
+                    or _text(citation.get("study_id"), "citation study_id").strip() != study_id):
                 raise ValidationError("literature artifacts do not provide consistent claim, source, and study coverage")
             verdict, overall = citation.get("verdict"), study_bias.get("overall_judgment")
             layer = record.get("epistemic_layer")
@@ -119,7 +133,10 @@ def create_evidence_map(
                 name, judgment, locations = (
                     domain.get("domain"), domain.get("judgment"), domain.get("evidence_locations")
                 )
-                if not isinstance(name, str) or not name.strip() or name in seen_domains:
+                if not isinstance(name, str) or not name.strip():
+                    raise ValidationError("evidence map bias-domain names must be unique non-empty text")
+                name = name.strip()
+                if name in seen_domains:
                     raise ValidationError("evidence map bias-domain names must be unique non-empty text")
                 seen_domains.add(name)
                 if judgment not in {"low", "some_concerns", "high", "unclear", "not_applicable"}:
@@ -131,7 +148,7 @@ def create_evidence_map(
                 domain_summaries.append({
                     "domain": name,
                     "judgment": judgment,
-                    "evidence_locations": locations,
+                    "evidence_locations": [item.strip() for item in locations],
                 })
             claims.append({
                 "extraction_id": extraction_id, "study_id": study_id, "source_id": source_id,
