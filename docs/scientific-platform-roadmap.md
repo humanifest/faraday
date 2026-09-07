@@ -786,6 +786,9 @@ not validate the reviewer's application of the criteria. Every
 source must have exactly one decision. Conflicting decisions for byte-identical
 sources remain visible and mark the screening as requiring review. Inclusion
 does not accept a claim, authenticate a reviewer, or establish independent studies.
+Screening source IDs and criterion references are normalized before coverage and
+duplicate checks, so whitespace padding cannot create a second apparent
+screening decision or criterion citation.
 `research literature extract --screening-file <screening>
 --expected-screening-sha256 <hash> --review-file <review>
 --output <new-directory>` creates a separate write-once extraction record for

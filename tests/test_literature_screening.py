@@ -37,7 +37,17 @@ def test_screening_cli_preserves_duplicate_disagreement(tmp_path, capsys):
         create_screening(snapshot, digest, review, tmp_path / "screening")
 
 
-@pytest.mark.parametrize("failure", ["hash", "missing", "duplicate", "reason", "criterion", "no_criterion"])
+def test_screening_normalizes_source_and_criterion_references(tmp_path):
+    snapshot, digest, review = setup_snapshot(tmp_path)
+    review["decisions"][0]["source_id"] = " a "
+    review["decisions"][0]["criterion_refs"] = [" inclusion:1 "]
+    result = create_screening(snapshot, digest, review, tmp_path / "screening")
+    included = result["decisions"][0]
+    assert included["source_id"] == "a"
+    assert included["criterion_refs"] == ["inclusion:1"]
+
+
+@pytest.mark.parametrize("failure", ["hash", "missing", "duplicate", "padded_duplicate", "reason", "criterion", "duplicate_criterion", "no_criterion"])
 def test_invalid_screening_never_publishes(tmp_path, failure):
     path, digest, review = setup_snapshot(tmp_path)
     if failure == "hash":
@@ -46,10 +56,14 @@ def test_invalid_screening_never_publishes(tmp_path, failure):
         review["decisions"].pop()
     elif failure == "duplicate":
         review["decisions"][1]["source_id"] = "a"
+    elif failure == "padded_duplicate":
+        review["decisions"][1]["source_id"] = " a "
     elif failure == "reason":
         review["decisions"][0]["reason"] = ""
     elif failure == "criterion":
         review["decisions"][0]["criterion_refs"] = ["inclusion:999"]
+    elif failure == "duplicate_criterion":
+        review["decisions"][0]["criterion_refs"] = ["inclusion:1", " inclusion:1 "]
     else:
         review["decisions"][0]["criterion_refs"] = []
     output = tmp_path / "screening"
