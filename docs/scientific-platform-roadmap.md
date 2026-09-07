@@ -89,7 +89,9 @@ integrity receipt, and any pinned attestation-schema location and commitment.
 Retained run artifact roots and attestation-schema paths must be canonical
 unpadded text, and pinned attestation-schema commitments must be canonical
 lowercase SHA-256 digests, before schema bytes are read as trusted comparison
-material or receipts are replayed.
+material or receipts are replayed. Output artifact locators pass through the
+same canonical shared validator before dataset, run, custody, or review
+receipts can rely on them.
 Evidence admission revalidates the frozen protocol, current protected dataset
 bytes and custody, current run-output bytes, and applicable ethics status, then
 preserves a bounded admission receipt. Inquiry display, rigor audit, and
@@ -1269,9 +1271,10 @@ Custody receipt text canonicalization delivery: receipt IDs, evidence and
 artifact locators, acquisition methods, transformation versions, calibration
 references and results, quality-gate summaries, and derived-observation
 definitions are now rejected when padded. Custody record actors and retained
-verification identities are canonical at the same boundary, so retained custody
-records cannot hide distinct-looking provenance behind later whitespace
-normalization.
+verification identities are canonical at the same boundary, and the shared
+artifact validator now rejects padded locators before any receipt-building path
+can silently normalize them. Retained custody records cannot hide
+distinct-looking provenance behind later whitespace normalization.
 Custody-bearing protocols now freeze quantitative calibration acceptance
 criteria with stable criterion/calibration IDs, quantity, unit, rationale, and
 at least one finite bound. Dataset registration requires every named calibration,

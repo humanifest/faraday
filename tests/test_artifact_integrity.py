@@ -16,6 +16,7 @@ from research_machine.application.commands import (
     RecordRun,
 )
 from research_machine.application.run_integrity import reverify_run_artifacts
+from research_machine.application.policies import validate_dataset_artifacts
 from research_machine.application.json_schema_profile import (
     AttestationSchemaProfileError,
     validate_attestation_schema,
@@ -332,6 +333,11 @@ def test_artifact_integrity_rejects_parent_traversal(tmp_path: Path) -> None:
     }
 
 
+def test_dataset_artifact_locator_must_be_canonical() -> None:
+    with pytest.raises(ValidationError, match="artifact locator must be canonical"):
+        validate_dataset_artifacts([DatasetArtifact(" result.json ", "a" * 64)])
+
+
 def test_artifact_integrity_rejects_duplicate_attestation_keys(
     tmp_path: Path,
 ) -> None:
@@ -519,6 +525,7 @@ def test_run_preflight_rejects_noncanonical_attestation_schema_hash(
             "{schema} ",
             "attestation_schema_path must be canonical",
         ),
+        ("output_artifacts", "{padded_locator}", "artifact locator must be canonical"),
     ],
 )
 def test_run_artifact_receipt_paths_must_be_canonical_at_intake(
@@ -550,6 +557,17 @@ def test_run_artifact_receipt_paths_must_be_canonical_at_intake(
         attestation_schema_path=str(schema_path),
         expected_attestation_schema_sha256=_sha256(schema_path),
     )
+    if value == "{padded_locator}":
+        value = [
+            DatasetArtifact(
+                f" {artifacts[0].locator} ",
+                artifacts[0].sha256,
+                artifacts[0].size_bytes,
+                artifacts[0].media_type,
+                artifacts[0].metadata,
+            ),
+            artifacts[1],
+        ]
 
     with pytest.raises(ValidationError, match=message):
         service.preflight_run(replace(command, **{field: value}), "replication")

@@ -663,7 +663,7 @@ def validate_dataset_artifacts(
     for artifact in artifacts:
         if not isinstance(artifact, DatasetArtifact):
             raise ValidationError("artifacts must be DatasetArtifact values")
-        locator = require_text(artifact.locator, "artifact locator")
+        locator = require_canonical_text(artifact.locator, "artifact locator")
         digest = require_sha256(artifact.sha256, "artifact sha256")
         if artifact.size_bytes is not None and (
             isinstance(artifact.size_bytes, bool)

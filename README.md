@@ -1034,9 +1034,10 @@ calibration, transformation, gate, and derived-observation IDs must be unique
 and canonical without surrounding whitespace. Retained receipt text, including
 receipt IDs, artifact locators, acquisition methods, transformation versions,
 calibration references/results, gate summaries, and derived-observation
-definitions, must also be unpadded. Custody record actors and retained
-verification identities follow the same rule, so cosmetic whitespace cannot
-split or obscure custody provenance.
+definitions, must also be unpadded. The shared artifact validator rejects
+padded locators before custody, dataset, run, or review receipts can be built.
+Custody record actors and retained verification identities follow the same
+rule, so cosmetic whitespace cannot split or obscure custody provenance.
 At protocol freeze, required custody-gate IDs must also be canonical without
 surrounding whitespace before they become calibration and registration
 commitments. Calibration criterion IDs, calibration IDs, quantities, units, and
@@ -1155,7 +1156,9 @@ generated or replayed.
   inquiry display, rigor audit, and synthesis. Retained run artifact roots and
   attestation-schema paths must be canonical unpadded text, and schema hash
   commitments must be canonical lowercase SHA-256 digests, before receipts can
-  be generated or replayed. Evidence records preserve the
+  be generated or replayed. Output artifact locators must also be canonical at
+  the shared artifact-validation boundary, so padded local handles cannot enter
+  dataset, run, custody, or review receipts. Evidence records preserve the
   admission-time protocol, dataset, output, and ethics checks without claiming
   that these checks validate scientific interpretation. The receipt also
   commits every immutable evidence field, so later changes to direction, scope,
