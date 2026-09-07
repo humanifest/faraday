@@ -895,8 +895,23 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         add("MEASUREMENT_DOMAIN_CONFLICT", "error", "A numeric outcome declares categorical admissible values.", "Use valid numeric bounds for numeric scales, or choose a categorical scale.")
     if valid_min is not None and valid_max is not None and float(valid_min) >= float(valid_max):
         add("MEASUREMENT_RANGE_INVALID", "error", "The primary outcome's valid minimum is not below its valid maximum.", "Record scientifically justified bounds with minimum strictly below maximum.")
-    if scale == "count" and valid_min is not None and float(valid_min) < 0:
-        add("COUNT_RANGE_INVALID", "error", "A count outcome permits negative values.", "Use a non-negative lower bound for count data.")
+    if scale in {"ratio", "count", "time_to_event"} and valid_min is not None and float(valid_min) < 0:
+        add(
+            "MEASUREMENT_RANGE_INVALID",
+            "error",
+            f"A {scale} outcome permits negative values.",
+            "Use a non-negative lower bound for ratio, count, and time-to-event measurements.",
+        )
+    if scale == "count" and any(
+        value is not None and not float(value).is_integer()
+        for value in (valid_min, valid_max)
+    ):
+        add(
+            "COUNT_RANGE_INVALID",
+            "error",
+            "A count outcome declares fractional validity bounds.",
+            "Use integer bounds for count data so continuous quantities are not analyzed as event counts.",
+        )
     family = brief.get("primary_analysis_family", "")
     if not family:
         add("ANALYSIS_FAMILY_UNRESOLVED", "warning", "No structured primary analysis family is selected.", "Choose a design- and scale-compatible analysis family; free-text analysis prose alone is not executable.")

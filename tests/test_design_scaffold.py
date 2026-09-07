@@ -882,7 +882,21 @@ def test_scaffold_rejects_invalid_binary_and_numeric_domains():
         **base, "outcome_scale": "count", "outcome_valid_min": -1,
         "outcome_valid_max": 10,
     })
-    assert "COUNT_RANGE_INVALID" in {item["code"] for item in count["findings"]}
+    assert "MEASUREMENT_RANGE_INVALID" in {item["code"] for item in count["findings"]}
+    fractional_count = scaffold_design({
+        **base, "outcome_scale": "count", "outcome_valid_min": 0,
+        "outcome_valid_max": 10.5,
+    })
+    assert "COUNT_RANGE_INVALID" in {
+        item["code"] for item in fractional_count["findings"]
+    }
+    duration = scaffold_design({
+        **base, "outcome_scale": "time_to_event", "outcome_valid_min": -0.1,
+        "outcome_valid_max": 30,
+    })
+    assert "MEASUREMENT_RANGE_INVALID" in {
+        item["code"] for item in duration["findings"]
+    }
 
 
 def test_confirmatory_scaffold_binds_estimand_contrast_null_and_support_rule():

@@ -533,6 +533,11 @@ rejects noncanonical measurement IDs, registered targets, observable semantics,
 parameter bindings, units, and value-domain entries before they can enter the
 frozen scientific payload, along with collisions among the structural identity,
 unit, assignment, and capture-time columns themselves.
+Primary measurement-domain delivery: the guided scaffold now applies the same
+numeric-domain restrictions to the primary outcome that it already applies to
+secondary and causal measurement definitions. Ratio, count, and time-to-event
+lower bounds cannot be negative, and count bounds must be integer-valued before
+the measurement draft can be treated as design-ready.
 Independent-unit schema delivery: whenever a guided design names an independent
 unit, it must also name the exact stable identifier column. That name now agrees
 across protocol, data dictionary, collection plan, and measurement-collision

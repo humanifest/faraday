@@ -417,8 +417,11 @@ The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,
 and missing-value codes, and reject normalized overlapping missing/observed
 encodings, malformed binary domains, invalid ranges, and a mean/linear analysis
-selected for nominal, ordinal, or time-to-event outcomes. The selected analysis
-family remains a reviewable design commitment, not an automatic method choice.
+selected for nominal, ordinal, or time-to-event outcomes. Primary ratio, count,
+and time-to-event lower bounds must be non-negative, and count bounds must be
+integer-valued, matching the secondary/control/causal measurement-set checks.
+The selected analysis family remains a reviewable design commitment, not an
+automatic method choice.
 The primary-measurement draft also carries the canonical contract’s reproducible
 semantics: the exact recorded observable, input condition, fixed parameter
 bindings, evaluation point, coding convention, aggregation, tolerance, expected
