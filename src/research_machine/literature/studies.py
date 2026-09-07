@@ -17,6 +17,13 @@ from research_machine.literature.snapshot import _text
 _RELATIONSHIPS = {"independent", "overlapping_cohort", "duplicate_report", "unclear"}
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != text.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
 def create_study_reconciliation(
     bias_path: Path,
     expected_sha256: str,
@@ -35,7 +42,7 @@ def create_study_reconciliation(
     if (not isinstance(bias, dict) or bias.get("bias_assessment_version") != 1
             or bias.get("status") != "bias_assessment_recorded"):
         raise ValidationError("study reconciliation requires a completed version 1 bias assessment")
-    prior_reviewer = _text(bias.get("reviewer"), "bias reviewer")
+    prior_reviewer = _canonical_text(bias.get("reviewer"), "bias reviewer")
     bias_assessments = bias.get("assessments")
     if not isinstance(bias_assessments, list) or not bias_assessments:
         raise ValidationError("study reconciliation requires bias-assessed studies")
@@ -43,22 +50,22 @@ def create_study_reconciliation(
     for item in bias_assessments:
         if not isinstance(item, dict):
             raise ValidationError("bias study assessment must be an object")
-        study_id = _text(item.get("study_id"), "bias study_id").strip()
+        study_id = _canonical_text(item.get("study_id"), "bias study_id")
         source_ids = item.get("source_ids")
         if (not isinstance(source_ids, list) or not source_ids
-                or any(not isinstance(source, str) or not source.strip() for source in source_ids)):
+                or any(not isinstance(source, str) or not source.strip() or source != source.strip()
+                       for source in source_ids)):
             raise ValidationError("bias study source_ids must be non-empty text")
-        source_ids = [source.strip() for source in source_ids]
         if len(source_ids) != len(set(source_ids)):
-            raise ValidationError("bias study source_ids must be unique after normalization")
+            raise ValidationError("bias study source_ids must be unique")
         if study_id in studies:
             raise ValidationError("bias assessment contains duplicate study_id")
         studies[study_id] = sorted(source_ids)
 
     if not isinstance(review, dict) or set(review) != {"reviewer", "studies", "relationships"}:
         raise ValidationError("study reconciliation requires exactly reviewer, studies, and relationships")
-    reviewer = _text(review["reviewer"], "study reconciliation reviewer")
-    if reviewer.strip().casefold() == prior_reviewer.strip().casefold():
+    reviewer = _canonical_text(review["reviewer"], "study reconciliation reviewer")
+    if reviewer.casefold() == prior_reviewer.casefold():
         raise ValidationError("study reconciliation reviewer must differ from the bias reviewer")
     metadata = review["studies"]
     if not isinstance(metadata, list):
@@ -71,34 +78,34 @@ def create_study_reconciliation(
     for item in metadata:
         if not isinstance(item, dict) or set(item) != required_study:
             raise ValidationError("reconciled study metadata fields do not match the documented contract")
-        study_id = _text(item["study_id"], "reconciled study_id").strip()
+        study_id = _canonical_text(item["study_id"], "reconciled study_id")
         if study_id not in studies or study_id in by_study:
             raise ValidationError("reconciled study_id is unknown or duplicated")
         source_ids = item["source_ids"]
         if (not isinstance(source_ids, list)
-                or any(not isinstance(source, str) or not source.strip() for source in source_ids)):
+                or any(not isinstance(source, str) or not source.strip() or source != source.strip()
+                       for source in source_ids)):
             raise ValidationError("reconciled source_ids must exactly match the bias assessment")
-        source_ids = [source.strip() for source in source_ids]
         if (len(source_ids) != len(set(source_ids))
                 or set(source_ids) != set(studies[study_id])):
             raise ValidationError("reconciled source_ids must exactly match the bias assessment")
         registration_ids = item["registration_ids"]
         if (not isinstance(registration_ids, list)
-                or any(not isinstance(value, str) or not value.strip() for value in registration_ids)
-                or len({value.strip() for value in registration_ids}) != len(registration_ids)):
+                or any(not isinstance(value, str) or not value.strip() or value != value.strip()
+                       for value in registration_ids)
+                or len(set(registration_ids)) != len(registration_ids)):
             raise ValidationError("registration_ids must be unique non-empty text")
-        registration_ids = [value.strip() for value in registration_ids]
         sample_size = item["sample_size"]
         if isinstance(sample_size, bool) or not isinstance(sample_size, int) or sample_size <= 0:
             raise ValidationError("study sample_size must be a positive integer")
         by_study[study_id] = {
             "study_id": study_id, "source_ids": sorted(source_ids),
             "registration_ids": sorted(registration_ids),
-            "population": _text(item["population"], "study population").strip(),
-            "setting": _text(item["setting"], "study setting").strip(),
-            "recruitment_period": _text(item["recruitment_period"], "recruitment_period").strip(),
+            "population": _canonical_text(item["population"], "study population"),
+            "setting": _canonical_text(item["setting"], "study setting"),
+            "recruitment_period": _canonical_text(item["recruitment_period"], "recruitment_period"),
             "sample_size": sample_size,
-            "identity_notes": _text(item["identity_notes"], "identity_notes").strip(),
+            "identity_notes": _canonical_text(item["identity_notes"], "identity_notes"),
         }
     if set(by_study) != set(studies):
         raise ValidationError("reconciled study metadata must cover exactly all bias-assessed studies")
@@ -114,9 +121,9 @@ def create_study_reconciliation(
             raise ValidationError("study relationship fields do not match the documented contract")
         pair = item["study_ids"]
         if (not isinstance(pair, list) or len(pair) != 2
-                or any(not isinstance(value, str) or not value.strip() for value in pair)):
+                or any(not isinstance(value, str) or not value.strip() or value != value.strip()
+                       for value in pair)):
             raise ValidationError("study_ids must name two distinct assessed studies")
-        pair = [value.strip() for value in pair]
         if (any(value not in studies for value in pair) or pair[0] == pair[1]):
             raise ValidationError("study_ids must name two distinct assessed studies")
         key = tuple(sorted(pair))
@@ -127,12 +134,12 @@ def create_study_reconciliation(
             raise ValidationError("invalid study relationship")
         locations = item["evidence_locations"]
         if (not isinstance(locations, list) or not locations
-                or any(not isinstance(value, str) or not value.strip() for value in locations)):
+                or any(not isinstance(value, str) or not value.strip() or value != value.strip()
+                       for value in locations)):
             raise ValidationError("study relationships require evidence_locations")
-        locations = [value.strip() for value in locations]
         by_pair[key] = {
             "study_ids": list(key), "relationship": relationship,
-            "rationale": _text(item["rationale"], "relationship rationale").strip(),
+            "rationale": _canonical_text(item["rationale"], "relationship rationale"),
             "evidence_locations": locations,
         }
     if set(by_pair) != expected_pairs:
