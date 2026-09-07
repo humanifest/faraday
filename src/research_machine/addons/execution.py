@@ -48,6 +48,9 @@ _SPEC_FIELDS = {
     "alpha",
 }
 
+_MEASUREMENT_SCALE_TYPES = {"binary", "nominal", "ordinal", "interval", "ratio", "count"}
+_CATEGORICAL_SCALE_TYPES = {"binary", "nominal", "ordinal"}
+
 
 def _validate_registered_confidence_interval(effect: Any, uncertainty: Any) -> None:
     if isinstance(effect, bool) or not isinstance(effect, (int, float)) or not math.isfinite(float(effect)):
@@ -396,6 +399,10 @@ def validate_measurement_values(
             raise ValidationError("executable measurement contract lacks data_column or scale_type")
         if column != column.strip():
             raise ValidationError("executable measurement data_column must be canonical without surrounding whitespace")
+        if scale != scale.strip():
+            raise ValidationError("executable measurement scale_type must be canonical without surrounding whitespace")
+        if scale not in _MEASUREMENT_SCALE_TYPES:
+            raise ValidationError("executable measurement scale_type is unsupported")
         if (
             not isinstance(unit, str)
             or not unit
@@ -403,6 +410,8 @@ def validate_measurement_values(
             or not isinstance(missing_codes, list)
         ):
             raise ValidationError("executable measurement contract lacks unit or value-domain lists")
+        if unit != unit.strip():
+            raise ValidationError("executable measurement unit must be canonical without surrounding whitespace")
         values = [*admissible, *missing_codes]
         if any(
             not isinstance(value, str) or not value or value != value.strip()
@@ -451,7 +460,7 @@ def validate_measurement_values(
                 raise ValidationError(
                     f"unregistered blank missing value in {column!r} at CSV row {index}"
                 )
-            if scale in {"binary", "nominal", "ordinal"}:
+            if scale in _CATEGORICAL_SCALE_TYPES:
                 if raw not in admissible:
                     raise ValidationError(
                         f"value outside the frozen categorical domain in {column!r} at CSV row {index}"

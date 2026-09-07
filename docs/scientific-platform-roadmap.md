@@ -19,7 +19,8 @@ methods without changing its epistemic rules or canonical state.
   methods normalize requested column or comparison handles before duplicate or
   distinct-handle checks and result construction, and CSV headers are canonical
   and case-insensitively unique before any method runs. The execution gate also
-  revalidates measurement value-domain contracts before applying them to rows.
+  revalidates measurement scale, unit, and value-domain contracts before
+  applying them to rows.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit
