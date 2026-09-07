@@ -1112,6 +1112,9 @@ snapshot, core-hashes its actual implementation module, rejects mutation of its
 config, source, or code, validates its bounded metadata result, and core-hashes a
 write-once acquisition proposal. `measurement verify-source-inspection` requires
 an independently trusted record hash and exactly re-executes all three inputs.
+The trusted record hash must now be a canonical lowercase digest without
+surrounding whitespace, so verification cannot silently normalize the external
+trust anchor.
 The proposal
 cannot assert calibration, pass gates, register data, or become evidence.
 Device-specific adapters and parity fixtures remain experiment-driven work.

@@ -9,7 +9,8 @@ accepts only bounded acquisition metadata. It independently hashes the source,
 binds the actual implementation-module bytes, rejects source/config/code mutation
 and unknown or non-JSON output, and publishes a write-once non-evidence inspection
 record. `measurement verify-source-inspection` requires a separately trusted
-record hash and exactly reproduces the record from the current three inputs.
+record hash, rejects padded hash text instead of normalizing it, and exactly
+reproduces the record from the current three inputs.
 An adapter has no authority to assert
 calibration, pass a quality gate, create custody, register a dataset, or promote
 evidence. Device-specific adapters must preserve that boundary.

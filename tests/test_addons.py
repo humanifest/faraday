@@ -599,6 +599,15 @@ MANIFEST = AddonManifest(
     verified = _result(capsys)
     assert verified["status"] == "instrument_inspection_verified"
     assert verified["source_sha256"] == digest
+    assert main([
+        "--json", "--addon-path", str(addon), "measurement",
+        "verify-source-inspection", "--adapter", "fixture_scope",
+        "--source-file", str(source), "--config-file", str(config),
+        "--media-type", "application/octet-stream",
+        "--record-file", str(record_file),
+        "--expected-record-sha256", f" {result['inspection_sha256']} ",
+    ]) == 2
+    assert "lowercase SHA-256" in capsys.readouterr().err
     altered = json.loads(record_file.read_text())
     altered["instrument"]["model"] = "Unregistered reinterpretation"
     altered_file = tmp_path / "altered-instrument-inspection.json"

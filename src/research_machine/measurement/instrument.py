@@ -206,8 +206,12 @@ def verify_instrument_inspection(
     expected_record_sha256: str,
 ) -> dict[str, Any]:
     """Re-execute an inspector and require exact canonical record reproduction."""
-    expected = expected_record_sha256.strip() if isinstance(expected_record_sha256, str) else ""
-    if len(expected) != 64 or set(expected) - set("0123456789abcdef"):
+    expected = expected_record_sha256
+    if (
+        not isinstance(expected, str)
+        or len(expected) != 64
+        or set(expected) - set("0123456789abcdef")
+    ):
         raise ValidationError("instrument inspection expected_record_sha256 must be a lowercase SHA-256")
     record_path = record_file.expanduser().resolve()
     if not record_path.is_file():
