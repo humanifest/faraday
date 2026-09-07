@@ -30,21 +30,25 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
         raise ValidationError("effect verification requires effect records")
     statuses = {}
     for item in records:
-        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str):
+        if not isinstance(item, dict) or not isinstance(item.get("study_id"), str) or not item["study_id"].strip():
             raise ValidationError("effect record is malformed")
-        if item["study_id"] in statuses or item.get("status") not in {"available", "unavailable"}:
+        study_id = item["study_id"].strip()
+        if study_id in statuses or item.get("status") not in {"available", "unavailable"}:
             raise ValidationError("effect record study IDs or statuses are invalid")
-        statuses[item["study_id"]] = item["status"]
+        statuses[study_id] = item["status"]
     summaries = effects.get("source_summaries")
     if not isinstance(summaries, list) or len(summaries) != len(records):
         raise ValidationError("effect artifact does not retain complete source summaries")
     summary_statuses = {}
     for item in summaries:
         if (not isinstance(item, dict) or not isinstance(item.get("study_id"), str)
-                or item["study_id"] in summary_statuses
+                or not item["study_id"].strip()
                 or item.get("status") not in {"available", "unavailable"}):
             raise ValidationError("retained source summaries contain invalid or duplicate study IDs")
-        summary_statuses[item["study_id"]] = item["status"]
+        study_id = item["study_id"].strip()
+        if study_id in summary_statuses:
+            raise ValidationError("retained source summaries contain invalid or duplicate study IDs")
+        summary_statuses[study_id] = item["status"]
     if summary_statuses != statuses:
         raise ValidationError("retained source summaries must exactly match effect studies and statuses")
     if not isinstance(review, dict) or set(review) != {"reviewer", "assessments"}:
@@ -60,7 +64,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
     for item in assessments:
         if not isinstance(item, dict) or set(item) != required:
             raise ValidationError("effect verification assessment fields do not match the documented contract")
-        study_id = _text(item["study_id"], "effect verification study_id")
+        study_id = _text(item["study_id"], "effect verification study_id").strip()
         if study_id not in statuses or study_id in by_study:
             raise ValidationError("effect verification study_id is unknown or duplicated")
         values_match, calculation_matches = item["source_values_match"], item["calculation_matches"]

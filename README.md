@@ -682,10 +682,13 @@ scientific evidence.
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim
 IDs and citation-review anchors, after checking the extraction source set against
-the synthesis plan's frozen included sources. Meta-analysis requires those links
-and reports a compact `study_provenance` table for available and unavailable
-studies, so a pooled estimate cannot shed the reviewed claim boundary or hide
-studies with missing compatible statistics. The same table retains the independent
+the synthesis plan's frozen included sources. Effect preparation and independent
+effect verification normalize study and source handles before their coverage and
+duplicate checks, so quantitative artifacts inherit the same provenance identity
+rules as the qualitative review trail. Meta-analysis requires those links and
+reports a compact `study_provenance` table for available and unavailable studies,
+so a pooled estimate cannot shed the reviewed claim boundary or hide studies with
+missing compatible statistics. The same table retains the independent
 source-transcription and arithmetic verification status for each effect record,
 and pooling replays the retained effect-status contract: available effects must
 carry clean source and calculation checks, while unavailable effects must remain

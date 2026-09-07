@@ -44,13 +44,28 @@ def test_mismatch_is_preserved_and_requires_review(tmp_path):
     assert result["status"] == "review_required" and result["mismatch_study_ids"] == ["s1"]
 
 
-@pytest.mark.parametrize("failure", ["hash", "same-reviewer", "missing", "duplicate", "available-null", "unavailable-bool", "location"])
+def test_effect_verification_normalizes_study_handles(tmp_path):
+    effects, digest = effects_file(tmp_path)
+    candidate = review()
+    candidate["assessments"][0]["study_id"] = " s1 "
+    result = create_effect_verification(effects, digest, candidate, tmp_path / "verification")
+    assert result["assessments"][0]["study_id"] == "s1"
+
+
+@pytest.mark.parametrize("failure", ["hash", "same-reviewer", "missing", "duplicate", "padded-duplicate", "summary-duplicate", "available-null", "unavailable-bool", "location"])
 def test_invalid_effect_verification_never_publishes(tmp_path, failure):
     effects, digest = effects_file(tmp_path); candidate = review()
     if failure == "hash": digest = "0" * 64
     elif failure == "same-reviewer": candidate["reviewer"] = " effect REVIEWER "
     elif failure == "missing": candidate["assessments"].pop()
     elif failure == "duplicate": candidate["assessments"][1]["study_id"] = "s1"
+    elif failure == "padded-duplicate": candidate["assessments"][1]["study_id"] = " s1 "
+    elif failure == "summary-duplicate":
+        value = json.loads(effects.read_text())
+        value["source_summaries"][1]["study_id"] = " s1 "
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+        effects.write_bytes(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
     elif failure == "available-null": candidate["assessments"][0]["source_values_match"] = None
     elif failure == "unavailable-bool": candidate["assessments"][1]["calculation_matches"] = True
     elif failure == "location": candidate["assessments"][0]["checked_location"] = ""

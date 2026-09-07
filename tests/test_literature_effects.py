@@ -77,9 +77,30 @@ def test_insufficient_effects_is_recorded(tmp_path):
     assert result["status"] == "insufficient_effects"
 
 
+def test_effect_records_normalize_study_and_source_handles(tmp_path):
+    plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
+    value = json.loads(plan.read_text())
+    value["included_source_ids_at_freeze"] = [" source-fixture "]
+    plan_sha = write_json(plan, value)
+    value = json.loads(extraction.read_text())
+    value["source_reviews"][0]["source_id"] = " source-fixture "
+    extraction_sha = write_json(extraction, value)
+    value = json.loads(evidence_map.read_text())
+    value["inputs"]["extraction_sha256"] = extraction_sha
+    value["claims"][0]["study_id"] = " study-1 "
+    value["claims"][0]["source_id"] = " source-fixture "
+    map_sha = write_json(evidence_map, value)
+    candidate = review()
+    candidate["records"][0]["study_id"] = " study-1 "
+    result = create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, candidate, tmp_path / "effects")
+    assert result["records"][0]["study_id"] == "study-1"
+    assert result["records"][0]["mapped_claims"][0]["source_id"] == "source-fixture"
+
+
 @pytest.mark.parametrize("failure", [
-    "plan-hash", "map-hash", "measure", "missing", "duplicate", "nan", "se", "bool-n",
-    "unavailable-value", "plan-source-missing", "plan-source-drift", "map-provenance",
+    "plan-hash", "map-hash", "measure", "missing", "duplicate", "padded-duplicate",
+    "extraction-source-duplicate", "nan", "se", "bool-n", "unavailable-value",
+    "plan-source-missing", "plan-source-drift", "map-provenance",
 ])
 def test_invalid_effect_records_never_publish(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
@@ -89,6 +110,11 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     elif failure == "measure": candidate["records"][0]["effect_measure"] = "odds_ratio"
     elif failure == "missing": candidate["records"].pop()
     elif failure == "duplicate": candidate["records"][1]["study_id"] = "study-1"
+    elif failure == "padded-duplicate": candidate["records"][1]["study_id"] = " study-1 "
+    elif failure == "extraction-source-duplicate":
+        value = json.loads(extraction.read_text())
+        value["source_reviews"].append({"source_id": " source-fixture "})
+        write_json(extraction, value)
     elif failure == "nan": candidate["records"][0]["estimate"] = float("nan")
     elif failure == "se": candidate["records"][0]["standard_error"] = 0
     elif failure == "bool-n": candidate["records"][0]["sample_size"] = True

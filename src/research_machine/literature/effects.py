@@ -51,12 +51,18 @@ def create_effect_records(
     plan_sources = plan.get("included_source_ids_at_freeze")
     if (not isinstance(plan_sources, list)
             or any(not isinstance(item, str) or not item.strip() for item in plan_sources)
-            or len(plan_sources) != len(set(plan_sources))):
+            or len({item.strip() for item in plan_sources}) != len(plan_sources)):
         raise ValidationError("effect records require frozen included source IDs from the synthesis plan")
+    plan_sources = [item.strip() for item in plan_sources]
     extraction_sources = [
         item.get("source_id") for item in extraction.get("source_reviews", [])
         if isinstance(item, dict)
     ]
+    if any(not isinstance(item, str) or not item.strip() for item in extraction_sources):
+        raise ValidationError("effect records extraction contains invalid source IDs")
+    extraction_sources = [item.strip() for item in extraction_sources]
+    if len(extraction_sources) != len(set(extraction_sources)):
+        raise ValidationError("effect records extraction contains duplicate source IDs")
     if sorted(plan_sources) != sorted(extraction_sources):
         raise ValidationError("effect records extraction sources do not match the frozen synthesis plan")
     inputs = evidence_map.get("inputs")
@@ -68,7 +74,7 @@ def create_effect_records(
     claims = evidence_map.get("claims")
     if not isinstance(claims, list) or not claims:
         raise ValidationError("effect records require mapped claims")
-    studies = {item.get("study_id") for item in claims if isinstance(item, dict)}
+    studies = {item.get("study_id").strip() for item in claims if isinstance(item, dict) and isinstance(item.get("study_id"), str)}
     if None in studies or any(not isinstance(item, str) or not item.strip() for item in studies):
         raise ValidationError("evidence map contains invalid study IDs")
     study_biases: dict[str, str] = {}
@@ -76,7 +82,8 @@ def create_effect_records(
     for claim in claims:
         if not isinstance(claim, dict) or claim.get("risk_of_bias") not in {"low", "some_concerns", "high", "unclear"}:
             raise ValidationError("mapped claims require a valid study risk_of_bias")
-        prior = study_biases.setdefault(claim["study_id"], claim["risk_of_bias"])
+        study_id = _text(claim.get("study_id"), "mapped claim study_id").strip()
+        prior = study_biases.setdefault(study_id, claim["risk_of_bias"])
         if prior != claim["risk_of_bias"]:
             raise ValidationError("mapped claims disagree on study risk_of_bias")
         claim_summary = {
@@ -89,7 +96,7 @@ def create_effect_records(
         }
         if any(not isinstance(value, str) or not value.strip() for value in claim_summary.values()):
             raise ValidationError("mapped claims require retained citation provenance before effect preparation")
-        study_claims.setdefault(claim["study_id"], []).append(
+        study_claims.setdefault(study_id, []).append(
             {key: value.strip() for key, value in claim_summary.items()}
         )
 
@@ -106,7 +113,7 @@ def create_effect_records(
     for item in records:
         if not isinstance(item, dict) or set(item) != required:
             raise ValidationError("effect record fields do not match the documented contract")
-        study_id = _text(item["study_id"], "effect study_id")
+        study_id = _text(item["study_id"], "effect study_id").strip()
         if study_id not in studies or study_id in by_study:
             raise ValidationError("effect study_id is unknown or duplicated")
         status = item["status"]
