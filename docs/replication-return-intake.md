@@ -49,6 +49,10 @@ The resulting run stores a machine-reserved `metadata.artifact_integrity`
 receipt. A caller cannot supply that field itself. Evidence carrying the
 `independent_replication` tag is rejected unless the receipt shows matching
 artifacts, a matching and valid schema, and a consistent attestation.
+The run's clean-room metadata handles are exact: independence dimensions,
+allowed-input locators, contamination disclosures, and the attestation artifact
+locator must be canonical without surrounding whitespace before evidence can use
+the replication tag.
 
 ## Supported schema profile
 

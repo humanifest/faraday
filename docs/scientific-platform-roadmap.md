@@ -96,6 +96,10 @@ material or receipts are replayed. Output artifact locators and media types
 pass through the same canonical shared validator before dataset, run, custody,
 or review receipts can rely on them, so JSON-vs-human-inspectable labels cannot
 be changed by padding.
+Independent-replication admission now applies the same exact-handle rule to
+clean-room metadata: independence dimensions, allowed-input locators,
+contamination disclosures, and the attestation artifact locator are rejected
+when padded instead of being trimmed into a qualifying replication claim.
 Evidence admission revalidates the frozen protocol, current protected dataset
 bytes and custody, current run-output bytes, and applicable ethics status, then
 preserves a bounded admission receipt. Inquiry display, rigor audit, and

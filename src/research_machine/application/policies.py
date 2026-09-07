@@ -483,10 +483,19 @@ def validate_validation_tag_context(
             raise ValidationError(
                 "independent_replication requires a clean_room replication design"
             )
-        dimensions = require_text_list(
-            independence.get("independence_dimensions", []),
-            "replication_independence.independence_dimensions",
-        )
+        dimensions_input = independence.get("independence_dimensions", [])
+        if isinstance(dimensions_input, (str, bytes)) or not isinstance(
+            dimensions_input, Sequence
+        ):
+            raise ValidationError(
+                "replication_independence.independence_dimensions must be a list of text values"
+            )
+        dimensions = [
+            require_canonical_text(
+                value, "replication_independence.independence_dimensions item"
+            )
+            for value in dimensions_input
+        ]
         missing_dimensions = {"executor", "implementation"} - set(dimensions)
         if missing_dimensions:
             raise ValidationError(
@@ -508,7 +517,7 @@ def validate_validation_tag_context(
                 raise ValidationError(
                     "replication_independence.allowed_inputs items must be objects"
                 )
-            require_text(
+            require_canonical_text(
                 item.get("locator", ""),
                 f"replication_independence.allowed_inputs[{index}].locator",
             )
@@ -521,11 +530,19 @@ def validate_validation_tag_context(
             raise ValidationError(
                 "independent_replication requires a contamination_disclosures list"
             )
-        require_text_list(
-            disclosures,
-            "replication_independence.contamination_disclosures",
-        )
-        attestation_locator = require_text(
+        if isinstance(disclosures, (str, bytes)) or not isinstance(
+            disclosures, Sequence
+        ):
+            raise ValidationError(
+                "independent_replication requires a contamination_disclosures list"
+            )
+        [
+            require_canonical_text(
+                value, "replication_independence.contamination_disclosures item"
+            )
+            for value in disclosures
+        ]
+        attestation_locator = require_canonical_text(
             independence.get("attestation_artifact", ""),
             "replication_independence.attestation_artifact",
         )

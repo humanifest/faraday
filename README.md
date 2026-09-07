@@ -1473,6 +1473,8 @@ a hashed allowed-input manifest, contamination disclosures, and a hashed output
 artifact carrying `artifact_role=independence_attestation`. Before recording,
 the local artifact bytes and sizes must match the declarations, the attestation
 must satisfy a committed schema, and its core fields must agree with the run.
+Those clean-room metadata handles must be canonical without surrounding
+whitespace before evidence can use the replication tag.
 A different actor string plus a cosmetic code edit is therefore insufficient. Known-result
 reproduction requires a passed `known-result-reproduction` quality gate. Novel
 predictions and empirical tests require active hypotheses and protected

@@ -18,6 +18,7 @@ from research_machine.application.commands import (
 )
 from research_machine.application.service import ResearchService
 from research_machine.application.rigor import audit_research_state
+from research_machine.application.policies import validate_validation_tag_context
 from research_machine.reporting.synthesis import build_synthesis
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
@@ -29,6 +30,7 @@ from research_machine.domain.models import (
     ProtocolKind,
     QualityGateResult,
     QualityGateStatus,
+    ResearchRun,
     ValidationTag,
 )
 
@@ -594,6 +596,85 @@ def test_advanced_tags_cannot_overstate_a_formal_self_check(tmp_path: Path) -> N
                 run.run_id,
                 validation_tags=[ValidationTag.EMPIRICAL_TEST],
             )
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("dimension", " executor", "independence_dimensions item"),
+        ("allowed_input", " contract.md", "allowed_inputs\\[0\\].locator"),
+        ("disclosure", " contamination note ", "contamination_disclosures item"),
+        ("attestation", " attestation.json", "attestation_artifact"),
+    ],
+)
+def test_independent_replication_requires_canonical_clean_room_metadata(
+    tmp_path: Path, field, value, message
+) -> None:
+    _, hypothesis, original = _prepared_run(tmp_path)
+    independence = {
+        "design": "clean_room",
+        "independence_dimensions": ["executor", "implementation"],
+        "prior_implementation_accessed": False,
+        "allowed_inputs": [{"locator": "contract.md", "sha256": "2" * 64}],
+        "contamination_disclosures": ["none declared"],
+        "attestation_artifact": "attestation.json",
+    }
+    if field == "dimension":
+        independence["independence_dimensions"] = [value, "implementation"]
+    elif field == "allowed_input":
+        independence["allowed_inputs"] = [{"locator": value, "sha256": "2" * 64}]
+    elif field == "disclosure":
+        independence["contamination_disclosures"] = [value]
+    elif field == "attestation":
+        independence["attestation_artifact"] = value
+    replication = ResearchRun(
+        run_id="replication-run",
+        protocol_id="replication-protocol",
+        protocol_hash="p" * 64,
+        analysis_mode=AnalysisMode.REPLICATION,
+        started_at="2026-09-02T12:03:00Z",
+        completed_at="2026-09-02T12:04:00Z",
+        executed_by="replicator",
+        analysis_code_hash="d" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            "attestation.json",
+            "a" * 64,
+            metadata={"artifact_role": "independence_attestation"},
+        )],
+        quality_gates=[
+            QualityGateResult(
+                "replication-check",
+                QualityGateStatus.PASSED,
+                "Replication check passed.",
+                details={"evidence_sha256": "a" * 64},
+            )
+        ],
+        scientific_evidence_eligible=True,
+        metadata={
+            "replicates_run_id": original.run_id,
+            "replication_independence": independence,
+            "artifact_integrity": {
+                "status": "passed",
+                "all_artifacts_match": True,
+                "attestation_schema_matches_commitment": True,
+                "attestation_schema_valid": True,
+                "attestation_consistent": True,
+            },
+        },
+    )
+
+    with pytest.raises(ValidationError, match=message):
+        validate_validation_tag_context(
+            tags=[ValidationTag.INDEPENDENT_REPLICATION],
+            hypothesis=hypothesis,
+            exploratory=False,
+            protocol=None,
+            run=replication,
+            datasets=[],
+            controls_passed=[],
+            replicated_run=original,
         )
 
 
