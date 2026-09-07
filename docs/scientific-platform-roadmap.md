@@ -1189,12 +1189,13 @@ closed. The operational root is redacted from default replication exports.
 Post-freeze review status is now an append-only canonical event chain. Each
 active, suspended, withdrawn, or expired event binds the frozen protocol, exact
 latest predecessor, effective time, reason, and locally verified review artifact.
-Active renewals may expire. Dataset and run intake evaluate the latest applicable
-event and fail closed for non-active or expired clearance. Protocol-bound
-execution now evaluates review status and conditional-control horizons before
-calling the analysis method and binds that check into its design receipt; the
-frozen protocol is never rewritten. The provider-neutral collaborator context
-exposes this history.
+Status, protocol, event, predecessor, and review-time handles must be canonical
+without surrounding whitespace at intake and replay. Active renewals may expire.
+Dataset and run intake evaluate the latest applicable event and fail closed for
+non-active or expired clearance. Protocol-bound execution now evaluates review
+status and conditional-control horizons before calling the analysis method and
+binds that check into its design receipt; the frozen protocol is never rewritten.
+The provider-neutral collaborator context exposes this history.
 Local ethics decisions now retain each review-artifact root and recompute the
 complete integrity receipt from current bytes whenever the chain is used for
 inquiry display, dataset intake, execution, or run intake. A missing, moved,

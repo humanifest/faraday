@@ -30,6 +30,13 @@ def _text(value: Any, field: str) -> str:
     return value
 
 
+def _canonical_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if text != value.strip():
+        raise ValidationError(f"ethics review event {field} must be canonical without surrounding whitespace")
+    return text
+
+
 def _digest(value: Any, field: str) -> str:
     value = _text(value, field)
     if len(value) != 64 or set(value) - _HEX:
@@ -38,7 +45,7 @@ def _digest(value: Any, field: str) -> str:
 
 
 def _time(value: Any, field: str) -> datetime:
-    value = _text(value, field)
+    value = _canonical_text(value, field)
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
@@ -456,11 +463,17 @@ def validate_ethics_review_event_chain(
     ordered = sorted(events, key=lambda item: item.sequence)
     previous: EthicsReviewEvent | None = None
     for expected_sequence, event in enumerate(ordered, start=1):
+        _canonical_text(event.event_id, "event_id")
+        _canonical_text(event.protocol_id, "protocol_id")
+        _canonical_text(event.protocol_hash, "protocol_hash")
+        status = _canonical_text(event.status, "status")
+        if event.supersedes_event_id is not None:
+            _canonical_text(event.supersedes_event_id, "supersedes_event_id")
         if event.sequence != expected_sequence:
             raise ValidationError("ethics review event sequence is incomplete or duplicated")
         if event.protocol_id != protocol.protocol_id or event.protocol_hash != protocol.protocol_hash:
             raise ValidationError("ethics review event chain does not match the frozen protocol")
-        if event.status not in _REVIEW_STATUSES:
+        if status not in _REVIEW_STATUSES:
             raise ValidationError("ethics review event has an unsupported status")
         effective = _time(event.effective_at, "event effective_at")
         created = _time(event.created_at, "event created_at")

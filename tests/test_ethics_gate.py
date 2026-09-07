@@ -12,7 +12,46 @@ from research_machine.application.policies import validate_protocol_freeze
 from research_machine.application.service import _protocol_commitment
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import AnalysisMode, ExperimentProtocol, ProtocolKind, ControlDefinition
-from research_machine.application.commands import CreateProtocol
+from research_machine.application.commands import CreateProtocol, RecordEthicsReviewEvent
+
+
+def _frozen_reviewed_human_protocol(tmp_path):
+    from test_execution import prepared_service
+
+    workspace = tmp_path / "workspace"
+    service, hypothesis_id = prepared_service(workspace)
+    review_root = tmp_path / "review-root"
+    artifact = review_root / "review" / "decision.pdf"
+    artifact.parent.mkdir(parents=True)
+    review_bytes = b"synthetic independent review fixture\n"
+    artifact.write_bytes(review_bytes)
+    base = _human_protocol(
+        hypotheses_tested=[hypothesis_id],
+        independent_reviewed_at="2026-09-02T11:00:00Z",
+        independent_review_artifact_sha256=hashlib.sha256(review_bytes).hexdigest(),
+    )
+    values = {field.name: getattr(base, field.name) for field in fields(CreateProtocol)}
+    draft = service.create_protocol(CreateProtocol(**values))
+    frozen = service.freeze_protocol(draft.protocol_id, review_artifact_root=str(review_root))
+    return workspace, service, frozen
+
+
+def _ethics_status_command(
+    protocol_id: str, root, name: str, status: str, **overrides
+) -> RecordEthicsReviewEvent:
+    artifact = root / name
+    artifact.write_text(f"{status} review for {protocol_id}", encoding="utf-8")
+    values = {
+        "protocol_id": protocol_id,
+        "status": status,
+        "effective_at": "2026-09-02T12:00:00Z",
+        "reason": f"Independent review classified this protocol as {status}.",
+        "review_artifact_locator": name,
+        "review_artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+        "review_artifact_root": str(root),
+    }
+    values.update(overrides)
+    return RecordEthicsReviewEvent(**values)
 
 
 def _human_protocol(**overrides: object) -> ExperimentProtocol:
@@ -176,6 +215,85 @@ def test_human_protocol_freeze_verifies_review_artifact_bytes_without_writing_on
     with pytest.raises(ValidationError, match="cannot postdate"):
         service.freeze_protocol(future_draft.protocol_id, review_artifact_root=str(review_root))
     assert ledger.read_bytes() == before_future_freeze
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("protocol_id", "{protocol_id} ", "protocol_id must be canonical"),
+        ("status", " suspended", "ethics review status must be canonical"),
+        ("event_id", " ethics-manual", "event_id must be canonical"),
+        ("effective_at", " 2026-09-02T12:00:00Z", "effective_at must be canonical"),
+        ("expires_at", " 2026-12-31T23:59:59Z", "expires_at must be canonical"),
+    ],
+)
+def test_ethics_review_status_command_handles_must_be_canonical(
+    tmp_path, field, value, message
+) -> None:
+    _, service, frozen = _frozen_reviewed_human_protocol(tmp_path)
+    status_root = tmp_path / "status-evidence"
+    status_root.mkdir()
+    if value == "{protocol_id} ":
+        value = f"{frozen.protocol_id} "
+    command = _ethics_status_command(
+        frozen.protocol_id, status_root, "status.json", "active",
+        expires_at="2026-12-31T23:59:59Z",
+    )
+
+    with pytest.raises(ValidationError, match=message):
+        service.record_ethics_review_event(replace(command, **{field: value}))
+
+
+def test_ethics_review_status_supersedes_handle_must_be_canonical(tmp_path) -> None:
+    _, service, frozen = _frozen_reviewed_human_protocol(tmp_path)
+    status_root = tmp_path / "status-evidence"
+    status_root.mkdir()
+    suspension = service.record_ethics_review_event(_ethics_status_command(
+        frozen.protocol_id, status_root, "suspension.json", "suspended",
+    ))
+
+    with pytest.raises(ValidationError, match="supersedes_event_id must be canonical"):
+        service.record_ethics_review_event(_ethics_status_command(
+            frozen.protocol_id, status_root, "renewal.json", "active",
+            expires_at="2026-12-31T23:59:59Z",
+            supersedes_event_id=f"{suspension.event_id} ",
+        ))
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("event_id", "{event_id} ", "event_id must be canonical"),
+        ("protocol_id", "{protocol_id} ", "protocol_id must be canonical"),
+        ("protocol_hash", "{protocol_hash} ", "protocol_hash must be canonical"),
+        ("status", " suspended", "status must be canonical"),
+        ("effective_at", " 2026-09-02T12:00:00Z", "event effective_at must be canonical"),
+        ("created_at", " 2026-09-02T12:00:00Z", "event created_at must be canonical"),
+        ("supersedes_event_id", "{event_id} ", "supersedes_event_id must be canonical"),
+    ],
+)
+def test_ethics_review_status_reads_fail_closed_on_noncanonical_chain_tampering(
+    tmp_path, field, value, message
+) -> None:
+    workspace, service, frozen = _frozen_reviewed_human_protocol(tmp_path)
+    status_root = tmp_path / "status-evidence"
+    status_root.mkdir()
+    event = service.record_ethics_review_event(_ethics_status_command(
+        frozen.protocol_id, status_root, "suspension.json", "suspended",
+    ))
+    if value == "{event_id} ":
+        value = f"{event.event_id} "
+    elif value == "{protocol_id} ":
+        value = f"{frozen.protocol_id} "
+    elif value == "{protocol_hash} ":
+        value = f"{frozen.protocol_hash} "
+    event_file = next(workspace.rglob(f"{event.event_id}.json"))
+    tampered = json.loads(event_file.read_text(encoding="utf-8"))
+    tampered[field] = value
+    event_file.write_text(json.dumps(tampered), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match=message):
+        service.show_inquiry()
 
 
 def test_conditional_review_obligations_require_exact_artifact_backed_discharge_at_data_intake(

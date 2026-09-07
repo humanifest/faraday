@@ -636,6 +636,25 @@ class ResearchService:
         self, inquiry_id: str
     ) -> list[EthicsReviewEvent]:
         events = self.repository.list_ethics_review_events(inquiry_id)
+        for event in events:
+            for field, value in (
+                ("event_id", event.event_id),
+                ("protocol_id", event.protocol_id),
+            ):
+                text = require_text(value, f"ethics review event {field}")
+                if text != value:
+                    raise ValidationError(
+                        f"ethics review event {field} must be canonical without surrounding whitespace"
+                    )
+            if event.supersedes_event_id is not None:
+                supersedes = require_text(
+                    event.supersedes_event_id,
+                    "ethics review event supersedes_event_id",
+                )
+                if supersedes != event.supersedes_event_id:
+                    raise ValidationError(
+                        "ethics review event supersedes_event_id must be canonical without surrounding whitespace"
+                    )
         protocols = {
             item.protocol_id: item
             for item in self.repository.list_protocols(inquiry_id)
@@ -1776,18 +1795,49 @@ class ResearchService:
         self, command: RecordEthicsReviewEvent, inquiry_id: str | None = None
     ) -> EthicsReviewEvent:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        protocol = self.repository.find_protocol(resolved, command.protocol_id)
+        protocol_id = require_text(command.protocol_id, "protocol_id")
+        if protocol_id != command.protocol_id:
+            raise ValidationError(
+                "protocol_id must be canonical without surrounding whitespace"
+            )
+        if command.event_id is not None:
+            event_id = require_text(command.event_id, "event_id")
+            if event_id != command.event_id:
+                raise ValidationError(
+                    "event_id must be canonical without surrounding whitespace"
+                )
+        else:
+            event_id = None
+        if command.supersedes_event_id is not None:
+            supersedes_event_id = require_text(
+                command.supersedes_event_id, "supersedes_event_id"
+            )
+            if supersedes_event_id != command.supersedes_event_id:
+                raise ValidationError(
+                    "supersedes_event_id must be canonical without surrounding whitespace"
+                )
+        else:
+            supersedes_event_id = None
+        protocol = self.repository.find_protocol(resolved, protocol_id)
         if (protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash
                 or _protocol_commitment(protocol) != protocol.protocol_hash):
             raise ValidationError("ethics review events require an intact frozen protocol")
         if not protocol.human_subjects:
             raise ValidationError("ethics review events require a human-subject protocol")
         status = require_text(command.status, "ethics review status")
+        if status != command.status:
+            raise ValidationError(
+                "ethics review status must be canonical without surrounding whitespace"
+            )
         if status not in {"active", "suspended", "withdrawn", "expired"}:
             raise ValidationError("ethics review status must be active, suspended, withdrawn, or expired")
         created_at = self.clock()
         created = _parse_aware_timestamp(created_at, "ethics review event creation time")
         effective_at = require_text(command.effective_at, "effective_at")
+        if effective_at != command.effective_at:
+            raise ValidationError(
+                "effective_at must be canonical without surrounding whitespace"
+            )
         effective = _parse_aware_timestamp(effective_at, "effective_at")
         reviewed = _parse_aware_timestamp(protocol.independent_reviewed_at, "independent_reviewed_at")
         if effective < reviewed:
@@ -1795,6 +1845,10 @@ class ResearchService:
         if effective > created:
             raise ValidationError("ethics review event cannot take effect in the future")
         expires_at = require_text(command.expires_at, "expires_at") if command.expires_at is not None else None
+        if expires_at is not None and expires_at != command.expires_at:
+            raise ValidationError(
+                "expires_at must be canonical without surrounding whitespace"
+            )
         if status == "active" and expires_at is not None:
             if _parse_aware_timestamp(expires_at, "expires_at") <= effective:
                 raise ValidationError("active ethics clearance expires_at must follow effective_at")
@@ -1806,10 +1860,10 @@ class ResearchService:
             self.repository.list_ethics_review_events(resolved, protocol.protocol_id),
         )
         latest = prior[-1] if prior else None
-        if latest is None and command.supersedes_event_id is not None:
+        if latest is None and supersedes_event_id is not None:
             raise ValidationError("first ethics review event cannot supersede another event")
         if latest is not None:
-            if command.supersedes_event_id != latest.event_id:
+            if supersedes_event_id != latest.event_id:
                 raise ValidationError("ethics review event must supersede the exact latest event")
             if effective < _parse_aware_timestamp(latest.effective_at, "prior effective_at"):
                 raise ValidationError("ethics review event effective_at cannot move backward")
@@ -1827,7 +1881,7 @@ class ResearchService:
             raise ValidationError("ethics review event artifact verification failed: "
                                   + ", ".join(item["code"] for item in report.findings))
         event = EthicsReviewEvent(
-            event_id=command.event_id or f"ethics-{self.token()}",
+            event_id=event_id or f"ethics-{self.token()}",
             sequence=len(prior) + 1,
             protocol_id=protocol.protocol_id, protocol_hash=protocol.protocol_hash,
             status=status, effective_at=effective_at, expires_at=expires_at,
@@ -1837,7 +1891,7 @@ class ResearchService:
             review_artifact_root=str(
                 Path(command.review_artifact_root).expanduser().resolve()
             ),
-            supersedes_event_id=command.supersedes_event_id,
+            supersedes_event_id=supersedes_event_id,
             created_at=created_at, created_by=self.actor,
             artifact_integrity=report.to_dict(),
             conclusion_ceiling=("Records local review-status evidence and blocks work when non-active; "
