@@ -302,8 +302,11 @@ def test_optional_custody_is_validated_at_exploratory_registration(tmp_path, fai
 
 def test_custody_receipt_requires_lineage_calibration_and_required_gates() -> None:
     assert validate_measurement_custody(_receipt(), ["clock-sync"])["receipt_id"] == "mc-001"
+    assert validate_measurement_custody(_receipt(), [" clock-sync "])["receipt_id"] == "mc-001"
     with pytest.raises(ValidationError, match="missing required gates"):
         validate_measurement_custody(_receipt(), ["sensor-validity"])
+    with pytest.raises(ValidationError, match="required_gate_ids must be unique"):
+        validate_measurement_custody(_receipt(), ["clock-sync", " clock-sync "])
 
 
 def _clock_criterion() -> CalibrationCriterion:
@@ -319,9 +322,25 @@ def test_custody_computes_calibration_acceptance_against_frozen_bounds() -> None
     assert validate_measurement_custody(
         receipt, ["clock-sync"], [_clock_criterion()]
     ) == receipt
+    padded = CalibrationCriterion(
+        " clock-residual ", " clock ", "absolute clock residual", "ms",
+        "Keep synchronization error below the registered event-resolution limit.",
+        lower_bound=0.0, upper_bound=1.0,
+    )
+    assert validate_measurement_custody(receipt, ["clock-sync"], [padded]) == receipt
     receipt["calibrations"][0]["observed_value"] = 1.01
     with pytest.raises(ValidationError, match="frozen upper bound"):
         validate_measurement_custody(receipt, ["clock-sync"], [_clock_criterion()])
+
+
+def test_required_calibration_criteria_are_unique_after_trimming() -> None:
+    duplicate = CalibrationCriterion(
+        "other-clock-residual", " clock ", "absolute clock residual", "ms",
+        "A padded duplicate cannot become a second frozen calibration.",
+        lower_bound=0.0, upper_bound=1.0,
+    )
+    with pytest.raises(ValidationError, match="required calibration criteria"):
+        validate_measurement_custody(_receipt(), ["clock-sync"], [_clock_criterion(), duplicate])
 
 
 @pytest.mark.parametrize(

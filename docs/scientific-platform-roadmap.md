@@ -1059,7 +1059,8 @@ prevents a valid calibration or gate result from floating onto unrelated derived
 data while leaving scientific interpretation to review. Calibration-prerequisite
 and clearing-gate references are normalized before uniqueness and coverage
 checks, so whitespace padding cannot create a second apparent prerequisite or
-gate link.
+gate link. Required custody-gate and frozen calibration IDs are normalized at
+the same boundary before receipt coverage is accepted.
 Custody-bearing protocols now freeze quantitative calibration acceptance
 criteria with stable criterion/calibration IDs, quantity, unit, rationale, and
 at least one finite bound. Dataset registration requires every named calibration,

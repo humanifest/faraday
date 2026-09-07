@@ -46,6 +46,13 @@ def _timestamp(value: Any, field: str) -> datetime:
     return parsed
 
 
+def _normalized_text_sequence(values: Sequence[str], field: str) -> list[str]:
+    normalized = [_text(value, field).strip() for value in values]
+    if len(normalized) != len(set(normalized)):
+        raise ValidationError(f"measurement custody {field} must be unique")
+    return normalized
+
+
 def validate_measurement_custody(
     receipt: Any,
     required_gate_ids: Sequence[str] = (),
@@ -67,6 +74,9 @@ def validate_measurement_custody(
     if unknown:
         raise ValidationError("unknown measurement custody fields: " + ", ".join(unknown))
     _text(receipt.get("receipt_id"), "receipt_id")
+    required_gate_ids = _normalized_text_sequence(
+        required_gate_ids, "required_gate_ids"
+    )
     evidence = receipt.get("evidence_artifacts")
     if not isinstance(evidence, list) or not evidence:
         raise ValidationError("measurement custody evidence_artifacts must be a non-empty array")
@@ -137,7 +147,20 @@ def validate_measurement_custody(
         raise ValidationError("measurement custody calibrations must be a non-empty array")
     calibration_ids: set[str] = set()
     calibration_times: dict[str, datetime] = {}
-    criteria = {item.calibration_id: item for item in required_calibration_criteria}
+    criteria: dict[str, CalibrationCriterion] = {}
+    for criterion in required_calibration_criteria:
+        if not isinstance(criterion, CalibrationCriterion):
+            raise ValidationError(
+                "measurement custody required calibration criteria must be CalibrationCriterion values"
+            )
+        calibration_id = _text(
+            criterion.calibration_id, "calibration criterion calibration_id"
+        ).strip()
+        if calibration_id in criteria:
+            raise ValidationError(
+                "measurement custody required calibration criteria must be unique"
+            )
+        criteria[calibration_id] = criterion
     for item in calibrations:
         if not isinstance(item, dict):
             raise ValidationError("each calibration must be an object")
@@ -156,7 +179,7 @@ def validate_measurement_custody(
             criterion = criteria.get(calibration_id)
             if criterion is None:
                 raise ValidationError(f"calibration {calibration_id} has no frozen acceptance criterion")
-            if item.get("criterion_id") != criterion.criterion_id:
+            if item.get("criterion_id", "").strip() != criterion.criterion_id.strip():
                 raise ValidationError(f"calibration {calibration_id} does not reference its frozen criterion")
             if item.get("observed_unit") != criterion.unit:
                 raise ValidationError(f"calibration {calibration_id} observed_unit does not match its frozen criterion")

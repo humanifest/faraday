@@ -882,7 +882,9 @@ evaluate, and every derived observation must name the passed gates that clear it
 specific transformation output. A valid gate from another artifact cannot be
 reused as authorization. Calibration-prerequisite and clearing-gate references
 are normalized before uniqueness and coverage checks, so whitespace padding
-cannot create a second apparent prerequisite or gate link.
+cannot create a second apparent prerequisite or gate link. Required custody-gate
+and frozen calibration IDs are normalized at the same boundary before receipt
+coverage is accepted.
 The receipt can be inspected before registration without any network service
 or LLM:
 
