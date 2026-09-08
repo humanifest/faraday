@@ -671,6 +671,26 @@ def inspect(source_bytes, config):
         "instrument_model": "FixtureScope 1",
         "firmware_version": "1.2.3",
         "native_metadata": {"sample_count": 2},
+        "streams": [{
+            "stream_id": "stream-main",
+            "source_device": config["instrument_identifier"],
+            "channel": "main",
+            "sample_rate_hz": 256,
+            "clock_source": "device clock",
+            "start_time": config["captured_at"],
+            "clock_drift": {
+                "estimate": 0.2,
+                "unit": "ms",
+                "basis": "manufacturer sidecar",
+            },
+            "missing_intervals": [{
+                "start_time": "2026-09-06T12:00:01Z",
+                "end_time": "2026-09-06T12:00:02Z",
+                "reason": "Dropped packet fixture",
+            }],
+            "calibration_record": "clock-sync-record-1",
+            "quality_flags": ["synthetic-fixture"],
+        }],
         "warnings": ["Synthetic adapter fixture"],
     }
 
@@ -719,6 +739,28 @@ MANIFEST = AddonManifest(
         "sha256": hashlib.sha256(adapter_source.read_bytes()).hexdigest(),
         "size_bytes": adapter_source.stat().st_size,
     }
+    assert record["streams"] == [{
+        "stream_id": "stream-main",
+        "source_device": "scope-fixture-01",
+        "channel": "main",
+        "sample_rate_hz": 256,
+        "clock_source": "device clock",
+        "start_time": "2026-09-06T12:00:00Z",
+        "clock_drift": {
+            "estimate": 0.2,
+            "unit": "ms",
+            "basis": "manufacturer sidecar",
+        },
+        "missing_intervals": [{
+            "start_time": "2026-09-06T12:00:01Z",
+            "end_time": "2026-09-06T12:00:02Z",
+            "reason": "Dropped packet fixture",
+        }],
+        "calibration_record": "clock-sync-record-1",
+        "quality_flags": ["synthetic-fixture"],
+        "raw_file_sha256": digest,
+        "conversion_code_sha256": hashlib.sha256(adapter_source.read_bytes()).hexdigest(),
+    }]
     assert record["authorized_actions"] == []
     assert "No calibration" in record["conclusion_ceiling"]
     unsupported_output = tmp_path / "unsupported-media-inspection"
@@ -870,6 +912,89 @@ def test_instrument_adapter_output_text_must_be_canonical(
     )
     manifest = AddonManifest(
         "padded_instrument", "Padded instrument", "1", "test", "Fixture",
+        instrument_adapters=(adapter,),
+    )
+    with pytest.raises(ValidationError, match=message):
+        inspect_instrument_source(
+            manifest, adapter, source, "application/octet-stream",
+            {"captured_at": "2026-09-06T12:00:00Z"}, tmp_path / "inspection",
+        )
+    assert not (tmp_path / "inspection").exists()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda stream: stream.update({"channel": " main "}),
+            "streams\\[0\\].channel",
+        ),
+        (
+            lambda stream: stream.update({"sample_rate_hz": 0}),
+            "sample_rate_hz",
+        ),
+        (
+            lambda stream: stream["clock_drift"].update({"estimate": float("nan")}),
+            "clock_drift.estimate",
+        ),
+        (
+            lambda stream: stream["missing_intervals"][0].update(
+                {"end_time": "2026-09-06T12:00:01Z"}
+            ),
+            "end_time must be after",
+        ),
+        (
+            lambda stream: stream.update({"quality_flags": ["flag", "flag"]}),
+            "quality_flags must be unique",
+        ),
+    ],
+)
+def test_instrument_stream_metadata_fails_closed(tmp_path: Path, mutation, message) -> None:
+    from research_machine.addons.models import InstrumentAdapter
+    from research_machine.measurement.instrument import inspect_instrument_source
+
+    source = tmp_path / "capture.bin"
+    source.write_bytes(b"fixture")
+    stream = {
+        "stream_id": "stream-main",
+        "source_device": "fixture-01",
+        "channel": "main",
+        "sample_rate_hz": 256,
+        "clock_source": "device clock",
+        "start_time": "2026-09-06T12:00:00Z",
+        "clock_drift": {
+            "estimate": 0.2,
+            "unit": "ms",
+            "basis": "manufacturer sidecar",
+        },
+        "missing_intervals": [{
+            "start_time": "2026-09-06T12:00:01Z",
+            "end_time": "2026-09-06T12:00:02Z",
+            "reason": "Dropped packet fixture",
+        }],
+        "calibration_record": "clock-sync-record-1",
+        "quality_flags": ["synthetic-fixture"],
+    }
+    mutation(stream)
+
+    def inspect(source_bytes, config):
+        return {
+            "captured_at": "2026-09-06T12:00:00Z",
+            "captured_at_basis": "user_supplied",
+            "acquisition_method": "fixture",
+            "instrument_identifier": "fixture-01",
+            "instrument_model": "FixtureScope",
+            "native_metadata": {},
+            "streams": [stream],
+            "warnings": [],
+        }
+
+    adapter = InstrumentAdapter(
+        "stream_fixture", "Stream fixture", "Synthetic stream metadata fixture.",
+        ("application/octet-stream",), ("captured_at",), inspect,
+    )
+    manifest = AddonManifest(
+        "stream_instrument", "Stream instrument", "1", "test", "Fixture",
         instrument_adapters=(adapter,),
     )
     with pytest.raises(ValidationError, match=message):

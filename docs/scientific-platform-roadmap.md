@@ -1269,7 +1269,13 @@ then gives an inspector an immutable source-byte
 snapshot, core-hashes its actual implementation module, rejects mutation of its
 config, source, or code, rejects padded retained text fields in its bounded
 metadata result, including nested native-metadata keys and string values, and
-core-hashes a write-once acquisition proposal.
+core-hashes a write-once acquisition proposal. Inspectors may now propose typed
+stream metadata for synchronized sources: stable stream ID, source device,
+channel, positive sample rate, clock source, offset-aware start time, finite
+clock drift with unit and basis, missing intervals with ordered timestamps,
+calibration-record reference, and unique quality flags. Faraday binds each
+stream to the core-computed raw-file and adapter-code hashes rather than
+trusting an adapter-supplied digest.
 `measurement verify-source-inspection` requires
 an independently trusted record hash and exactly re-executes all three inputs.
 The trusted record hash must now be a canonical lowercase digest without

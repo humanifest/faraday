@@ -1019,7 +1019,13 @@ type to match the adapter's declared supported media types, snapshots and hashes
 hashes the actual adapter implementation module, rejects source, implementation,
 or config mutation during inspection, validates the adapter's declared output
 shape, rejects padded top-level and nested native-metadata text, and writes a
-non-evidentiary acquisition-metadata proposal.
+non-evidentiary acquisition-metadata proposal. An adapter may also propose typed
+stream metadata for synchronized sources: stable stream ID, source device,
+channel, positive sample rate, clock source, offset-aware start time, finite
+clock drift with unit and basis, ordered missing-interval records, calibration
+record reference, and unique quality flags. Faraday appends the core-computed
+raw-file and adapter-code hashes to each stream, so a temporal review cannot rely
+on adapter-supplied hash claims.
 Adapters cannot pass calibration, clear gates, register a dataset, or authorize
 evidence; their proposed raw-source entry must still enter the custody workflow
 below. `measurement verify-source-inspection` takes an independently trusted

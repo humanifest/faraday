@@ -18,6 +18,20 @@ from research_machine.domain.errors import ValidationError
 
 
 _TIME_BASES = {"device_metadata", "sidecar", "user_supplied", "filesystem_metadata"}
+_STREAM_FIELDS = {
+    "stream_id",
+    "source_device",
+    "channel",
+    "sample_rate_hz",
+    "clock_source",
+    "start_time",
+    "clock_drift",
+    "missing_intervals",
+    "calibration_record",
+    "quality_flags",
+}
+_CLOCK_DRIFT_FIELDS = {"estimate", "unit", "basis"}
+_MISSING_INTERVAL_FIELDS = {"start_time", "end_time", "reason"}
 
 
 def _text(value: Any, field: str, *, optional: bool = False) -> str:
@@ -30,6 +44,129 @@ def _text(value: Any, field: str, *, optional: bool = False) -> str:
             f"instrument inspection {field} must be canonical without surrounding whitespace"
         )
     return value
+
+
+def _parse_time(value: Any, field: str) -> tuple[str, datetime]:
+    text = _text(value, field)
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValidationError(f"instrument inspection {field} must be ISO-8601") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValidationError(f"instrument inspection {field} must include a UTC offset")
+    return text, parsed
+
+
+def _positive_number(value: Any, field: str) -> float | int:
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+        or value <= 0
+    ):
+        raise ValidationError(f"instrument inspection {field} must be a finite positive number")
+    return value
+
+
+def _finite_number(value: Any, field: str) -> float | int:
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+    ):
+        raise ValidationError(f"instrument inspection {field} must be a finite number")
+    return value
+
+
+def _string_list(value: Any, field: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ValidationError(f"instrument inspection {field} must be an array")
+    if any(not isinstance(item, str) or not item.strip() for item in value):
+        raise ValidationError(f"instrument inspection {field} must contain only non-empty strings")
+    if any(item != item.strip() for item in value):
+        raise ValidationError(
+            f"instrument inspection {field} must be canonical without surrounding whitespace"
+        )
+    if len(set(value)) != len(value):
+        raise ValidationError(f"instrument inspection {field} must be unique")
+    return list(value)
+
+
+def _exact_fields(value: dict[str, Any], expected: set[str], label: str) -> None:
+    missing = sorted(expected - set(value))
+    unknown = sorted(set(value) - expected)
+    if missing:
+        raise ValidationError(f"instrument inspection {label} missing fields: " + ", ".join(missing))
+    if unknown:
+        raise ValidationError(f"instrument inspection {label} has unknown fields: " + ", ".join(unknown))
+
+
+def _stream_metadata(
+    value: Any, *, raw_file_sha256: str, conversion_code_sha256: str
+) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValidationError("instrument inspection streams must be an array")
+    streams: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, stream in enumerate(value):
+        label = f"streams[{index}]"
+        if not isinstance(stream, dict):
+            raise ValidationError(f"instrument inspection {label} must be an object")
+        _exact_fields(stream, _STREAM_FIELDS, label)
+        stream_id = _text(stream["stream_id"], f"{label}.stream_id")
+        if stream_id in seen:
+            raise ValidationError(f"duplicate instrument inspection stream_id: {stream_id}")
+        seen.add(stream_id)
+        start_time, _ = _parse_time(stream["start_time"], f"{label}.start_time")
+        drift = stream["clock_drift"]
+        if not isinstance(drift, dict):
+            raise ValidationError(f"instrument inspection {label}.clock_drift must be an object")
+        _exact_fields(drift, _CLOCK_DRIFT_FIELDS, f"{label}.clock_drift")
+        missing_intervals = stream["missing_intervals"]
+        if not isinstance(missing_intervals, list):
+            raise ValidationError(f"instrument inspection {label}.missing_intervals must be an array")
+        normalized_intervals: list[dict[str, str]] = []
+        for interval_index, interval in enumerate(missing_intervals):
+            interval_label = f"{label}.missing_intervals[{interval_index}]"
+            if not isinstance(interval, dict):
+                raise ValidationError(f"instrument inspection {interval_label} must be an object")
+            _exact_fields(interval, _MISSING_INTERVAL_FIELDS, interval_label)
+            interval_start, parsed_start = _parse_time(
+                interval["start_time"], f"{interval_label}.start_time"
+            )
+            interval_end, parsed_end = _parse_time(
+                interval["end_time"], f"{interval_label}.end_time"
+            )
+            if parsed_end <= parsed_start:
+                raise ValidationError(
+                    f"instrument inspection {interval_label}.end_time must be after start_time"
+                )
+            normalized_intervals.append({
+                "start_time": interval_start,
+                "end_time": interval_end,
+                "reason": _text(interval["reason"], f"{interval_label}.reason"),
+            })
+        streams.append({
+            "stream_id": stream_id,
+            "source_device": _text(stream["source_device"], f"{label}.source_device"),
+            "channel": _text(stream["channel"], f"{label}.channel"),
+            "sample_rate_hz": _positive_number(stream["sample_rate_hz"], f"{label}.sample_rate_hz"),
+            "clock_source": _text(stream["clock_source"], f"{label}.clock_source"),
+            "start_time": start_time,
+            "clock_drift": {
+                "estimate": _finite_number(drift["estimate"], f"{label}.clock_drift.estimate"),
+                "unit": _text(drift["unit"], f"{label}.clock_drift.unit"),
+                "basis": _text(drift["basis"], f"{label}.clock_drift.basis"),
+            },
+            "missing_intervals": normalized_intervals,
+            "calibration_record": _text(stream["calibration_record"], f"{label}.calibration_record"),
+            "quality_flags": _string_list(stream["quality_flags"], f"{label}.quality_flags"),
+            "raw_file_sha256": raw_file_sha256,
+            "conversion_code_sha256": conversion_code_sha256,
+        })
+    return streams
 
 
 def _json_safe(value: Any, *, canonical_text: bool = False) -> None:
@@ -118,18 +255,12 @@ def inspect_instrument_source(
     allowed = {
         "captured_at", "captured_at_basis", "acquisition_method",
         "instrument_identifier", "instrument_model", "firmware_version",
-        "native_metadata", "warnings",
+        "native_metadata", "warnings", "streams",
     }
     unknown = sorted(set(proposed) - allowed)
     if unknown:
         raise ValidationError("unknown instrument adapter output fields: " + ", ".join(unknown))
-    captured_at = _text(proposed.get("captured_at"), "captured_at")
-    try:
-        parsed_time = datetime.fromisoformat(captured_at.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise ValidationError("instrument inspection captured_at must be ISO-8601") from exc
-    if parsed_time.tzinfo is None or parsed_time.utcoffset() is None:
-        raise ValidationError("instrument inspection captured_at must include a UTC offset")
+    captured_at, _ = _parse_time(proposed.get("captured_at"), "captured_at")
     basis = proposed.get("captured_at_basis")
     if basis not in _TIME_BASES:
         raise ValidationError("instrument inspection captured_at_basis is unsupported")
@@ -145,6 +276,13 @@ def inspect_instrument_source(
             "instrument inspection warnings must be canonical non-empty text entries"
         )
     _json_safe(metadata, canonical_text=True)
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    implementation_sha256 = hashlib.sha256(implementation_bytes).hexdigest()
+    streams = _stream_metadata(
+        proposed.get("streams"),
+        raw_file_sha256=source_sha256,
+        conversion_code_sha256=implementation_sha256,
+    )
     record = {
         "instrument_inspection_version": 1,
         "adapter": {
@@ -154,20 +292,20 @@ def inspect_instrument_source(
             "authority": "acquisition_metadata_proposal_only",
             "implementation": {
                 "locator": implementation.name,
-                "sha256": hashlib.sha256(implementation_bytes).hexdigest(),
+                "sha256": implementation_sha256,
                 "size_bytes": len(implementation_bytes),
             },
         },
         "source": {
             "locator": source.name,
-            "sha256": hashlib.sha256(source_bytes).hexdigest(),
+            "sha256": source_sha256,
             "size_bytes": len(source_bytes),
             "media_type": media_type,
         },
         "config": committed_config,
         "proposed_raw_source": {
             "locator": source.name,
-            "sha256": hashlib.sha256(source_bytes).hexdigest(),
+            "sha256": source_sha256,
             "captured_at": captured_at,
             "acquisition_method": _text(proposed.get("acquisition_method"), "acquisition_method"),
         },
@@ -178,6 +316,7 @@ def inspect_instrument_source(
             "captured_at_basis": basis,
             "native_metadata": metadata,
         },
+        "streams": streams,
         "warnings": warnings,
         "status": "inspection_recorded",
         "scientific_evidence_eligible": False,
