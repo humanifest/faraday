@@ -812,6 +812,15 @@ def build_parser() -> argparse.ArgumentParser:
     measurement_order.add_argument("--expected-timing-assessment-sha256", required=True)
     measurement_order.add_argument("--spec-file", type=Path, required=True)
     measurement_order.add_argument("--output", type=Path, required=True)
+    measurement_preprocessing = measurement_commands.add_parser(
+        "assess-preprocessing",
+        help="Compare observed preprocessing against a trusted registered pipeline",
+    )
+    measurement_preprocessing.add_argument("--registered-pipeline-file", type=Path, required=True)
+    measurement_preprocessing.add_argument("--expected-registered-pipeline-sha256", required=True)
+    measurement_preprocessing.add_argument("--observed-pipeline-file", type=Path, required=True)
+    measurement_preprocessing.add_argument("--expected-observed-pipeline-sha256", required=True)
+    measurement_preprocessing.add_argument("--output", type=Path, required=True)
 
     ethics = groups.add_parser(
         "ethics", help="Record append-only changes to human-subject review clearance"
@@ -1987,6 +1996,19 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             args.timing_assessment_file,
             args.expected_timing_assessment_sha256,
             args.spec_file,
+            args.output,
+        )
+
+    if args.group == "measurement" and args.action == "assess-preprocessing":
+        from research_machine.measurement.preprocessing import (
+            assess_preprocessing_conformance,
+        )
+
+        return assess_preprocessing_conformance(
+            args.registered_pipeline_file,
+            args.expected_registered_pipeline_sha256,
+            args.observed_pipeline_file,
+            args.expected_observed_pipeline_sha256,
             args.output,
         )
 

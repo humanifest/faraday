@@ -1310,6 +1310,17 @@ window fail closed, while an intentionally registered indeterminate relation
 stays visible without asserting causal direction. The artifact is still
 non-evidentiary and cannot establish causality, mechanism, intent, calibration
 truth, dataset registration, or evidence eligibility.
+Preprocessing-conformance delivery: `measurement assess-preprocessing` now binds
+separately trusted registered and observed pipeline declarations, then compares
+stable pipeline IDs, ordered step IDs, operations, JSON-compatible parameters,
+implementation hashes, and explicit input/output artifact hashes. Mismatched
+pipeline identity, missing, extra, reordered, or changed steps, altered
+parameters, artifact drift, and implementation drift produce a failed
+non-evidentiary `preprocessing-conformance.json` instead of letting an analysis
+claim silent adherence to the registered pipeline. A pass only means the observed
+declaration matches the trusted registered declaration; it does not authenticate
+acquisition, prove implementation correctness, clear a gate, register a dataset,
+or authorize evidence.
 Device-specific adapters and parity fixtures remain experiment-driven work.
 
 New custody submissions require `evidence_artifacts` (locator and SHA-256).

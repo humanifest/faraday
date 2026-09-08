@@ -1068,6 +1068,22 @@ order from reversal or timing indeterminacy, but it still does not establish
 causality, mechanism, intent, calibration truth, dataset registration, or
 scientific evidence.
 
+Use `measurement assess-preprocessing --registered-pipeline-file REGISTERED
+--expected-registered-pipeline-sha256 HASH --observed-pipeline-file OBSERVED
+--expected-observed-pipeline-sha256 HASH --output DIRECTORY` to compare an
+observed preprocessing declaration against a separately trusted registered
+pipeline. Both files must be strict JSON objects with a stable `pipeline_id`,
+purpose, and ordered `steps`; every step names a stable step ID, operation,
+JSON-compatible parameters, implementation SHA-256, and explicit input and
+output artifact IDs, media types, roles, and hashes. Faraday verifies both files
+against their independent hashes, then writes non-evidentiary
+`preprocessing-conformance.json`. Pipeline ID mismatch, missing, extra,
+reordered, or changed steps, altered parameters, artifact changes, and
+implementation-hash changes fail closed. A passed conformance check only says the
+observed declaration matches the trusted registered declaration; it does not
+authenticate acquisition, prove implementation correctness, clear a protocol
+gate, register a dataset, or authorize evidence.
+
 Protected datasets may bind a raw-to-derived custody receipt to a frozen
 protocol. A receipt names immutable raw-source hashes, ordered and
 implementation-hashed transformations, passed calibration results, passed
