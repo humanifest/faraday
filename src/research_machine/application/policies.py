@@ -1818,7 +1818,69 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         criteria_ids.add(criterion_id)
         calibration_ids.add(calibration_id)
         bounds = (criterion.lower_bound, criterion.upper_bound)
-        if all(value is None for value in bounds):
+        component_bounds = criterion.component_bounds
+        if component_bounds:
+            if not isinstance(component_bounds, list):
+                raise ValidationError("calibration criterion component_bounds must be an array")
+            if any(value is not None for value in bounds):
+                raise ValidationError(
+                    "calibration criterion cannot mix scalar bounds and component_bounds"
+                )
+            component_ids: set[str] = set()
+            for index, component in enumerate(component_bounds):
+                if not isinstance(component, dict):
+                    raise ValidationError("calibration criterion component_bounds entries must be objects")
+                required_fields = {
+                    "component_id",
+                    "quantity",
+                    "unit",
+                    "lower_bound",
+                    "upper_bound",
+                }
+                if set(component) != required_fields:
+                    raise ValidationError(
+                        "calibration criterion component_bounds fields are invalid"
+                    )
+                component_id = require_canonical_text(
+                    component["component_id"],
+                    f"calibration criterion component_bounds[{index}].component_id",
+                )
+                if component_id in component_ids:
+                    raise ValidationError(
+                        "calibration criterion component_bounds component_id values must be unique"
+                    )
+                component_ids.add(component_id)
+                for name in ("quantity", "unit"):
+                    require_canonical_text(
+                        component[name],
+                        f"calibration criterion component_bounds[{index}].{name}",
+                    )
+                component_limits = (
+                    component["lower_bound"],
+                    component["upper_bound"],
+                )
+                if all(value is None for value in component_limits):
+                    raise ValidationError(
+                        "calibration criterion component_bounds require a lower_bound or upper_bound"
+                    )
+                for value in component_limits:
+                    if value is not None and (
+                        isinstance(value, bool)
+                        or not isinstance(value, (int, float))
+                        or not math.isfinite(float(value))
+                    ):
+                        raise ValidationError(
+                            "calibration criterion component_bounds bounds must be finite numbers or null"
+                        )
+                if (
+                    component["lower_bound"] is not None
+                    and component["upper_bound"] is not None
+                    and component["lower_bound"] > component["upper_bound"]
+                ):
+                    raise ValidationError(
+                        "calibration criterion component_bounds lower_bound must not exceed upper_bound"
+                    )
+        elif all(value is None for value in bounds):
             raise ValidationError("calibration criterion requires a lower_bound or upper_bound")
         for value in bounds:
             if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value))):

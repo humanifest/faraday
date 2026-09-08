@@ -252,6 +252,56 @@ def test_registration_rejects_unrelated_receipt_without_writing(tmp_path, capsys
         service._validate_run_datasets(protocol, [accepted])
 
 
+def test_measurement_template_emits_multicomponent_calibration_slots(tmp_path):
+    # Synthetic protocol fixture checks template structure, not scientific evidence.
+    from research_machine.application.commands import CreateProtocol
+    from research_machine.domain.models import AnalysisMode, ProtocolKind
+    from test_execution import prepared_service
+
+    service, hypothesis_id = prepared_service(tmp_path)
+    draft = service.create_protocol(CreateProtocol(
+        experiment_id="component-custody-template",
+        title="Component custody template",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis_id],
+        primary_outcome="Result",
+        protocol_kind=ProtocolKind.FORMAL,
+        methodology="Synthetic custody fixture",
+        quality_requirements=["field-map-check"],
+        controls=["Invalid input"],
+        expected_outputs=["Result"],
+        success_conditions=["Report result"],
+        environment_requirements=["Fixture"],
+        sample_size_or_stopping_rule="One fixture",
+        failure_conditions=["Broken chain"],
+        safety_constraints=["Synthetic only"],
+        analysis_code_hash="c" * 64,
+        measurement_custody_requirements=["field-map-check"],
+        calibration_acceptance_criteria=[_field_map_criterion()],
+    ))
+    protocol = service.freeze_protocol(draft.protocol_id)
+
+    template = service.measurement_custody_template(protocol.protocol_id)
+
+    [calibration] = template["receipt"]["calibrations"]
+    assert calibration["calibration_id"] == "field-map"
+    assert calibration["criterion_id"] == "field-map-residuals"
+    assert "observed_value" not in calibration
+    assert "observed_unit" not in calibration
+    assert calibration["observed_components"] == [
+        {
+            "component_id": "x-axis",
+            "observed_value": "<finite numeric value>",
+            "observed_unit": "milliunit",
+        },
+        {
+            "component_id": "y-axis",
+            "observed_value": "<finite numeric value>",
+            "observed_unit": "milliunit",
+        },
+    ]
+
+
 def _receipt() -> dict:
     raw, derived = "a" * 64, "b" * 64
     return {
@@ -387,6 +437,59 @@ def _clock_criterion() -> CalibrationCriterion:
     )
 
 
+def _field_map_criterion() -> CalibrationCriterion:
+    return CalibrationCriterion(
+        "field-map-residuals",
+        "field-map",
+        "two-axis field-map residual",
+        "milliunit",
+        "Both registered axes must stay inside the frozen tolerance.",
+        component_bounds=[
+            {
+                "component_id": "x-axis",
+                "quantity": "x-axis residual",
+                "unit": "milliunit",
+                "lower_bound": -0.5,
+                "upper_bound": 0.5,
+            },
+            {
+                "component_id": "y-axis",
+                "quantity": "y-axis residual",
+                "unit": "milliunit",
+                "lower_bound": -0.5,
+                "upper_bound": 0.5,
+            },
+        ],
+    )
+
+
+def _multicomponent_receipt() -> dict:
+    receipt = _receipt()
+    receipt["calibrations"] = [{
+        "calibration_id": "field-map",
+        "reference": "Field-map fixture",
+        "performed_at": "2026-09-04T00:00:00Z",
+        "result": "x residual = 0.1 milliunit; y residual = -0.2 milliunit",
+        "status": "passed",
+        "criterion_id": "field-map-residuals",
+        "observed_components": [
+            {
+                "component_id": "x-axis",
+                "observed_value": 0.1,
+                "observed_unit": "milliunit",
+            },
+            {
+                "component_id": "y-axis",
+                "observed_value": -0.2,
+                "observed_unit": "milliunit",
+            },
+        ],
+        "evidence_sha256": "e" * 64,
+    }]
+    receipt["quality_gates"][0]["prerequisite_calibration_ids"] = ["field-map"]
+    return receipt
+
+
 def test_custody_computes_calibration_acceptance_against_frozen_bounds() -> None:
     receipt = _receipt()
     assert validate_measurement_custody(
@@ -402,6 +505,68 @@ def test_custody_computes_calibration_acceptance_against_frozen_bounds() -> None
     receipt["calibrations"][0]["observed_value"] = 1.01
     with pytest.raises(ValidationError, match="frozen upper bound"):
         validate_measurement_custody(receipt, ["clock-sync"], [_clock_criterion()])
+
+
+def test_custody_computes_multicomponent_calibration_acceptance() -> None:
+    receipt = _multicomponent_receipt()
+
+    assert validate_measurement_custody(
+        receipt,
+        ["clock-sync"],
+        [_field_map_criterion()],
+    ) == receipt
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda receipt: receipt["calibrations"][0].pop("observed_components"),
+            "observed_components must be an array",
+        ),
+        (
+            lambda receipt: receipt["calibrations"][0]["observed_components"].reverse(),
+            "component order exactly",
+        ),
+        (
+            lambda receipt: receipt["calibrations"][0]["observed_components"].append({
+                "component_id": "z-axis",
+                "observed_value": 0.0,
+                "observed_unit": "milliunit",
+            }),
+            "component order exactly",
+        ),
+        (
+            lambda receipt: receipt["calibrations"][0]["observed_components"][0].update({
+                "observed_unit": "volt",
+            }),
+            "observed_unit",
+        ),
+        (
+            lambda receipt: receipt["calibrations"][0]["observed_components"][1].update({
+                "observed_value": 0.75,
+            }),
+            "failed its frozen upper bound",
+        ),
+        (
+            lambda receipt: receipt["calibrations"][0].update({
+                "observed_value": 0.0,
+                "observed_unit": "milliunit",
+            }),
+            "must not mix scalar",
+        ),
+    ],
+)
+def test_custody_rejects_invalid_multicomponent_calibrations(mutate, message) -> None:
+    receipt = _multicomponent_receipt()
+    mutate(receipt)
+
+    with pytest.raises(ValidationError, match=message):
+        validate_measurement_custody(
+            receipt,
+            ["clock-sync"],
+            [_field_map_criterion()],
+        )
 
 
 def test_required_calibration_criteria_ids_must_be_canonical_and_unique() -> None:

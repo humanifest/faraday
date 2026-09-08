@@ -67,6 +67,16 @@ def _canonical_text_sequence(values: Sequence[str], field: str) -> list[str]:
     return items
 
 
+def _finite_number(value: Any, field: str) -> float | int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+    ):
+        raise ValidationError(f"measurement custody {field} must be a finite number")
+    return value
+
+
 def validate_measurement_custody(
     receipt: Any,
     required_gate_ids: Sequence[str] = (),
@@ -198,15 +208,86 @@ def validate_measurement_custody(
             criterion_id = _canonical_text(item.get("criterion_id"), "calibration.criterion_id")
             if criterion_id != criterion.criterion_id:
                 raise ValidationError(f"calibration {calibration_id} does not reference its frozen criterion")
-            if item.get("observed_unit") != criterion.unit:
-                raise ValidationError(f"calibration {calibration_id} observed_unit does not match its frozen criterion")
-            observed = item.get("observed_value")
-            if isinstance(observed, bool) or not isinstance(observed, (int, float)) or not math.isfinite(float(observed)):
-                raise ValidationError(f"calibration {calibration_id} observed_value must be a finite number")
-            if criterion.lower_bound is not None and observed < criterion.lower_bound:
-                raise ValidationError(f"calibration {calibration_id} failed its frozen lower bound")
-            if criterion.upper_bound is not None and observed > criterion.upper_bound:
-                raise ValidationError(f"calibration {calibration_id} failed its frozen upper bound")
+            if criterion.component_bounds:
+                if "observed_value" in item or "observed_unit" in item:
+                    raise ValidationError(
+                        f"calibration {calibration_id} must not mix scalar and component observations"
+                    )
+                observed_components = item.get("observed_components")
+                if not isinstance(observed_components, list):
+                    raise ValidationError(
+                        f"calibration {calibration_id} observed_components must be an array"
+                    )
+                expected_component_ids = [
+                    _canonical_text(
+                        component["component_id"],
+                        f"calibration {calibration_id} frozen component_id",
+                    )
+                    for component in criterion.component_bounds
+                ]
+                received_component_ids: list[str] = []
+                for index, observed_component in enumerate(observed_components):
+                    if not isinstance(observed_component, dict):
+                        raise ValidationError(
+                            f"calibration {calibration_id} observed_components entries must be objects"
+                        )
+                    required_fields = {
+                        "component_id",
+                        "observed_value",
+                        "observed_unit",
+                    }
+                    if set(observed_component) != required_fields:
+                        raise ValidationError(
+                            f"calibration {calibration_id} observed_components fields are invalid"
+                        )
+                    component_id = _canonical_text(
+                        observed_component["component_id"],
+                        f"calibration {calibration_id} observed_components[{index}].component_id",
+                    )
+                    received_component_ids.append(component_id)
+                if received_component_ids != expected_component_ids:
+                    raise ValidationError(
+                        f"calibration {calibration_id} observed_components must match frozen component order exactly"
+                    )
+                for observed_component, frozen_component in zip(
+                    observed_components,
+                    criterion.component_bounds,
+                    strict=True,
+                ):
+                    component_id = observed_component["component_id"]
+                    if observed_component.get("observed_unit") != frozen_component["unit"]:
+                        raise ValidationError(
+                            f"calibration {calibration_id} component {component_id} observed_unit does not match its frozen criterion"
+                        )
+                    observed = _finite_number(
+                        observed_component.get("observed_value"),
+                        f"calibration {calibration_id} component {component_id}.observed_value",
+                    )
+                    lower_bound = frozen_component.get("lower_bound")
+                    upper_bound = frozen_component.get("upper_bound")
+                    if lower_bound is not None and observed < lower_bound:
+                        raise ValidationError(
+                            f"calibration {calibration_id} component {component_id} failed its frozen lower bound"
+                        )
+                    if upper_bound is not None and observed > upper_bound:
+                        raise ValidationError(
+                            f"calibration {calibration_id} component {component_id} failed its frozen upper bound"
+                        )
+            else:
+                if "observed_components" in item:
+                    raise ValidationError(
+                        f"calibration {calibration_id} has no frozen component_bounds"
+                    )
+                if item.get("observed_unit") != criterion.unit:
+                    raise ValidationError(f"calibration {calibration_id} observed_unit does not match its frozen criterion")
+                observed = _finite_number(
+                    item.get("observed_value"),
+                    f"calibration {calibration_id} observed_value",
+                )
+                if criterion.lower_bound is not None and observed < criterion.lower_bound:
+                    raise ValidationError(f"calibration {calibration_id} failed its frozen lower bound")
+                if criterion.upper_bound is not None and observed > criterion.upper_bound:
+                    raise ValidationError(f"calibration {calibration_id} failed its frozen upper bound")
     missing_calibrations = sorted(set(criteria) - calibration_ids)
     if missing_calibrations:
         raise ValidationError("measurement custody is missing calibrations with frozen criteria: " + ", ".join(missing_calibrations))

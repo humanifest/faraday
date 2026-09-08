@@ -446,6 +446,7 @@ class CalibrationCriterion(Serializable):
     rationale: str
     lower_bound: float | None = None
     upper_bound: float | None = None
+    component_bounds: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

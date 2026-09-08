@@ -1139,9 +1139,10 @@ protocol. A receipt names immutable raw-source hashes, ordered and
 implementation-hashed transformations, passed calibration results, passed
 quality gates, and the exact transformation output behind each derived
 observation. Custody-bearing protocols freeze quantitative calibration criteria
-(criterion and calibration IDs, quantity, unit, rationale, and lower and/or
-upper bounds). Registration checks the observed value and unit against those
-bounds; a written `passed` status alone is insufficient. A protocol with calibration requirements must name the custody
+(criterion and calibration IDs, quantity, unit, rationale, and either scalar
+lower and/or upper bounds or an exact ordered set of component bounds).
+Registration checks each observed value and unit against the frozen scalar or
+component contract; a written `passed` status alone is insufficient. A protocol with calibration requirements must name the custody
 gates that clear registration. Protected registration now also requires
 `--custody-artifact-root`: each transformation names its implementation and
 output locators, and Faraday verifies raw-source, implementation, derived-output,
@@ -1201,10 +1202,10 @@ or LLM:
   --artifact-root /path/to/registered-observations \
   --custody-artifact-root /path/to/custody-artifacts
 ```
-The template command derives required gate IDs, calibration IDs, units, and
-acceptance bounds from the frozen protocol. It emits skipped gates and explicit
-placeholders, writes no state, and never converts expected behavior into an
-observed result. The record command creates a write-once artifact only after
+The template command derives required gate IDs, calibration IDs, units, scalar
+acceptance bounds, and ordered component-bound observation slots from the frozen
+protocol. It emits skipped gates and explicit placeholders, writes no state, and
+never converts expected behavior into an observed result. The record command creates a write-once artifact only after
 matching the independently supplied receipt hash, the exact frozen protocol,
 its gate and calibration commitments, and every referenced local byte. It does
 not register data or create scientific evidence; later dataset registration

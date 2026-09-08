@@ -3870,17 +3870,27 @@ class ResearchService:
             raise ValidationError("frozen protocol content no longer matches its hash commitment")
         if not protocol.measurement_custody_requirements:
             raise ValidationError("protocol has no frozen measurement custody requirements")
-        calibrations = [{
-            "calibration_id": criterion.calibration_id,
-            "criterion_id": criterion.criterion_id,
-            "reference": "<reference artifact or standard>",
-            "performed_at": "<ISO-8601 timestamp with UTC offset>",
-            "result": "<observed calibration result, not the expected result>",
-            "status": "<passed only if the frozen numeric bound is met>",
-            "observed_value": "<finite numeric value>",
-            "observed_unit": criterion.unit,
-            "evidence_sha256": "<hash of a listed evidence artifact>",
-        } for criterion in protocol.calibration_acceptance_criteria]
+        calibrations = []
+        for criterion in protocol.calibration_acceptance_criteria:
+            calibration = {
+                "calibration_id": criterion.calibration_id,
+                "criterion_id": criterion.criterion_id,
+                "reference": "<reference artifact or standard>",
+                "performed_at": "<ISO-8601 timestamp with UTC offset>",
+                "result": "<observed calibration result, not the expected result>",
+                "status": "<passed only if every frozen scalar or component bound is met>",
+                "evidence_sha256": "<hash of a listed evidence artifact>",
+            }
+            if criterion.component_bounds:
+                calibration["observed_components"] = [{
+                    "component_id": component["component_id"],
+                    "observed_value": "<finite numeric value>",
+                    "observed_unit": component["unit"],
+                } for component in criterion.component_bounds]
+            else:
+                calibration["observed_value"] = "<finite numeric value>"
+                calibration["observed_unit"] = criterion.unit
+            calibrations.append(calibration)
         return {
             "schema_version": 1,
             "template_kind": "research-machine-measurement-custody-v1",

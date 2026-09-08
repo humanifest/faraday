@@ -326,6 +326,185 @@ def test_calibration_acceptance_fields_must_be_canonical_at_freeze(field, value)
         validate_protocol_freeze(protocol)
 
 
+def test_scalar_calibration_acceptance_preserves_legacy_commitment_shape() -> None:
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        measurement_custody_requirements=["clock-sync"],
+        calibration_acceptance_criteria=[
+            CalibrationCriterion(
+                "clock-residual",
+                "clock",
+                "absolute clock residual",
+                "ms",
+                "Keep synchronization error below the registered event limit.",
+                lower_bound=0.0,
+                upper_bound=1.0,
+            ),
+        ],
+    )
+    legacy = protocol.to_dict()
+    legacy["calibration_acceptance_criteria"][0].pop("component_bounds")
+
+    assert _protocol_commitment(protocol) == _protocol_commitment(
+        ExperimentProtocol.from_dict(legacy)
+    )
+
+
+def test_multicomponent_calibration_acceptance_is_hash_bound_at_freeze() -> None:
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        measurement_custody_requirements=["field-map-check"],
+        calibration_acceptance_criteria=[
+            CalibrationCriterion(
+                "field-map-residuals",
+                "field-map",
+                "two-axis field-map residual",
+                "milliunit",
+                "Every registered calibration axis must remain inside tolerance.",
+                component_bounds=[
+                    {
+                        "component_id": "x-axis",
+                        "quantity": "x-axis residual",
+                        "unit": "milliunit",
+                        "lower_bound": -0.5,
+                        "upper_bound": 0.5,
+                    },
+                    {
+                        "component_id": "y-axis",
+                        "quantity": "y-axis residual",
+                        "unit": "milliunit",
+                        "lower_bound": -0.5,
+                        "upper_bound": 0.5,
+                    },
+                ],
+            ),
+        ],
+    )
+
+    validate_protocol_freeze(protocol)
+
+    altered = replace(
+        protocol,
+        calibration_acceptance_criteria=[
+            replace(
+                protocol.calibration_acceptance_criteria[0],
+                component_bounds=[
+                    *protocol.calibration_acceptance_criteria[0].component_bounds[:1],
+                    {
+                        **protocol.calibration_acceptance_criteria[0].component_bounds[1],
+                        "upper_bound": 0.25,
+                    },
+                ],
+            ),
+        ],
+    )
+    assert _protocol_commitment(protocol) != _protocol_commitment(altered)
+
+
+@pytest.mark.parametrize(
+    ("component_bounds", "message"),
+    [
+        (
+            [{
+                "component_id": " x-axis ",
+                "quantity": "x-axis residual",
+                "unit": "milliunit",
+                "lower_bound": -0.5,
+                "upper_bound": 0.5,
+            }],
+            "component_bounds\\[0\\].component_id",
+        ),
+        (
+            [
+                {
+                    "component_id": "x-axis",
+                    "quantity": "x-axis residual",
+                    "unit": "milliunit",
+                    "lower_bound": -0.5,
+                    "upper_bound": 0.5,
+                },
+                {
+                    "component_id": "x-axis",
+                    "quantity": "duplicate residual",
+                    "unit": "milliunit",
+                    "lower_bound": -0.5,
+                    "upper_bound": 0.5,
+                },
+            ],
+            "component_id values must be unique",
+        ),
+        (
+            [{
+                "component_id": "x-axis",
+                "quantity": "x-axis residual",
+                "unit": "milliunit",
+                "lower_bound": None,
+                "upper_bound": None,
+            }],
+            "require a lower_bound or upper_bound",
+        ),
+        (
+            [{
+                "component_id": "x-axis",
+                "quantity": "x-axis residual",
+                "unit": "milliunit",
+                "lower_bound": 1.0,
+                "upper_bound": 0.5,
+            }],
+            "lower_bound must not exceed",
+        ),
+    ],
+)
+def test_multicomponent_calibration_acceptance_rejects_invalid_bounds(
+    component_bounds, message
+) -> None:
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        measurement_custody_requirements=["field-map-check"],
+        calibration_acceptance_criteria=[
+            CalibrationCriterion(
+                "field-map-residuals",
+                "field-map",
+                "two-axis field-map residual",
+                "milliunit",
+                "Every registered calibration axis must remain inside tolerance.",
+                component_bounds=component_bounds,
+            ),
+        ],
+    )
+
+    with pytest.raises(ValidationError, match=message):
+        validate_protocol_freeze(protocol)
+
+
+def test_calibration_acceptance_rejects_mixed_scalar_and_component_bounds() -> None:
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        measurement_custody_requirements=["field-map-check"],
+        calibration_acceptance_criteria=[
+            CalibrationCriterion(
+                "field-map-residuals",
+                "field-map",
+                "two-axis field-map residual",
+                "milliunit",
+                "Every registered calibration axis must remain inside tolerance.",
+                lower_bound=-0.5,
+                upper_bound=0.5,
+                component_bounds=[{
+                    "component_id": "x-axis",
+                    "quantity": "x-axis residual",
+                    "unit": "milliunit",
+                    "lower_bound": -0.5,
+                    "upper_bound": 0.5,
+                }],
+            ),
+        ],
+    )
+
+    with pytest.raises(ValidationError, match="cannot mix scalar bounds"):
+        validate_protocol_freeze(protocol)
+
+
 def test_measurement_contract_rejects_normalized_observed_missing_overlap() -> None:
     protocol = _human_protocol(human_subjects=False)
     measurements = _analysis_measurements(protocol.primary_outcome, protocol.controls[0])

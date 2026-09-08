@@ -1424,10 +1424,12 @@ receipt-building path can silently normalize them. Retained custody records cann
 distinct-looking provenance behind later whitespace normalization.
 Custody-bearing protocols now freeze quantitative calibration acceptance
 criteria with stable criterion/calibration IDs, quantity, unit, rationale, and
-at least one finite bound. Dataset registration requires every named calibration,
-checks its numeric observation and unit against those bounds, and refuses a
-declared pass that falls outside them. This supports bounded scalar acceptance;
-multivariate calibration policies and device-specific instrument adapters remain missing.
+either at least one finite scalar bound or an exact ordered set of component
+bounds. Dataset registration requires every named calibration, checks its
+numeric observation and unit against those frozen scalar or component bounds,
+and refuses a declared pass that falls outside them. This supports scalar
+acceptance plus first-order multicomponent calibration residual checks; richer
+multivariate policies and device-specific instrument adapters remain missing.
 Canonical protected datasets now retain their local custody-artifact root.
 Inquiry display, protocol-bound execution, and run intake replay the complete
 structured custody validator and present-byte verification from the preserved

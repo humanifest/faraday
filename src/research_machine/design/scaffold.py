@@ -1410,6 +1410,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             "rationale": "[REVIEW REQUIRED] justify the bound before collection",
             "lower_bound": None,
             "upper_bound": None,
+            "component_bounds": [],
         }],
         "measurement_custody_requirements": ["[REVIEW REQUIRED] name the custody gate that demonstrates the calibration requirement was met"],
         "statistical_model": brief.get("analysis_commitment", "[REVIEW REQUIRED]"),
