@@ -679,6 +679,14 @@ run validity, and final scientific-evidence eligibility. Gate IDs and
 prerequisite references must also be nonblank, unique, and canonical without
 surrounding whitespace before package verification accepts the run, so malformed
 package metadata cannot survive independent verification. Structured
+canary-target gate metadata is replayed against the packaged protocol and run:
+the gate must be the frozen canary assessment gate, the plan and hidden
+assignment hashes must agree with `canary_target_plan`, the revealed and
+comparator targets must come from the frozen candidate set without overlap, and
+the cited evidence hash must be a packaged run output. This keeps comparator,
+decoy, no-target, mixed, and inconclusive observations visible in replication
+handoffs without treating them as proof of adaptation, mechanism, attribution,
+or intent. Structured
 preprocessing-conformance gate metadata is also replayed inside the package: the
 gate's evidence hash must match the declared conformance record, that record
 must be a packaged run output, upstream pipeline hashes must be canonical, and

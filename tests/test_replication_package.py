@@ -17,6 +17,7 @@ from research_machine.application.service import ResearchService
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.domain.models import (
     AnalysisMode,
+    CanaryTargetPlan,
     DatasetArtifact,
     DatasetManifest,
     DatasetRole,
@@ -980,6 +981,157 @@ def test_replication_package_verifies_temporal_order_gate_metadata(
     commitment = _refresh_packaged_file(package, "runs.json")
 
     with pytest.raises(ValidationError, match="passed temporal-order gate"):
+        verify_replication_package(package, commitment)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing_assessment", "structured canary_target_assessment"),
+        ("assignment_mismatch", "assignment artifact disagrees"),
+        ("unknown_comparator", "comparator targets are not in the frozen candidate set"),
+        ("revealed_as_comparator", "must not include the revealed target"),
+        ("padded_status", "assessment_status must be canonical"),
+        ("bad_status", "assessment_status is unsupported"),
+        ("wrong_evidence", "is not a declared output artifact"),
+        ("gate_evidence_mismatch", "does not match gate evidence"),
+        ("wrong_gate", "is not bound to the frozen canary gate"),
+    ],
+)
+def test_replication_package_verifies_canary_target_gate_metadata(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service = ResearchService(FileSystemRepository(workspace), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    plan = CanaryTargetPlan(
+        plan_id="masked-canary-plan",
+        candidate_target_ids=["actual-state", "delayed-replay", "silent-marker"],
+        seed_commitment_sha256="1" * 64,
+        assignment_artifact_sha256="2" * 64,
+        masking_plan="Synthetic package fixture masking plan.",
+        ethical_disclosure="Synthetic package fixture disclosure.",
+        assessment_gate_id="canary-target-assessed",
+    )
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL, methodology="Method",
+        quality_requirements=["canary-target-assessed"],
+        controls=["control"], expected_outputs=["output"], success_conditions=["success"],
+        environment_requirements=["environment"], sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+        canary_target_plan=plan,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    record_path = tmp_path / "canary-output.json"
+    record_sha256 = _write_json(
+        record_path,
+        {
+            "canary": {
+                "comparison": {
+                    "revealed_target_id": "actual-state",
+                    "status": "follows_comparator_or_decoy",
+                }
+            }
+        },
+    )
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            record_path.name,
+            record_sha256,
+            record_path.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "canary-target-assessed",
+            QualityGateStatus.PASSED,
+            "Synthetic canary target fixture retained.",
+            details={
+                "evidence_sha256": record_sha256,
+                "canary_target_assessment": {
+                    "plan_id": "masked-canary-plan",
+                    "assignment_artifact_sha256": "2" * 64,
+                    "revealed_target_id": "actual-state",
+                    "comparator_target_ids": ["delayed-replay"],
+                    "assessment_status": "follows_comparator_or_decoy",
+                    "observed_pattern": "The synthetic fixture followed the comparator target.",
+                    "interpretation": "Bounded fixture interpretation; no mechanism or intent claim.",
+                    "evidence_sha256": record_sha256,
+                    "evidence_location": "/canary/comparison",
+                },
+            },
+        )],
+        summary="Synthetic package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    gate = runs[0]["quality_gates"][0]
+    assessment = gate["details"]["canary_target_assessment"]
+    if mutation == "missing_assessment":
+        del gate["details"]["canary_target_assessment"]
+    elif mutation == "assignment_mismatch":
+        assessment["assignment_artifact_sha256"] = "3" * 64
+    elif mutation == "unknown_comparator":
+        assessment["comparator_target_ids"] = ["unknown-target"]
+    elif mutation == "revealed_as_comparator":
+        assessment["comparator_target_ids"] = ["actual-state"]
+    elif mutation == "padded_status":
+        assessment["assessment_status"] = " follows_comparator_or_decoy"
+    elif mutation == "bad_status":
+        assessment["assessment_status"] = "confirmed"
+    elif mutation == "wrong_evidence":
+        assessment["evidence_sha256"] = "f" * 64
+    elif mutation == "gate_evidence_mismatch":
+        gate["details"]["evidence_sha256"] = "f" * 64
+        runs[0]["output_artifacts"].append({
+            "locator": "[redacted: obtain from authorized source]",
+            "sha256": "f" * 64,
+            "size_bytes": None,
+            "media_type": "application/json",
+            "metadata": {},
+        })
+    elif mutation == "wrong_gate":
+        gate["gate_id"] = "other-gate"
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match=message):
         verify_replication_package(package, commitment)
 
 

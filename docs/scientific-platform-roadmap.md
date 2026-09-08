@@ -1390,6 +1390,14 @@ outcomes remain visible in rigor and deterministic synthesis instead of being
 rephrased as support. This is an adversarial design commitment for future
 domain add-ons; it does not prove adaptation, mechanism, attribution, intent, or
 ethical adequacy.
+Replication-package verification now replays the same canary assessment boundary:
+the packaged gate must be the frozen canary gate, plan and assignment hashes must
+match the protocol, revealed and comparator targets must come from the frozen
+candidate set without overlap, the status must stay inside the bounded
+vocabulary, and the assessment evidence must be a packaged run output. This
+prevents an exported package from turning a comparator, decoy, no-target, mixed,
+or inconclusive observation into a cleaner-looking result while preserving the
+same non-proof limitation.
 Preprocessing-conformance delivery: `measurement assess-preprocessing` now binds
 separately trusted registered and observed pipeline declarations, then compares
 stable pipeline IDs, ordered step IDs, operations, JSON-compatible parameters,

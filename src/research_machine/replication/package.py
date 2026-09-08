@@ -25,6 +25,7 @@ from research_machine.application.policies import (
     is_canonical_sha256,
     require_sha256,
     require_canonical_text,
+    require_unique_canonical_text_list,
     validate_quality_gates,
 )
 from research_machine.application.protocol_integrity import protocol_commitment
@@ -341,6 +342,110 @@ def _validate_stream_timing_assessment_gate_metadata(
         )
 
 
+def _validate_canary_target_assessment_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    run_id: str,
+    gate: QualityGateResult,
+    output_artifacts: list[DatasetArtifact],
+) -> None:
+    assessment = gate.details.get("canary_target_assessment")
+    if assessment is None:
+        return
+    plan = protocol.canary_target_plan
+    if plan is None:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary_target_assessment has no frozen canary target plan"
+        )
+    if gate.gate_id != plan.assessment_gate_id:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary_target_assessment is not bound to the frozen canary gate"
+        )
+    if not isinstance(assessment, dict):
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary_target_assessment must be an object"
+        )
+    required_fields = {
+        "plan_id",
+        "assignment_artifact_sha256",
+        "revealed_target_id",
+        "comparator_target_ids",
+        "assessment_status",
+        "observed_pattern",
+        "interpretation",
+        "evidence_sha256",
+        "evidence_location",
+    }
+    if set(assessment) != required_fields:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary_target_assessment fields are invalid"
+        )
+    prefix = f"package run {run_id} gate {gate.gate_id} canary_target_assessment"
+    plan_id = require_canonical_text(assessment["plan_id"], f"{prefix}.plan_id")
+    if plan_id != plan.plan_id:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary target plan_id disagrees with protocol"
+        )
+    assignment_sha256 = require_sha256(
+        assessment["assignment_artifact_sha256"],
+        f"{prefix}.assignment_artifact_sha256",
+    )
+    if assignment_sha256 != plan.assignment_artifact_sha256:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary assignment artifact disagrees with protocol"
+        )
+    revealed = require_canonical_text(
+        assessment["revealed_target_id"], f"{prefix}.revealed_target_id"
+    )
+    candidates = set(plan.candidate_target_ids)
+    if revealed not in candidates:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary revealed target is not in the frozen candidate set"
+        )
+    comparators = require_unique_canonical_text_list(
+        assessment["comparator_target_ids"], f"{prefix}.comparator_target_ids"
+    )
+    if not comparators:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary assessment requires at least one comparator target"
+        )
+    unavailable = sorted(set(comparators) - candidates)
+    if unavailable:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary comparator targets are not in the frozen candidate set: "
+            + ", ".join(unavailable)
+        )
+    if revealed in comparators:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary comparator targets must not include the revealed target"
+        )
+    status = require_canonical_text(
+        assessment["assessment_status"], f"{prefix}.assessment_status"
+    )
+    if status not in {
+        "consistent_with_revealed_target",
+        "follows_comparator_or_decoy",
+        "follows_no_target",
+        "mixed",
+        "inconclusive",
+    }:
+        raise ValidationError(f"{prefix}.assessment_status is unsupported")
+    require_canonical_text(assessment["observed_pattern"], f"{prefix}.observed_pattern")
+    require_canonical_text(assessment["interpretation"], f"{prefix}.interpretation")
+    evidence_sha256 = require_sha256(
+        assessment["evidence_sha256"], f"{prefix}.evidence_sha256"
+    )
+    if not any(artifact.sha256 == evidence_sha256 for artifact in output_artifacts):
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary assessment evidence is not a declared output artifact"
+        )
+    if gate.details.get("evidence_sha256") != evidence_sha256:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} canary assessment evidence does not match gate evidence"
+        )
+    require_canonical_text(assessment["evidence_location"], f"{prefix}.evidence_location")
+
+
 def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any]:
     """Verify packaged bytes against an independently retained export commitment."""
     expected_manifest_sha256 = require_sha256(
@@ -598,6 +703,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         gate=gate,
                         output_artifacts=run.output_artifacts,
                     )
+                    _validate_canary_target_assessment_gate_metadata(
+                        protocol=protocol,
+                        run_id=run.run_id,
+                        gate=gate,
+                        output_artifacts=run.output_artifacts,
+                    )
                     prerequisites = gate.details.get("prerequisite_gate_ids", [])
                     if not isinstance(prerequisites, list) or any(
                         not isinstance(value, str) or not value.strip()
@@ -621,6 +732,19 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     ):
                         raise ValidationError(
                             f"package run {run.run_id} gate {gate.gate_id} has an unmet prerequisite"
+                        )
+                if protocol.canary_target_plan is not None:
+                    canary_gate = gate_by_id.get(
+                        protocol.canary_target_plan.assessment_gate_id
+                    )
+                    if (
+                        canary_gate is not None
+                        and canary_gate.status is not QualityGateStatus.SKIPPED
+                        and "canary_target_assessment" not in canary_gate.details
+                    ):
+                        raise ValidationError(
+                            f"package run {run.run_id} performed canary gate "
+                            f"{canary_gate.gate_id} requires structured canary_target_assessment metadata"
                         )
                 artifact_integrity = run.metadata.get("artifact_integrity")
                 artifact_failure = (
