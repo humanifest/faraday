@@ -115,6 +115,25 @@
         "assessment_gate_id": {"type": "string", "pattern": "\\S"}
       }
     },
+    "canaryTargetPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_id", "candidate_target_ids", "seed_commitment_sha256", "assignment_artifact_sha256", "masking_plan", "ethical_disclosure", "assessment_gate_id"],
+      "properties": {
+        "plan_id": {"type": "string", "pattern": "\\S"},
+        "candidate_target_ids": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "\\S"}
+        },
+        "seed_commitment_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "assignment_artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "masking_plan": {"type": "string", "pattern": "\\S"},
+        "ethical_disclosure": {"type": "string", "pattern": "\\S"},
+        "assessment_gate_id": {"type": "string", "pattern": "\\S"}
+      }
+    },
     "analysisContract": {
       "type": "object", "additionalProperties": false,
       "required": ["primary_hypothesis_id", "primary_measurement_id", "method", "outcome_column", "group_column", "groups", "estimand", "missing_data_policy", "assignment_type", "effect_estimate_path", "uncertainty_path", "null_value", "support_rule", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "missingness_assumption", "missingness_assessment_plan", "missingness_failure_response", "missingness_assessment_kind", "missingness_assessment_gate_id"],
@@ -271,6 +290,12 @@
     "measurement_validity_checks": {
       "type": "array",
       "items": {"$ref": "#/$defs/measurementValidityCheck"}
+    },
+    "canary_target_plan": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/canaryTargetPlan"}
+      ]
     },
     "control_definitions": {"type": "array", "items": {"$ref": "#/$defs/controlDefinition"}},
     "experiment_id": {"type": "string", "minLength": 1},

@@ -433,6 +433,16 @@ intervention.
 Deterministic rigor and synthesis reports then expose the frozen factor plan as
 prospective interpretability provenance, and flag legacy multi-factor protocols
 whose simultaneous interventions still lack a separable design and plan.
+Protocols may also freeze a generic `canary_target_plan` for adversarial masked
+target checks. The plan binds canonical candidate target IDs, a seed commitment,
+the hash of the hidden assignment artifact, masking and ethical-disclosure
+plans, and a dedicated assessment gate. Run templates expose the required
+`canary_target_assessment` result shape. A performed assessment records the
+revealed target, comparators or decoys, observed pattern, bounded
+interpretation, status, and artifact location. Statuses such as
+`follows_comparator_or_decoy`, `follows_no_target`, `mixed`, or `inconclusive`
+remain visible scientific outcomes rather than execution summaries being
+rewritten into support for adaptation, mechanism, attribution, or intent.
 
 The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,

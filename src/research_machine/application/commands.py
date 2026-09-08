@@ -8,6 +8,7 @@ from research_machine.domain.models import (
     AnalysisMode,
     AnalysisContract,
     AnalysisStepContract,
+    CanaryTargetPlan,
     ConclusionContract,
     CalibrationCriterion,
     ClaimDisposition,
@@ -209,6 +210,7 @@ class CreateProtocol:
     manipulated_factors: list[str] = field(default_factory=list)
     factorial_or_crossover_design: bool = False
     factor_interpretability_plan: str = ""
+    canary_target_plan: CanaryTargetPlan | None = None
     randomization_plan: str = ""
     blinding_plan: str = ""
     sampling_unit: str = ""

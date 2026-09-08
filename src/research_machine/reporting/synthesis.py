@@ -471,6 +471,46 @@ def build_synthesis(
                     f"`{assessment.get('specification_sha256', 'unavailable')}`. "
                     "This classifies event order under timing uncertainty; it does not prove causality."
                 )
+    canary_protocols = [
+        protocol for protocol in protocols if protocol.canary_target_plan is not None
+    ]
+    if canary_protocols:
+        lines.extend(["", "### Canary target provenance", ""])
+        for protocol in sorted(canary_protocols, key=lambda item: item.protocol_id):
+            plan = protocol.canary_target_plan
+            if plan is None:
+                continue
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}` plan `{plan.plan_id}`: "
+                f"{len(plan.candidate_target_ids)} candidate targets; assignment "
+                f"`{plan.assignment_artifact_sha256}`; seed commitment "
+                f"`{plan.seed_commitment_sha256}`; gate "
+                f"`{plan.assessment_gate_id}`. This is masked adversarial-design "
+                "provenance, not proof of adaptation, mechanism, attribution, or intent."
+            )
+            for run in sorted(
+                (item for item in runs if item.protocol_id == protocol.protocol_id),
+                key=lambda item: item.run_id,
+            ):
+                for gate in run.quality_gates:
+                    assessment = gate.details.get("canary_target_assessment")
+                    if not isinstance(assessment, dict):
+                        continue
+                    lines.append(
+                        f"  - Run `{run.run_id}`: gate `{gate.gate_id}` "
+                        f"{gate.status.value}; status "
+                        f"{assessment.get('assessment_status', 'unclassified')}; "
+                        f"revealed target `{assessment.get('revealed_target_id', 'unavailable')}`; "
+                        f"comparators {assessment.get('comparator_target_ids', [])}; "
+                        f"artifact `{assessment.get('evidence_sha256', 'unavailable')}` at "
+                        f"`{assessment.get('evidence_location', 'unavailable')}`."
+                    )
+                    lines.append(
+                        "    - Observed pattern: "
+                        f"{_text(str(assessment.get('observed_pattern', '')))} "
+                        "Interpretation: "
+                        f"{_text(str(assessment.get('interpretation', '')))}"
+                    )
     if evidence_status_events:
         lines.extend(["", "### Evidence correction and retraction history", ""])
         for event in sorted(evidence_status_events, key=lambda item: (item.evidence_id, item.sequence)):

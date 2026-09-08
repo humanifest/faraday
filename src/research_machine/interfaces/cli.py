@@ -55,6 +55,7 @@ from research_machine.domain.models import (
     AnalysisFamilyMember,
     AnalysisStepContract,
     CalibrationCriterion,
+    CanaryTargetPlan,
     ConclusionContract,
     ClaimDisposition,
     ClaimEpistemicLayer,
@@ -139,6 +140,7 @@ _PROTOCOL_FIELDS = {
     "manipulated_factors",
     "factorial_or_crossover_design",
     "factor_interpretability_plan",
+    "canary_target_plan",
     "randomization_plan",
     "blinding_plan",
     "sampling_unit",
@@ -1159,6 +1161,30 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
     validity_values = spec.get("measurement_validity_checks", [])
     control_values = spec.get("control_definitions", [])
     calibration_values = spec.get("calibration_acceptance_criteria", [])
+    canary_value = spec.get("canary_target_plan")
+    if canary_value is not None:
+        if not isinstance(canary_value, dict):
+            raise ValueError("canary_target_plan must be an object")
+        canary_fields = {
+            "plan_id",
+            "candidate_target_ids",
+            "seed_commitment_sha256",
+            "assignment_artifact_sha256",
+            "masking_plan",
+            "ethical_disclosure",
+            "assessment_gate_id",
+        }
+        unknown = sorted(set(canary_value) - canary_fields)
+        if unknown:
+            raise ValueError(
+                "unknown canary target plan fields: " + ", ".join(unknown)
+            )
+        try:
+            canary_plan = CanaryTargetPlan(**canary_value)
+        except TypeError as exc:
+            raise ValueError(f"invalid canary target plan: {exc}") from exc
+    else:
+        canary_plan = None
     if not isinstance(calibration_values, list) or any(not isinstance(item, dict) for item in calibration_values):
         raise ValueError("calibration_acceptance_criteria must be an array of objects")
     try:
@@ -1329,6 +1355,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             factor_interpretability_plan=spec.get(
                 "factor_interpretability_plan", ""
             ),
+            canary_target_plan=canary_plan,
             randomization_plan=spec.get("randomization_plan", ""),
             blinding_plan=spec.get("blinding_plan", ""),
             sampling_unit=spec.get("sampling_unit", ""),

@@ -13,6 +13,7 @@ from research_machine.domain.models import (
     AnalysisFamilyMember,
     AnalysisStepContract,
     CalibrationCriterion,
+    CanaryTargetPlan,
     ConclusionContract,
     Claim,
     ClaimLevel,
@@ -1749,6 +1750,72 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         missing.append("success_conditions")
     if len(quality_requirement_set) != len(quality_requirement_ids):
         raise ValidationError("quality_requirements must not contain duplicates")
+    canary_plan = protocol.canary_target_plan
+    if canary_plan is not None:
+        if not isinstance(canary_plan, CanaryTargetPlan):
+            raise ValidationError(
+                "canary_target_plan must be a CanaryTargetPlan value"
+            )
+        require_canonical_text(canary_plan.plan_id, "canary_target_plan.plan_id")
+        candidate_targets = require_unique_canonical_text_list(
+            canary_plan.candidate_target_ids,
+            "canary_target_plan.candidate_target_ids",
+        )
+        if len(candidate_targets) < 2:
+            raise ValidationError(
+                "canary_target_plan requires at least two candidate targets"
+            )
+        require_sha256(
+            canary_plan.seed_commitment_sha256,
+            "canary_target_plan.seed_commitment_sha256",
+        )
+        require_sha256(
+            canary_plan.assignment_artifact_sha256,
+            "canary_target_plan.assignment_artifact_sha256",
+        )
+        require_canonical_text(
+            canary_plan.masking_plan, "canary_target_plan.masking_plan"
+        )
+        require_canonical_text(
+            canary_plan.ethical_disclosure,
+            "canary_target_plan.ethical_disclosure",
+        )
+        assessment_gate_id = require_canonical_text(
+            canary_plan.assessment_gate_id,
+            "canary_target_plan.assessment_gate_id",
+        )
+        if assessment_gate_id not in quality_requirement_set:
+            raise ValidationError(
+                "canary_target_plan assessment_gate_id must be a required protocol quality gate"
+            )
+        occupied_gate_ids = {
+            require_text(item.evaluation_gate_id, "control evaluation_gate_id")
+            for item in protocol.control_definitions
+        }
+        if protocol.analysis_contract is not None:
+            occupied_gate_ids.add(
+                require_text(
+                    protocol.analysis_contract.missingness_assessment_gate_id,
+                    "analysis_contract.missingness_assessment_gate_id",
+                )
+            )
+        if protocol.causal_identification:
+            occupied_gate_ids.update(
+                require_text(
+                    item["assessment_gate_id"],
+                    "causal assumption assessment_gate_id",
+                )
+                for item in protocol.causal_identification.get("assumptions", [])
+            )
+        occupied_gate_ids.update(
+            require_text(item.assessment_gate_id, "measurement validity assessment_gate_id")
+            for item in protocol.measurement_validity_checks
+        )
+        occupied_gate_ids.discard("")
+        if assessment_gate_id in occupied_gate_ids:
+            raise ValidationError(
+                "canary_target_plan assessment gate must be dedicated and cannot be reused for controls, causal assumptions, missingness, or validity checks"
+            )
     if protocol.measurement_definitions:
         validate_measurement_contract(protocol)
     if protocol.measurement_validity_checks:
@@ -1767,6 +1834,13 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 require_text(
                     protocol.analysis_contract.missingness_assessment_gate_id,
                     "analysis_contract.missingness_assessment_gate_id",
+                )
+            )
+        if protocol.canary_target_plan is not None:
+            occupied_gate_ids.add(
+                require_text(
+                    protocol.canary_target_plan.assessment_gate_id,
+                    "canary_target_plan.assessment_gate_id",
                 )
             )
         if protocol.causal_identification:
@@ -1812,7 +1886,7 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 )
             if assessment_gate_id in occupied_gate_ids:
                 raise ValidationError(
-                    "measurement validity assessment gate must be dedicated and cannot be reused for controls, causal assumptions, or missingness"
+                    "measurement validity assessment gate must be dedicated and cannot be reused for controls, causal assumptions, missingness, or canary target assessment"
                 )
             check_ids.add(check_id)
             gate_ids.add(assessment_gate_id)

@@ -31,6 +31,7 @@ from research_machine.domain.models import (
     ActionCandidate,
     AnalysisMode,
     AnalysisContract,
+    CanaryTargetPlan,
     ClaimLevel,
     ConclusionContract,
     DatasetArtifact,
@@ -370,7 +371,11 @@ def frozen_formal_protocol(
     hypothesis_id: str,
     *,
     preprocessing_pipeline: str = "",
+    canary_target_plan: CanaryTargetPlan | None = None,
 ):
+    quality_requirements = ["proof-check"]
+    if canary_target_plan is not None:
+        quality_requirements.append(canary_target_plan.assessment_gate_id)
     protocol = service.create_protocol(
         CreateProtocol(
             experiment_id="formal-check-01",
@@ -380,7 +385,7 @@ def frozen_formal_protocol(
             primary_outcome="Proof checker acceptance",
             protocol_kind=ProtocolKind.FORMAL,
             methodology="Construct a derivation and replay it in the proof checker.",
-            quality_requirements=["proof-check"],
+            quality_requirements=quality_requirements,
             controls=["Replay a deliberately invalid derivation."],
             expected_outputs=["Proof object", "Checker transcript"],
             success_conditions=["The independent checker accepts the proof object."],
@@ -391,6 +396,7 @@ def frozen_formal_protocol(
             failure_conditions=["The checker rejects any proof step."],
             safety_constraints=["No physical or human intervention is involved."],
             preprocessing_pipeline=preprocessing_pipeline,
+            canary_target_plan=canary_target_plan,
             analysis_code_hash=CODE_HASH,
             random_seed_commitment=SEED_COMMITMENT,
         )
@@ -1814,6 +1820,125 @@ def test_run_record_template_exposes_hash_bound_preprocessing_contract(
     assert "observed preprocessing pipeline" in conformance[
         "observed_pipeline_sha256"
     ]
+
+
+def test_canary_target_plan_shapes_template_run_intake_and_synthesis(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    plan = CanaryTargetPlan(
+        plan_id="masked-canary-plan",
+        candidate_target_ids=["actual-state", "delayed-replay", "silent-marker"],
+        seed_commitment_sha256="1" * 64,
+        assignment_artifact_sha256="2" * 64,
+        masking_plan="A custodian withholds the selected target until analysis lock.",
+        ethical_disclosure="Participants consent to masked target conditions.",
+        assessment_gate_id="canary-target-assessed",
+    )
+    protocol = frozen_formal_protocol(
+        service, hypothesis_id, canary_target_plan=plan
+    )
+
+    template = service.run_record_template(protocol.protocol_id, "formal")
+
+    assert template["canary_target_plan"] == plan.to_dict()
+    canary_template = template["record"]["quality_gates"][1]["details"][
+        "canary_target_assessment"
+    ]
+    assert canary_template["plan_id"] == "masked-canary-plan"
+    assert canary_template["assignment_artifact_sha256"] == "2" * 64
+
+    run = service.record_run(
+        run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            output_artifacts=[
+                DatasetArtifact(
+                    "proof-output.json", "c" * 64, media_type="application/json"
+                ),
+                DatasetArtifact(
+                    "canary-output.json", "d" * 64, media_type="application/json"
+                ),
+            ],
+            quality_gates=[
+                QualityGateResult(
+                    gate_id="proof-check",
+                    status=QualityGateStatus.PASSED,
+                    summary="Independent proof-checker result.",
+                    details={"evidence_sha256": "c" * 64},
+                ),
+                QualityGateResult(
+                    gate_id="canary-target-assessed",
+                    status=QualityGateStatus.PASSED,
+                    summary="Canary target comparison was performed.",
+                    details={
+                        "evidence_sha256": "d" * 64,
+                        "canary_target_assessment": {
+                            "plan_id": "masked-canary-plan",
+                            "assignment_artifact_sha256": "2" * 64,
+                            "revealed_target_id": "actual-state",
+                            "comparator_target_ids": ["delayed-replay"],
+                            "assessment_status": "follows_comparator_or_decoy",
+                            "observed_pattern": "Events followed the delayed replay stream.",
+                            "interpretation": "This weakens target-specific adaptation under this protocol.",
+                            "evidence_sha256": "d" * 64,
+                            "evidence_location": "/canary/comparison",
+                        },
+                    },
+                ),
+            ],
+        ),
+        "formal",
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    synthesis = service.build_synthesis("formal")["content"]
+    assert "Canary target provenance" in synthesis
+    assert "follows_comparator_or_decoy" in synthesis
+    assert "not proof of adaptation, mechanism, attribution, or intent" in synthesis
+    assert any(
+        finding.code == "RUN_CANARY_TARGET_FOLLOWED_COMPARATOR"
+        for finding in service.audit_rigor("formal").findings
+    )
+
+
+def test_performed_canary_gate_requires_structured_result(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    plan = CanaryTargetPlan(
+        plan_id="masked-canary-plan",
+        candidate_target_ids=["actual-state", "delayed-replay"],
+        seed_commitment_sha256="1" * 64,
+        assignment_artifact_sha256="2" * 64,
+        masking_plan="Hold the selected target until analysis lock.",
+        ethical_disclosure="Masked target conditions are disclosed in consent.",
+        assessment_gate_id="canary-target-assessed",
+    )
+    protocol = frozen_formal_protocol(
+        service, hypothesis_id, canary_target_plan=plan
+    )
+
+    with pytest.raises(ValidationError, match="structured canary_target_assessment"):
+        service.preflight_run(
+            run_command(
+                protocol.protocol_id,
+                QualityGateStatus.PASSED,
+                quality_gates=[
+                    QualityGateResult(
+                        gate_id="proof-check",
+                        status=QualityGateStatus.PASSED,
+                        summary="Independent proof-checker result.",
+                        details={"evidence_sha256": "c" * 64},
+                    ),
+                    QualityGateResult(
+                        gate_id="canary-target-assessed",
+                        status=QualityGateStatus.PASSED,
+                        summary="Canary result summarized without structure.",
+                        details={"evidence_sha256": "c" * 64},
+                    ),
+                ],
+            ),
+            "formal",
+        )
 
 
 def test_next_action_selection_excludes_unsafe_options_and_is_auditable(

@@ -535,6 +535,18 @@ def audit_research_state(
                     "Keep factor-specific interpretation scoped to the frozen protocol and observed controls."
                 ),
             )
+        if protocol.canary_target_plan is not None:
+            add(
+                "PROTOCOL_CANARY_TARGET_PLAN_DECLARED",
+                RigorSeverity.INFO,
+                "Frozen protocol declares a masked canary-target plan with a hash-bound assignment artifact.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "Treat the canary plan as prospective adversarial-design provenance; "
+                    "it does not establish adaptation, mechanism, attribution, or intent."
+                ),
+            )
         if (
             protocol.analysis_mode
             in {AnalysisMode.CONFIRMATORY, AnalysisMode.REPLICATION}
@@ -698,25 +710,61 @@ def audit_research_state(
                         entity_id=run.run_id,
                     )
             temporal_order = gate.details.get("temporal_order_assessment")
-            if not isinstance(temporal_order, dict):
+            if isinstance(temporal_order, dict):
+                record_status = temporal_order.get("status")
+                if record_status == "temporal_order_failed":
+                    add(
+                        "RUN_TEMPORAL_ORDER_ASSESSMENT_FAILED",
+                        RigorSeverity.ERROR,
+                        "Run retains a failed temporal-order assessment; causal direction or event-order interpretation must stay bounded.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Inspect the temporal-order artifact, preserve the failed gate outcome, and do not infer causal direction from the affected run."
+                        ),
+                    )
+                elif record_status == "temporal_order_passed":
+                    add(
+                        "RUN_TEMPORAL_ORDER_ASSESSMENT_REPLAYED",
+                        RigorSeverity.INFO,
+                        "Run exposes an artifact-bound temporal-order assessment; the pass classifies order under timing uncertainty and does not prove causality.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                    )
+            canary = gate.details.get("canary_target_assessment")
+            if not isinstance(canary, dict):
                 continue
-            record_status = temporal_order.get("status")
-            if record_status == "temporal_order_failed":
+            canary_status = canary.get("assessment_status")
+            if canary_status == "follows_comparator_or_decoy":
                 add(
-                    "RUN_TEMPORAL_ORDER_ASSESSMENT_FAILED",
-                    RigorSeverity.ERROR,
-                    "Run retains a failed temporal-order assessment; causal direction or event-order interpretation must stay bounded.",
+                    "RUN_CANARY_TARGET_FOLLOWED_COMPARATOR",
+                    RigorSeverity.WARNING,
+                    "Run canary assessment reported a pattern following a comparator or decoy rather than the revealed target.",
                     entity_type="run",
                     entity_id=run.run_id,
                     remediation=(
-                        "Inspect the temporal-order artifact, preserve the failed gate outcome, and do not infer causal direction from the affected run."
+                        "Preserve the comparator-following result as disconfirming or ambiguity evidence; do not relabel it as support for adaptation."
                     ),
                 )
-            elif record_status == "temporal_order_passed":
+            elif canary_status in {"mixed", "inconclusive"}:
                 add(
-                    "RUN_TEMPORAL_ORDER_ASSESSMENT_REPLAYED",
+                    "RUN_CANARY_TARGET_ASSESSMENT_AMBIGUOUS",
+                    RigorSeverity.WARNING,
+                    "Run canary assessment reported mixed or inconclusive target-following.",
+                    entity_type="run",
+                    entity_id=run.run_id,
+                    remediation=(
+                        "Disclose the ambiguous canary result and avoid source, mechanism, or intent claims."
+                    ),
+                )
+            elif canary_status in {
+                "consistent_with_revealed_target",
+                "follows_no_target",
+            }:
+                add(
+                    "RUN_CANARY_TARGET_ASSESSMENT_RETAINED",
                     RigorSeverity.INFO,
-                    "Run exposes an artifact-bound temporal-order assessment; the pass classifies order under timing uncertainty and does not prove causality.",
+                    "Run exposes an artifact-bound canary target assessment; the result remains bounded design evidence, not proof of adaptation or intent.",
                     entity_type="run",
                     entity_id=run.run_id,
                 )

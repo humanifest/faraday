@@ -1377,6 +1377,19 @@ misses stay visible without being rewritten into favorable summaries. Rigor,
 deterministic synthesis, and replication-package verification now carry those
 gates with their exact artifact locator, record hash, timing-assessment hash,
 specification hash, and bounded status.
+Canary-target delivery: canonical protocols may now freeze a generic masked
+canary target plan. The plan binds canonical candidate target IDs, a separately
+committed random seed, the SHA-256 of the hidden assignment artifact, masking
+and ethical-disclosure plans, and a dedicated quality gate. Protocol freeze
+requires that gate and rejects reuse with controls, causal assumptions,
+missingness, or measurement-validity checks. Run templates expose the exact
+assessment shape; performed run gates must retain the revealed target,
+comparator or decoy targets, observed pattern, interpretation, bounded status,
+and artifact location. Comparator-following, no-target, mixed, and inconclusive
+outcomes remain visible in rigor and deterministic synthesis instead of being
+rephrased as support. This is an adversarial design commitment for future
+domain add-ons; it does not prove adaptation, mechanism, attribution, intent, or
+ethical adequacy.
 Preprocessing-conformance delivery: `measurement assess-preprocessing` now binds
 separately trusted registered and observed pipeline declarations, then compares
 stable pipeline IDs, ordered step IDs, operations, JSON-compatible parameters,

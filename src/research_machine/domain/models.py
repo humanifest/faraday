@@ -438,6 +438,17 @@ class ControlDefinition(Serializable):
 
 
 @dataclass(frozen=True)
+class CanaryTargetPlan(Serializable):
+    plan_id: str
+    candidate_target_ids: list[str]
+    seed_commitment_sha256: str
+    assignment_artifact_sha256: str
+    masking_plan: str
+    ethical_disclosure: str
+    assessment_gate_id: str
+
+
+@dataclass(frozen=True)
 class CalibrationCriterion(Serializable):
     criterion_id: str
     calibration_id: str
@@ -590,6 +601,7 @@ class ExperimentProtocol(Serializable):
     manipulated_factors: list[str] = field(default_factory=list)
     factorial_or_crossover_design: bool = False
     factor_interpretability_plan: str = ""
+    canary_target_plan: CanaryTargetPlan | None = None
     randomization_plan: str = ""
     blinding_plan: str = ""
     sampling_unit: str = ""
@@ -665,6 +677,12 @@ class ExperimentProtocol(Serializable):
             item if isinstance(item, MeasurementValidityCheck) else MeasurementValidityCheck(**item)
             for item in copied.get("measurement_validity_checks", [])
         ]
+        if copied.get("canary_target_plan") is not None and not isinstance(
+            copied["canary_target_plan"], CanaryTargetPlan
+        ):
+            copied["canary_target_plan"] = CanaryTargetPlan(
+                **copied["canary_target_plan"]
+            )
         if copied.get("analysis_contract") is not None and not isinstance(copied["analysis_contract"], AnalysisContract):
             copied["analysis_contract"] = AnalysisContract(
                 **{"primary_hypothesis_id": "", "primary_measurement_id": "", "assignment_type": "", "effect_estimate_path": "", "uncertainty_path": "", "null_value": 0.0, "support_rule": "", "confidence_level": None, "minimum_analyzable_units": None, "maximum_excluded_fraction": None, "maximum_group_excluded_fraction_difference": None, "allocation_sha256": "", "missingness_assumption": "", "missingness_assessment_plan": "", "missingness_failure_response": "", "missingness_assessment_kind": "", "missingness_assessment_gate_id": "", **copied["analysis_contract"]}

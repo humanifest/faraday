@@ -11,7 +11,7 @@ from research_machine.application.service import _protocol_commitment
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     AnalysisContract, AnalysisFamilyMember, AnalysisStepContract, ConclusionContract,
-    CalibrationCriterion, ExperimentProtocol, MeasurementDefinition, MeasurementRole,
+    CalibrationCriterion, CanaryTargetPlan, ExperimentProtocol, MeasurementDefinition, MeasurementRole,
     MeasurementValidityCheck, EvidenceDirection, ClaimLevel,
 )
 from test_execution import prepared_service, frozen_formal_protocol
@@ -211,6 +211,57 @@ def test_protocol_freeze_requires_multi_factor_interpretability_plan() -> None:
     restored = ExperimentProtocol.from_dict(interpretable.to_dict())
     assert restored.manipulated_factors == ["person", "room"]
     assert _protocol_commitment(interpretable) != _protocol_commitment(protocol)
+
+
+def test_protocol_freeze_binds_canary_target_plan_to_dedicated_gate() -> None:
+    protocol = _multi_step_protocol()
+    plan = CanaryTargetPlan(
+        plan_id="masked-target-plan",
+        candidate_target_ids=[
+            "actual-state",
+            "delayed-replay",
+            "silent-marker",
+        ],
+        seed_commitment_sha256="1" * 64,
+        assignment_artifact_sha256="2" * 64,
+        masking_plan="A custodian withholds the target until analysis lock.",
+        ethical_disclosure="Participants consent to masked target conditions.",
+        assessment_gate_id="canary-target-assessed",
+    )
+    bound = replace(
+        protocol,
+        quality_requirements=[
+            *protocol.quality_requirements,
+            "canary-target-assessed",
+        ],
+        canary_target_plan=plan,
+    )
+
+    validate_protocol_freeze(bound)
+    restored = ExperimentProtocol.from_dict(bound.to_dict())
+    assert restored.canary_target_plan == plan
+    assert _protocol_commitment(bound) != _protocol_commitment(protocol)
+
+    with pytest.raises(ValidationError, match="at least two candidate targets"):
+        validate_protocol_freeze(replace(
+            bound,
+            canary_target_plan=replace(plan, candidate_target_ids=["actual-state"]),
+        ))
+    with pytest.raises(ValidationError, match="must be a required protocol quality gate"):
+        validate_protocol_freeze(replace(
+            bound,
+            canary_target_plan=replace(plan, assessment_gate_id="not-required"),
+        ))
+    with pytest.raises(ValidationError, match="must be dedicated"):
+        validate_protocol_freeze(replace(
+            bound,
+            canary_target_plan=replace(plan, assessment_gate_id="missingness-assessed"),
+        ))
+    with pytest.raises(ValidationError, match="assignment_artifact_sha256"):
+        validate_protocol_freeze(replace(
+            bound,
+            canary_target_plan=replace(plan, assignment_artifact_sha256="2" * 63),
+        ))
 
 
 @pytest.mark.parametrize(

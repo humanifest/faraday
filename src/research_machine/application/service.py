@@ -36,6 +36,7 @@ from research_machine.application.policies import (
     require_canonical_text,
     require_text,
     require_text_list,
+    require_unique_canonical_text_list,
     require_unique_text_list,
     require_sha256,
     validate_action_candidates,
@@ -257,6 +258,127 @@ def _verify_json_artifact_location(
         field_name,
     )
     return True
+
+
+def _validate_canary_target_assessment_gate(
+    *,
+    protocol: ExperimentProtocol,
+    gate: QualityGateResult,
+    outputs: list[DatasetArtifact],
+    artifact_root: str | None,
+    verified_gate_result: Any,
+    verified_gate_output_sha256: str | None,
+) -> None:
+    assessment = gate.details.get("canary_target_assessment")
+    if assessment is None:
+        return
+    plan = protocol.canary_target_plan
+    if plan is None:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} has canary_target_assessment but the protocol has no canary_target_plan"
+        )
+    if gate.gate_id != plan.assessment_gate_id:
+        raise ValidationError(
+            "canary_target_assessment must be recorded on the frozen canary assessment gate"
+        )
+    if gate.status is QualityGateStatus.SKIPPED:
+        raise ValidationError("skipped canary assessment gate cannot report results")
+    required_fields = {
+        "plan_id",
+        "assignment_artifact_sha256",
+        "revealed_target_id",
+        "comparator_target_ids",
+        "assessment_status",
+        "observed_pattern",
+        "interpretation",
+        "evidence_sha256",
+        "evidence_location",
+    }
+    if not isinstance(assessment, dict) or set(assessment) != required_fields:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} canary_target_assessment must contain exactly: "
+            + ", ".join(sorted(required_fields))
+        )
+    prefix = f"quality gate {gate.gate_id} canary_target_assessment"
+    if require_canonical_text(assessment["plan_id"], f"{prefix}.plan_id") != plan.plan_id:
+        raise ValidationError("canary assessment plan_id does not match the frozen plan")
+    if (
+        require_sha256(
+            assessment["assignment_artifact_sha256"],
+            f"{prefix}.assignment_artifact_sha256",
+        )
+        != plan.assignment_artifact_sha256
+    ):
+        raise ValidationError(
+            "canary assessment assignment_artifact_sha256 does not match the frozen plan"
+        )
+    candidates = set(plan.candidate_target_ids)
+    revealed_target_id = require_canonical_text(
+        assessment["revealed_target_id"], f"{prefix}.revealed_target_id"
+    )
+    if revealed_target_id not in candidates:
+        raise ValidationError(
+            "canary assessment revealed_target_id is not in the frozen candidate set"
+        )
+    comparators = require_unique_canonical_text_list(
+        assessment["comparator_target_ids"],
+        f"{prefix}.comparator_target_ids",
+    )
+    if not comparators:
+        raise ValidationError("canary assessment requires comparator_target_ids")
+    if revealed_target_id in comparators:
+        raise ValidationError(
+            "canary assessment comparator_target_ids cannot include the revealed target"
+        )
+    unknown = sorted(set(comparators) - candidates)
+    if unknown:
+        raise ValidationError(
+            "canary assessment comparator_target_ids are not in the frozen candidate set: "
+            + ", ".join(unknown)
+        )
+    assessment_status = require_canonical_text(
+        assessment["assessment_status"], f"{prefix}.assessment_status"
+    )
+    if assessment_status not in {
+        "consistent_with_revealed_target",
+        "follows_comparator_or_decoy",
+        "follows_no_target",
+        "mixed",
+        "inconclusive",
+    }:
+        raise ValidationError("canary assessment_status is unsupported")
+    require_canonical_text(assessment["observed_pattern"], f"{prefix}.observed_pattern")
+    require_canonical_text(assessment["interpretation"], f"{prefix}.interpretation")
+    evidence_sha256 = require_sha256(
+        assessment["evidence_sha256"], f"{prefix}.evidence_sha256"
+    )
+    if evidence_sha256 not in {artifact.sha256 for artifact in outputs}:
+        raise ValidationError(
+            "canary assessment evidence must reference a run output artifact"
+        )
+    location = require_canonical_text(
+        assessment["evidence_location"], f"{prefix}.evidence_location"
+    )
+    location_verified = _verify_json_artifact_location(
+        outputs,
+        artifact_root,
+        evidence_sha256,
+        location,
+        f"{prefix}.evidence_location",
+    )
+    if (
+        not location_verified
+        and verified_gate_result is not None
+        and evidence_sha256 == verified_gate_output_sha256
+    ):
+        if not location.startswith("/"):
+            raise ValidationError(
+                "canary assessment evidence in the verified analysis output "
+                "requires an absolute JSON Pointer evidence_location"
+            )
+        _resolve_json_pointer(
+            verified_gate_result, location, f"{prefix}.evidence_location"
+        )
 
 
 def _validate_preprocessing_conformance_gate(
@@ -3013,6 +3135,24 @@ class ResearchService:
                 artifact_root=artifact_root,
                 artifact_integrity=artifact_integrity,
             )
+            _validate_canary_target_assessment_gate(
+                protocol=protocol,
+                gate=gate,
+                outputs=outputs,
+                artifact_root=artifact_root,
+                verified_gate_result=verified_gate_result,
+                verified_gate_output_sha256=verified_gate_output_sha256,
+            )
+        if protocol.canary_target_plan is not None:
+            canary_gate = gates_by_id.get(protocol.canary_target_plan.assessment_gate_id)
+            if (
+                canary_gate is not None
+                and canary_gate.status is not QualityGateStatus.SKIPPED
+                and "canary_target_assessment" not in canary_gate.details
+            ):
+                raise ValidationError(
+                    "performed canary assessment gate requires a structured canary_target_assessment result"
+                )
         controls_by_gate: dict[str, list[Any]] = {}
         for control in protocol.control_definitions:
             controls_by_gate.setdefault(control.evaluation_gate_id, []).append(control)
@@ -3723,10 +3863,14 @@ class ResearchService:
             if is_canonical_sha256(protocol.preprocessing_pipeline)
             else None
         )
+        canary_plan = protocol.canary_target_plan
         return {
             "schema_version": 1,
             "template_kind": "research-machine-run-record-v1",
             "control_plan": [control.to_dict() for control in protocol.control_definitions],
+            "canary_target_plan": (
+                canary_plan.to_dict() if canary_plan is not None else None
+            ),
             "preprocessing_pipeline_commitment_sha256": preprocessing_pipeline_sha256,
             "template_only": True,
             "would_append_event": False,
@@ -3782,6 +3926,22 @@ class ResearchService:
                                 "timing_assessment_sha256": "<hash of the trusted stream-timing assessment>",
                                 "specification_sha256": "<hash of the registered temporal-order specification>",
                             }} if gate_id in temporal_order_gate_ids else {}),
+                            **({"canary_target_assessment": {
+                                "plan_id": canary_plan.plan_id,
+                                "assignment_artifact_sha256": canary_plan.assignment_artifact_sha256,
+                                "revealed_target_id": "<target revealed from the frozen assignment artifact>",
+                                "comparator_target_ids": [
+                                    "<frozen candidate target used as a decoy or comparator>"
+                                ],
+                                "assessment_status": "<consistent_with_revealed_target, follows_comparator_or_decoy, follows_no_target, mixed, or inconclusive>",
+                                "observed_pattern": "<observed target-following pattern>",
+                                "interpretation": "<bounded interpretation; do not infer mechanism or intent>",
+                                "evidence_sha256": "<hash of a listed run output artifact>",
+                                "evidence_location": "<exact table, figure, section, record range, or JSON Pointer within that artifact>",
+                            }} if (
+                                canary_plan is not None
+                                and gate_id == canary_plan.assessment_gate_id
+                            ) else {}),
                             **({"control_results": {
                             control.control_id: {
                                 "observed_behavior": "",
@@ -3850,6 +4010,7 @@ class ResearchService:
                 "For causal temporal-order gates, cite an instrument_inspection record whose source, config, implementation, and retained record hashes replay from current bytes; the inspection remains low-authority acquisition metadata and does not authenticate calibration or custody truth.",
                 "For causal temporal-order gates, cite a stream_timing_assessment record whose inspection and specification hashes replay from current bytes; the assessment verifies timing feasibility without authenticating acquisition or calibration truth.",
                 "For causal temporal-order gates, cite a temporal_order_assessment record whose timing and specification hashes replay from current bytes; the assessment classifies order without proving causality.",
+                "For canary target assessments, reveal the target only from the frozen assignment artifact and report whether the pattern followed the revealed target, a comparator or decoy, no target, mixed targets, or remained inconclusive; this is not proof of adaptation, mechanism, or intent.",
                 "Explicitly disclose every departure from the frozen protocol. A declared departure remains recordable but blocks automatic scientific-evidence eligibility.",
                 "Run `research run preflight --record-file ...` before `research run record`.",
             ],
@@ -5044,6 +5205,7 @@ class ResearchService:
                 command.factor_interpretability_plan,
                 "factor_interpretability_plan",
             ),
+            canary_target_plan=command.canary_target_plan,
             randomization_plan=normalize_text(
                 command.randomization_plan, "randomization_plan"
             ),
