@@ -711,6 +711,11 @@ class ResearchService:
                 if item["workflow_state"] == HypothesisWorkflowState.ACTIVE.value
             ],
             *[
+                {"ref": f"hypothesis:{item['hypothesis_id']}", "kind": "pending_hypothesis"}
+                for item in state["hypotheses"]
+                if item["workflow_state"] == HypothesisWorkflowState.PENDING_REVIEW.value
+            ],
+            *[
                 {"ref": f"evidence:{item['evidence_id']}", "kind": "evidence"}
                 for item in state["evidence"]
             ],
@@ -740,6 +745,12 @@ class ResearchService:
                 hypothesis
                 for hypothesis in state["hypotheses"]
                 if hypothesis["workflow_state"] == HypothesisWorkflowState.ACTIVE.value
+            ],
+            "pending_hypotheses": [
+                hypothesis
+                for hypothesis in state["hypotheses"]
+                if hypothesis["workflow_state"]
+                == HypothesisWorkflowState.PENDING_REVIEW.value
             ],
             "ethics_review_events": state["ethics_review_events"],
             "context_reference_index": context_reference_index,

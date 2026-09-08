@@ -713,7 +713,9 @@ strictly parses it, binds it to the exact frozen context, and stores it
 write-once as `pending_human_review`. The frozen context also carries a compact
 reference index such as `question:<id>`, `claim:<id>`, `hypothesis:<id>`,
 `evidence:<id>`, `protocol:<id>`, `run:<id>`, and
-`ethics_review_event:<id>`; proposal
+`ethics_review_event:<id>`. Active and `pending_review` hypotheses are exposed
+in separate context lanes, and pending hypotheses retain their unapproved
+workflow state when cited for review; proposal
 `evidence_refs` must cite only those typed, prefix-checked handles, so an
 optional collaborator cannot smuggle uncited external claims across the provider
 boundary. Context and proposal purpose bindings, context handles, proposal IDs,

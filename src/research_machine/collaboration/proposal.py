@@ -98,6 +98,7 @@ _CONTEXT_REFERENCE_PREFIXES = {
     "open_question": "question:",
     "claim": "claim:",
     "active_hypothesis": "hypothesis:",
+    "pending_hypothesis": "hypothesis:",
     "evidence": "evidence:",
     "dataset": "dataset:",
     "protocol": "protocol:",

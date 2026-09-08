@@ -11,7 +11,12 @@ from research_machine.collaboration.proposal import (
     validate_collaborator_proposal,
 )
 from research_machine.adapters.filesystem import FileSystemRepository
-from research_machine.application.commands import AddClaim, AddQuestion, CreateInquiry
+from research_machine.application.commands import (
+    AddClaim,
+    AddQuestion,
+    CreateInquiry,
+    ProposeHypothesis,
+)
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import ClaimLevel
@@ -54,6 +59,58 @@ def test_collaborator_context_purpose_must_be_canonical(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError, match="purpose must be canonical"):
         service.collaborator_context(purpose=" design review ")
+
+
+def test_collaborator_context_exposes_pending_review_hypotheses(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Question", "Statement", "question"))
+    hypothesis = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement="A pending proposal needs review before confirmation.",
+            observable_prediction="A reviewer can inspect a bounded prediction.",
+            null_model="The bounded prediction does not hold.",
+            falsification_conditions=["The registered observation is absent."],
+        )
+    )
+    staged = service.stage_hypothesis(
+        hypothesis.hypothesis_id,
+        rationale="The proposal is complete but still needs human review.",
+        confidence="high",
+    )
+
+    context = service.collaborator_context(purpose="Stress-test the design.")
+
+    assert context["active_hypotheses"] == []
+    assert context["pending_hypotheses"][0]["hypothesis_id"] == staged.hypothesis_id
+    assert context["pending_hypotheses"][0]["workflow_state"] == "pending_review"
+    assert {
+        "ref": f"hypothesis:{staged.hypothesis_id}",
+        "kind": "pending_hypothesis",
+    } in context["context_reference_index"]
+    context_result = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(
+            _proposal(
+                context_result["context_sha256"],
+                evidence_refs=[f"hypothesis:{staged.hypothesis_id}"],
+            )
+        ),
+        encoding="utf-8",
+    )
+    result = validate_collaborator_proposal(
+        Path(context_result["context_file"]),
+        context_result["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    record = json.loads(Path(result["record_file"]).read_text(encoding="utf-8"))
+    assert record["proposal"]["suggestions"][0]["evidence_refs"] == [
+        f"hypothesis:{staged.hypothesis_id}"
+    ]
 
 
 def test_context_snapshot_purpose_must_be_canonical(tmp_path: Path) -> None:
