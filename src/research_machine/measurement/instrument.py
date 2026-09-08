@@ -32,7 +32,8 @@ _STREAM_FIELDS = {
     "calibration_record",
     "quality_flags",
 }
-_CLOCK_DRIFT_FIELDS = {"estimate", "unit", "basis"}
+_CLOCK_DRIFT_FIELDS = {"estimate", "uncertainty", "unit", "basis"}
+_CLOCK_DRIFT_UNITS = {"s", "ms", "us", "ns", "ppm"}
 _MISSING_INTERVAL_FIELDS = {"start_time", "end_time", "reason"}
 
 
@@ -78,6 +79,13 @@ def _finite_number(value: Any, field: str) -> float | int:
     ):
         raise ValidationError(f"instrument inspection {field} must be a finite number")
     return value
+
+
+def _nonnegative_number(value: Any, field: str) -> float | int:
+    number = _finite_number(value, field)
+    if number < 0:
+        raise ValidationError(f"instrument inspection {field} must be non-negative")
+    return number
 
 
 def _string_list(value: Any, field: str) -> list[str]:
@@ -180,6 +188,9 @@ def _stream_metadata(
             "start_time": start_time,
             "clock_drift": {
                 "estimate": _finite_number(drift["estimate"], f"{label}.clock_drift.estimate"),
+                "uncertainty": _nonnegative_number(
+                    drift["uncertainty"], f"{label}.clock_drift.uncertainty"
+                ),
                 "unit": _text(drift["unit"], f"{label}.clock_drift.unit"),
                 "basis": _text(drift["basis"], f"{label}.clock_drift.basis"),
             },
@@ -189,6 +200,10 @@ def _stream_metadata(
             "raw_file_sha256": raw_file_sha256,
             "conversion_code_sha256": conversion_code_sha256,
         })
+        if streams[-1]["clock_drift"]["unit"] not in _CLOCK_DRIFT_UNITS:
+            raise ValidationError(
+                f"instrument inspection {label}.clock_drift.unit is unsupported"
+            )
     return streams
 
 

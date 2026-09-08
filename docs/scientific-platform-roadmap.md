@@ -1272,11 +1272,11 @@ metadata result, including nested native-metadata keys and string values, and
 core-hashes a write-once acquisition proposal. Inspectors may now propose typed
 stream metadata for synchronized sources: stable stream ID, source device,
 channel, positive sample rate, clock source, offset-aware start time, finite
-clock drift with unit and basis, ordered non-overlapping missing intervals that
-cannot predate the stream start, calibration-record reference, and unique
-quality flags. Stream IDs must be stable lowercase handles. Faraday binds each
-stream to the core-computed raw-file and adapter-code hashes rather than trusting
-an adapter-supplied digest.
+clock drift estimate with finite uncertainty, supported unit, and basis, ordered
+non-overlapping missing intervals that cannot predate the stream start,
+calibration-record reference, and unique quality flags. Stream IDs must be
+stable lowercase handles. Faraday binds each stream to the core-computed raw-file
+and adapter-code hashes rather than trusting an adapter-supplied digest.
 `measurement verify-source-inspection` requires
 an independently trusted record hash and exactly re-executes all three inputs.
 The trusted record hash must now be a canonical lowercase digest without

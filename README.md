@@ -1022,11 +1022,12 @@ shape, rejects padded top-level and nested native-metadata text, and writes a
 non-evidentiary acquisition-metadata proposal. An adapter may also propose typed
 stream metadata for synchronized sources: stable stream ID, source device,
 channel, positive sample rate, clock source, offset-aware start time, finite
-clock drift with unit and basis, ordered non-overlapping missing-interval
-records that cannot predate the stream start, calibration record reference, and
-unique quality flags. Stream IDs must be stable lowercase handles. Faraday
-appends the core-computed raw-file and adapter-code hashes to each stream, so a
-temporal review cannot rely on adapter-supplied hash claims.
+clock drift estimate with finite uncertainty, supported unit, and basis, ordered
+non-overlapping missing-interval records that cannot predate the stream start,
+calibration record reference, and unique quality flags. Stream IDs must be
+stable lowercase handles. Faraday appends the core-computed raw-file and
+adapter-code hashes to each stream, so a temporal review cannot rely on
+adapter-supplied hash claims.
 Adapters cannot pass calibration, clear gates, register a dataset, or authorize
 evidence; their proposed raw-source entry must still enter the custody workflow
 below. `measurement verify-source-inspection` takes an independently trusted

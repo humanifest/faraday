@@ -680,6 +680,7 @@ def inspect(source_bytes, config):
             "start_time": config["captured_at"],
             "clock_drift": {
                 "estimate": 0.2,
+                "uncertainty": 0.05,
                 "unit": "ms",
                 "basis": "manufacturer sidecar",
             },
@@ -748,6 +749,7 @@ MANIFEST = AddonManifest(
         "start_time": "2026-09-06T12:00:00Z",
         "clock_drift": {
             "estimate": 0.2,
+            "uncertainty": 0.05,
             "unit": "ms",
             "basis": "manufacturer sidecar",
         },
@@ -942,6 +944,18 @@ def test_instrument_adapter_output_text_must_be_canonical(
             "clock_drift.estimate",
         ),
         (
+            lambda stream: stream["clock_drift"].pop("uncertainty"),
+            "missing fields: uncertainty",
+        ),
+        (
+            lambda stream: stream["clock_drift"].update({"uncertainty": -0.1}),
+            "clock_drift.uncertainty must be non-negative",
+        ),
+        (
+            lambda stream: stream["clock_drift"].update({"unit": "samples"}),
+            "clock_drift.unit is unsupported",
+        ),
+        (
             lambda stream: stream["missing_intervals"][0].update(
                 {"end_time": "2026-09-06T12:00:01Z"}
             ),
@@ -990,6 +1004,7 @@ def test_instrument_stream_metadata_fails_closed(tmp_path: Path, mutation, messa
         "start_time": "2026-09-06T12:00:00Z",
         "clock_drift": {
             "estimate": 0.2,
+            "uncertainty": 0.05,
             "unit": "ms",
             "basis": "manufacturer sidecar",
         },
