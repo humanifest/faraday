@@ -32,6 +32,48 @@ _STREAM_FIELDS = {
     "calibration_record",
     "quality_flags",
 }
+_INSTRUMENT_INSPECTION_RECORD_FIELDS = {
+    "instrument_inspection_version",
+    "adapter",
+    "source",
+    "config",
+    "proposed_raw_source",
+    "instrument",
+    "temporal_metadata",
+    "streams",
+    "warnings",
+    "status",
+    "scientific_evidence_eligible",
+    "authorized_actions",
+    "conclusion_ceiling",
+}
+_INSTRUMENT_ADAPTER_FIELDS = {
+    "addon_id",
+    "addon_version",
+    "adapter_id",
+    "authority",
+    "implementation",
+}
+_INSTRUMENT_IMPLEMENTATION_FIELDS = {"locator", "sha256", "size_bytes"}
+_INSTRUMENT_SOURCE_FIELDS = {"locator", "sha256", "size_bytes", "media_type"}
+_INSTRUMENT_PROPOSED_RAW_SOURCE_FIELDS = {
+    "locator",
+    "sha256",
+    "captured_at",
+    "acquisition_method",
+}
+_INSTRUMENT_FIELDS = {
+    "identifier",
+    "model",
+    "firmware_version",
+    "captured_at_basis",
+    "native_metadata",
+}
+_INSTRUMENT_TEMPORAL_METADATA_FIELDS = {"status", "stream_count", "limitations"}
+_INSTRUMENT_STREAM_RECORD_FIELDS = _STREAM_FIELDS | {
+    "raw_file_sha256",
+    "conversion_code_sha256",
+}
 _CLOCK_DRIFT_FIELDS = {"estimate", "uncertainty", "unit", "basis"}
 _CLOCK_DRIFT_UNITS = {"s", "ms", "us", "ns", "ppm"}
 _MISSING_INTERVAL_FIELDS = {"start_time", "end_time", "reason"}
@@ -173,6 +215,18 @@ def _string_list(value: Any, field: str) -> list[str]:
     return list(value)
 
 
+def _canonical_text_list(value: Any, field: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ValidationError(f"instrument inspection {field} must be an array")
+    if any(not isinstance(item, str) or not item.strip() for item in value):
+        raise ValidationError(f"instrument inspection {field} must contain only non-empty strings")
+    if any(item != item.strip() for item in value):
+        raise ValidationError(
+            f"instrument inspection {field} must be canonical without surrounding whitespace"
+        )
+    return list(value)
+
+
 def _stable_identifier(value: Any, field: str) -> str:
     text = _text(value, field)
     if not _IDENTIFIER.fullmatch(text):
@@ -220,6 +274,20 @@ def _load_json_object_and_sha256(path: Path, label: str) -> tuple[dict[str, Any]
     if not isinstance(value, dict):
         raise ValidationError(f"{label} must be a JSON object")
     return value, content, hashlib.sha256(content).hexdigest()
+
+
+def _canonical_payload_sha256(value: Any) -> str:
+    try:
+        encoded = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode()
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("instrument inspection value is not canonical JSON") from exc
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _sha256(value: Any, field: str) -> str:
@@ -1415,6 +1483,226 @@ def verify_stream_timing_assessment_record(
         "required_stream_count": len(required_streams),
         "event_count": len(events),
         "finding_count": len(findings),
+        "scientific_evidence_eligible": False,
+    }
+
+
+def verify_instrument_inspection_record(
+    record_file: Path,
+    expected_record_sha256: str,
+    *,
+    expected_source_sha256: str | None = None,
+    expected_config_sha256: str | None = None,
+    expected_implementation_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Replay a retained instrument-inspection record from current bytes."""
+    expected_record = _sha256(expected_record_sha256, "expected_record_sha256")
+    record, content, retained_sha256 = _load_json_object_and_sha256(
+        record_file, "instrument inspection record"
+    )
+    if retained_sha256 != expected_record:
+        raise ValidationError(
+            "instrument inspection record does not match expected_record_sha256"
+        )
+    _exact_fields(record, _INSTRUMENT_INSPECTION_RECORD_FIELDS, "record")
+    if record["instrument_inspection_version"] != 1:
+        raise ValidationError("unsupported instrument inspection record")
+
+    adapter = record["adapter"]
+    if not isinstance(adapter, dict):
+        raise ValidationError("instrument inspection adapter must be an object")
+    _exact_fields(adapter, _INSTRUMENT_ADAPTER_FIELDS, "adapter")
+    _text(adapter["addon_id"], "adapter.addon_id")
+    _text(adapter["addon_version"], "adapter.addon_version")
+    adapter_id = _stable_identifier(adapter["adapter_id"], "adapter.adapter_id")
+    if adapter["authority"] != "acquisition_metadata_proposal_only":
+        raise ValidationError("instrument inspection adapter authority is unsupported")
+    implementation = adapter["implementation"]
+    if not isinstance(implementation, dict):
+        raise ValidationError("instrument inspection implementation must be an object")
+    _exact_fields(implementation, _INSTRUMENT_IMPLEMENTATION_FIELDS, "implementation")
+    _text(implementation["locator"], "implementation.locator")
+    implementation_sha256 = _sha256(
+        implementation["sha256"], "implementation.sha256"
+    )
+    if (
+        expected_implementation_sha256 is not None
+        and implementation_sha256
+        != _sha256(expected_implementation_sha256, "expected_implementation_sha256")
+    ):
+        raise ValidationError("instrument inspection implementation SHA-256 mismatch")
+    if (
+        not isinstance(implementation["size_bytes"], int)
+        or isinstance(implementation["size_bytes"], bool)
+        or implementation["size_bytes"] <= 0
+    ):
+        raise ValidationError("instrument inspection implementation size_bytes must be a positive integer")
+
+    source = record["source"]
+    if not isinstance(source, dict):
+        raise ValidationError("instrument inspection source must be an object")
+    _exact_fields(source, _INSTRUMENT_SOURCE_FIELDS, "source")
+    source_locator = _text(source["locator"], "source.locator")
+    source_sha256 = _sha256(source["sha256"], "source.sha256")
+    if expected_source_sha256 is not None and source_sha256 != _sha256(
+        expected_source_sha256, "expected_source_sha256"
+    ):
+        raise ValidationError("instrument inspection source SHA-256 mismatch")
+    if (
+        not isinstance(source["size_bytes"], int)
+        or isinstance(source["size_bytes"], bool)
+        or source["size_bytes"] < 0
+    ):
+        raise ValidationError("instrument inspection source size_bytes must be a non-negative integer")
+    _text(source["media_type"], "source.media_type")
+
+    config = record["config"]
+    if not isinstance(config, dict):
+        raise ValidationError("instrument inspection config must be an object")
+    _json_safe(config)
+    config_sha256 = _canonical_payload_sha256(config)
+    if expected_config_sha256 is not None and config_sha256 != _sha256(
+        expected_config_sha256, "expected_config_sha256"
+    ):
+        raise ValidationError("instrument inspection config SHA-256 mismatch")
+
+    proposed_raw_source = record["proposed_raw_source"]
+    if not isinstance(proposed_raw_source, dict):
+        raise ValidationError("instrument inspection proposed_raw_source must be an object")
+    _exact_fields(
+        proposed_raw_source,
+        _INSTRUMENT_PROPOSED_RAW_SOURCE_FIELDS,
+        "proposed_raw_source",
+    )
+    if _text(proposed_raw_source["locator"], "proposed_raw_source.locator") != source_locator:
+        raise ValidationError("instrument inspection proposed raw source locator disagrees with source")
+    if _sha256(proposed_raw_source["sha256"], "proposed_raw_source.sha256") != source_sha256:
+        raise ValidationError("instrument inspection proposed raw source SHA-256 disagrees with source")
+    _parse_time(proposed_raw_source["captured_at"], "proposed_raw_source.captured_at")
+    _text(proposed_raw_source["acquisition_method"], "proposed_raw_source.acquisition_method")
+
+    instrument = record["instrument"]
+    if not isinstance(instrument, dict):
+        raise ValidationError("instrument inspection instrument must be an object")
+    _exact_fields(instrument, _INSTRUMENT_FIELDS, "instrument")
+    _text(instrument["identifier"], "instrument.identifier")
+    _text(instrument["model"], "instrument.model")
+    _text(instrument["firmware_version"], "instrument.firmware_version", optional=True)
+    basis = _text(instrument["captured_at_basis"], "instrument.captured_at_basis")
+    if basis not in _TIME_BASES:
+        raise ValidationError("instrument inspection captured_at_basis is unsupported")
+    native_metadata = instrument["native_metadata"]
+    if not isinstance(native_metadata, dict):
+        raise ValidationError("instrument inspection native_metadata must be an object")
+    _json_safe(native_metadata, canonical_text=True)
+
+    temporal = record["temporal_metadata"]
+    if not isinstance(temporal, dict):
+        raise ValidationError("instrument inspection temporal_metadata must be an object")
+    _exact_fields(temporal, _INSTRUMENT_TEMPORAL_METADATA_FIELDS, "temporal_metadata")
+    temporal_status = _text(temporal["status"], "temporal_metadata.status")
+    if temporal_status not in {"proposed_unverified", "not_provided"}:
+        raise ValidationError("instrument inspection temporal metadata status is unsupported")
+    if (
+        not isinstance(temporal["stream_count"], int)
+        or isinstance(temporal["stream_count"], bool)
+        or temporal["stream_count"] < 0
+    ):
+        raise ValidationError("instrument inspection temporal_metadata.stream_count must be a non-negative integer")
+    _string_list(temporal["limitations"], "temporal_metadata.limitations")
+
+    streams = record["streams"]
+    if not isinstance(streams, list):
+        raise ValidationError("instrument inspection streams must be an array")
+    seen_streams: set[str] = set()
+    for index, stream in enumerate(streams):
+        if not isinstance(stream, dict):
+            raise ValidationError(f"instrument inspection streams[{index}] must be an object")
+        label = f"streams[{index}]"
+        _exact_fields(stream, _INSTRUMENT_STREAM_RECORD_FIELDS, label)
+        stream_id = _stable_identifier(stream["stream_id"], f"{label}.stream_id")
+        if stream_id in seen_streams:
+            raise ValidationError("instrument inspection streams must have unique stream_id values")
+        seen_streams.add(stream_id)
+        _text(stream["source_device"], f"{label}.source_device")
+        _text(stream["channel"], f"{label}.channel")
+        _positive_number(stream["sample_rate_hz"], f"{label}.sample_rate_hz")
+        _text(stream["clock_source"], f"{label}.clock_source")
+        stream_start, parsed_stream_start = _parse_time(
+            stream["start_time"], f"{label}.start_time"
+        )
+        drift = stream["clock_drift"]
+        if not isinstance(drift, dict):
+            raise ValidationError(f"instrument inspection {label}.clock_drift must be an object")
+        _exact_fields(drift, _CLOCK_DRIFT_FIELDS, f"{label}.clock_drift")
+        _finite_number(drift["estimate"], f"{label}.clock_drift.estimate")
+        _nonnegative_number(drift["uncertainty"], f"{label}.clock_drift.uncertainty")
+        if _text(drift["unit"], f"{label}.clock_drift.unit") not in _CLOCK_DRIFT_UNITS:
+            raise ValidationError(f"instrument inspection {label}.clock_drift.unit is unsupported")
+        _text(drift["basis"], f"{label}.clock_drift.basis")
+        intervals = stream["missing_intervals"]
+        if not isinstance(intervals, list):
+            raise ValidationError(f"instrument inspection {label}.missing_intervals must be an array")
+        previous_end: datetime | None = None
+        for interval_index, interval in enumerate(intervals):
+            if not isinstance(interval, dict):
+                raise ValidationError(
+                    f"instrument inspection {label}.missing_intervals[{interval_index}] must be an object"
+                )
+            interval_label = f"{label}.missing_intervals[{interval_index}]"
+            _exact_fields(interval, _MISSING_INTERVAL_FIELDS, interval_label)
+            _, parsed_start = _parse_time(interval["start_time"], f"{interval_label}.start_time")
+            _, parsed_end = _parse_time(interval["end_time"], f"{interval_label}.end_time")
+            if parsed_end <= parsed_start:
+                raise ValidationError(
+                    f"instrument inspection {interval_label}.end_time must be after start_time"
+                )
+            if parsed_start < parsed_stream_start:
+                raise ValidationError(
+                    f"instrument inspection {interval_label}.start_time must not precede stream start_time"
+                )
+            if previous_end is not None and parsed_start < previous_end:
+                raise ValidationError(
+                    f"instrument inspection {interval_label} must be ordered and non-overlapping"
+                )
+            previous_end = parsed_end
+            _text(interval["reason"], f"{interval_label}.reason")
+        _text(stream["calibration_record"], f"{label}.calibration_record")
+        _string_list(stream["quality_flags"], f"{label}.quality_flags")
+        if _sha256(stream["raw_file_sha256"], f"{label}.raw_file_sha256") != source_sha256:
+            raise ValidationError("instrument inspection stream raw_file_sha256 disagrees with source")
+        if (
+            _sha256(stream["conversion_code_sha256"], f"{label}.conversion_code_sha256")
+            != implementation_sha256
+        ):
+            raise ValidationError("instrument inspection stream conversion_code_sha256 disagrees with implementation")
+    if temporal["stream_count"] != len(streams):
+        raise ValidationError("instrument inspection temporal stream_count disagrees with streams")
+    if temporal_status == "not_provided" and streams:
+        raise ValidationError("instrument inspection not_provided temporal metadata cannot contain streams")
+    if temporal_status == "proposed_unverified" and not streams:
+        raise ValidationError("instrument inspection proposed temporal metadata requires streams")
+
+    _canonical_text_list(record["warnings"], "warnings")
+    record_status = _text(record["status"], "record.status")
+    if record_status != "inspection_recorded":
+        raise ValidationError("instrument inspection status is unsupported")
+    if record["scientific_evidence_eligible"] is not False:
+        raise ValidationError("instrument inspection must remain non-evidentiary")
+    if record["authorized_actions"] != []:
+        raise ValidationError("instrument inspection must not authorize actions")
+    _text(record["conclusion_ceiling"], "conclusion_ceiling")
+    return {
+        "status": "instrument_inspection_record_verified",
+        "record_sha256": retained_sha256,
+        "record_size_bytes": len(content),
+        "record_status": record_status,
+        "adapter_id": adapter_id,
+        "source_sha256": source_sha256,
+        "config_sha256": config_sha256,
+        "implementation_sha256": implementation_sha256,
+        "stream_count": len(streams),
+        "temporal_metadata_status": temporal_status,
         "scientific_evidence_eligible": False,
     }
 

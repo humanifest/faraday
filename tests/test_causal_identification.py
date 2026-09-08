@@ -456,6 +456,14 @@ def test_causal_run_requires_artifact_bound_results_for_every_assumption(tmp_pat
         "inspection_sha256",
         "specification_sha256",
     }
+    assert set(template_gate["details"]["instrument_inspection"]) == {
+        "locator",
+        "sha256",
+        "status",
+        "source_sha256",
+        "config_sha256",
+        "implementation_sha256",
+    }
     assert template_gate["status"] == "skipped"
 
     def command(results):
@@ -943,6 +951,7 @@ def test_observational_causal_adjustment_executes_the_exact_frozen_covariates(
         }
     gate["details"].pop("stream_timing_assessment", None)
     gate["details"].pop("temporal_order_assessment", None)
+    gate["details"].pop("instrument_inspection", None)
     record_path = tmp_path / "causal-run-record.json"
     preflight = [
         "--workspace", str(workspace), "--json", "run", "preflight",

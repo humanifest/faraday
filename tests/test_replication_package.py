@@ -200,6 +200,98 @@ def _write_json(path: Path, value: dict) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _canonical_payload_sha256(value: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode()
+    ).hexdigest()
+
+
+def _instrument_inspection_record() -> dict:
+    source_sha256 = "1" * 64
+    implementation_sha256 = "2" * 64
+    return {
+        "instrument_inspection_version": 1,
+        "adapter": {
+            "addon_id": "fixture_instrument",
+            "addon_version": "1.0.0",
+            "adapter_id": "fixture_scope",
+            "authority": "acquisition_metadata_proposal_only",
+            "implementation": {
+                "locator": "research_addon.py",
+                "sha256": implementation_sha256,
+                "size_bytes": 100,
+            },
+        },
+        "source": {
+            "locator": "capture.bin",
+            "sha256": source_sha256,
+            "size_bytes": 8,
+            "media_type": "application/octet-stream",
+        },
+        "config": {
+            "captured_at": "2026-09-06T12:00:00Z",
+            "instrument_identifier": "scope-fixture-01",
+        },
+        "proposed_raw_source": {
+            "locator": "capture.bin",
+            "sha256": source_sha256,
+            "captured_at": "2026-09-06T12:00:00Z",
+            "acquisition_method": "Synthetic fixture acquisition.",
+        },
+        "instrument": {
+            "identifier": "scope-fixture-01",
+            "model": "Fixture scope",
+            "firmware_version": "",
+            "captured_at_basis": "device_metadata",
+            "native_metadata": {"fixture": True},
+        },
+        "temporal_metadata": {
+            "status": "proposed_unverified",
+            "stream_count": 1,
+            "limitations": [
+                "Synthetic fixture stream timing remains unverified.",
+            ],
+        },
+        "streams": [{
+            "stream_id": "stream-main",
+            "source_device": "scope-fixture-01",
+            "channel": "main",
+            "sample_rate_hz": 256,
+            "clock_source": "device clock",
+            "start_time": "2026-09-06T12:00:00Z",
+            "clock_drift": {
+                "estimate": 0.2,
+                "uncertainty": 0.05,
+                "unit": "ms",
+                "basis": "manufacturer sidecar",
+            },
+            "missing_intervals": [{
+                "start_time": "2026-09-06T12:00:01Z",
+                "end_time": "2026-09-06T12:00:02Z",
+                "reason": "Dropped packet fixture",
+            }],
+            "calibration_record": "clock-sync-record-1",
+            "quality_flags": ["synthetic-fixture"],
+            "raw_file_sha256": source_sha256,
+            "conversion_code_sha256": implementation_sha256,
+        }],
+        "warnings": ["Synthetic adapter fixture."],
+        "status": "inspection_recorded",
+        "scientific_evidence_eligible": False,
+        "authorized_actions": [],
+        "conclusion_ceiling": (
+            "Adapter-proposed acquisition metadata bound to core-hashed source bytes. "
+            "No calibration, quality gate, custody chain, dataset, or evidence is approved."
+        ),
+    }
+
+
 def _refresh_packaged_file(package: Path, name: str) -> str:
     manifest_path = package / "package-manifest.json"
     manifest = json.loads(manifest_path.read_text())
@@ -704,6 +796,94 @@ def test_replication_package_verifies_stream_timing_gate_metadata(
     commitment = _refresh_packaged_file(package, "runs.json")
 
     with pytest.raises(ValidationError, match="passed stream-timing gate"):
+        verify_replication_package(package, commitment)
+
+
+def test_replication_package_verifies_instrument_inspection_gate_metadata(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service = ResearchService(FileSystemRepository(workspace), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL, methodology="Method", quality_requirements=["gate"],
+        controls=["control"], expected_outputs=["output"], success_conditions=["success"],
+        environment_requirements=["environment"], sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    record_path = tmp_path / "instrument-inspection.json"
+    record = _instrument_inspection_record()
+    record_sha256 = _write_json(record_path, record)
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            record_path.name,
+            record_sha256,
+            record_path.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "gate",
+            QualityGateStatus.PASSED,
+            "Synthetic instrument-inspection fixture was retained.",
+            details={
+                "evidence_sha256": record_sha256,
+                "instrument_inspection": {
+                    "locator": record_path.name,
+                    "sha256": record_sha256,
+                    "status": "inspection_recorded",
+                    "source_sha256": record["source"]["sha256"],
+                    "config_sha256": _canonical_payload_sha256(record["config"]),
+                    "implementation_sha256": record["adapter"]["implementation"]["sha256"],
+                },
+            },
+        )],
+        summary="Synthetic package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    runs[0]["quality_gates"][0]["details"]["instrument_inspection"][
+        "status"
+    ] = "inspection_failed"
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match="status is unsupported"):
         verify_replication_package(package, commitment)
 
 

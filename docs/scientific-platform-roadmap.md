@@ -1295,6 +1295,17 @@ surrounding whitespace, so verification cannot silently normalize the external
 trust anchor.
 The proposal
 cannot assert calibration, pass gates, register data, or become evidence.
+Instrument-inspection gate delivery: canonical run intake now treats
+`details.instrument_inspection` as a structured, artifact-bound retention claim.
+The gate must cite the inspection record as a declared output artifact under a
+passed artifact-integrity receipt, and the retained record hash, inspected source
+hash, committed config hash, adapter implementation hash, and
+`inspection_recorded` status are replayed from current bytes. Because published
+inspection records have no failed-record status, this metadata may only support
+a passed retention gate; it does not clear calibration, custody, dataset intake,
+timing feasibility, or scientific evidence. Rigor, deterministic synthesis, and
+replication-package verification now carry the locator, record hash, source
+hash, config hash, implementation hash, and bounded non-evidentiary status.
 Stream-timing feasibility delivery: `measurement assess-timing` now accepts an
 independently trusted instrument-inspection hash plus a machine-readable timing
 specification. It publishes a deterministic, non-evidentiary

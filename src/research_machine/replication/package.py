@@ -227,6 +227,56 @@ def _validate_temporal_order_assessment_gate_metadata(
         )
 
 
+def _validate_instrument_inspection_gate_metadata(
+    *,
+    run_id: str,
+    gate: QualityGateResult,
+    output_artifacts: list[DatasetArtifact],
+) -> None:
+    inspection = gate.details.get("instrument_inspection")
+    if inspection is None:
+        return
+    if not isinstance(inspection, dict):
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} instrument_inspection must be an object"
+        )
+    required_fields = {
+        "locator",
+        "sha256",
+        "status",
+        "source_sha256",
+        "config_sha256",
+        "implementation_sha256",
+    }
+    if set(inspection) != required_fields:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} instrument_inspection fields are invalid"
+        )
+    prefix = f"package run {run_id} gate {gate.gate_id} instrument_inspection"
+    locator = require_canonical_text(inspection["locator"], f"{prefix}.locator")
+    record_sha256 = require_sha256(inspection["sha256"], f"{prefix}.sha256")
+    declared_status = require_canonical_text(inspection["status"], f"{prefix}.status")
+    if declared_status != "inspection_recorded":
+        raise ValidationError(f"{prefix}.status is unsupported")
+    require_sha256(inspection["source_sha256"], f"{prefix}.source_sha256")
+    require_sha256(inspection["config_sha256"], f"{prefix}.config_sha256")
+    require_sha256(
+        inspection["implementation_sha256"],
+        f"{prefix}.implementation_sha256",
+    )
+    if not any(
+        artifact.locator == locator and artifact.sha256 == record_sha256
+        for artifact in output_artifacts
+    ):
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} instrument inspection record is not a declared output artifact"
+        )
+    if gate.status is not QualityGateStatus.PASSED:
+        raise ValidationError(
+            f"package run {run_id} instrument-inspection gate {gate.gate_id} must be a passed retention gate"
+        )
+
+
 def _validate_stream_timing_assessment_gate_metadata(
     *,
     run_id: str,
@@ -529,6 +579,11 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                             )
                     _validate_preprocessing_conformance_gate_metadata(
                         protocol=protocol,
+                        run_id=run.run_id,
+                        gate=gate,
+                        output_artifacts=run.output_artifacts,
+                    )
+                    _validate_instrument_inspection_gate_metadata(
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=run.output_artifacts,

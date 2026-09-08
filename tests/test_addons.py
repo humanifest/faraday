@@ -796,6 +796,27 @@ MANIFEST = AddonManifest(
     verified = _result(capsys)
     assert verified["status"] == "instrument_inspection_verified"
     assert verified["source_sha256"] == digest
+    from research_machine.measurement.instrument import verify_instrument_inspection_record
+
+    config_sha256 = hashlib.sha256(
+        json.dumps(
+            json.loads(config.read_text()),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode()
+    ).hexdigest()
+    record_verified = verify_instrument_inspection_record(
+        record_file,
+        result["inspection_sha256"],
+        expected_source_sha256=digest,
+        expected_config_sha256=config_sha256,
+        expected_implementation_sha256=record["adapter"]["implementation"]["sha256"],
+    )
+    assert record_verified["status"] == "instrument_inspection_record_verified"
+    assert record_verified["record_status"] == "inspection_recorded"
+    assert record_verified["config_sha256"] == config_sha256
     timing_spec = tmp_path / "timing-spec.json"
     timing_spec.write_text(json.dumps({
         "assessment_id": "timing-check-1",

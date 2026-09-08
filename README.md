@@ -1042,6 +1042,15 @@ evidence; their proposed raw-source entry must still enter the custody workflow
 below. `measurement verify-source-inspection` takes an independently trusted
 record hash and exactly reproduces the record from current source, config, and
 adapter-code bytes. No model or network service is involved.
+When a run quality gate declares `details.instrument_inspection`, canonical run
+intake requires that same inspection record as a byte-verified output artifact
+under `artifact_root`, replays the retained record hash, source hash, committed
+config hash, adapter implementation hash, and `inspection_recorded` status from
+current bytes, and accepts it only as a passed retention gate. Rigor, synthesis,
+and replication-package verification expose the record locator and hashes while
+preserving the boundary: this proves local retention of low-authority
+acquisition metadata, not calibration, custody, dataset registration, or
+scientific evidence.
 
 Use `measurement assess-timing --inspection-file FILE
 --expected-inspection-sha256 HASH --spec-file SPEC --output DIRECTORY` to turn a

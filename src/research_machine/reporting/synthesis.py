@@ -351,6 +351,35 @@ def build_synthesis(
                     f"`{conformance.get('observed_pipeline_sha256', 'unavailable')}`. "
                     "This is a bounded conformance replay, not evidence of implementation correctness."
                 )
+    instrument_runs = [
+        run for run in runs
+        if any(
+            isinstance(gate.details.get("instrument_inspection"), dict)
+            for gate in run.quality_gates
+        )
+    ]
+    if instrument_runs:
+        lines.extend(["", "### Instrument inspection provenance", ""])
+        for run in sorted(instrument_runs, key=lambda item: item.run_id):
+            for gate in run.quality_gates:
+                inspection = gate.details.get("instrument_inspection")
+                if not isinstance(inspection, dict):
+                    continue
+                lines.append(
+                    f"- Run `{run.run_id}` gate `{gate.gate_id}` {gate.status.value}; "
+                    f"record status: {inspection.get('status', 'unclassified')}; "
+                    f"record `{inspection.get('sha256', 'unavailable')}` at "
+                    f"`{inspection.get('locator', 'unavailable')}`."
+                )
+                lines.append(
+                    "  - Source: "
+                    f"`{inspection.get('source_sha256', 'unavailable')}`; "
+                    "config: "
+                    f"`{inspection.get('config_sha256', 'unavailable')}`; "
+                    "implementation: "
+                    f"`{inspection.get('implementation_sha256', 'unavailable')}`. "
+                    "This is retained acquisition metadata only, not calibration, custody, or scientific-evidence approval."
+                )
     stream_timing_runs = [
         run for run in runs
         if any(

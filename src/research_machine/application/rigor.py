@@ -570,6 +570,17 @@ def audit_research_state(
             )
         protocol = protocol_by_id.get(run.protocol_id)
         for gate in run.quality_gates:
+            instrument_inspection = gate.details.get("instrument_inspection")
+            if isinstance(instrument_inspection, dict):
+                record_status = instrument_inspection.get("status")
+                if record_status == "inspection_recorded":
+                    add(
+                        "RUN_INSTRUMENT_INSPECTION_REPLAYED",
+                        RigorSeverity.INFO,
+                        "Run exposes an artifact-bound instrument-inspection record; the retained inspection is low-authority acquisition metadata, not calibration, custody, or evidence approval.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                    )
             conformance = gate.details.get("preprocessing_conformance")
             if isinstance(conformance, dict):
                 record_status = conformance.get("status")

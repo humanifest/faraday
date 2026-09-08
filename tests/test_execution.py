@@ -480,6 +480,134 @@ def _write_json_artifact(path: Path, value: dict) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _canonical_payload_sha256(value: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode()
+    ).hexdigest()
+
+
+def _instrument_inspection_record() -> dict:
+    source_sha256 = "1" * 64
+    implementation_sha256 = "2" * 64
+    return {
+        "instrument_inspection_version": 1,
+        "adapter": {
+            "addon_id": "fixture_instrument",
+            "addon_version": "1.0.0",
+            "adapter_id": "fixture_scope",
+            "authority": "acquisition_metadata_proposal_only",
+            "implementation": {
+                "locator": "research_addon.py",
+                "sha256": implementation_sha256,
+                "size_bytes": 100,
+            },
+        },
+        "source": {
+            "locator": "capture.bin",
+            "sha256": source_sha256,
+            "size_bytes": 8,
+            "media_type": "application/octet-stream",
+        },
+        "config": {
+            "captured_at": "2026-09-06T12:00:00Z",
+            "instrument_identifier": "scope-fixture-01",
+        },
+        "proposed_raw_source": {
+            "locator": "capture.bin",
+            "sha256": source_sha256,
+            "captured_at": "2026-09-06T12:00:00Z",
+            "acquisition_method": "Synthetic fixture acquisition.",
+        },
+        "instrument": {
+            "identifier": "scope-fixture-01",
+            "model": "Fixture scope",
+            "firmware_version": "",
+            "captured_at_basis": "device_metadata",
+            "native_metadata": {"fixture": True},
+        },
+        "temporal_metadata": {
+            "status": "proposed_unverified",
+            "stream_count": 1,
+            "limitations": [
+                "Synthetic fixture stream timing remains unverified.",
+            ],
+        },
+        "streams": [{
+            "stream_id": "stream-main",
+            "source_device": "scope-fixture-01",
+            "channel": "main",
+            "sample_rate_hz": 256,
+            "clock_source": "device clock",
+            "start_time": "2026-09-06T12:00:00Z",
+            "clock_drift": {
+                "estimate": 0.2,
+                "uncertainty": 0.05,
+                "unit": "ms",
+                "basis": "manufacturer sidecar",
+            },
+            "missing_intervals": [{
+                "start_time": "2026-09-06T12:00:01Z",
+                "end_time": "2026-09-06T12:00:02Z",
+                "reason": "Dropped packet fixture",
+            }],
+            "calibration_record": "clock-sync-record-1",
+            "quality_flags": ["synthetic-fixture"],
+            "raw_file_sha256": source_sha256,
+            "conversion_code_sha256": implementation_sha256,
+        }],
+        "warnings": ["Synthetic adapter fixture."],
+        "status": "inspection_recorded",
+        "scientific_evidence_eligible": False,
+        "authorized_actions": [],
+        "conclusion_ceiling": (
+            "Adapter-proposed acquisition metadata bound to core-hashed source bytes. "
+            "No calibration, quality gate, custody chain, dataset, or evidence is approved."
+        ),
+    }
+
+
+def _instrument_inspection_gate_fixture(
+    tmp_path: Path,
+    *,
+    gate_status: QualityGateStatus = QualityGateStatus.PASSED,
+) -> tuple[list[DatasetArtifact], list[QualityGateResult], dict]:
+    record = tmp_path / "instrument-inspection.json"
+    record_value = _instrument_inspection_record()
+    record_sha256 = _write_json_artifact(record, record_value)
+    artifact = DatasetArtifact(
+        record.name,
+        record_sha256,
+        size_bytes=record.stat().st_size,
+        media_type="application/json",
+    )
+    gate = QualityGateResult(
+        "proof-check",
+        gate_status,
+        "Instrument inspection was replayed from current bytes.",
+        details={
+            "evidence_sha256": record_sha256,
+            "instrument_inspection": {
+                "locator": record.name,
+                "sha256": record_sha256,
+                "status": record_value["status"],
+                "source_sha256": record_value["source"]["sha256"],
+                "config_sha256": _canonical_payload_sha256(record_value["config"]),
+                "implementation_sha256": record_value["adapter"]["implementation"]["sha256"],
+            },
+        },
+    )
+    return [artifact], [gate], {
+        "inspection_sha256": record_sha256,
+        "status": record_value["status"],
+    }
+
+
 def _preprocessing_conformance_gate_fixture(
     tmp_path: Path,
     *,
@@ -740,6 +868,76 @@ def test_run_replays_passed_preprocessing_conformance_gate(tmp_path: Path) -> No
         finding.code == "RUN_PREPROCESSING_CONFORMANCE_REPLAYED"
         for finding in service.audit_rigor().findings
     )
+
+
+def test_run_replays_passed_instrument_inspection_gate(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, result = _instrument_inspection_gate_fixture(
+        tmp_path
+    )
+
+    run = service.record_run(run_command(
+        protocol.protocol_id,
+        QualityGateStatus.PASSED,
+        artifact_root=str(tmp_path),
+        output_artifacts=output_artifacts,
+        quality_gates=quality_gates,
+    ))
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.quality_gates[0].details["instrument_inspection"]["status"] == (
+        "inspection_recorded"
+    )
+    assert run.quality_gates[0].details["evidence_sha256"] == result["inspection_sha256"]
+    synthesis = service.build_synthesis()["content"]
+    assert "Instrument inspection provenance" in synthesis
+    assert result["inspection_sha256"] in synthesis
+    assert "not calibration, custody, or scientific-evidence approval" in synthesis
+    assert any(
+        finding.code == "RUN_INSTRUMENT_INSPECTION_REPLAYED"
+        for finding in service.audit_rigor().findings
+    )
+
+
+def test_run_rejects_instrument_inspection_implementation_hash_drift(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _instrument_inspection_gate_fixture(tmp_path)
+    quality_gates[0].details["instrument_inspection"]["implementation_sha256"] = (
+        "0" * 64
+    )
+
+    with pytest.raises(ValidationError, match="implementation SHA-256 mismatch"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
+
+
+def test_run_rejects_failed_instrument_inspection_retention_gate(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _instrument_inspection_gate_fixture(
+        tmp_path,
+        gate_status=QualityGateStatus.FAILED,
+    )
+
+    with pytest.raises(ValidationError, match="can only record a passed retention gate"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.FAILED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
 
 
 def test_run_rejects_passed_preprocessing_gate_with_failed_record(tmp_path: Path) -> None:
