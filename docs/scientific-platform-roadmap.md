@@ -1305,7 +1305,18 @@ units against the registered lag window, rejects relative uncertainty such as
 uncertainty overlaps preserved missing intervals. A passed assessment remains a
 feasibility review only: it does not authenticate acquisition, verify
 calibration or drift correction, clear a protocol gate, register a dataset, or
-authorize evidence.
+authorize evidence. Canonical run intake now treats
+`details.stream_timing_assessment` as a structured, artifact-bound gate claim:
+the gate must cite the assessment record as a declared output artifact under a
+passed artifact-integrity receipt, the retained record hash, source inspection
+hash, timing specification hash, and status are replayed from current bytes, and
+a passed gate requires a verified `timing_feasibility_passed` record. Failed
+stream-timing assessments remain recordable only as failed gates, preserving
+missing stream metadata, channel mismatches, unusable uncertainty units, and
+missing-interval overlaps without allowing a favorable summary to overwrite
+them. Rigor, deterministic synthesis, and replication-package verification now
+carry those gates with their exact artifact locator, record hash, inspection
+hash, specification hash, and bounded status.
 Temporal-order classification delivery: `measurement assess-temporal-order` now
 binds an independently trusted timing-assessment hash plus a registered
 event-order specification. It compares uncertainty intervals instead of point

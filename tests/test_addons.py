@@ -1038,7 +1038,10 @@ def _write_timing_assessment_with_events(
 def test_stream_timing_assessment_preserves_feasible_review_as_non_evidence(
     tmp_path: Path,
 ) -> None:
-    from research_machine.measurement.instrument import assess_stream_timing
+    from research_machine.measurement.instrument import (
+        assess_stream_timing,
+        verify_stream_timing_assessment_record,
+    )
 
     inspection, record_file = _write_stream_timing_fixture(tmp_path)
     spec_file = _write_timing_spec(tmp_path)
@@ -1056,6 +1059,14 @@ def test_stream_timing_assessment_preserves_feasible_review_as_non_evidence(
     assert record["events"][0]["overlapping_missing_intervals"] == []
     assert record["authorized_actions"] == []
     assert "does not authenticate acquisition" in record["conclusion_ceiling"]
+    verified = verify_stream_timing_assessment_record(
+        Path(result["path"], "stream-timing-assessment.json"),
+        result["assessment_sha256"],
+        expected_inspection_sha256=inspection["inspection_sha256"],
+        expected_specification_sha256=hashlib.sha256(spec_file.read_bytes()).hexdigest(),
+    )
+    assert verified["record_status"] == "timing_feasibility_passed"
+    assert verified["scientific_evidence_eligible"] is False
 
 
 @pytest.mark.parametrize(

@@ -122,6 +122,53 @@ def _temporal_order_spec() -> dict:
     }
 
 
+def _stream_timing_assessment_record() -> dict:
+    return {
+        "stream_timing_assessment_version": 1,
+        "assessment_id": "stream-timing",
+        "inspection": {
+            "sha256": "1" * 64,
+            "size_bytes": 100,
+            "stream_count": 1,
+            "temporal_metadata_status": "proposed_unverified",
+        },
+        "specification": {
+            "sha256": "2" * 64,
+            "size_bytes": 100,
+            "lag_window": {
+                "duration": 1,
+                "unit": "ms",
+                "seconds": 0.001,
+                "basis": "Synthetic fixture lag window.",
+            },
+            "maximum_uncertainty_fraction": 0.25,
+        },
+        "required_streams": [{
+            "stream_id": "stream-main",
+            "channel": "main",
+            "purpose": "Primary synchronized signal fixture.",
+            "observed_channel": "main",
+            "status": "present",
+        }],
+        "events": [{
+            "event_id": "state-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.000000Z",
+            "status": "assessed",
+            "clock_uncertainty_seconds": 0.00005,
+            "uncertainty_fraction_of_lag_window": 0.05,
+            "overlapping_missing_intervals": [],
+        }],
+        "findings": [],
+        "status": "timing_feasibility_passed",
+        "scientific_evidence_eligible": False,
+        "authorized_actions": [],
+        "conclusion_ceiling": (
+            "Provider-free timing feasibility review from a trusted inspection record only."
+        ),
+    }
+
+
 def _temporal_timing_assessment() -> dict:
     return {
         "stream_timing_assessment_version": 1,
@@ -570,6 +617,93 @@ def test_replication_package_verifies_preprocessing_conformance_gate_metadata(
         commitment = _refresh_packaged_file(package, "runs.json")
 
     with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
+
+
+def test_replication_package_verifies_stream_timing_gate_metadata(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service = ResearchService(FileSystemRepository(workspace), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL, methodology="Method", quality_requirements=["gate"],
+        controls=["control"], expected_outputs=["output"], success_conditions=["success"],
+        environment_requirements=["environment"], sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    record_path = tmp_path / "stream-timing-assessment.json"
+    record = _stream_timing_assessment_record()
+    record_sha256 = _write_json(record_path, record)
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            record_path.name,
+            record_sha256,
+            record_path.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "gate",
+            QualityGateStatus.PASSED,
+            "Synthetic stream-timing fixture passed.",
+            details={
+                "evidence_sha256": record_sha256,
+                "stream_timing_assessment": {
+                    "locator": record_path.name,
+                    "sha256": record_sha256,
+                    "status": "timing_feasibility_passed",
+                    "inspection_sha256": record["inspection"]["sha256"],
+                    "specification_sha256": record["specification"]["sha256"],
+                },
+            },
+        )],
+        summary="Synthetic package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    runs[0]["quality_gates"][0]["details"]["stream_timing_assessment"][
+        "status"
+    ] = "timing_feasibility_failed"
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match="passed stream-timing gate"):
         verify_replication_package(package, commitment)
 
 

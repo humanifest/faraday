@@ -543,6 +543,100 @@ def _temporal_order_spec() -> dict:
     }
 
 
+def _stream_timing_assessment_record(*, failed: bool = False) -> dict:
+    findings = (
+        [{
+            "severity": "error",
+            "code": "CLOCK_UNCERTAINTY_APPROACHES_LAG_WINDOW",
+            "message": "Synthetic fixture timing uncertainty reached the threshold.",
+        }]
+        if failed
+        else []
+    )
+    return {
+        "stream_timing_assessment_version": 1,
+        "assessment_id": "stream-timing",
+        "inspection": {
+            "sha256": "1" * 64,
+            "size_bytes": 100,
+            "stream_count": 1,
+            "temporal_metadata_status": "proposed_unverified",
+        },
+        "specification": {
+            "sha256": "2" * 64,
+            "size_bytes": 100,
+            "lag_window": {
+                "duration": 1,
+                "unit": "ms",
+                "seconds": 0.001,
+                "basis": "Synthetic fixture lag window.",
+            },
+            "maximum_uncertainty_fraction": 0.25,
+        },
+        "required_streams": [{
+            "stream_id": "stream-main",
+            "channel": "main",
+            "purpose": "Primary synchronized signal fixture.",
+            "observed_channel": "main",
+            "status": "present",
+        }],
+        "events": [{
+            "event_id": "state-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.000000Z",
+            "status": "assessed",
+            "clock_uncertainty_seconds": 0.00005,
+            "uncertainty_fraction_of_lag_window": 0.05,
+            "overlapping_missing_intervals": [],
+        }],
+        "findings": findings,
+        "status": "timing_feasibility_failed" if failed else "timing_feasibility_passed",
+        "scientific_evidence_eligible": False,
+        "authorized_actions": [],
+        "conclusion_ceiling": (
+            "Provider-free timing feasibility review from a trusted inspection record only."
+        ),
+    }
+
+
+def _stream_timing_assessment_gate_fixture(
+    tmp_path: Path,
+    *,
+    failed: bool = False,
+    gate_status: QualityGateStatus = QualityGateStatus.PASSED,
+) -> tuple[list[DatasetArtifact], list[QualityGateResult], dict]:
+    record = tmp_path / (
+        "failed-stream-timing-assessment.json" if failed else "stream-timing-assessment.json"
+    )
+    record_value = _stream_timing_assessment_record(failed=failed)
+    record_sha256 = _write_json_artifact(record, record_value)
+    artifact = DatasetArtifact(
+        record.name,
+        record_sha256,
+        size_bytes=record.stat().st_size,
+        media_type="application/json",
+    )
+    gate = QualityGateResult(
+        "proof-check",
+        gate_status,
+        "Stream timing was replayed from current bytes.",
+        details={
+            "evidence_sha256": record_sha256,
+            "stream_timing_assessment": {
+                "locator": record.name,
+                "sha256": record_sha256,
+                "status": record_value["status"],
+                "inspection_sha256": record_value["inspection"]["sha256"],
+                "specification_sha256": record_value["specification"]["sha256"],
+            },
+        },
+    )
+    return [artifact], [gate], {
+        "assessment_sha256": record_sha256,
+        "status": record_value["status"],
+    }
+
+
 def _temporal_timing_assessment(*, reversed_order: bool = False) -> dict:
     state_time = "2026-09-06T12:00:03.010000Z" if reversed_order else "2026-09-06T12:00:03.000000Z"
     sound_time = "2026-09-06T12:00:03.000000Z" if reversed_order else "2026-09-06T12:00:03.010000Z"
@@ -740,6 +834,109 @@ def test_run_rejects_preprocessing_conformance_outside_frozen_pipeline(
             quality_gates=quality_gates,
         ))
     assert protocol.preprocessing_pipeline != result["registered_pipeline_sha256"]
+
+
+def test_run_replays_passed_stream_timing_assessment_gate(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, result = _stream_timing_assessment_gate_fixture(
+        tmp_path
+    )
+
+    run = service.record_run(run_command(
+        protocol.protocol_id,
+        QualityGateStatus.PASSED,
+        artifact_root=str(tmp_path),
+        output_artifacts=output_artifacts,
+        quality_gates=quality_gates,
+    ))
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.quality_gates[0].details["stream_timing_assessment"]["status"] == (
+        "timing_feasibility_passed"
+    )
+    assert run.quality_gates[0].details["evidence_sha256"] == result["assessment_sha256"]
+    synthesis = service.build_synthesis()["content"]
+    assert "Stream timing provenance" in synthesis
+    assert result["assessment_sha256"] in synthesis
+    assert "does not authenticate acquisition" in synthesis
+    assert any(
+        finding.code == "RUN_STREAM_TIMING_ASSESSMENT_REPLAYED"
+        for finding in service.audit_rigor().findings
+    )
+
+
+def test_run_rejects_passed_stream_timing_gate_with_failed_record(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _stream_timing_assessment_gate_fixture(
+        tmp_path,
+        failed=True,
+    )
+
+    with pytest.raises(ValidationError, match="requires a passed stream-timing assessment"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
+
+
+def test_run_preserves_failed_stream_timing_assessment_gate(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _stream_timing_assessment_gate_fixture(
+        tmp_path,
+        failed=True,
+        gate_status=QualityGateStatus.FAILED,
+    )
+
+    run = service.record_run(run_command(
+        protocol.protocol_id,
+        QualityGateStatus.FAILED,
+        artifact_root=str(tmp_path),
+        output_artifacts=output_artifacts,
+        quality_gates=quality_gates,
+    ))
+
+    assert run.status is RunStatus.INVALID
+    assert run.quality_gates[0].details["stream_timing_assessment"]["status"] == (
+        "timing_feasibility_failed"
+    )
+    assert run.scientific_evidence_eligible is False
+    synthesis = service.build_synthesis()["content"]
+    assert "record status: timing_feasibility_failed" in synthesis
+    assert any(
+        finding.code == "RUN_STREAM_TIMING_ASSESSMENT_FAILED"
+        and finding.entity_id == run.run_id
+        for finding in service.audit_rigor().findings
+    )
+
+
+def test_run_rejects_stream_timing_assessment_upstream_hash_drift(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _stream_timing_assessment_gate_fixture(
+        tmp_path
+    )
+    quality_gates[0].details["stream_timing_assessment"]["inspection_sha256"] = (
+        "0" * 64
+    )
+
+    with pytest.raises(ValidationError, match="inspection SHA-256 mismatch"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
 
 
 def test_run_replays_passed_temporal_order_assessment_gate(tmp_path: Path) -> None:

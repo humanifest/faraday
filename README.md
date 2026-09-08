@@ -1056,7 +1056,17 @@ relative unit such as `ppm`, or an event's uncertainty interval overlaps inspect
 missing or corrupted data. Passing this review only says the adapter-proposed
 timing metadata is feasible for the stated lag window; it does not authenticate
 acquisition, verify calibration or drift correction, clear a protocol gate,
-register a dataset, or authorize evidence.
+register a dataset, or authorize evidence. When a run quality gate declares
+`details.stream_timing_assessment`, canonical run intake requires the same
+record as a byte-verified output artifact under `artifact_root`, replays its
+retained record hash, source inspection hash, timing specification hash, and
+status, and rejects a passed gate unless the verified record itself passed.
+Failed stream-timing assessments may only be retained as failed gates, preserving
+missing stream metadata, channel mismatches, unusable uncertainty units, and
+missing-interval overlaps while blocking required-gate evidence eligibility.
+Rigor, synthesis, and replication-package verification expose the record
+locator, assessment hash, inspection hash, specification hash, and bounded
+status.
 
 Use `measurement assess-temporal-order --timing-assessment-file FILE
 --expected-timing-assessment-sha256 HASH --spec-file SPEC --output DIRECTORY`

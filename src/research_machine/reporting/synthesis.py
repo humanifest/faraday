@@ -351,6 +351,33 @@ def build_synthesis(
                     f"`{conformance.get('observed_pipeline_sha256', 'unavailable')}`. "
                     "This is a bounded conformance replay, not evidence of implementation correctness."
                 )
+    stream_timing_runs = [
+        run for run in runs
+        if any(
+            isinstance(gate.details.get("stream_timing_assessment"), dict)
+            for gate in run.quality_gates
+        )
+    ]
+    if stream_timing_runs:
+        lines.extend(["", "### Stream timing provenance", ""])
+        for run in sorted(stream_timing_runs, key=lambda item: item.run_id):
+            for gate in run.quality_gates:
+                assessment = gate.details.get("stream_timing_assessment")
+                if not isinstance(assessment, dict):
+                    continue
+                lines.append(
+                    f"- Run `{run.run_id}` gate `{gate.gate_id}` {gate.status.value}; "
+                    f"record status: {assessment.get('status', 'unclassified')}; "
+                    f"record `{assessment.get('sha256', 'unavailable')}` at "
+                    f"`{assessment.get('locator', 'unavailable')}`."
+                )
+                lines.append(
+                    "  - Inspection record: "
+                    f"`{assessment.get('inspection_sha256', 'unavailable')}`; "
+                    "stream-timing specification: "
+                    f"`{assessment.get('specification_sha256', 'unavailable')}`. "
+                    "This checks timing feasibility from proposed stream metadata; it does not authenticate acquisition or calibration truth."
+                )
     temporal_order_runs = [
         run for run in runs
         if any(

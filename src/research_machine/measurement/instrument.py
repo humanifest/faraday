@@ -45,6 +45,31 @@ _TIMING_ASSESSMENT_SPEC_FIELDS = {
 _TIMING_LAG_WINDOW_FIELDS = {"duration", "unit", "basis"}
 _TIMING_REQUIRED_STREAM_FIELDS = {"stream_id", "channel", "purpose"}
 _TIMING_EVENT_FIELDS = {"event_id", "stream_id", "event_time"}
+_STREAM_TIMING_RECORD_FIELDS = {
+    "stream_timing_assessment_version",
+    "assessment_id",
+    "inspection",
+    "specification",
+    "required_streams",
+    "events",
+    "findings",
+    "status",
+    "scientific_evidence_eligible",
+    "authorized_actions",
+    "conclusion_ceiling",
+}
+_STREAM_TIMING_INSPECTION_FIELDS = {
+    "sha256",
+    "size_bytes",
+    "stream_count",
+    "temporal_metadata_status",
+}
+_STREAM_TIMING_SPECIFICATION_FIELDS = {
+    "sha256",
+    "size_bytes",
+    "lag_window",
+    "maximum_uncertainty_fraction",
+}
 _TEMPORAL_ORDER_SPEC_FIELDS = {"assessment_id", "order_checks"}
 _TEMPORAL_ORDER_CHECK_FIELDS = {
     "check_id",
@@ -1221,6 +1246,174 @@ def assess_stream_timing(
         "specification_sha256": spec_sha256,
         "assessment_sha256": hashlib.sha256(encoded).hexdigest(),
         "status": status,
+        "finding_count": len(findings),
+        "scientific_evidence_eligible": False,
+    }
+
+
+def verify_stream_timing_assessment_record(
+    record_file: Path,
+    expected_record_sha256: str,
+    *,
+    expected_inspection_sha256: str | None = None,
+    expected_specification_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Replay a retained stream-timing assessment record from current bytes."""
+    expected_record = _sha256(expected_record_sha256, "expected_record_sha256")
+    record, content, retained_sha256 = _load_json_object_and_sha256(
+        record_file, "stream timing assessment record"
+    )
+    if retained_sha256 != expected_record:
+        raise ValidationError(
+            "stream timing assessment record does not match expected_record_sha256"
+        )
+    _exact_fields(record, _STREAM_TIMING_RECORD_FIELDS, "stream_timing record")
+    if record["stream_timing_assessment_version"] != 1:
+        raise ValidationError("unsupported stream timing assessment record")
+    assessment_id = _stable_identifier(
+        record["assessment_id"], "stream_timing record assessment_id"
+    )
+    inspection = record["inspection"]
+    if not isinstance(inspection, dict):
+        raise ValidationError("stream timing assessment inspection must be an object")
+    _exact_fields(inspection, _STREAM_TIMING_INSPECTION_FIELDS, "stream_timing inspection")
+    inspection_sha256 = _sha256(
+        inspection["sha256"], "stream_timing inspection.sha256"
+    )
+    if expected_inspection_sha256 is not None and inspection_sha256 != _sha256(
+        expected_inspection_sha256, "expected_inspection_sha256"
+    ):
+        raise ValidationError("stream timing assessment inspection SHA-256 mismatch")
+    if not isinstance(inspection["size_bytes"], int) or isinstance(inspection["size_bytes"], bool) or inspection["size_bytes"] <= 0:
+        raise ValidationError("stream timing assessment inspection size_bytes must be a positive integer")
+    if not isinstance(inspection["stream_count"], int) or isinstance(inspection["stream_count"], bool) or inspection["stream_count"] < 0:
+        raise ValidationError("stream timing assessment stream_count must be a non-negative integer")
+    temporal_status = _text(
+        inspection["temporal_metadata_status"],
+        "stream_timing inspection.temporal_metadata_status",
+    )
+    if temporal_status not in {"proposed_unverified", "not_provided"}:
+        raise ValidationError("stream timing assessment temporal metadata status is unsupported")
+    specification = record["specification"]
+    if not isinstance(specification, dict):
+        raise ValidationError("stream timing assessment specification must be an object")
+    _exact_fields(specification, _STREAM_TIMING_SPECIFICATION_FIELDS, "stream_timing specification")
+    specification_sha256 = _sha256(
+        specification["sha256"], "stream_timing specification.sha256"
+    )
+    if expected_specification_sha256 is not None and specification_sha256 != _sha256(
+        expected_specification_sha256, "expected_specification_sha256"
+    ):
+        raise ValidationError("stream timing assessment specification SHA-256 mismatch")
+    if not isinstance(specification["size_bytes"], int) or isinstance(specification["size_bytes"], bool) or specification["size_bytes"] <= 0:
+        raise ValidationError("stream timing assessment specification size_bytes must be a positive integer")
+    lag_window = specification["lag_window"]
+    if not isinstance(lag_window, dict):
+        raise ValidationError("stream timing assessment lag_window must be an object")
+    _exact_fields(lag_window, {"duration", "unit", "seconds", "basis"}, "stream_timing lag_window")
+    _positive_number(lag_window["duration"], "stream_timing lag_window.duration")
+    _positive_number(lag_window["seconds"], "stream_timing lag_window.seconds")
+    _text(lag_window["unit"], "stream_timing lag_window.unit")
+    _text(lag_window["basis"], "stream_timing lag_window.basis")
+    maximum_uncertainty_fraction = _positive_number(
+        specification["maximum_uncertainty_fraction"],
+        "stream_timing maximum_uncertainty_fraction",
+    )
+    if maximum_uncertainty_fraction > 1:
+        raise ValidationError("stream timing assessment maximum_uncertainty_fraction must be at most 1")
+    required_streams = record["required_streams"]
+    if not isinstance(required_streams, list):
+        raise ValidationError("stream timing assessment required_streams must be an array")
+    for index, stream in enumerate(required_streams):
+        if not isinstance(stream, dict):
+            raise ValidationError(f"stream timing assessment required_streams[{index}] must be an object")
+        stream_id = _stable_identifier(
+            stream.get("stream_id"), f"stream_timing required_streams[{index}].stream_id"
+        )
+        _text(stream.get("channel"), f"stream_timing required_streams[{index}].channel")
+        _text(stream.get("purpose"), f"stream_timing required_streams[{index}].purpose")
+        status = _text(stream.get("status"), f"stream_timing required_streams[{index}].status")
+        if status not in {"present", "absent", "channel_mismatch"}:
+            raise ValidationError("stream timing assessment required stream status is unsupported")
+        if status != "absent":
+            _text(
+                stream.get("observed_channel"),
+                f"stream_timing required_streams[{index}].observed_channel",
+            )
+        if stream_id == "":
+            raise ValidationError("stream timing assessment stream_id must be non-empty")
+    events = record["events"]
+    if not isinstance(events, list):
+        raise ValidationError("stream timing assessment events must be an array")
+    event_statuses: list[str] = []
+    for index, event in enumerate(events):
+        if not isinstance(event, dict):
+            raise ValidationError(f"stream timing assessment events[{index}] must be an object")
+        _stable_identifier(event.get("event_id"), f"stream_timing events[{index}].event_id")
+        _stable_identifier(event.get("stream_id"), f"stream_timing events[{index}].stream_id")
+        _parse_time(event.get("event_time"), f"stream_timing events[{index}].event_time")
+        status = _text(event.get("status"), f"stream_timing events[{index}].status")
+        if status not in {
+            "assessed",
+            "stream_absent",
+            "unsupported_uncertainty_unit",
+        }:
+            raise ValidationError("stream timing assessment event status is unsupported")
+        event_statuses.append(status)
+        if status == "assessed":
+            _nonnegative_number(
+                event.get("clock_uncertainty_seconds"),
+                f"stream_timing events[{index}].clock_uncertainty_seconds",
+            )
+            _nonnegative_number(
+                event.get("uncertainty_fraction_of_lag_window"),
+                f"stream_timing events[{index}].uncertainty_fraction_of_lag_window",
+            )
+            overlaps = event.get("overlapping_missing_intervals")
+            if not isinstance(overlaps, list):
+                raise ValidationError("stream timing assessment overlapping_missing_intervals must be an array")
+    findings = record["findings"]
+    if not isinstance(findings, list):
+        raise ValidationError("stream timing assessment findings must be an array")
+    error_findings = 0
+    for index, finding in enumerate(findings):
+        if not isinstance(finding, dict):
+            raise ValidationError(f"stream timing assessment findings[{index}] must be an object")
+        severity = _text(
+            finding.get("severity"), f"stream_timing findings[{index}].severity"
+        )
+        if severity not in {"warning", "error"}:
+            raise ValidationError("stream timing assessment finding severity is unsupported")
+        _text(finding.get("code"), f"stream_timing findings[{index}].code")
+        _text(finding.get("message"), f"stream_timing findings[{index}].message")
+        if severity == "error":
+            error_findings += 1
+    status = _text(record["status"], "stream_timing record status")
+    if status not in {"timing_feasibility_passed", "timing_feasibility_failed"}:
+        raise ValidationError("stream timing assessment status is unsupported")
+    if record["scientific_evidence_eligible"] is not False:
+        raise ValidationError("stream timing assessment must remain non-evidentiary")
+    if record["authorized_actions"] != []:
+        raise ValidationError("stream timing assessment must not authorize actions")
+    _text(record["conclusion_ceiling"], "stream_timing conclusion_ceiling")
+    failed_event = any(
+        value in {"stream_absent", "unsupported_uncertainty_unit"}
+        for value in event_statuses
+    )
+    if status == "timing_feasibility_passed" and (error_findings or failed_event):
+        raise ValidationError("passed stream timing assessment record contains failures")
+    if status == "timing_feasibility_failed" and not (error_findings or failed_event):
+        raise ValidationError("failed stream timing assessment record lacks failed checks")
+    return {
+        "status": "stream_timing_assessment_record_verified",
+        "record_sha256": retained_sha256,
+        "record_size_bytes": len(content),
+        "assessment_id": assessment_id,
+        "record_status": status,
+        "inspection_sha256": inspection_sha256,
+        "specification_sha256": specification_sha256,
+        "required_stream_count": len(required_streams),
+        "event_count": len(events),
         "finding_count": len(findings),
         "scientific_evidence_eligible": False,
     }

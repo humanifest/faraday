@@ -592,6 +592,28 @@ def audit_research_state(
                         entity_type="run",
                         entity_id=run.run_id,
                     )
+            stream_timing = gate.details.get("stream_timing_assessment")
+            if isinstance(stream_timing, dict):
+                record_status = stream_timing.get("status")
+                if record_status == "timing_feasibility_failed":
+                    add(
+                        "RUN_STREAM_TIMING_ASSESSMENT_FAILED",
+                        RigorSeverity.ERROR,
+                        "Run retains a failed stream-timing assessment; event-timing interpretation must stay bounded.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Inspect the stream-timing artifact, preserve the failed gate outcome, and do not infer event timing from unsupported stream metadata."
+                        ),
+                    )
+                elif record_status == "timing_feasibility_passed":
+                    add(
+                        "RUN_STREAM_TIMING_ASSESSMENT_REPLAYED",
+                        RigorSeverity.INFO,
+                        "Run exposes an artifact-bound stream-timing assessment; the pass is a feasibility check, not acquisition or calibration proof.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                    )
             temporal_order = gate.details.get("temporal_order_assessment")
             if not isinstance(temporal_order, dict):
                 continue
