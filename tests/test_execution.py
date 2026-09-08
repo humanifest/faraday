@@ -364,7 +364,12 @@ def prepared_service(root: Path) -> tuple[ResearchService, str]:
     return service, hypothesis.hypothesis_id
 
 
-def frozen_formal_protocol(service: ResearchService, hypothesis_id: str):
+def frozen_formal_protocol(
+    service: ResearchService,
+    hypothesis_id: str,
+    *,
+    preprocessing_pipeline: str = "",
+):
     protocol = service.create_protocol(
         CreateProtocol(
             experiment_id="formal-check-01",
@@ -384,6 +389,7 @@ def frozen_formal_protocol(service: ResearchService, hypothesis_id: str):
             ),
             failure_conditions=["The checker rejects any proof step."],
             safety_constraints=["No physical or human intervention is involved."],
+            preprocessing_pipeline=preprocessing_pipeline,
             analysis_code_hash=CODE_HASH,
             random_seed_commitment=SEED_COMMITMENT,
         )
@@ -615,6 +621,33 @@ def test_run_rejects_preprocessing_conformance_upstream_hash_drift(tmp_path: Pat
             output_artifacts=output_artifacts,
             quality_gates=quality_gates,
         ))
+
+
+def test_run_rejects_preprocessing_conformance_outside_frozen_pipeline(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    output_artifacts, quality_gates, result = _preprocessing_conformance_gate_fixture(
+        tmp_path
+    )
+    protocol = frozen_formal_protocol(
+        service,
+        hypothesis_id,
+        preprocessing_pipeline="0" * 64,
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="does not match frozen protocol preprocessing_pipeline",
+    ):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
+    assert protocol.preprocessing_pipeline != result["registered_pipeline_sha256"]
 
 
 def test_passed_quality_gate_requires_output_bound_evidence_and_passed_prerequisites(tmp_path: Path) -> None:
@@ -1169,6 +1202,28 @@ def test_run_record_template_preserves_frozen_gate_order_and_is_not_submittable(
     ]
     assert service.verify_ledger("formal") == before
     assert service.list_runs("formal") == []
+
+
+def test_run_record_template_exposes_hash_bound_preprocessing_contract(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(
+        service,
+        hypothesis_id,
+        preprocessing_pipeline="1" * 64,
+    )
+
+    template = service.run_record_template(protocol.protocol_id, "formal")
+
+    assert template["preprocessing_pipeline_commitment_sha256"] == "1" * 64
+    conformance = template["record"]["quality_gates"][0]["details"][
+        "preprocessing_conformance"
+    ]
+    assert conformance["registered_pipeline_sha256"] == "1" * 64
+    assert "observed preprocessing pipeline" in conformance[
+        "observed_pipeline_sha256"
+    ]
 
 
 def test_next_action_selection_excludes_unsafe_options_and_is_auditable(

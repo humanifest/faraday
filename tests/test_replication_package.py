@@ -408,6 +408,7 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         ("warning_gate", "must be passed or failed"),
         ("missing_field", "preprocessing_conformance fields are invalid"),
         ("bad_observed_hash", "observed_pipeline_sha256 must be 64 lowercase hex characters"),
+        ("protocol_mismatch", "does not match frozen protocol preprocessing_pipeline"),
     ],
 )
 def test_replication_package_verifies_preprocessing_conformance_gate_metadata(
@@ -424,6 +425,10 @@ def test_replication_package_verifies_preprocessing_conformance_gate_metadata(
         falsification_conditions=["Failure"],
     ))
     service.activate_hypothesis(hypothesis.hypothesis_id)
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha256 = _write_json(registered, _pipeline())
+    observed_sha256 = _write_json(observed, _pipeline())
     protocol = service.create_protocol(CreateProtocol(
         experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
         hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
@@ -431,6 +436,7 @@ def test_replication_package_verifies_preprocessing_conformance_gate_metadata(
         controls=["control"], expected_outputs=["output"], success_conditions=["success"],
         environment_requirements=["environment"], sample_size_or_stopping_rule="one",
         failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+        preprocessing_pipeline=registered_sha256,
     ))
     frozen = service.freeze_protocol(protocol.protocol_id)
     service.register_dataset(RegisterDataset(
@@ -441,10 +447,6 @@ def test_replication_package_verifies_preprocessing_conformance_gate_metadata(
         synthetic=True,
         quality_attestations=["Synthetic package fixture."],
     ))
-    registered = tmp_path / "registered-pipeline.json"
-    observed = tmp_path / "observed-pipeline.json"
-    registered_sha256 = _write_json(registered, _pipeline())
-    observed_sha256 = _write_json(observed, _pipeline())
     conformance = assess_preprocessing_conformance(
         registered,
         registered_sha256,
@@ -512,8 +514,16 @@ def test_replication_package_verifies_preprocessing_conformance_gate_metadata(
         gate["details"]["preprocessing_conformance"]["observed_pipeline_sha256"] = (
             "not-a-hash"
         )
-    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
-    commitment = _refresh_packaged_file(package, "runs.json")
+    elif mutation == "protocol_mismatch":
+        protocol_path = package / "protocol.json"
+        protocol_record = json.loads(protocol_path.read_text())
+        protocol_record["preprocessing_pipeline"] = "0" * 64
+        protocol_path.write_text(json.dumps(protocol_record, indent=2, sort_keys=True) + "\n")
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        commitment = _refresh_packaged_file(package, "protocol.json")
+    if mutation != "protocol_mismatch":
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        commitment = _refresh_packaged_file(package, "runs.json")
 
     with pytest.raises(ValidationError, match=message):
         verify_replication_package(package, commitment)

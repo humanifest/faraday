@@ -1092,7 +1092,11 @@ gate, register a dataset, or authorize evidence. When a run quality gate declare
 `details.preprocessing_conformance`, canonical run intake now requires the same
 record as a byte-verified output artifact under `artifact_root`, replays its
 retained record hash, registered-pipeline hash, observed-pipeline hash, and
-status, and rejects a passed gate unless the verified record itself passed. A
+status, and rejects a passed gate unless the verified record itself passed. If
+the frozen protocol records `preprocessing_pipeline` as a canonical SHA-256
+digest, the conformance record's registered-pipeline hash must match that exact
+protocol commitment at run intake and package verification. Prose preprocessing
+commitments remain visible but are not treated as machine-bound pipeline hashes. A
 failed conformance record may only be retained as a failed gate, preserving the
 discrepancy while blocking required-gate evidence eligibility. Rigor and
 synthesis now expose these conformance gates by run, artifact locator, record

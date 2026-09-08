@@ -48,6 +48,10 @@ def require_sha256(value: str, field_name: str) -> str:
     return digest
 
 
+def is_canonical_sha256(value: object) -> bool:
+    return isinstance(value, str) and bool(_SHA256.fullmatch(value))
+
+
 def normalize_text(value: str, field_name: str) -> str:
     if not isinstance(value, str):
         raise ValidationError(f"{field_name} must be text")

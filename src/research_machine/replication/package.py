@@ -22,6 +22,7 @@ from research_machine.domain.models import (
     QualityGateStatus,
 )
 from research_machine.application.policies import (
+    is_canonical_sha256,
     require_sha256,
     require_canonical_text,
     validate_quality_gates,
@@ -86,6 +87,7 @@ def _strict_json_bytes(content: bytes, label: str) -> Any:
 
 def _validate_preprocessing_conformance_gate_metadata(
     *,
+    protocol: ExperimentProtocol,
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
@@ -117,7 +119,7 @@ def _validate_preprocessing_conformance_gate_metadata(
         "preprocessing_conformance_failed",
     }:
         raise ValidationError(f"{prefix}.status is unsupported")
-    require_sha256(
+    registered_pipeline_sha256 = require_sha256(
         conformance["registered_pipeline_sha256"],
         f"{prefix}.registered_pipeline_sha256",
     )
@@ -132,6 +134,14 @@ def _validate_preprocessing_conformance_gate_metadata(
     if evidence_sha256 != record_sha256:
         raise ValidationError(
             f"package run {run_id} gate {gate.gate_id} evidence does not match preprocessing conformance record"
+        )
+    if (
+        is_canonical_sha256(protocol.preprocessing_pipeline)
+        and registered_pipeline_sha256 != protocol.preprocessing_pipeline
+    ):
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} preprocessing conformance registered pipeline "
+            "does not match frozen protocol preprocessing_pipeline"
         )
     if not any(
         artifact.locator == locator and artifact.sha256 == record_sha256
@@ -393,6 +403,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                                 f"package run {run.run_id} passed gate {gate.gate_id} lacks output-bound evidence"
                             )
                     _validate_preprocessing_conformance_gate_metadata(
+                        protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=run.output_artifacts,

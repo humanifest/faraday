@@ -1332,7 +1332,11 @@ or authorize evidence. Canonical run intake now treats
 the gate must cite the conformance record as a declared output artifact under a
 passed artifact-integrity receipt, the retained record hash and both upstream
 pipeline hashes are replayed from current bytes, and the gate disposition must
-match the verified record status. Failed preprocessing conformance remains
+match the verified record status. When `preprocessing_pipeline` is frozen as a
+canonical SHA-256 digest, run intake and replication-package verification also
+require the conformance record's registered-pipeline hash to equal that frozen
+protocol commitment; prose commitments remain disclosed as unbound text rather
+than silently promoted to hash-verified adherence. Failed preprocessing conformance remains
 recordable only as a failed gate, preserving the discrepancy without allowing a
 favorable gate summary to overwrite it. Rigor and deterministic synthesis now
 carry those gates into the visible record with the exact artifact locator,

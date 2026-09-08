@@ -29,6 +29,7 @@ from research_machine.application.commands import (
 )
 from research_machine.application.artifact_integrity import verify_run_artifacts
 from research_machine.application.policies import (
+    is_canonical_sha256,
     normalize_confidence,
     normalize_text,
     require_canonical_text,
@@ -254,6 +255,7 @@ def _verify_json_artifact_location(
 
 def _validate_preprocessing_conformance_gate(
     *,
+    protocol: ExperimentProtocol,
     gate: QualityGateResult,
     outputs: list[DatasetArtifact],
     artifact_root: str | None,
@@ -328,6 +330,14 @@ def _validate_preprocessing_conformance_gate(
             f"{prefix}.observed_pipeline_sha256",
         ),
     )
+    if (
+        is_canonical_sha256(protocol.preprocessing_pipeline)
+        and verified["registered_pipeline_sha256"] != protocol.preprocessing_pipeline
+    ):
+        raise ValidationError(
+            f"quality gate {gate.gate_id} preprocessing_conformance registered pipeline "
+            "does not match frozen protocol preprocessing_pipeline"
+        )
     if declared_status != verified["record_status"]:
         raise ValidationError(
             f"quality gate {gate.gate_id} preprocessing_conformance status does not match the verified record"
@@ -2724,6 +2734,7 @@ class ResearchService:
                             f"passed quality gate {gate.gate_id} requires prerequisite {prerequisite_id} to pass"
                         )
             _validate_preprocessing_conformance_gate(
+                protocol=protocol,
                 gate=gate,
                 outputs=outputs,
                 artifact_root=artifact_root,
@@ -3426,10 +3437,16 @@ class ResearchService:
             if protocol.analysis_contract is not None
             else ""
         )
+        preprocessing_pipeline_sha256 = (
+            protocol.preprocessing_pipeline
+            if is_canonical_sha256(protocol.preprocessing_pipeline)
+            else None
+        )
         return {
             "schema_version": 1,
             "template_kind": "research-machine-run-record-v1",
             "control_plan": [control.to_dict() for control in protocol.control_definitions],
+            "preprocessing_pipeline_commitment_sha256": preprocessing_pipeline_sha256,
             "template_only": True,
             "would_append_event": False,
             "protocol_hash": protocol.protocol_hash,
@@ -3455,6 +3472,13 @@ class ResearchService:
                         "details": {
                             "evidence_sha256": "<hash of a listed run output artifact>",
                             "prerequisite_gate_ids": [],
+                            **({"preprocessing_conformance": {
+                                "locator": "<path below artifact_root to preprocessing-conformance.json>",
+                                "sha256": "<hash of that preprocessing conformance record>",
+                                "status": "<preprocessing_conformance_passed or preprocessing_conformance_failed>",
+                                "registered_pipeline_sha256": preprocessing_pipeline_sha256,
+                                "observed_pipeline_sha256": "<hash of the observed preprocessing pipeline declaration>",
+                            }} if preprocessing_pipeline_sha256 is not None else {}),
                             **({"control_results": {
                             control.control_id: {
                                 "observed_behavior": "",
@@ -3519,6 +3543,7 @@ class ResearchService:
                 "For control evaluations, record observed behavior and interpretation separately from the frozen expectation; never copy an expectation as an observation.",
                 "For every causal-assumption assessment, identify the exact location within its cited output artifact; when citing the verified analysis result, use an absolute JSON Pointer that resolves in that result.",
                 "For every performed measurement-validity check, record the observed diagnostic separately from interpretation, use the frozen evidence type, and cite the exact output location; a passed gate requires consistent_with_validity_claim, not proof of validity.",
+                "When preprocessing_pipeline_commitment_sha256 is present, any preprocessing_conformance gate must cite a verified conformance record whose registered_pipeline_sha256 exactly matches it.",
                 "Explicitly disclose every departure from the frozen protocol. A declared departure remains recordable but blocks automatic scientific-evidence eligibility.",
                 "Run `research run preflight --record-file ...` before `research run record`.",
             ],
