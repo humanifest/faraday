@@ -40,6 +40,7 @@ def candidate(
     safety_approved: bool = True,
     manipulated_factors: list[str] | None = None,
     factorial_or_crossover_design: bool = False,
+    factor_interpretability_plan: str = "",
 ) -> ActionCandidate:
     return ActionCandidate(
         action_id=action_id,
@@ -58,6 +59,7 @@ def candidate(
         depends_on=depends_on or [],
         manipulated_factors=manipulated_factors or [],
         factorial_or_crossover_design=factorial_or_crossover_design,
+        factor_interpretability_plan=factor_interpretability_plan,
     )
 
 
@@ -293,6 +295,40 @@ def test_multi_factor_actions_require_factorial_or_crossover_interpretability(
                 ],
             )
         )
+    with pytest.raises(ValidationError, match="factor_interpretability_plan"):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate(
+                        "checkbox-only-design",
+                        "machine",
+                        0.9,
+                        manipulated_factors=["room", "apparatus"],
+                        factorial_or_crossover_design=True,
+                    ),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+    with pytest.raises(ValidationError, match="without manipulated_factors"):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate(
+                        "factorial-without-factors",
+                        "machine",
+                        0.9,
+                        factorial_or_crossover_design=True,
+                        factor_interpretability_plan=(
+                            "Cross the declared factors before analysis."
+                        ),
+                    ),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
 
     recommendation = service.recommend_action_portfolio(
         RecommendActionPortfolio(
@@ -304,6 +340,10 @@ def test_multi_factor_actions_require_factorial_or_crossover_interpretability(
                     0.9,
                     manipulated_factors=["room", "apparatus"],
                     factorial_or_crossover_design=True,
+                    factor_interpretability_plan=(
+                        "Cross each room with each apparatus while holding the "
+                        "operator and analysis label fixed."
+                    ),
                 ),
                 candidate("theory-next", "theory", 0.7),
             ],
@@ -316,9 +356,10 @@ def test_multi_factor_actions_require_factorial_or_crossover_interpretability(
     )
     assert selected.manipulated_factors == ["room", "apparatus"]
     assert selected.factorial_or_crossover_design is True
+    assert selected.factor_interpretability_plan.startswith("Cross each room")
     synthesis = service.build_synthesis()["content"]
     assert (
-        "machine: room, apparatus (factorial/crossover declared)"
+        "machine: room, apparatus (factorial/crossover declared; plan: Cross each room"
         in synthesis
     )
     assert "theory: no manipulated factors declared" in synthesis
@@ -402,6 +443,21 @@ def test_multi_factor_actions_require_factorial_or_crossover_interpretability(
             ],
             [],
             "manipulated_factors item must be canonical",
+        ),
+        (
+            [ActionLane("machine", "Machine")],
+            [
+                candidate(
+                    "action-a",
+                    "machine",
+                    0.8,
+                    manipulated_factors=["room", "apparatus"],
+                    factorial_or_crossover_design=True,
+                    factor_interpretability_plan=" Cross factors ",
+                )
+            ],
+            [],
+            "factor_interpretability_plan must be canonical",
         ),
     ],
 )

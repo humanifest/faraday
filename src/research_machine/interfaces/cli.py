@@ -1465,6 +1465,7 @@ def _action_candidates(spec: dict[str, Any]) -> list[ActionCandidate]:
         "depends_on",
         "manipulated_factors",
         "factorial_or_crossover_design",
+        "factor_interpretability_plan",
         "metadata",
     }
     for value in candidate_values:

@@ -1504,6 +1504,7 @@ dependency handles, completed-action IDs, and blocked-lane reasons must be
 canonical without surrounding whitespace before ranking or lane balancing.
 Action candidates may also name exact `manipulated_factors`; candidates that
 change more than one factor must declare `factorial_or_crossover_design: true`
+and a canonical `factor_interpretability_plan`
 before ranking, so an apparently high-yield follow-up cannot hide an
 uninterpretable simultaneous intervention.
 Deterministic synthesis reports the selected actions' manipulated-factor plan

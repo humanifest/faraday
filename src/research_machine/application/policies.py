@@ -2310,9 +2310,30 @@ def validate_action_candidates(
         manipulated_factors = require_unique_canonical_text_list(
             candidate.manipulated_factors, "manipulated_factors"
         )
+        if not isinstance(candidate.factor_interpretability_plan, str):
+            raise ValidationError("factor_interpretability_plan must be text")
+        factor_interpretability_plan = ""
+        if candidate.factor_interpretability_plan:
+            factor_interpretability_plan = require_canonical_text(
+                candidate.factor_interpretability_plan,
+                "factor_interpretability_plan",
+            )
+        if candidate.factorial_or_crossover_design and not manipulated_factors:
+            raise ValidationError(
+                f"action {action_id} declares a factorial or crossover design "
+                "without manipulated_factors"
+            )
+        if candidate.factorial_or_crossover_design and not factor_interpretability_plan:
+            raise ValidationError(
+                f"action {action_id} declares a factorial or crossover design "
+                "without a factor_interpretability_plan"
+            )
         if (
             len(manipulated_factors) > 1
-            and not candidate.factorial_or_crossover_design
+            and (
+                not candidate.factorial_or_crossover_design
+                or not factor_interpretability_plan
+            )
         ):
             raise ValidationError(
                 f"action {action_id} changes multiple factors without a "
@@ -2340,6 +2361,7 @@ def validate_action_candidates(
                 factorial_or_crossover_design=(
                     candidate.factorial_or_crossover_design
                 ),
+                factor_interpretability_plan=factor_interpretability_plan,
                 metadata=dict(candidate.metadata),
             )
         )

@@ -19,12 +19,12 @@ methods without changing its epistemic rules or canonical state.
   hypothesis distinctions, information targets, dependency handles,
   completed-action IDs, blocked-lane reasons, and manipulated-factor handles
   must be canonical before ranking or lane balancing. Multi-factor candidates
-  must declare a factorial or crossover interpretability design before they can
-  be ranked, so action selection cannot prefer a simultaneous intervention whose
-  result would not distinguish the changed factors. Deterministic synthesis now
-  reports the selected actions' factor plan and design status. The weight vector
-  must contain finite, non-negative values with at least one positive utility
-  term, so recommendation
+  must declare a factorial or crossover design plus a canonical
+  factor-interpretability plan before they can be ranked, so action selection
+  cannot prefer a simultaneous intervention whose result would not distinguish
+  the changed factors. Deterministic synthesis now reports the selected actions'
+  factor plan and design status. The weight vector must contain finite,
+  non-negative values with at least one positive utility term, so recommendation
   provenance does not depend on silent whitespace normalization, non-finite
   arithmetic, or lexicographic action identifiers. The selected action must have
   a unique highest utility; tied top candidates require a refined utility model

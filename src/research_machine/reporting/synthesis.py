@@ -765,4 +765,6 @@ def _action_factor_summary(candidate: ActionCandidate) -> str:
         design = "single-factor or legacy-unresolved design"
     else:
         design = "missing factorial/crossover declaration"
+    if candidate.factor_interpretability_plan:
+        design += f"; plan: {candidate.factor_interpretability_plan}"
     return ", ".join(factors) + f" ({design})"

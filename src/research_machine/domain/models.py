@@ -809,6 +809,7 @@ class ActionCandidate(Serializable):
     depends_on: list[str] = field(default_factory=list)
     manipulated_factors: list[str] = field(default_factory=list)
     factorial_or_crossover_design: bool = False
+    factor_interpretability_plan: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
