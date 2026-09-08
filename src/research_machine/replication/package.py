@@ -11,9 +11,11 @@ from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     AnalysisMode,
     DatasetManifest,
+    DatasetArtifact,
     EthicsReviewEvent,
     ExperimentProtocol,
     ProtocolStatus,
+    QualityGateResult,
     ResearchRun,
     RunStatus,
     DatasetRole,
@@ -80,6 +82,78 @@ def _strict_json_bytes(content: bytes, label: str) -> Any:
         )
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise ValidationError(f"invalid strict JSON in {label}: {exc}") from exc
+
+
+def _validate_preprocessing_conformance_gate_metadata(
+    *,
+    run_id: str,
+    gate: QualityGateResult,
+    output_artifacts: list[DatasetArtifact],
+) -> None:
+    conformance = gate.details.get("preprocessing_conformance")
+    if conformance is None:
+        return
+    if not isinstance(conformance, dict):
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} preprocessing_conformance must be an object"
+        )
+    required_fields = {
+        "locator",
+        "sha256",
+        "status",
+        "registered_pipeline_sha256",
+        "observed_pipeline_sha256",
+    }
+    if set(conformance) != required_fields:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} preprocessing_conformance fields are invalid"
+        )
+    prefix = f"package run {run_id} gate {gate.gate_id} preprocessing_conformance"
+    locator = require_canonical_text(conformance["locator"], f"{prefix}.locator")
+    record_sha256 = require_sha256(conformance["sha256"], f"{prefix}.sha256")
+    declared_status = require_canonical_text(conformance["status"], f"{prefix}.status")
+    if declared_status not in {
+        "preprocessing_conformance_passed",
+        "preprocessing_conformance_failed",
+    }:
+        raise ValidationError(f"{prefix}.status is unsupported")
+    require_sha256(
+        conformance["registered_pipeline_sha256"],
+        f"{prefix}.registered_pipeline_sha256",
+    )
+    require_sha256(
+        conformance["observed_pipeline_sha256"],
+        f"{prefix}.observed_pipeline_sha256",
+    )
+    evidence_sha256 = require_sha256(
+        gate.details.get("evidence_sha256"),
+        f"package run {run_id} gate {gate.gate_id} evidence_sha256",
+    )
+    if evidence_sha256 != record_sha256:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} evidence does not match preprocessing conformance record"
+        )
+    if not any(
+        artifact.locator == locator and artifact.sha256 == record_sha256
+        for artifact in output_artifacts
+    ):
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} preprocessing conformance record is not a declared output artifact"
+        )
+    if gate.status is QualityGateStatus.PASSED:
+        if declared_status != "preprocessing_conformance_passed":
+            raise ValidationError(
+                f"package run {run_id} passed preprocessing gate {gate.gate_id} lacks passed conformance metadata"
+            )
+    elif gate.status is QualityGateStatus.FAILED:
+        if declared_status != "preprocessing_conformance_failed":
+            raise ValidationError(
+                f"package run {run_id} failed preprocessing gate {gate.gate_id} lacks failed conformance metadata"
+            )
+    else:
+        raise ValidationError(
+            f"package run {run_id} preprocessing gate {gate.gate_id} must be passed or failed according to conformance metadata"
+        )
 
 
 def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any]:
@@ -318,6 +392,11 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                             raise ValidationError(
                                 f"package run {run.run_id} passed gate {gate.gate_id} lacks output-bound evidence"
                             )
+                    _validate_preprocessing_conformance_gate_metadata(
+                        run_id=run.run_id,
+                        gate=gate,
+                        output_artifacts=run.output_artifacts,
+                    )
                     prerequisites = gate.details.get("prerequisite_gate_ids", [])
                     if not isinstance(prerequisites, list) or any(
                         not isinstance(value, str) or not value.strip()

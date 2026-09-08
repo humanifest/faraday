@@ -886,7 +886,14 @@ output-bound gate evidence, prerequisites, validity status, workflow-component
 status, and evidence eligibility. The verifier requires packaged protocol
 requirements, run gates, and run-gate prerequisites to be nonblank, unique, and
 canonical without surrounding whitespace before coverage checks, closing package-
-only ambiguity before a package can be trusted independently.
+only ambiguity before a package can be trusted independently. Structured
+preprocessing-conformance gate metadata is also checked in package verification:
+the declared conformance record hash must be the gate evidence and a packaged run
+output, registered and observed pipeline hashes must be canonical, and passed or
+failed gate status must agree with the retained conformance status. Redacted
+packages cannot independently reopen local conformance artifacts, but they can
+still reject internally consistent metadata rewrites that make failed
+preprocessing look passed.
 When a package includes locators, verification also recomputes the packaged
 protocol, dataset, and run frozen hash commitments from the unredacted bytes;
 redacted packages preserve but cannot independently replay locator-bearing

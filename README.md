@@ -648,7 +648,13 @@ protocol-gate coverage, passed-gate output evidence, prerequisite satisfaction,
 run validity, and final scientific-evidence eligibility. Gate IDs and
 prerequisite references must also be nonblank, unique, and canonical without
 surrounding whitespace before package verification accepts the run, so malformed
-package metadata cannot survive independent verification. Packages exported with
+package metadata cannot survive independent verification. Structured
+preprocessing-conformance gate metadata is also replayed inside the package: the
+gate's evidence hash must match the declared conformance record, that record
+must be a packaged run output, upstream pipeline hashes must be canonical, and
+the gate disposition must agree with the conformance status. Redacted packages
+cannot re-open local conformance bytes, but they can still reject a reassuring
+metadata rewrite. Packages exported with
 `--include-locators` also
 replay the packaged protocol, dataset, and run frozen hash commitments from the
 unredacted bytes; redacted packages preserve the original commitments but cannot

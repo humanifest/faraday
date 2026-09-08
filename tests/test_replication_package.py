@@ -25,6 +25,7 @@ from research_machine.domain.models import (
     QualityGateStatus,
 )
 from research_machine.domain.errors import ValidationError
+from research_machine.measurement.preprocessing import assess_preprocessing_conformance
 from research_machine.replication.package import verify_replication_package
 from research_machine.interfaces.cli import main
 
@@ -56,6 +57,64 @@ def _after_registration_times(registration_timestamp: str) -> tuple[str, str]:
         started.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
         completed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
     )
+
+
+def _pipeline(*, smoothing_window: int = 5) -> dict:
+    return {
+        "pipeline_id": "registered-pipeline",
+        "purpose": "Synthetic fixture for package preprocessing conformance.",
+        "steps": [
+            {
+                "step_id": "load-raw",
+                "operation": "read fixture bytes",
+                "parameters": {"encoding": "utf-8"},
+                "input_artifacts": [{
+                    "artifact_id": "raw-input",
+                    "sha256": "1" * 64,
+                    "media_type": "text/csv",
+                    "role": "raw observation fixture",
+                }],
+                "output_artifacts": [{
+                    "artifact_id": "loaded-table",
+                    "sha256": "2" * 64,
+                    "media_type": "application/json",
+                    "role": "loaded table fixture",
+                }],
+                "implementation_sha256": "3" * 64,
+            },
+            {
+                "step_id": "smooth-signal",
+                "operation": "moving average",
+                "parameters": {"window": smoothing_window, "edge_policy": "drop"},
+                "input_artifacts": [{
+                    "artifact_id": "loaded-table",
+                    "sha256": "2" * 64,
+                    "media_type": "application/json",
+                    "role": "loaded table fixture",
+                }],
+                "output_artifacts": [{
+                    "artifact_id": "smoothed-table",
+                    "sha256": "4" * 64,
+                    "media_type": "application/json",
+                    "role": "preprocessed table fixture",
+                }],
+                "implementation_sha256": "5" * 64,
+            },
+        ],
+    }
+
+
+def _write_json(path: Path, value: dict) -> str:
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _refresh_packaged_file(package: Path, name: str) -> str:
+    manifest_path = package / "package-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"][name] = hashlib.sha256((package / name).read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    return hashlib.sha256(manifest_path.read_bytes()).hexdigest()
 
 
 def test_nested_locator_redaction_does_not_mutate_source():
@@ -340,6 +399,124 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     with pytest.raises(ValidationError):
         verify_replication_package(package, commitment)
     assert service.verify_ledger()["valid"] is True
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("declared_failed", "passed preprocessing gate"),
+        ("warning_gate", "must be passed or failed"),
+        ("missing_field", "preprocessing_conformance fields are invalid"),
+        ("bad_observed_hash", "observed_pipeline_sha256 must be 64 lowercase hex characters"),
+    ],
+)
+def test_replication_package_verifies_preprocessing_conformance_gate_metadata(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service = ResearchService(FileSystemRepository(workspace), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL, methodology="Method", quality_requirements=["gate"],
+        controls=["control"], expected_outputs=["output"], success_conditions=["success"],
+        environment_requirements=["environment"], sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha256 = _write_json(registered, _pipeline())
+    observed_sha256 = _write_json(observed, _pipeline())
+    conformance = assess_preprocessing_conformance(
+        registered,
+        registered_sha256,
+        observed,
+        observed_sha256,
+        tmp_path / "preprocessing-conformance",
+    )
+    record = Path(conformance["path"]) / "preprocessing-conformance.json"
+    record_locator = str(record.relative_to(tmp_path))
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            record_locator,
+            conformance["assessment_sha256"],
+            record.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "gate",
+            QualityGateStatus.PASSED,
+            "Synthetic preprocessing conformance fixture passed.",
+            details={
+                "evidence_sha256": conformance["assessment_sha256"],
+                "preprocessing_conformance": {
+                    "locator": record_locator,
+                    "sha256": conformance["assessment_sha256"],
+                    "status": "preprocessing_conformance_passed",
+                    "registered_pipeline_sha256": registered_sha256,
+                    "observed_pipeline_sha256": observed_sha256,
+                },
+            },
+        )],
+        summary="Synthetic package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    gate = runs[0]["quality_gates"][0]
+    if mutation == "declared_failed":
+        gate["details"]["preprocessing_conformance"]["status"] = (
+            "preprocessing_conformance_failed"
+        )
+    elif mutation == "warning_gate":
+        gate["status"] = "warning"
+    elif mutation == "missing_field":
+        del gate["details"]["preprocessing_conformance"]["observed_pipeline_sha256"]
+    elif mutation == "bad_observed_hash":
+        gate["details"]["preprocessing_conformance"]["observed_pipeline_sha256"] = (
+            "not-a-hash"
+        )
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
 
 
 def test_included_locator_package_replays_protocol_hash(tmp_path: Path) -> None:
