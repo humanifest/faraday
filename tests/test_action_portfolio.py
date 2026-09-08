@@ -9,7 +9,7 @@ from research_machine.application.commands import (
 )
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ValidationError
-from research_machine.domain.models import ActionCandidate, ActionLane
+from research_machine.domain.models import ActionCandidate, ActionLane, SelectionWeights
 
 
 def prepared_service(root: Path) -> ResearchService:
@@ -225,6 +225,31 @@ def test_active_lane_cannot_borrow_an_unsafe_action_from_another_lane(
                         safety_approved=False,
                     ),
                 ],
+            )
+        )
+
+
+def test_portfolio_rejects_degenerate_utility_weights(tmp_path: Path) -> None:
+    service = prepared_service(tmp_path)
+
+    with pytest.raises(
+        ValidationError, match="at least one positive utility term"
+    ):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate("machine-next", "machine", 0.9),
+                    candidate("theory-next", "theory", 0.8),
+                ],
+                weights=SelectionWeights(
+                    expected_discrimination=0.0,
+                    uncertainty_reduction=0.0,
+                    cost=0.0,
+                    burden=0.0,
+                    safety_risk=0.0,
+                    ambiguity_risk=0.0,
+                ),
             )
         )
 

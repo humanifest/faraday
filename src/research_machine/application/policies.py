@@ -2346,6 +2346,10 @@ def validate_selection_weights(weights: SelectionWeights) -> SelectionWeights:
         if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
             raise ValidationError(f"selection weight {field_name} must be non-negative")
         values[field_name] = float(value)
+    if not any(value > 0 for value in values.values()):
+        raise ValidationError(
+            "selection weights must include at least one positive utility term"
+        )
     return SelectionWeights(**values)
 
 

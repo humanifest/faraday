@@ -40,6 +40,7 @@ from research_machine.domain.models import (
     QualityGateStatus,
     RejectionType,
     RunStatus,
+    SelectionWeights,
     ValidationTag,
 )
 
@@ -1054,6 +1055,54 @@ def test_next_action_selection_handles_must_be_canonical(tmp_path: Path) -> None
                         rationale="Would otherwise silently normalize the target.",
                     )
                 ]
+            )
+        )
+
+
+def test_next_action_selection_rejects_degenerate_utility_weights(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+
+    with pytest.raises(
+        ValidationError, match="at least one positive utility term"
+    ):
+        service.recommend_next_action(
+            RecommendNextAction(
+                candidates=[
+                    ActionCandidate(
+                        action_id="lexicographic-first",
+                        title="Lexicographic first",
+                        distinguishes_hypotheses=[hypothesis_id],
+                        expected_discrimination=0.1,
+                        uncertainty_reduction=0.1,
+                        cost=0.1,
+                        burden=0.1,
+                        safety_risk=0.0,
+                        ambiguity_risk=0.1,
+                        rationale="Would be selected only by identifier order.",
+                    ),
+                    ActionCandidate(
+                        action_id="more-informative",
+                        title="More informative",
+                        distinguishes_hypotheses=[hypothesis_id],
+                        expected_discrimination=0.9,
+                        uncertainty_reduction=0.8,
+                        cost=0.1,
+                        burden=0.1,
+                        safety_risk=0.0,
+                        ambiguity_risk=0.1,
+                        rationale="Should win when utility weights are meaningful.",
+                    ),
+                ],
+                weights=SelectionWeights(
+                    expected_discrimination=0.0,
+                    uncertainty_reduction=0.0,
+                    cost=0.0,
+                    burden=0.0,
+                    safety_risk=0.0,
+                    ambiguity_risk=0.0,
+                ),
             )
         )
 
