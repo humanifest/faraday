@@ -1027,7 +1027,10 @@ non-overlapping missing-interval records that cannot predate the stream start,
 calibration record reference, and unique quality flags. Stream IDs must be
 stable lowercase handles. Faraday appends the core-computed raw-file and
 adapter-code hashes to each stream, so a temporal review cannot rely on
-adapter-supplied hash claims.
+adapter-supplied hash claims. The inspection record also carries a
+`temporal_metadata` summary: streams are labeled `proposed_unverified`, while an
+adapter that omits typed streams is labeled `not_provided` with a visible
+limitation instead of silently looking timing-ready.
 Adapters cannot pass calibration, clear gates, register a dataset, or authorize
 evidence; their proposed raw-source entry must still enter the custody workflow
 below. `measurement verify-source-inspection` takes an independently trusted

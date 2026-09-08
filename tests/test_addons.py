@@ -740,6 +740,15 @@ MANIFEST = AddonManifest(
         "sha256": hashlib.sha256(adapter_source.read_bytes()).hexdigest(),
         "size_bytes": adapter_source.stat().st_size,
     }
+    assert record["temporal_metadata"] == {
+        "status": "proposed_unverified",
+        "stream_count": 1,
+        "limitations": [
+            "Stream metadata is an adapter proposal bound to raw bytes and adapter code; it is not calibration, synchronization validation, or custody approval.",
+            "Clock-drift estimates and uncertainties remain asserted metadata until a separate quality gate verifies timing against the frozen protocol.",
+            "Missing intervals are preserved as acquisition limitations and must be handled by later custody or analysis gates.",
+        ],
+    }
     assert record["streams"] == [{
         "stream_id": "stream-main",
         "source_device": "scope-fixture-01",
@@ -809,6 +818,48 @@ MANIFEST = AddonManifest(
         "--expected-record-sha256", altered_sha256,
     ]) == 2
     assert "does not exactly recompute" in capsys.readouterr().err
+
+
+def test_instrument_inspection_discloses_absent_stream_metadata(tmp_path: Path) -> None:
+    from research_machine.addons.models import InstrumentAdapter
+    from research_machine.measurement.instrument import inspect_instrument_source
+
+    source = tmp_path / "capture.bin"
+    source.write_bytes(b"fixture")
+
+    def inspect(source_bytes, config):
+        return {
+            "captured_at": "2026-09-06T12:00:00Z",
+            "captured_at_basis": "user_supplied",
+            "acquisition_method": "fixture",
+            "instrument_identifier": "fixture-01",
+            "instrument_model": "FixtureScope",
+            "native_metadata": {},
+            "warnings": [],
+        }
+
+    adapter = InstrumentAdapter(
+        "stream_omitted", "Stream omitted", "Synthetic absent stream fixture.",
+        ("application/octet-stream",), ("captured_at",), inspect,
+    )
+    manifest = AddonManifest(
+        "stream_omitted_instrument", "Stream omitted instrument", "1", "test", "Fixture",
+        instrument_adapters=(adapter,),
+    )
+    result = inspect_instrument_source(
+        manifest, adapter, source, "application/octet-stream",
+        {"captured_at": "2026-09-06T12:00:00Z"}, tmp_path / "inspection",
+    )
+    record = json.loads(Path(result["path"], "instrument-inspection.json").read_text())
+    assert record["streams"] == []
+    assert record["temporal_metadata"] == {
+        "status": "not_provided",
+        "stream_count": 0,
+        "limitations": [
+            "No typed stream metadata was proposed; synchronized timing cannot be assessed from this inspection."
+        ],
+    }
+    assert record["scientific_evidence_eligible"] is False
 
 
 def test_instrument_adapter_cannot_mutate_config_or_publish_invalid_result(

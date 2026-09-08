@@ -207,6 +207,30 @@ def _stream_metadata(
     return streams
 
 
+def _temporal_metadata_summary(streams: list[dict[str, Any]]) -> dict[str, Any]:
+    if not streams:
+        return {
+            "status": "not_provided",
+            "stream_count": 0,
+            "limitations": [
+                "No typed stream metadata was proposed; synchronized timing cannot be assessed from this inspection."
+            ],
+        }
+    limitations = [
+        "Stream metadata is an adapter proposal bound to raw bytes and adapter code; it is not calibration, synchronization validation, or custody approval.",
+        "Clock-drift estimates and uncertainties remain asserted metadata until a separate quality gate verifies timing against the frozen protocol.",
+    ]
+    if any(stream["missing_intervals"] for stream in streams):
+        limitations.append(
+            "Missing intervals are preserved as acquisition limitations and must be handled by later custody or analysis gates."
+        )
+    return {
+        "status": "proposed_unverified",
+        "stream_count": len(streams),
+        "limitations": limitations,
+    }
+
+
 def _json_safe(value: Any, *, canonical_text: bool = False) -> None:
     if isinstance(value, float) and not math.isfinite(value):
         raise ValidationError("instrument adapter output must contain only finite numbers")
@@ -354,6 +378,7 @@ def inspect_instrument_source(
             "captured_at_basis": basis,
             "native_metadata": metadata,
         },
+        "temporal_metadata": _temporal_metadata_summary(streams),
         "streams": streams,
         "warnings": warnings,
         "status": "inspection_recorded",
