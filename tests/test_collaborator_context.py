@@ -258,6 +258,53 @@ def test_proposal_suggestion_ids_must_be_canonical(tmp_path: Path) -> None:
     assert not (tmp_path / "validated").exists()
 
 
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda proposal: proposal.update({"proposal_id": " proposal-1 "}),
+            "proposal_id must be canonical",
+        ),
+        (
+            lambda proposal: proposal["generated_by"].update(
+                {"provider": " local-runtime "}
+            ),
+            "generated_by.provider must be canonical",
+        ),
+        (
+            lambda proposal: proposal["generated_by"].update(
+                {"model": " research-helper "}
+            ),
+            "generated_by.model must be canonical",
+        ),
+    ],
+)
+def test_proposal_identity_and_generator_handles_must_be_canonical(
+    tmp_path: Path, mutation, message: str
+) -> None:
+    context = {
+        "context_version": 1,
+        "purpose": "Stress-test the design.",
+        "write_boundary": {
+            "context_is_read_only": True,
+            "provider_required": False,
+        },
+    }
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(snapshot["context_sha256"])
+    mutation(proposal)
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+    with pytest.raises(ValidationError, match=message):
+        validate_collaborator_proposal(
+            Path(snapshot["context_file"]),
+            snapshot["context_sha256"],
+            proposal_path,
+            tmp_path / "validated",
+        )
+    assert not (tmp_path / "validated").exists()
+
+
 def test_proposal_rejects_stale_context_and_duplicate_json_keys(tmp_path: Path) -> None:
     context = {
         "context_version": 1,

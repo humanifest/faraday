@@ -716,12 +716,13 @@ reference index such as `question:<id>`, `claim:<id>`, `hypothesis:<id>`,
 `ethics_review_event:<id>`; proposal
 `evidence_refs` must cite only those typed, prefix-checked handles, so an
 optional collaborator cannot smuggle uncited external claims across the provider
-boundary. Context handles, suggestion IDs, evidence references, review IDs,
-reviewer handles, and review-decision suggestion IDs must be canonical without
-surrounding whitespace before coverage or duplicate checks, so whitespace
-padding cannot be silently rewritten into a citation or review obligation. It
-does not call a provider, modify the inquiry, accept a finding, create evidence,
-or authorize an action. Any accepted idea must still be translated deliberately
+boundary. Context handles, proposal IDs, generator provider/model handles,
+suggestion IDs, evidence references, review IDs, reviewer handles, and
+review-decision suggestion IDs must be canonical without surrounding whitespace
+before coverage or duplicate checks, so whitespace padding cannot be silently
+rewritten into a citation, source identity, or review obligation. It does not
+call a provider, modify the inquiry, accept a finding, create evidence, or
+authorize an action. Any accepted idea must still be translated deliberately
 through the normal question, hypothesis, protocol-freeze, ethics, custody, run,
 and evidence commands.
 

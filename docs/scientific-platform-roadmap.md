@@ -910,13 +910,14 @@ suggestion has `review_only` authority. The context now includes a compact
 reference index for inquiry, question, claim, hypothesis, evidence, dataset,
 protocol, run, and ethics-review-event records, and proposal `evidence_refs`
 must cite only those frozen typed handles; each handle prefix must match its
-declared context kind. Context handles, suggestion IDs, evidence references,
-review IDs, reviewer handles, and review-decision suggestion IDs must be
-canonical without surrounding whitespace before coverage or duplicate checks, so
-whitespace padding cannot be silently rewritten into a citation or review
-obligation. The resulting record remains `pending_human_review`, scientifically
-ineligible, and unable to authorize or write anything. Neither command invokes a
-model, so this workflow has no provider or API-cost dependency.
+declared context kind. Context handles, proposal IDs, generator provider/model
+handles, suggestion IDs, evidence references, review IDs, reviewer handles, and
+review-decision suggestion IDs must be canonical without surrounding whitespace
+before coverage or duplicate checks, so whitespace padding cannot be silently
+rewritten into a citation, source identity, or review obligation. The resulting
+record remains `pending_human_review`, scientifically ineligible, and unable to
+authorize or write anything. Neither command invokes a model, so this workflow
+has no provider or API-cost dependency.
 All canonical changes retain the existing domain commands and scientific gates.
 `research collaborator review-proposal` adds a second independently hash-bound
 human adjudication artifact. It requires exactly one reject, defer, or

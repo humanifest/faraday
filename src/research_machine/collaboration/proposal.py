@@ -271,7 +271,7 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
     _exact_fields(proposal, _PROPOSAL_FIELDS, "collaborator proposal")
     if proposal["proposal_version"] != 1:
         raise ValidationError("collaborator proposal_version must be 1")
-    _text(proposal["proposal_id"], "proposal_id")
+    _canonical_text(proposal["proposal_id"], "proposal_id")
     supplied_hash = _text(proposal["context_sha256"], "context_sha256")
     if not _SHA256.fullmatch(supplied_hash) or supplied_hash != digest:
         raise ValidationError("collaborator proposal is not bound to the exact context hash")
@@ -289,11 +289,13 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
     _exact_fields(generated_by, _GENERATOR_FIELDS, "collaborator proposal generated_by")
     if generated_by["kind"] not in _GENERATOR_KINDS:
         raise ValidationError("collaborator proposal generated_by.kind is invalid")
-    _text(generated_by["provider"], "generated_by.provider", allow_empty=True)
-    _text(generated_by["model"], "generated_by.model", allow_empty=True)
+    _canonical_text(
+        generated_by["provider"], "generated_by.provider", allow_empty=True
+    )
+    _canonical_text(generated_by["model"], "generated_by.model", allow_empty=True)
     if generated_by["kind"] in {"llm", "hybrid"}:
-        _text(generated_by["provider"], "generated_by.provider")
-        _text(generated_by["model"], "generated_by.model")
+        _canonical_text(generated_by["provider"], "generated_by.provider")
+        _canonical_text(generated_by["model"], "generated_by.model")
 
     suggestions = proposal["suggestions"]
     if not isinstance(suggestions, list) or not suggestions:
