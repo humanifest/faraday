@@ -393,6 +393,10 @@ The machine is deliberately not a claim-confirmation engine. It keeps competing
 explanations alive, separates levels of inference, records scoped evidence, and
 preserves rejected hypotheses with the conditions under which they should be
 reconsidered.
+New evidence summaries are also kept inside that boundary: reportable evidence
+cannot use overclaiming verbs such as `proved`, `confirmed`, or `explained`.
+Use bounded language like "supported against these alternatives on this
+dataset," "weakened," "refuted," or "inconclusive."
 
 ## Guided design scaffold
 

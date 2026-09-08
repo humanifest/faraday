@@ -198,6 +198,73 @@ def test_complete_inquiry_loop_preserves_rejected_hypotheses(tmp_path: Path) -> 
     }
 
 
+@pytest.mark.parametrize("overclaim", ["proved", "confirmed", "explained"])
+def test_evidence_summary_rejects_report_overclaim_language(
+    tmp_path: Path, overclaim: str
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry("Bounded reports", "Can reports avoid overclaiming?", "bounded")
+    )
+    hypothesis = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement="The bounded association differs from the null model.",
+            observable_prediction="The prespecified statistic moves away from the null.",
+            null_model="The statistic remains compatible with the null model.",
+            competing_models=["Measurement error creates the apparent association."],
+            falsification_conditions=["The statistic remains in the null region."],
+        )
+    )
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="dataset-bounded",
+            name="Bounded fixture",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[DatasetArtifact("bounded.csv", "a" * 64)],
+        )
+    )
+
+    with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
+        service.record_evidence(
+            RecordEvidence(
+                hypothesis_id=hypothesis.hypothesis_id,
+                direction=EvidenceDirection.INCONCLUSIVE,
+                summary=f"This {overclaim} the mechanism behind the observation.",
+                dataset_id="dataset-bounded",
+                analysis_id="analysis-bounded",
+                uncertainty="Synthetic fixture leaves mechanism unresolved.",
+                scope="Synthetic fixture only.",
+                higher_level_conclusions_unsupported=[
+                    "Mechanism and causality remain unsupported."
+                ],
+                validation_tags=[ValidationTag.CALIBRATION],
+                exploratory=True,
+            )
+        )
+
+    evidence = service.record_evidence(
+        RecordEvidence(
+            hypothesis_id=hypothesis.hypothesis_id,
+            direction=EvidenceDirection.INCONCLUSIVE,
+            summary="The result is inconclusive against the registered alternatives.",
+            dataset_id="dataset-bounded",
+            analysis_id="analysis-bounded",
+            uncertainty="Synthetic fixture leaves mechanism unresolved.",
+            scope="Synthetic fixture only.",
+            higher_level_conclusions_unsupported=[
+                "Mechanism and causality remain unsupported."
+            ],
+            validation_tags=[ValidationTag.CALIBRATION],
+            exploratory=True,
+        )
+    )
+    synthesis = service.build_synthesis()["content"]
+    assert evidence.summary in synthesis
+    assert "confirmed the mechanism" not in synthesis
+
+
 def test_ledger_verification_detects_tampering(tmp_path: Path) -> None:
     service = make_service(tmp_path)
     service.init_workspace()

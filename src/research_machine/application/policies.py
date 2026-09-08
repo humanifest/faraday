@@ -38,6 +38,10 @@ from research_machine.domain.models import (
 )
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_REPORT_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained)\b",
+    re.IGNORECASE,
+)
 _INDEPENDENT_REVIEW_DECISIONS = {"approved", "approved_with_conditions"}
 
 
@@ -63,6 +67,16 @@ def require_text(value: str, field_name: str) -> str:
     if not normalized:
         raise ValidationError(f"{field_name} must not be empty")
     return normalized
+
+
+def require_bounded_evidence_summary(value: str) -> str:
+    summary = require_text(value, "evidence summary")
+    if _REPORT_OVERCLAIM.search(summary):
+        raise ValidationError(
+            "evidence summary uses report-prohibited overclaiming language; "
+            "state bounded support, weakening, refutation, or inconclusiveness instead"
+        )
+    return summary
 
 
 def require_canonical_text(value: str, field_name: str) -> str:
