@@ -1082,7 +1082,13 @@ reordered, or changed steps, altered parameters, artifact changes, and
 implementation-hash changes fail closed. A passed conformance check only says the
 observed declaration matches the trusted registered declaration; it does not
 authenticate acquisition, prove implementation correctness, clear a protocol
-gate, register a dataset, or authorize evidence.
+gate, register a dataset, or authorize evidence. When a run quality gate declares
+`details.preprocessing_conformance`, canonical run intake now requires the same
+record as a byte-verified output artifact under `artifact_root`, replays its
+retained record hash, registered-pipeline hash, observed-pipeline hash, and
+status, and rejects a passed gate unless the verified record itself passed. A
+failed conformance record may only be retained as a failed gate, preserving the
+discrepancy while blocking required-gate evidence eligibility.
 
 Protected datasets may bind a raw-to-derived custody receipt to a frozen
 protocol. A receipt names immutable raw-source hashes, ordered and

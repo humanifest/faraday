@@ -16,6 +16,20 @@ from research_machine.domain.errors import ValidationError
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 _PIPELINE_FIELDS = {"pipeline_id", "purpose", "steps"}
+_CONFORMANCE_RECORD_FIELDS = {
+    "preprocessing_conformance_version",
+    "pipeline_id",
+    "registered_pipeline",
+    "observed_pipeline",
+    "step_results",
+    "findings",
+    "status",
+    "scientific_evidence_eligible",
+    "authorized_actions",
+    "conclusion_ceiling",
+}
+_REGISTERED_SNAPSHOT_FIELDS = {"sha256", "size_bytes", "step_ids"}
+_OBSERVED_SNAPSHOT_FIELDS = {"sha256", "size_bytes", "pipeline_id", "step_ids"}
 _STEP_FIELDS = {
     "step_id",
     "operation",
@@ -51,6 +65,12 @@ def _sha256(value: Any, field: str) -> str:
     if len(text) != 64 or set(text) - set("0123456789abcdef"):
         raise ValidationError(f"preprocessing {field} must be a lowercase SHA-256")
     return text
+
+
+def _nonnegative_int(value: Any, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValidationError(f"preprocessing {field} must be a non-negative integer")
+    return value
 
 
 def _exact_fields(value: dict[str, Any], expected: set[str], label: str) -> None:
@@ -91,6 +111,110 @@ def _load_json_object_and_sha256(path: Path, label: str) -> tuple[dict[str, Any]
     if not isinstance(value, dict):
         raise ValidationError(f"{label} must be a JSON object")
     return value, content, hashlib.sha256(content).hexdigest()
+
+
+def _stable_id_list(value: Any, field: str) -> list[str]:
+    if not isinstance(value, list) or not value:
+        raise ValidationError(f"preprocessing {field} must be a non-empty array")
+    normalized = [
+        _stable_identifier(item, f"{field} item")
+        for item in value
+    ]
+    if len(set(normalized)) != len(normalized):
+        raise ValidationError(f"preprocessing {field} must not contain duplicates")
+    return normalized
+
+
+def _verify_snapshot(
+    value: Any,
+    label: str,
+    *,
+    observed: bool = False,
+) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValidationError(f"preprocessing {label} must be an object")
+    _exact_fields(
+        value,
+        _OBSERVED_SNAPSHOT_FIELDS if observed else _REGISTERED_SNAPSHOT_FIELDS,
+        label,
+    )
+    snapshot: dict[str, Any] = {
+        "sha256": _sha256(value["sha256"], f"{label}.sha256"),
+        "size_bytes": _nonnegative_int(value["size_bytes"], f"{label}.size_bytes"),
+        "step_ids": _stable_id_list(value["step_ids"], f"{label}.step_ids"),
+    }
+    if observed:
+        snapshot["pipeline_id"] = _stable_identifier(
+            value["pipeline_id"], f"{label}.pipeline_id"
+        )
+    return snapshot
+
+
+def _verify_step_results(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        raise ValidationError("preprocessing step_results must be a non-empty array")
+    results: list[dict[str, Any]] = []
+    for index, item in enumerate(value):
+        label = f"step_results[{index}]"
+        if not isinstance(item, dict):
+            raise ValidationError(f"preprocessing {label} must be an object")
+        _exact_fields(item, {"step_id", "status", "differences"}, label)
+        step_id = _stable_identifier(item["step_id"], f"{label}.step_id")
+        status = _text(item["status"], f"{label}.status")
+        if status not in {"passed", "failed"}:
+            raise ValidationError(f"preprocessing {label}.status is unsupported")
+        differences = item["differences"]
+        if not isinstance(differences, list):
+            raise ValidationError(f"preprocessing {label}.differences must be an array")
+        normalized_differences = [
+            _text(difference, f"{label}.differences item")
+            for difference in differences
+        ]
+        if len(set(normalized_differences)) != len(normalized_differences):
+            raise ValidationError(f"preprocessing {label}.differences must not contain duplicates")
+        if status == "passed" and normalized_differences:
+            raise ValidationError(f"preprocessing {label} passed with differences")
+        if status == "failed" and not normalized_differences:
+            raise ValidationError(f"preprocessing {label} failed without differences")
+        results.append({
+            "step_id": step_id,
+            "status": status,
+            "differences": normalized_differences,
+        })
+    return results
+
+
+def _verify_findings(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        raise ValidationError("preprocessing findings must be an array")
+    findings: list[dict[str, str]] = []
+    for index, item in enumerate(value):
+        label = f"findings[{index}]"
+        if not isinstance(item, dict):
+            raise ValidationError(f"preprocessing {label} must be an object")
+        allowed = {"severity", "code", "message", "step_id"}
+        unknown = sorted(set(item) - allowed)
+        if unknown:
+            raise ValidationError(
+                f"preprocessing {label} has unknown fields: " + ", ".join(unknown)
+            )
+        missing = sorted({"severity", "code", "message"} - set(item))
+        if missing:
+            raise ValidationError(
+                f"preprocessing {label} missing fields: " + ", ".join(missing)
+            )
+        severity = _text(item["severity"], f"{label}.severity")
+        if severity not in {"error", "warning"}:
+            raise ValidationError(f"preprocessing {label}.severity is unsupported")
+        finding = {
+            "severity": severity,
+            "code": _text(item["code"], f"{label}.code"),
+            "message": _text(item["message"], f"{label}.message"),
+        }
+        if "step_id" in item:
+            finding["step_id"] = _stable_identifier(item["step_id"], f"{label}.step_id")
+        findings.append(finding)
+    return findings
 
 
 def _json_safe(value: Any, field: str) -> Any:
@@ -335,6 +459,91 @@ def assess_preprocessing_conformance(
         "observed_pipeline_sha256": observed_sha256,
         "assessment_sha256": hashlib.sha256(encoded).hexdigest(),
         "status": status,
+        "finding_count": len(findings),
+        "scientific_evidence_eligible": False,
+    }
+
+
+def verify_preprocessing_conformance_record(
+    record_file: Path,
+    expected_record_sha256: str,
+    *,
+    expected_registered_pipeline_sha256: str | None = None,
+    expected_observed_pipeline_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Replay a retained preprocessing conformance record from current bytes."""
+    expected_record = _sha256(expected_record_sha256, "expected_record_sha256")
+    record, content, record_sha256 = _load_json_object_and_sha256(
+        record_file, "preprocessing conformance record"
+    )
+    if record_sha256 != expected_record:
+        raise ValidationError(
+            "preprocessing conformance record does not match expected_record_sha256"
+        )
+    _exact_fields(record, _CONFORMANCE_RECORD_FIELDS, "conformance record")
+    if record["preprocessing_conformance_version"] != 1:
+        raise ValidationError("preprocessing conformance record version is unsupported")
+    pipeline_id = _stable_identifier(record["pipeline_id"], "record.pipeline_id")
+    registered = _verify_snapshot(record["registered_pipeline"], "registered_pipeline")
+    observed = _verify_snapshot(
+        record["observed_pipeline"], "observed_pipeline", observed=True
+    )
+    if expected_registered_pipeline_sha256 is not None:
+        expected_registered = _sha256(
+            expected_registered_pipeline_sha256, "expected_registered_pipeline_sha256"
+        )
+        if registered["sha256"] != expected_registered:
+            raise ValidationError(
+                "preprocessing conformance record registered pipeline SHA-256 mismatch"
+            )
+    if expected_observed_pipeline_sha256 is not None:
+        expected_observed = _sha256(
+            expected_observed_pipeline_sha256, "expected_observed_pipeline_sha256"
+        )
+        if observed["sha256"] != expected_observed:
+            raise ValidationError(
+                "preprocessing conformance record observed pipeline SHA-256 mismatch"
+            )
+    step_results = _verify_step_results(record["step_results"])
+    findings = _verify_findings(record["findings"])
+    status = _text(record["status"], "record.status")
+    if status not in {
+        "preprocessing_conformance_passed",
+        "preprocessing_conformance_failed",
+    }:
+        raise ValidationError("preprocessing conformance record status is unsupported")
+    if type(record["scientific_evidence_eligible"]) is not bool:
+        raise ValidationError(
+            "preprocessing conformance record scientific_evidence_eligible must be boolean"
+        )
+    if record["scientific_evidence_eligible"] is not False:
+        raise ValidationError(
+            "preprocessing conformance record must remain non-evidentiary"
+        )
+    if record["authorized_actions"] != []:
+        raise ValidationError(
+            "preprocessing conformance record must not authorize actions"
+        )
+    _text(record["conclusion_ceiling"], "record.conclusion_ceiling")
+    failed_steps = [item for item in step_results if item["status"] == "failed"]
+    if status == "preprocessing_conformance_passed" and (findings or failed_steps):
+        raise ValidationError(
+            "passed preprocessing conformance record contains failures"
+        )
+    if status == "preprocessing_conformance_failed" and not (findings or failed_steps):
+        raise ValidationError(
+            "failed preprocessing conformance record lacks documented discrepancies"
+        )
+    return {
+        "status": "preprocessing_conformance_record_verified",
+        "record_sha256": record_sha256,
+        "record_size_bytes": len(content),
+        "record_status": status,
+        "pipeline_id": pipeline_id,
+        "registered_pipeline_sha256": registered["sha256"],
+        "observed_pipeline_sha256": observed["sha256"],
+        "observed_pipeline_id": observed["pipeline_id"],
+        "step_ids": registered["step_ids"],
         "finding_count": len(findings),
         "scientific_evidence_eligible": False,
     }

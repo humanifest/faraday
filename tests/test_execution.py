@@ -25,6 +25,7 @@ from research_machine.addons.execution import (
     validate_measurement_values, validate_registered_confidence_level,
     validate_registered_information,
 )
+from research_machine.measurement.preprocessing import assess_preprocessing_conformance
 from research_machine.domain.models import (
     ActionCandidate,
     AnalysisMode,
@@ -420,6 +421,185 @@ def run_command(protocol_id: str, status: QualityGateStatus, **overrides) -> Rec
     }
     values.update(overrides)
     return RecordRun(**values)
+
+
+def _preprocessing_pipeline(*, smoothing_window: int = 5) -> dict:
+    return {
+        "pipeline_id": "registered-pipeline",
+        "purpose": "Synthetic fixture for preprocessing conformance.",
+        "steps": [
+            {
+                "step_id": "load-raw",
+                "operation": "read fixture bytes",
+                "parameters": {"encoding": "utf-8"},
+                "input_artifacts": [{
+                    "artifact_id": "raw-input",
+                    "sha256": "1" * 64,
+                    "media_type": "text/csv",
+                    "role": "raw observation fixture",
+                }],
+                "output_artifacts": [{
+                    "artifact_id": "loaded-table",
+                    "sha256": "2" * 64,
+                    "media_type": "application/json",
+                    "role": "loaded table fixture",
+                }],
+                "implementation_sha256": "3" * 64,
+            },
+            {
+                "step_id": "smooth-signal",
+                "operation": "moving average",
+                "parameters": {"window": smoothing_window, "edge_policy": "drop"},
+                "input_artifacts": [{
+                    "artifact_id": "loaded-table",
+                    "sha256": "2" * 64,
+                    "media_type": "application/json",
+                    "role": "loaded table fixture",
+                }],
+                "output_artifacts": [{
+                    "artifact_id": "smoothed-table",
+                    "sha256": "4" * 64,
+                    "media_type": "application/json",
+                    "role": "preprocessed table fixture",
+                }],
+                "implementation_sha256": "5" * 64,
+            },
+        ],
+    }
+
+
+def _write_json_artifact(path: Path, value: dict) -> str:
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _preprocessing_conformance_gate_fixture(
+    tmp_path: Path,
+    *,
+    observed_smoothing_window: int = 5,
+    gate_status: QualityGateStatus = QualityGateStatus.PASSED,
+) -> tuple[list[DatasetArtifact], list[QualityGateResult], dict]:
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha256 = _write_json_artifact(registered, _preprocessing_pipeline())
+    observed_sha256 = _write_json_artifact(
+        observed,
+        _preprocessing_pipeline(smoothing_window=observed_smoothing_window),
+    )
+    result = assess_preprocessing_conformance(
+        registered,
+        registered_sha256,
+        observed,
+        observed_sha256,
+        tmp_path / "preprocessing-conformance",
+    )
+    record = Path(result["path"]) / "preprocessing-conformance.json"
+    record_locator = str(record.relative_to(tmp_path))
+    artifact = DatasetArtifact(
+        record_locator,
+        result["assessment_sha256"],
+        size_bytes=record.stat().st_size,
+        media_type="application/json",
+    )
+    gate = QualityGateResult(
+        "proof-check",
+        gate_status,
+        "Preprocessing conformance was replayed from current bytes.",
+        details={
+            "evidence_sha256": result["assessment_sha256"],
+            "preprocessing_conformance": {
+                "locator": record_locator,
+                "sha256": result["assessment_sha256"],
+                "status": result["status"],
+                "registered_pipeline_sha256": registered_sha256,
+                "observed_pipeline_sha256": observed_sha256,
+            },
+        },
+    )
+    return [artifact], [gate], result
+
+
+def test_run_replays_passed_preprocessing_conformance_gate(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, result = _preprocessing_conformance_gate_fixture(
+        tmp_path
+    )
+
+    run = service.record_run(run_command(
+        protocol.protocol_id,
+        QualityGateStatus.PASSED,
+        artifact_root=str(tmp_path),
+        output_artifacts=output_artifacts,
+        quality_gates=quality_gates,
+    ))
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.quality_gates[0].details["preprocessing_conformance"]["status"] == (
+        "preprocessing_conformance_passed"
+    )
+    assert run.quality_gates[0].details["evidence_sha256"] == result["assessment_sha256"]
+    assert run.metadata["artifact_integrity"]["status"] == "passed"
+
+
+def test_run_rejects_passed_preprocessing_gate_with_failed_record(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _preprocessing_conformance_gate_fixture(
+        tmp_path,
+        observed_smoothing_window=9,
+    )
+
+    with pytest.raises(ValidationError, match="requires a passed preprocessing conformance record"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
+
+
+def test_run_preserves_failed_preprocessing_conformance_gate(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _preprocessing_conformance_gate_fixture(
+        tmp_path,
+        observed_smoothing_window=9,
+        gate_status=QualityGateStatus.FAILED,
+    )
+
+    run = service.record_run(run_command(
+        protocol.protocol_id,
+        QualityGateStatus.FAILED,
+        artifact_root=str(tmp_path),
+        output_artifacts=output_artifacts,
+        quality_gates=quality_gates,
+    ))
+
+    assert run.status is RunStatus.INVALID
+    assert run.quality_gates[0].details["preprocessing_conformance"]["status"] == (
+        "preprocessing_conformance_failed"
+    )
+    assert run.scientific_evidence_eligible is False
+
+
+def test_run_rejects_preprocessing_conformance_upstream_hash_drift(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _preprocessing_conformance_gate_fixture(tmp_path)
+    quality_gates[0].details["preprocessing_conformance"]["registered_pipeline_sha256"] = (
+        "0" * 64
+    )
+
+    with pytest.raises(ValidationError, match="registered pipeline SHA-256 mismatch"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
 
 
 def test_passed_quality_gate_requires_output_bound_evidence_and_passed_prerequisites(tmp_path: Path) -> None:

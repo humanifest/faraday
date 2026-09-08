@@ -57,6 +57,9 @@ from research_machine.application.protocol_integrity import (
 )
 from research_machine.application.rigor import audit_research_state
 from research_machine.measurement.custody import validate_measurement_custody
+from research_machine.measurement.preprocessing import (
+    verify_preprocessing_conformance_record,
+)
 from research_machine.domain.errors import ConflictError, NotFoundError, ValidationError
 from research_machine.domain.models import (
     ActionRecommendation,
@@ -247,6 +250,102 @@ def _verify_json_artifact_location(
         field_name,
     )
     return True
+
+
+def _validate_preprocessing_conformance_gate(
+    *,
+    gate: QualityGateResult,
+    outputs: list[DatasetArtifact],
+    artifact_root: str | None,
+    artifact_integrity: Any,
+) -> None:
+    conformance = gate.details.get("preprocessing_conformance")
+    if conformance is None:
+        return
+    if not isinstance(conformance, dict):
+        raise ValidationError(
+            f"quality gate {gate.gate_id} preprocessing_conformance must be an object"
+        )
+    required_fields = {
+        "locator",
+        "sha256",
+        "status",
+        "registered_pipeline_sha256",
+        "observed_pipeline_sha256",
+    }
+    if set(conformance) != required_fields:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} preprocessing_conformance must contain exactly: "
+            + ", ".join(sorted(required_fields))
+        )
+    prefix = f"quality gate {gate.gate_id} preprocessing_conformance"
+    locator = require_canonical_text(conformance["locator"], f"{prefix}.locator")
+    record_sha256 = require_sha256(conformance["sha256"], f"{prefix}.sha256")
+    declared_status = require_canonical_text(conformance["status"], f"{prefix}.status")
+    allowed_statuses = {
+        "preprocessing_conformance_passed",
+        "preprocessing_conformance_failed",
+    }
+    if declared_status not in allowed_statuses:
+        raise ValidationError(f"{prefix}.status is unsupported")
+    evidence_sha256 = require_sha256(
+        gate.details.get("evidence_sha256"),
+        f"quality gate {gate.gate_id} evidence_sha256",
+    )
+    if evidence_sha256 != record_sha256:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} evidence_sha256 must match preprocessing_conformance.sha256"
+        )
+    if not any(
+        artifact.locator == locator
+        and artifact.sha256 == record_sha256
+        for artifact in outputs
+    ):
+        raise ValidationError(
+            f"quality gate {gate.gate_id} preprocessing_conformance must reference a declared run output artifact"
+        )
+    if artifact_root is None:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} preprocessing_conformance requires artifact_root"
+        )
+    if (
+        artifact_integrity is None
+        or artifact_integrity.status != "passed"
+        or artifact_integrity.all_artifacts_match is not True
+    ):
+        raise ValidationError(
+            f"quality gate {gate.gate_id} preprocessing_conformance requires passed artifact_integrity"
+        )
+    verified = verify_preprocessing_conformance_record(
+        Path(artifact_root) / locator,
+        record_sha256,
+        expected_registered_pipeline_sha256=require_sha256(
+            conformance["registered_pipeline_sha256"],
+            f"{prefix}.registered_pipeline_sha256",
+        ),
+        expected_observed_pipeline_sha256=require_sha256(
+            conformance["observed_pipeline_sha256"],
+            f"{prefix}.observed_pipeline_sha256",
+        ),
+    )
+    if declared_status != verified["record_status"]:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} preprocessing_conformance status does not match the verified record"
+        )
+    if gate.status is QualityGateStatus.PASSED:
+        if verified["record_status"] != "preprocessing_conformance_passed":
+            raise ValidationError(
+                f"passed quality gate {gate.gate_id} requires a passed preprocessing conformance record"
+            )
+    elif gate.status is QualityGateStatus.FAILED:
+        if verified["record_status"] != "preprocessing_conformance_failed":
+            raise ValidationError(
+                f"failed quality gate {gate.gate_id} requires a failed preprocessing conformance record"
+            )
+    else:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} preprocessing_conformance must be passed or failed according to the record"
+        )
 
 
 def _canonical_result_value(value: Any) -> str:
@@ -2624,6 +2723,12 @@ class ResearchService:
                         raise ValidationError(
                             f"passed quality gate {gate.gate_id} requires prerequisite {prerequisite_id} to pass"
                         )
+            _validate_preprocessing_conformance_gate(
+                gate=gate,
+                outputs=outputs,
+                artifact_root=artifact_root,
+                artifact_integrity=artifact_integrity,
+            )
         controls_by_gate: dict[str, list[Any]] = {}
         for control in protocol.control_definitions:
             controls_by_gate.setdefault(control.evaluation_gate_id, []).append(control)

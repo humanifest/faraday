@@ -8,7 +8,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.measurement.preprocessing import assess_preprocessing_conformance
+from research_machine.measurement.preprocessing import (
+    assess_preprocessing_conformance,
+    verify_preprocessing_conformance_record,
+)
 
 
 def _pipeline(
@@ -186,3 +189,55 @@ def test_preprocessing_conformance_rejects_untrusted_registered_hash(
             output,
         )
     assert not output.exists()
+
+
+def test_preprocessing_conformance_record_verifier_replays_current_bytes(
+    tmp_path: Path,
+) -> None:
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha = _write_json(registered, _pipeline())
+    observed_sha = _write_json(observed, _pipeline())
+    result = assess_preprocessing_conformance(
+        registered,
+        registered_sha,
+        observed,
+        observed_sha,
+        tmp_path / "preprocessing-conformance",
+    )
+    record = Path(result["path"]) / "preprocessing-conformance.json"
+
+    verified = verify_preprocessing_conformance_record(
+        record,
+        result["assessment_sha256"],
+        expected_registered_pipeline_sha256=registered_sha,
+        expected_observed_pipeline_sha256=observed_sha,
+    )
+
+    assert verified["record_status"] == "preprocessing_conformance_passed"
+    assert verified["registered_pipeline_sha256"] == registered_sha
+    assert verified["observed_pipeline_sha256"] == observed_sha
+    assert verified["scientific_evidence_eligible"] is False
+
+
+def test_preprocessing_conformance_record_verifier_rejects_evidence_upgrade(
+    tmp_path: Path,
+) -> None:
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha = _write_json(registered, _pipeline())
+    observed_sha = _write_json(observed, _pipeline())
+    result = assess_preprocessing_conformance(
+        registered,
+        registered_sha,
+        observed,
+        observed_sha,
+        tmp_path / "preprocessing-conformance",
+    )
+    record = Path(result["path"]) / "preprocessing-conformance.json"
+    retained = json.loads(record.read_text())
+    retained["scientific_evidence_eligible"] = True
+    tampered_sha = _write_json(record, retained)
+
+    with pytest.raises(ValidationError, match="must remain non-evidentiary"):
+        verify_preprocessing_conformance_record(record, tampered_sha)

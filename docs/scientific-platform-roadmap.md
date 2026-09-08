@@ -1320,7 +1320,14 @@ non-evidentiary `preprocessing-conformance.json` instead of letting an analysis
 claim silent adherence to the registered pipeline. A pass only means the observed
 declaration matches the trusted registered declaration; it does not authenticate
 acquisition, prove implementation correctness, clear a gate, register a dataset,
-or authorize evidence.
+or authorize evidence. Canonical run intake now treats
+`details.preprocessing_conformance` as a structured, artifact-bound gate claim:
+the gate must cite the conformance record as a declared output artifact under a
+passed artifact-integrity receipt, the retained record hash and both upstream
+pipeline hashes are replayed from current bytes, and the gate disposition must
+match the verified record status. Failed preprocessing conformance remains
+recordable only as a failed gate, preserving the discrepancy without allowing a
+favorable gate summary to overwrite it.
 Device-specific adapters and parity fixtures remain experiment-driven work.
 
 New custody submissions require `evidence_artifacts` (locator and SHA-256).
