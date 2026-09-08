@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -795,6 +796,39 @@ MANIFEST = AddonManifest(
     verified = _result(capsys)
     assert verified["status"] == "instrument_inspection_verified"
     assert verified["source_sha256"] == digest
+    timing_spec = tmp_path / "timing-spec.json"
+    timing_spec.write_text(json.dumps({
+        "assessment_id": "timing-check-1",
+        "lag_window": {
+            "duration": 1,
+            "unit": "ms",
+            "basis": "Synthetic fixture lag window.",
+        },
+        "maximum_uncertainty_fraction": 0.25,
+        "required_streams": [{
+            "stream_id": "stream-main",
+            "channel": "main",
+            "purpose": "Primary synchronized signal fixture.",
+        }],
+        "events": [{
+            "event_id": "event-main",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03Z",
+        }],
+    }, indent=2, sort_keys=True) + "\n")
+    timing_output = tmp_path / "timing-assessment"
+    assert main([
+        "--json", "measurement", "assess-timing",
+        "--inspection-file", str(record_file),
+        "--expected-inspection-sha256", result["inspection_sha256"],
+        "--spec-file", str(timing_spec),
+        "--output", str(timing_output),
+    ]) == 0
+    timing_result = _result(capsys)
+    assert timing_result["status"] == "timing_feasibility_passed"
+    timing_record = json.loads((timing_output / "stream-timing-assessment.json").read_text())
+    assert timing_record["scientific_evidence_eligible"] is False
+    assert timing_record["findings"] == []
     assert main([
         "--json", "--addon-path", str(addon), "measurement",
         "verify-source-inspection", "--adapter", "fixture_scope",
@@ -860,6 +894,196 @@ def test_instrument_inspection_discloses_absent_stream_metadata(tmp_path: Path) 
         ],
     }
     assert record["scientific_evidence_eligible"] is False
+
+
+def _write_stream_timing_fixture(
+    tmp_path: Path,
+    *,
+    streams: list[dict] | None = None,
+    output_name: str = "inspection",
+) -> tuple[dict, Path]:
+    from research_machine.measurement.instrument import inspect_instrument_source
+
+    source = tmp_path / f"{output_name}.bin"
+    source.write_bytes(b"synthetic fixture capture")
+    base_stream = {
+        "stream_id": "stream-main",
+        "source_device": "fixture-01",
+        "channel": "main",
+        "sample_rate_hz": 256,
+        "clock_source": "device clock",
+        "start_time": "2026-09-06T12:00:00Z",
+        "clock_drift": {
+            "estimate": 0.2,
+            "uncertainty": 0.05,
+            "unit": "ms",
+            "basis": "manufacturer sidecar",
+        },
+        "missing_intervals": [{
+            "start_time": "2026-09-06T12:00:01Z",
+            "end_time": "2026-09-06T12:00:02Z",
+            "reason": "Dropped packet fixture",
+        }],
+        "calibration_record": "clock-sync-record-1",
+        "quality_flags": ["synthetic-fixture"],
+    }
+    proposed_streams = [base_stream] if streams is None else streams
+
+    def inspect(source_bytes, config):
+        return {
+            "captured_at": "2026-09-06T12:00:00Z",
+            "captured_at_basis": "user_supplied",
+            "acquisition_method": "fixture",
+            "instrument_identifier": "fixture-01",
+            "instrument_model": "FixtureScope",
+            "native_metadata": {},
+            "streams": proposed_streams,
+            "warnings": [],
+        }
+
+    adapter = InstrumentAdapter(
+        f"{output_name}_adapter", "Timing fixture", "Synthetic timing fixture.",
+        ("application/octet-stream",), ("captured_at",), inspect,
+    )
+    manifest = AddonManifest(
+        f"{output_name}_instrument", "Timing instrument", "1", "test", "Fixture",
+        instrument_adapters=(adapter,),
+    )
+    result = inspect_instrument_source(
+        manifest, adapter, source, "application/octet-stream",
+        {"captured_at": "2026-09-06T12:00:00Z"}, tmp_path / output_name,
+    )
+    return result, Path(result["path"], "instrument-inspection.json")
+
+
+def _write_timing_spec(
+    tmp_path: Path,
+    *,
+    event_time: str = "2026-09-06T12:00:03Z",
+    output_name: str = "timing-spec.json",
+) -> Path:
+    spec = tmp_path / output_name
+    spec.write_text(json.dumps({
+        "assessment_id": output_name.removesuffix(".json").replace("_", "-"),
+        "lag_window": {
+            "duration": 1,
+            "unit": "ms",
+            "basis": "Synthetic fixture lag window.",
+        },
+        "maximum_uncertainty_fraction": 0.25,
+        "required_streams": [{
+            "stream_id": "stream-main",
+            "channel": "main",
+            "purpose": "Primary synchronized signal fixture.",
+        }],
+        "events": [{
+            "event_id": "event-main",
+            "stream_id": "stream-main",
+            "event_time": event_time,
+        }],
+    }, indent=2, sort_keys=True) + "\n")
+    return spec
+
+
+def test_stream_timing_assessment_preserves_feasible_review_as_non_evidence(
+    tmp_path: Path,
+) -> None:
+    from research_machine.measurement.instrument import assess_stream_timing
+
+    inspection, record_file = _write_stream_timing_fixture(tmp_path)
+    spec_file = _write_timing_spec(tmp_path)
+    result = assess_stream_timing(
+        record_file, inspection["inspection_sha256"], spec_file, tmp_path / "timing-assessment"
+    )
+    assert result["status"] == "timing_feasibility_passed"
+    assert result["finding_count"] == 0
+    assert result["scientific_evidence_eligible"] is False
+    record = json.loads(Path(result["path"], "stream-timing-assessment.json").read_text())
+    assert record["inspection"]["sha256"] == inspection["inspection_sha256"]
+    assert record["specification"]["sha256"] == hashlib.sha256(spec_file.read_bytes()).hexdigest()
+    assert record["required_streams"][0]["status"] == "present"
+    assert record["events"][0]["clock_uncertainty_seconds"] == 0.00005
+    assert record["events"][0]["overlapping_missing_intervals"] == []
+    assert record["authorized_actions"] == []
+    assert "does not authenticate acquisition" in record["conclusion_ceiling"]
+
+
+@pytest.mark.parametrize(
+    ("streams", "event_time", "expected_code"),
+    [
+        ([], "2026-09-06T12:00:03Z", "STREAM_METADATA_NOT_PROVIDED"),
+        (None, "2026-09-06T12:00:01.500000Z", "EVENT_UNCERTAINTY_OVERLAPS_MISSING_INTERVAL"),
+        ([{
+            "stream_id": "stream-main",
+            "source_device": "fixture-01",
+            "channel": "main",
+            "sample_rate_hz": 256,
+            "clock_source": "device clock",
+            "start_time": "2026-09-06T12:00:00Z",
+            "clock_drift": {
+                "estimate": 0.2,
+                "uncertainty": 0.25,
+                "unit": "ms",
+                "basis": "manufacturer sidecar",
+            },
+            "missing_intervals": [],
+            "calibration_record": "clock-sync-record-1",
+            "quality_flags": ["synthetic-fixture"],
+        }], "2026-09-06T12:00:03Z", "CLOCK_UNCERTAINTY_APPROACHES_LAG_WINDOW"),
+        ([{
+            "stream_id": "stream-main",
+            "source_device": "fixture-01",
+            "channel": "main",
+            "sample_rate_hz": 256,
+            "clock_source": "device clock",
+            "start_time": "2026-09-06T12:00:00Z",
+            "clock_drift": {
+                "estimate": 2,
+                "uncertainty": 1,
+                "unit": "ppm",
+                "basis": "relative oscillator specification",
+            },
+            "missing_intervals": [],
+            "calibration_record": "clock-sync-record-1",
+            "quality_flags": ["synthetic-fixture"],
+        }], "2026-09-06T12:00:03Z", "CLOCK_UNCERTAINTY_UNIT_NOT_ABSOLUTE"),
+    ],
+)
+def test_stream_timing_assessment_fails_closed_for_unsafe_timing(
+    tmp_path: Path, streams, event_time, expected_code
+) -> None:
+    from research_machine.measurement.instrument import assess_stream_timing
+
+    inspection, record_file = _write_stream_timing_fixture(
+        tmp_path, streams=streams, output_name=f"inspection-{expected_code.lower().replace('_', '-')}"
+    )
+    spec_file = _write_timing_spec(
+        tmp_path, event_time=event_time, output_name=f"spec-{expected_code.lower().replace('_', '-')}.json"
+    )
+    result = assess_stream_timing(
+        record_file,
+        inspection["inspection_sha256"],
+        spec_file,
+        tmp_path / f"timing-{expected_code.lower().replace('_', '-')}",
+    )
+    record = json.loads(Path(result["path"], "stream-timing-assessment.json").read_text())
+    assert result["status"] == "timing_feasibility_failed"
+    assert record["status"] == "timing_feasibility_failed"
+    assert expected_code in {finding["code"] for finding in record["findings"]}
+    assert record["scientific_evidence_eligible"] is False
+
+
+def test_stream_timing_assessment_rejects_untrusted_inspection_hash(
+    tmp_path: Path,
+) -> None:
+    from research_machine.measurement.instrument import assess_stream_timing
+
+    _, record_file = _write_stream_timing_fixture(tmp_path)
+    spec_file = _write_timing_spec(tmp_path)
+    output = tmp_path / "timing-assessment"
+    with pytest.raises(ValidationError, match="expected_inspection_sha256"):
+        assess_stream_timing(record_file, "0" * 64, spec_file, output)
+    assert not output.exists()
 
 
 def test_instrument_adapter_cannot_mutate_config_or_publish_invalid_result(

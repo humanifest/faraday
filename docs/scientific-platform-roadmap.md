@@ -1288,6 +1288,17 @@ surrounding whitespace, so verification cannot silently normalize the external
 trust anchor.
 The proposal
 cannot assert calibration, pass gates, register data, or become evidence.
+Stream-timing feasibility delivery: `measurement assess-timing` now accepts an
+independently trusted instrument-inspection hash plus a machine-readable timing
+specification. It publishes a deterministic, non-evidentiary
+`stream-timing-assessment.json` that binds the inspection bytes and spec bytes,
+checks required stream/channel presence, converts absolute clock-uncertainty
+units against the registered lag window, rejects relative uncertainty such as
+`ppm` for lag-window comparison, and records failed findings when event
+uncertainty overlaps preserved missing intervals. A passed assessment remains a
+feasibility review only: it does not authenticate acquisition, verify
+calibration or drift correction, clear a protocol gate, register a dataset, or
+authorize evidence.
 Device-specific adapters and parity fixtures remain experiment-driven work.
 
 New custody submissions require `evidence_artifacts` (locator and SHA-256).

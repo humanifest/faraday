@@ -10,7 +10,7 @@ import math
 import os
 import re
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +35,22 @@ _STREAM_FIELDS = {
 _CLOCK_DRIFT_FIELDS = {"estimate", "uncertainty", "unit", "basis"}
 _CLOCK_DRIFT_UNITS = {"s", "ms", "us", "ns", "ppm"}
 _MISSING_INTERVAL_FIELDS = {"start_time", "end_time", "reason"}
+_TIMING_ASSESSMENT_SPEC_FIELDS = {
+    "assessment_id",
+    "lag_window",
+    "maximum_uncertainty_fraction",
+    "required_streams",
+    "events",
+}
+_TIMING_LAG_WINDOW_FIELDS = {"duration", "unit", "basis"}
+_TIMING_REQUIRED_STREAM_FIELDS = {"stream_id", "channel", "purpose"}
+_TIMING_EVENT_FIELDS = {"event_id", "stream_id", "event_time"}
+_ABSOLUTE_TIME_UNITS_TO_SECONDS = {
+    "s": 1.0,
+    "ms": 0.001,
+    "us": 0.000001,
+    "ns": 0.000000001,
+}
 
 
 def _text(value: Any, field: str, *, optional: bool = False) -> str:
@@ -118,6 +134,44 @@ def _exact_fields(value: dict[str, Any], expected: set[str], label: str) -> None
         raise ValidationError(f"instrument inspection {label} missing fields: " + ", ".join(missing))
     if unknown:
         raise ValidationError(f"instrument inspection {label} has unknown fields: " + ", ".join(unknown))
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON number: {value}")
+
+
+def _load_json_object_and_sha256(path: Path, label: str) -> tuple[dict[str, Any], bytes, str]:
+    source = path.expanduser().resolve()
+    if not source.is_file():
+        raise ValidationError(f"{label} is not a file: {source}")
+    try:
+        content = source.read_bytes()
+        value = json.loads(
+            content,
+            parse_constant=_reject_nonfinite_json,
+            object_pairs_hook=_reject_duplicate_keys,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ValidationError(f"{label} is not strict valid JSON: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValidationError(f"{label} must be a JSON object")
+    return value, content, hashlib.sha256(content).hexdigest()
+
+
+def _sha256(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if len(text) != 64 or set(text) - set("0123456789abcdef"):
+        raise ValidationError(f"instrument inspection {field} must be a lowercase SHA-256")
+    return text
 
 
 def _stream_metadata(
@@ -409,6 +463,340 @@ def inspect_instrument_source(
         "source_sha256": record["source"]["sha256"],
         "inspection_sha256": hashlib.sha256(encoded).hexdigest(),
         "status": "inspection_recorded",
+        "scientific_evidence_eligible": False,
+    }
+
+
+def _time_unit_seconds(unit: Any, field: str) -> float:
+    text = _text(unit, field)
+    if text not in _ABSOLUTE_TIME_UNITS_TO_SECONDS:
+        raise ValidationError(f"instrument inspection {field} must use s, ms, us, or ns")
+    return _ABSOLUTE_TIME_UNITS_TO_SECONDS[text]
+
+
+def _ordered_timing_streams(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list) or not value:
+        raise ValidationError("instrument inspection timing required_streams must be a non-empty array")
+    streams: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for index, stream in enumerate(value):
+        label = f"timing.required_streams[{index}]"
+        if not isinstance(stream, dict):
+            raise ValidationError(f"instrument inspection {label} must be an object")
+        _exact_fields(stream, _TIMING_REQUIRED_STREAM_FIELDS, label)
+        stream_id = _stable_identifier(stream["stream_id"], f"{label}.stream_id")
+        if stream_id in seen:
+            raise ValidationError("instrument inspection timing required_streams must be unique")
+        seen.add(stream_id)
+        streams.append({
+            "stream_id": stream_id,
+            "channel": _text(stream["channel"], f"{label}.channel"),
+            "purpose": _text(stream["purpose"], f"{label}.purpose"),
+        })
+    return streams
+
+
+def _ordered_timing_events(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list) or not value:
+        raise ValidationError("instrument inspection timing events must be a non-empty array")
+    events: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for index, event in enumerate(value):
+        label = f"timing.events[{index}]"
+        if not isinstance(event, dict):
+            raise ValidationError(f"instrument inspection {label} must be an object")
+        _exact_fields(event, _TIMING_EVENT_FIELDS, label)
+        event_id = _stable_identifier(event["event_id"], f"{label}.event_id")
+        if event_id in seen:
+            raise ValidationError("instrument inspection timing events must be unique")
+        seen.add(event_id)
+        event_time, _ = _parse_time(event["event_time"], f"{label}.event_time")
+        events.append({
+            "event_id": event_id,
+            "stream_id": _stable_identifier(event["stream_id"], f"{label}.stream_id"),
+            "event_time": event_time,
+        })
+    return events
+
+
+def _normalize_timing_spec(spec: dict[str, Any]) -> dict[str, Any]:
+    _exact_fields(spec, _TIMING_ASSESSMENT_SPEC_FIELDS, "timing")
+    lag_window = spec["lag_window"]
+    if not isinstance(lag_window, dict):
+        raise ValidationError("instrument inspection timing.lag_window must be an object")
+    _exact_fields(lag_window, _TIMING_LAG_WINDOW_FIELDS, "timing.lag_window")
+    duration = _positive_number(lag_window["duration"], "timing.lag_window.duration")
+    unit = _text(lag_window["unit"], "timing.lag_window.unit")
+    unit_seconds = _time_unit_seconds(unit, "timing.lag_window.unit")
+    maximum_fraction = _positive_number(
+        spec["maximum_uncertainty_fraction"],
+        "timing.maximum_uncertainty_fraction",
+    )
+    if maximum_fraction > 1:
+        raise ValidationError(
+            "instrument inspection timing.maximum_uncertainty_fraction must be at most 1"
+        )
+    return {
+        "assessment_id": _stable_identifier(spec["assessment_id"], "timing.assessment_id"),
+        "lag_window": {
+            "duration": duration,
+            "unit": unit,
+            "seconds": duration * unit_seconds,
+            "basis": _text(lag_window["basis"], "timing.lag_window.basis"),
+        },
+        "maximum_uncertainty_fraction": maximum_fraction,
+        "required_streams": _ordered_timing_streams(spec["required_streams"]),
+        "events": _ordered_timing_events(spec["events"]),
+    }
+
+
+def _clock_uncertainty_seconds(stream: dict[str, Any]) -> float | None:
+    drift = stream["clock_drift"]
+    unit = drift["unit"]
+    if unit not in _ABSOLUTE_TIME_UNITS_TO_SECONDS:
+        return None
+    return float(drift["uncertainty"]) * _ABSOLUTE_TIME_UNITS_TO_SECONDS[unit]
+
+
+def _finding(
+    code: str,
+    message: str,
+    *,
+    severity: str = "error",
+    stream_id: str | None = None,
+    event_id: str | None = None,
+) -> dict[str, str]:
+    finding = {"severity": severity, "code": code, "message": message}
+    if stream_id:
+        finding["stream_id"] = stream_id
+    if event_id:
+        finding["event_id"] = event_id
+    return finding
+
+
+def assess_stream_timing(
+    inspection_file: Path,
+    expected_inspection_sha256: str,
+    spec_file: Path,
+    output: Path,
+) -> dict[str, Any]:
+    """Publish a non-evidentiary timing-feasibility assessment from trusted bytes."""
+    expected = _sha256(expected_inspection_sha256, "expected_inspection_sha256")
+    inspection, inspection_bytes, retained_sha256 = _load_json_object_and_sha256(
+        inspection_file, "instrument inspection record"
+    )
+    if retained_sha256 != expected:
+        raise ValidationError(
+            "instrument inspection record does not match expected_inspection_sha256"
+        )
+    spec, spec_bytes, spec_sha256 = _load_json_object_and_sha256(
+        spec_file, "instrument timing assessment specification"
+    )
+    normalized_spec = _normalize_timing_spec(spec)
+    if inspection.get("instrument_inspection_version") != 1:
+        raise ValidationError("unsupported instrument inspection record")
+    if inspection.get("status") != "inspection_recorded":
+        raise ValidationError("instrument inspection record is not recorded")
+    if inspection.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("instrument inspection record must remain non-evidentiary")
+
+    streams = inspection.get("streams")
+    if not isinstance(streams, list):
+        raise ValidationError("instrument inspection record streams must be an array")
+    temporal = inspection.get("temporal_metadata")
+    if not isinstance(temporal, dict):
+        raise ValidationError("instrument inspection record lacks temporal_metadata")
+
+    streams_by_id: dict[str, dict[str, Any]] = {}
+    for index, stream in enumerate(streams):
+        if not isinstance(stream, dict):
+            raise ValidationError(f"instrument inspection record streams[{index}] must be an object")
+        stream_id = _stable_identifier(stream.get("stream_id"), f"record.streams[{index}].stream_id")
+        if stream_id in streams_by_id:
+            raise ValidationError(f"instrument inspection record has duplicate stream_id: {stream_id}")
+        streams_by_id[stream_id] = stream
+
+    findings: list[dict[str, str]] = []
+    if temporal.get("status") != "proposed_unverified":
+        findings.append(_finding(
+            "STREAM_METADATA_NOT_PROVIDED",
+            "The inspection record does not contain typed stream metadata; timing feasibility fails closed.",
+        ))
+    if not streams_by_id:
+        findings.append(_finding(
+            "NO_STREAMS_AVAILABLE",
+            "No streams are available to assess required channels or event timing.",
+        ))
+
+    required_stream_results: list[dict[str, Any]] = []
+    for required in normalized_spec["required_streams"]:
+        stream_id = required["stream_id"]
+        stream = streams_by_id.get(stream_id)
+        if stream is None:
+            findings.append(_finding(
+                "REQUIRED_STREAM_ABSENT",
+                "A required stream from the timing specification is absent from the inspection record.",
+                stream_id=stream_id,
+            ))
+            required_stream_results.append({
+                **required,
+                "status": "absent",
+            })
+            continue
+        observed_channel = stream.get("channel")
+        status = "present"
+        if observed_channel != required["channel"]:
+            status = "channel_mismatch"
+            findings.append(_finding(
+                "REQUIRED_CHANNEL_MISMATCH",
+                "A required stream is present but its inspected channel differs from the timing specification.",
+                stream_id=stream_id,
+            ))
+        required_stream_results.append({
+            **required,
+            "observed_channel": observed_channel,
+            "status": status,
+        })
+
+    lag_seconds = float(normalized_spec["lag_window"]["seconds"])
+    max_fraction = float(normalized_spec["maximum_uncertainty_fraction"])
+    event_results: list[dict[str, Any]] = []
+    for event in normalized_spec["events"]:
+        stream_id = event["stream_id"]
+        event_id = event["event_id"]
+        stream = streams_by_id.get(stream_id)
+        event_result: dict[str, Any] = {
+            **event,
+            "status": "assessed",
+        }
+        if stream is None:
+            event_result["status"] = "stream_absent"
+            findings.append(_finding(
+                "EVENT_STREAM_ABSENT",
+                "An event references a stream absent from the inspection record.",
+                stream_id=stream_id,
+                event_id=event_id,
+            ))
+            event_results.append(event_result)
+            continue
+
+        uncertainty_seconds = _clock_uncertainty_seconds(stream)
+        if uncertainty_seconds is None:
+            event_result["status"] = "unsupported_uncertainty_unit"
+            findings.append(_finding(
+                "CLOCK_UNCERTAINTY_UNIT_NOT_ABSOLUTE",
+                "Clock uncertainty is recorded in a relative unit and cannot be compared with the tested lag window.",
+                stream_id=stream_id,
+                event_id=event_id,
+            ))
+            event_results.append(event_result)
+            continue
+        event_result["clock_uncertainty_seconds"] = uncertainty_seconds
+        uncertainty_fraction = uncertainty_seconds / lag_seconds
+        event_result["uncertainty_fraction_of_lag_window"] = uncertainty_fraction
+        if uncertainty_fraction >= max_fraction:
+            findings.append(_finding(
+                "CLOCK_UNCERTAINTY_APPROACHES_LAG_WINDOW",
+                "Clock uncertainty reaches or exceeds the specification's maximum fraction of the tested lag window.",
+                stream_id=stream_id,
+                event_id=event_id,
+            ))
+
+        _, parsed_event = _parse_time(event["event_time"], f"timing.events.{event_id}.event_time")
+        _, parsed_stream_start = _parse_time(
+            stream.get("start_time"), f"record.streams.{stream_id}.start_time"
+        )
+        if parsed_event < parsed_stream_start:
+            findings.append(_finding(
+                "EVENT_PRECEDES_STREAM_START",
+                "The event time precedes the inspected stream start time.",
+                stream_id=stream_id,
+                event_id=event_id,
+            ))
+        uncertainty_delta = timedelta(seconds=uncertainty_seconds)
+        event_start = parsed_event - uncertainty_delta
+        event_end = parsed_event + uncertainty_delta
+        overlapping_intervals: list[dict[str, str]] = []
+        missing_intervals = stream.get("missing_intervals")
+        if not isinstance(missing_intervals, list):
+            raise ValidationError(f"instrument inspection record stream {stream_id} missing_intervals must be an array")
+        for interval in missing_intervals:
+            if not isinstance(interval, dict):
+                raise ValidationError(f"instrument inspection record stream {stream_id} missing interval must be an object")
+            interval_start, parsed_interval_start = _parse_time(
+                interval.get("start_time"), f"record.streams.{stream_id}.missing_interval.start_time"
+            )
+            interval_end, parsed_interval_end = _parse_time(
+                interval.get("end_time"), f"record.streams.{stream_id}.missing_interval.end_time"
+            )
+            if event_start <= parsed_interval_end and event_end >= parsed_interval_start:
+                overlapping_intervals.append({
+                    "start_time": interval_start,
+                    "end_time": interval_end,
+                    "reason": _text(interval.get("reason"), f"record.streams.{stream_id}.missing_interval.reason"),
+                })
+        event_result["overlapping_missing_intervals"] = overlapping_intervals
+        if overlapping_intervals:
+            findings.append(_finding(
+                "EVENT_UNCERTAINTY_OVERLAPS_MISSING_INTERVAL",
+                "The event's uncertainty interval overlaps inspected missing or corrupted data.",
+                stream_id=stream_id,
+                event_id=event_id,
+            ))
+        event_results.append(event_result)
+
+    status = "timing_feasibility_failed" if any(
+        finding["severity"] == "error" for finding in findings
+    ) else "timing_feasibility_passed"
+    record = {
+        "stream_timing_assessment_version": 1,
+        "assessment_id": normalized_spec["assessment_id"],
+        "inspection": {
+            "sha256": retained_sha256,
+            "size_bytes": len(inspection_bytes),
+            "stream_count": len(streams_by_id),
+            "temporal_metadata_status": temporal.get("status"),
+        },
+        "specification": {
+            "sha256": spec_sha256,
+            "size_bytes": len(spec_bytes),
+            "lag_window": normalized_spec["lag_window"],
+            "maximum_uncertainty_fraction": normalized_spec["maximum_uncertainty_fraction"],
+        },
+        "required_streams": required_stream_results,
+        "events": event_results,
+        "findings": findings,
+        "status": status,
+        "scientific_evidence_eligible": False,
+        "authorized_actions": [],
+        "conclusion_ceiling": (
+            "Provider-free timing feasibility review from a trusted inspection record only. "
+            "It does not authenticate acquisition, verify calibration or drift correction, "
+            "clear a protocol gate, register a dataset, or authorize scientific evidence."
+        ),
+    }
+    _json_safe(record)
+    encoded = (json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n").encode()
+    root = output.expanduser().resolve()
+    if root.exists():
+        raise ValidationError(f"stream timing assessment output path already exists: {root}")
+    root.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f".{root.name}-", dir=root.parent) as temporary:
+        staging = Path(temporary) / root.name
+        staging.mkdir()
+        (staging / "stream-timing-assessment.json").write_bytes(encoded)
+        try:
+            os.replace(staging, root)
+        except OSError as exc:
+            raise ValidationError(f"could not publish stream timing assessment atomically: {exc}") from exc
+    return {
+        "path": str(root),
+        "assessment_id": normalized_spec["assessment_id"],
+        "inspection_sha256": retained_sha256,
+        "specification_sha256": spec_sha256,
+        "assessment_sha256": hashlib.sha256(encoded).hexdigest(),
+        "status": status,
+        "finding_count": len(findings),
         "scientific_evidence_eligible": False,
     }
 

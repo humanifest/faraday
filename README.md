@@ -1037,6 +1037,21 @@ below. `measurement verify-source-inspection` takes an independently trusted
 record hash and exactly reproduces the record from current source, config, and
 adapter-code bytes. No model or network service is involved.
 
+Use `measurement assess-timing --inspection-file FILE
+--expected-inspection-sha256 HASH --spec-file SPEC --output DIRECTORY` to turn a
+trusted inspection record into a provider-free timing-feasibility review. The
+specification names a stable assessment ID, a tested lag window, the maximum
+allowed clock-uncertainty fraction, required streams and channels, and exact
+event times. Faraday verifies the inspection bytes against the external trust
+anchor and writes a non-evidentiary `stream-timing-assessment.json` that fails
+closed when typed streams are absent, required channels are missing or mismatched,
+clock uncertainty reaches the registered lag-window threshold, uncertainty uses a
+relative unit such as `ppm`, or an event's uncertainty interval overlaps inspected
+missing or corrupted data. Passing this review only says the adapter-proposed
+timing metadata is feasible for the stated lag window; it does not authenticate
+acquisition, verify calibration or drift correction, clear a protocol gate,
+register a dataset, or authorize evidence.
+
 Protected datasets may bind a raw-to-derived custody receipt to a frozen
 protocol. A receipt names immutable raw-source hashes, ordered and
 implementation-hashed transformations, passed calibration results, passed

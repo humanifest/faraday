@@ -796,6 +796,14 @@ def build_parser() -> argparse.ArgumentParser:
     measurement_verify_inspection.add_argument("--config-file", type=Path, required=True)
     measurement_verify_inspection.add_argument("--record-file", type=Path, required=True)
     measurement_verify_inspection.add_argument("--expected-record-sha256", required=True)
+    measurement_timing = measurement_commands.add_parser(
+        "assess-timing",
+        help="Assess stream timing feasibility from a trusted inspection record",
+    )
+    measurement_timing.add_argument("--inspection-file", type=Path, required=True)
+    measurement_timing.add_argument("--expected-inspection-sha256", required=True)
+    measurement_timing.add_argument("--spec-file", type=Path, required=True)
+    measurement_timing.add_argument("--output", type=Path, required=True)
 
     ethics = groups.add_parser(
         "ethics", help="Record append-only changes to human-subject review clearance"
@@ -1952,6 +1960,16 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             config,
             args.record_file,
             args.expected_record_sha256,
+        )
+
+    if args.group == "measurement" and args.action == "assess-timing":
+        from research_machine.measurement.instrument import assess_stream_timing
+
+        return assess_stream_timing(
+            args.inspection_file,
+            args.expected_inspection_sha256,
+            args.spec_file,
+            args.output,
         )
 
     if args.group == "ethics" and args.action == "record-status":
