@@ -1327,7 +1327,12 @@ passed artifact-integrity receipt, the retained record hash and both upstream
 pipeline hashes are replayed from current bytes, and the gate disposition must
 match the verified record status. Failed preprocessing conformance remains
 recordable only as a failed gate, preserving the discrepancy without allowing a
-favorable gate summary to overwrite it.
+favorable gate summary to overwrite it. Rigor and deterministic synthesis now
+carry those gates into the visible record with the exact artifact locator,
+record hash, registered-pipeline hash, observed-pipeline hash, and bounded
+status. Protected empirical protocols that have recorded runs and only prose
+preprocessing commitments receive a warning instead of silently inheriting
+preprocessing adherence.
 Device-specific adapters and parity fixtures remain experiment-driven work.
 
 New custody submissions require `evidence_artifacts` (locator and SHA-256).

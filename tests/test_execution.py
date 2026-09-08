@@ -540,6 +540,14 @@ def test_run_replays_passed_preprocessing_conformance_gate(tmp_path: Path) -> No
     )
     assert run.quality_gates[0].details["evidence_sha256"] == result["assessment_sha256"]
     assert run.metadata["artifact_integrity"]["status"] == "passed"
+    synthesis = service.build_synthesis()["content"]
+    assert "Preprocessing conformance provenance" in synthesis
+    assert result["assessment_sha256"] in synthesis
+    assert "bounded conformance replay, not evidence of implementation correctness" in synthesis
+    assert any(
+        finding.code == "RUN_PREPROCESSING_CONFORMANCE_REPLAYED"
+        for finding in service.audit_rigor().findings
+    )
 
 
 def test_run_rejects_passed_preprocessing_gate_with_failed_record(tmp_path: Path) -> None:
@@ -582,6 +590,13 @@ def test_run_preserves_failed_preprocessing_conformance_gate(tmp_path: Path) -> 
         "preprocessing_conformance_failed"
     )
     assert run.scientific_evidence_eligible is False
+    synthesis = service.build_synthesis()["content"]
+    assert "record status: preprocessing_conformance_failed" in synthesis
+    assert any(
+        finding.code == "RUN_PREPROCESSING_CONFORMANCE_FAILED"
+        and finding.entity_id == run.run_id
+        for finding in service.audit_rigor().findings
+    )
 
 
 def test_run_rejects_preprocessing_conformance_upstream_hash_drift(tmp_path: Path) -> None:

@@ -324,6 +324,33 @@ def build_synthesis(
                     f"observed {precision.get('observed_half_width', 'unverified')}. "
                     "A missed target does not erase the result or imply invalidity."
                 )
+    preprocessing_runs = [
+        run for run in runs
+        if any(
+            isinstance(gate.details.get("preprocessing_conformance"), dict)
+            for gate in run.quality_gates
+        )
+    ]
+    if preprocessing_runs:
+        lines.extend(["", "### Preprocessing conformance provenance", ""])
+        for run in sorted(preprocessing_runs, key=lambda item: item.run_id):
+            for gate in run.quality_gates:
+                conformance = gate.details.get("preprocessing_conformance")
+                if not isinstance(conformance, dict):
+                    continue
+                lines.append(
+                    f"- Run `{run.run_id}` gate `{gate.gate_id}` {gate.status.value}; "
+                    f"record status: {conformance.get('status', 'unclassified')}; "
+                    f"record `{conformance.get('sha256', 'unavailable')}` at "
+                    f"`{conformance.get('locator', 'unavailable')}`."
+                )
+                lines.append(
+                    "  - Registered pipeline: "
+                    f"`{conformance.get('registered_pipeline_sha256', 'unavailable')}`; "
+                    "observed pipeline: "
+                    f"`{conformance.get('observed_pipeline_sha256', 'unavailable')}`. "
+                    "This is a bounded conformance replay, not evidence of implementation correctness."
+                )
     if evidence_status_events:
         lines.extend(["", "### Evidence correction and retraction history", ""])
         for event in sorted(evidence_status_events, key=lambda item: (item.evidence_id, item.sequence)):

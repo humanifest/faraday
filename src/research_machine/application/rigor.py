@@ -54,6 +54,22 @@ def _conclusion_ceiling(capabilities: dict[str, bool]) -> str:
     return "scoped empirical result; not proof of a theory"
 
 
+def _protected_empirical(protocol: ExperimentProtocol) -> bool:
+    return (
+        protocol.analysis_mode
+        in {AnalysisMode.CONFIRMATORY, AnalysisMode.REPLICATION}
+        and protocol.protocol_kind
+        in {ProtocolKind.OBSERVATIONAL, ProtocolKind.EXPERIMENTAL}
+    )
+
+
+def _has_preprocessing_conformance_gate(run: ResearchRun) -> bool:
+    return any(
+        isinstance(gate.details.get("preprocessing_conformance"), dict)
+        for gate in run.quality_gates
+    )
+
+
 def audit_research_state(
     *,
     inquiry: Inquiry,
@@ -476,10 +492,7 @@ def audit_research_state(
                 remediation="Require a stopping rule in the next protocol version.",
             )
         if (
-            protocol.analysis_mode
-            in {AnalysisMode.CONFIRMATORY, AnalysisMode.REPLICATION}
-            and protocol.protocol_kind
-            in {ProtocolKind.OBSERVATIONAL, ProtocolKind.EXPERIMENTAL}
+            _protected_empirical(protocol)
             and protocol.measurement_definitions
             and not protocol.measurement_validity_checks
         ):
@@ -493,13 +506,7 @@ def audit_research_state(
                     "In the next prospective protocol version, bind structured validity claims, acceptance criteria, failure responses, and dedicated gates; do not retroactively rewrite this frozen protocol."
                 ),
             )
-        if (
-            protocol.analysis_mode
-            in {AnalysisMode.CONFIRMATORY, AnalysisMode.REPLICATION}
-            and protocol.protocol_kind
-            in {ProtocolKind.OBSERVATIONAL, ProtocolKind.EXPERIMENTAL}
-            and not protocol.sample_size_plan
-        ):
+        if _protected_empirical(protocol) and not protocol.sample_size_plan:
             add(
                 "PROTECTED_EMPIRICAL_SAMPLE_SIZE_PLAN_UNVERIFIED",
                 RigorSeverity.WARNING,
@@ -508,6 +515,26 @@ def audit_research_state(
                 entity_id=protocol.protocol_id,
                 remediation=(
                     "In the next protocol version, bind a reviewed sample_size_plan or document why this design requires a different typed planning method."
+                ),
+            )
+        if (
+            _protected_empirical(protocol)
+            and protocol.preprocessing_pipeline.strip()
+            and runs_by_protocol[protocol.protocol_id] > 0
+            and not any(
+                _has_preprocessing_conformance_gate(run)
+                for run in runs
+                if run.protocol_id == protocol.protocol_id
+            )
+        ):
+            add(
+                "PROTECTED_EMPIRICAL_PREPROCESSING_CONFORMANCE_UNASSESSED",
+                RigorSeverity.WARNING,
+                "Protected empirical protocol has a frozen preprocessing commitment, but recorded runs expose no structured preprocessing-conformance gate.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "In the next run, attach a byte-verified preprocessing-conformance record to a quality gate; do not infer adherence from an analysis summary."
                 ),
             )
         if runs_by_protocol[protocol.protocol_id] == 0:
@@ -542,6 +569,30 @@ def audit_research_state(
                 remediation="Inspect every departure and its output-bound evidence; do not automatically promote this run to evidence.",
             )
         protocol = protocol_by_id.get(run.protocol_id)
+        for gate in run.quality_gates:
+            conformance = gate.details.get("preprocessing_conformance")
+            if not isinstance(conformance, dict):
+                continue
+            record_status = conformance.get("status")
+            if record_status == "preprocessing_conformance_failed":
+                add(
+                    "RUN_PREPROCESSING_CONFORMANCE_FAILED",
+                    RigorSeverity.ERROR,
+                    "Run retains a failed preprocessing-conformance record; the discrepancy must stay visible and cannot support a passed preprocessing gate.",
+                    entity_type="run",
+                    entity_id=run.run_id,
+                    remediation=(
+                        "Inspect the conformance artifact, preserve the failed gate outcome, and bound or repeat the analysis before drawing conclusions."
+                    ),
+                )
+            elif record_status == "preprocessing_conformance_passed":
+                add(
+                    "RUN_PREPROCESSING_CONFORMANCE_REPLAYED",
+                    RigorSeverity.INFO,
+                    "Run exposes an artifact-bound preprocessing-conformance gate; the pass is a bounded adherence check, not proof of implementation correctness.",
+                    entity_type="run",
+                    entity_id=run.run_id,
+                )
         if protocol is not None and protocol.measurement_validity_checks:
             gates_by_id = {item.gate_id: item for item in run.quality_gates}
             for check in protocol.measurement_validity_checks:

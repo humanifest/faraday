@@ -1088,7 +1088,11 @@ record as a byte-verified output artifact under `artifact_root`, replays its
 retained record hash, registered-pipeline hash, observed-pipeline hash, and
 status, and rejects a passed gate unless the verified record itself passed. A
 failed conformance record may only be retained as a failed gate, preserving the
-discrepancy while blocking required-gate evidence eligibility.
+discrepancy while blocking required-gate evidence eligibility. Rigor and
+synthesis now expose these conformance gates by run, artifact locator, record
+hash, registered-pipeline hash, observed-pipeline hash, and bounded status; a
+protected empirical protocol with recorded runs and only a prose preprocessing
+commitment is warned as unassessed rather than silently treated as adhered to.
 
 Protected datasets may bind a raw-to-derived custody receipt to a frozen
 protocol. A receipt names immutable raw-source hashes, ordered and

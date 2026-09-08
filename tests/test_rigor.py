@@ -717,6 +717,57 @@ def test_audit_and_synthesis_publish_a_conservative_ceiling(tmp_path: Path) -> N
     assert "independent_replication: absent" in synthesis
 
 
+def test_audit_warns_when_empirical_preprocessing_conformance_is_unreported(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path)
+    repository = service.repository
+    inquiry_id = repository.resolve_inquiry_id(None)
+    protocol = replace(
+        service.get_protocol(run.protocol_id),
+        protocol_kind=ProtocolKind.OBSERVATIONAL,
+        preprocessing_pipeline="Registered fixture preprocessing pipeline.",
+        measurement_definitions=[
+            MeasurementDefinition(
+                measurement_id="primary-measurement",
+                role=MeasurementRole.PRIMARY,
+                registered_target="Checker acceptance",
+                observable="Synthetic fixture outcome",
+                input_condition="All eligible fixture rows",
+                parameter_values={"scale": "fixture units"},
+                evaluation_point="registered endpoint",
+                convention="higher is larger",
+                aggregation="mean by group",
+                tolerance="exact fixture parsing",
+                expected_behavior="Reported regardless of direction",
+                data_column="outcome",
+                temporal_role="not_applicable",
+                scale_type="interval",
+                unit="fixture units",
+                valid_min=0.0,
+                valid_max=100.0,
+                missing_value_codes=["<blank>"],
+            )
+        ],
+    )
+
+    audit = audit_research_state(
+        inquiry=repository.load_inquiry(inquiry_id),
+        claims=repository.load_claims(inquiry_id),
+        hypotheses=[hypothesis],
+        evidence=repository.list_evidence(inquiry_id),
+        datasets=repository.list_datasets(inquiry_id),
+        protocols=[protocol],
+        runs=[run],
+    )
+
+    assert any(
+        finding.code == "PROTECTED_EMPIRICAL_PREPROCESSING_CONFORMANCE_UNASSESSED"
+        and finding.entity_id == protocol.protocol_id
+        for finding in audit.findings
+    )
+
+
 def test_retrospectively_amended_evidence_cannot_raise_prospective_ceiling(tmp_path: Path) -> None:
     service, hypothesis, predecessor_run = _prepared_run(tmp_path)
     predecessor = service.get_protocol(predecessor_run.protocol_id)
