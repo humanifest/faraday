@@ -1052,6 +1052,22 @@ timing metadata is feasible for the stated lag window; it does not authenticate
 acquisition, verify calibration or drift correction, clear a protocol gate,
 register a dataset, or authorize evidence.
 
+Use `measurement assess-temporal-order --timing-assessment-file FILE
+--expected-timing-assessment-sha256 HASH --spec-file SPEC --output DIRECTORY`
+after a trusted timing-feasibility review to classify registered event-order
+checks. Each check names two exact event IDs, an expected relation
+(`first_precedes_second`, `second_precedes_first`, or
+`indeterminate_within_uncertainty`), a minimum separation, a maximum registered
+separation, and the scientific question being protected. Faraday compares
+uncertainty intervals rather than point timestamps alone, so overlapping
+intervals or missed minimum separation are recorded as indeterminate within
+measurement uncertainty. Clear reversals, indeterminate directional checks,
+missing events, upstream failed timing, and clear order outside the registered
+window all fail closed. A passed temporal-order assessment may distinguish clear
+order from reversal or timing indeterminacy, but it still does not establish
+causality, mechanism, intent, calibration truth, dataset registration, or
+scientific evidence.
+
 Protected datasets may bind a raw-to-derived custody receipt to a frozen
 protocol. A receipt names immutable raw-source hashes, ordered and
 implementation-hashed transformations, passed calibration results, passed

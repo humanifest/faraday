@@ -1299,6 +1299,17 @@ uncertainty overlaps preserved missing intervals. A passed assessment remains a
 feasibility review only: it does not authenticate acquisition, verify
 calibration or drift correction, clear a protocol gate, register a dataset, or
 authorize evidence.
+Temporal-order classification delivery: `measurement assess-temporal-order` now
+binds an independently trusted timing-assessment hash plus a registered
+event-order specification. It compares uncertainty intervals instead of point
+timestamps alone, preserving clear first-before-second order, clear reversal,
+registered-window misses, and indeterminate order within measurement uncertainty
+as separate outcomes. Upstream failed timing, missing events, unexpected
+direction, indeterminate directional checks, and order outside the registered
+window fail closed, while an intentionally registered indeterminate relation
+stays visible without asserting causal direction. The artifact is still
+non-evidentiary and cannot establish causality, mechanism, intent, calibration
+truth, dataset registration, or evidence eligibility.
 Device-specific adapters and parity fixtures remain experiment-driven work.
 
 New custody submissions require `evidence_artifacts` (locator and SHA-256).

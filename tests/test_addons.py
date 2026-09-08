@@ -960,8 +960,14 @@ def _write_timing_spec(
     tmp_path: Path,
     *,
     event_time: str = "2026-09-06T12:00:03Z",
+    events: list[dict] | None = None,
     output_name: str = "timing-spec.json",
 ) -> Path:
+    timing_events = events if events is not None else [{
+        "event_id": "event-main",
+        "stream_id": "stream-main",
+        "event_time": event_time,
+    }]
     spec = tmp_path / output_name
     spec.write_text(json.dumps({
         "assessment_id": output_name.removesuffix(".json").replace("_", "-"),
@@ -976,13 +982,57 @@ def _write_timing_spec(
             "channel": "main",
             "purpose": "Primary synchronized signal fixture.",
         }],
-        "events": [{
-            "event_id": "event-main",
-            "stream_id": "stream-main",
-            "event_time": event_time,
+        "events": timing_events,
+    }, indent=2, sort_keys=True) + "\n")
+    return spec
+
+
+def _write_temporal_order_spec(
+    tmp_path: Path,
+    *,
+    output_name: str = "temporal-order-spec.json",
+    first_event_id: str = "state-event",
+    second_event_id: str = "sound-event",
+    expected_relation: str = "first_precedes_second",
+    maximum_ms: float = 20,
+) -> Path:
+    spec = tmp_path / output_name
+    spec.write_text(json.dumps({
+        "assessment_id": output_name.removesuffix(".json"),
+        "order_checks": [{
+            "check_id": "state-before-sound",
+            "first_event_id": first_event_id,
+            "second_event_id": second_event_id,
+            "expected_relation": expected_relation,
+            "minimum_separation": {"duration": 1, "unit": "ms"},
+            "maximum_separation": {"duration": maximum_ms, "unit": "ms"},
+            "scientific_question": "Synthetic fixture for temporal ordering.",
         }],
     }, indent=2, sort_keys=True) + "\n")
     return spec
+
+
+def _write_timing_assessment_with_events(
+    tmp_path: Path,
+    events: list[dict],
+    *,
+    name: str = "temporal-order",
+) -> tuple[dict, Path]:
+    from research_machine.measurement.instrument import assess_stream_timing
+
+    inspection, record_file = _write_stream_timing_fixture(
+        tmp_path, output_name=f"{name}-inspection"
+    )
+    timing_spec = _write_timing_spec(
+        tmp_path, events=events, output_name=f"{name}-timing-spec.json"
+    )
+    timing_result = assess_stream_timing(
+        record_file,
+        inspection["inspection_sha256"],
+        timing_spec,
+        tmp_path / f"{name}-timing-assessment",
+    )
+    return timing_result, Path(timing_result["path"], "stream-timing-assessment.json")
 
 
 def test_stream_timing_assessment_preserves_feasible_review_as_non_evidence(
@@ -1083,6 +1133,164 @@ def test_stream_timing_assessment_rejects_untrusted_inspection_hash(
     output = tmp_path / "timing-assessment"
     with pytest.raises(ValidationError, match="expected_inspection_sha256"):
         assess_stream_timing(record_file, "0" * 64, spec_file, output)
+    assert not output.exists()
+
+
+def test_temporal_order_assessment_preserves_clear_registered_order(
+    tmp_path: Path, capsys
+) -> None:
+    events = [
+        {
+            "event_id": "state-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.000000Z",
+        },
+        {
+            "event_id": "sound-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.010000Z",
+        },
+    ]
+    timing_result, timing_record = _write_timing_assessment_with_events(tmp_path, events)
+    order_spec = _write_temporal_order_spec(tmp_path)
+    assert main([
+        "--json", "measurement", "assess-temporal-order",
+        "--timing-assessment-file", str(timing_record),
+        "--expected-timing-assessment-sha256", timing_result["assessment_sha256"],
+        "--spec-file", str(order_spec),
+        "--output", str(tmp_path / "order-assessment"),
+    ]) == 0
+    result = _result(capsys)
+    assert result["status"] == "temporal_order_passed"
+    record = json.loads(Path(result["path"], "temporal-order-assessment.json").read_text())
+    assert record["timing_assessment"]["sha256"] == timing_result["assessment_sha256"]
+    assert record["specification"]["sha256"] == hashlib.sha256(order_spec.read_bytes()).hexdigest()
+    assert record["order_checks"][0]["observed_relation"] == "first_precedes_second"
+    assert record["order_checks"][0]["status"] == "passed"
+    assert record["order_checks"][0]["conservative_gap_seconds"] == pytest.approx(0.0099)
+    assert record["scientific_evidence_eligible"] is False
+    assert "does not establish causality" in record["conclusion_ceiling"]
+
+
+@pytest.mark.parametrize(
+    ("events", "expected_code", "observed_relation"),
+    [
+        (
+            [
+                {
+                    "event_id": "state-event",
+                    "stream_id": "stream-main",
+                    "event_time": "2026-09-06T12:00:03.010000Z",
+                },
+                {
+                    "event_id": "sound-event",
+                    "stream_id": "stream-main",
+                    "event_time": "2026-09-06T12:00:03.000000Z",
+                },
+            ],
+            "ORDER_CONTRADICTS_EXPECTATION",
+            "second_precedes_first",
+        ),
+        (
+            [
+                {
+                    "event_id": "state-event",
+                    "stream_id": "stream-main",
+                    "event_time": "2026-09-06T12:00:03.000000Z",
+                },
+                {
+                    "event_id": "sound-event",
+                    "stream_id": "stream-main",
+                    "event_time": "2026-09-06T12:00:03.000050Z",
+                },
+            ],
+            "ORDER_INDETERMINATE_WITHIN_UNCERTAINTY",
+            "indeterminate_within_uncertainty",
+        ),
+    ],
+)
+def test_temporal_order_assessment_fails_for_reversal_or_indeterminate_direction(
+    tmp_path: Path, events, expected_code, observed_relation
+) -> None:
+    from research_machine.measurement.instrument import assess_temporal_order
+
+    timing_result, timing_record = _write_timing_assessment_with_events(
+        tmp_path, events, name=expected_code.lower().replace("_", "-")
+    )
+    order_spec = _write_temporal_order_spec(
+        tmp_path, output_name=f"{expected_code.lower().replace('_', '-')}-order-spec.json"
+    )
+    result = assess_temporal_order(
+        timing_record,
+        timing_result["assessment_sha256"],
+        order_spec,
+        tmp_path / f"{expected_code.lower().replace('_', '-')}-order",
+    )
+    record = json.loads(Path(result["path"], "temporal-order-assessment.json").read_text())
+    assert result["status"] == "temporal_order_failed"
+    assert record["order_checks"][0]["observed_relation"] == observed_relation
+    assert expected_code in {finding["code"] for finding in record["findings"]}
+    assert record["scientific_evidence_eligible"] is False
+
+
+def test_temporal_order_assessment_fails_closed_when_upstream_timing_failed(
+    tmp_path: Path,
+) -> None:
+    from research_machine.measurement.instrument import assess_temporal_order
+
+    events = [
+        {
+            "event_id": "state-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:01.500000Z",
+        },
+        {
+            "event_id": "sound-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.010000Z",
+        },
+    ]
+    timing_result, timing_record = _write_timing_assessment_with_events(
+        tmp_path, events, name="upstream-failed"
+    )
+    assert timing_result["status"] == "timing_feasibility_failed"
+    order_spec = _write_temporal_order_spec(tmp_path, output_name="upstream-failed-order-spec.json")
+    result = assess_temporal_order(
+        timing_record,
+        timing_result["assessment_sha256"],
+        order_spec,
+        tmp_path / "upstream-failed-order",
+    )
+    record = json.loads(Path(result["path"], "temporal-order-assessment.json").read_text())
+    assert result["status"] == "temporal_order_failed"
+    assert "UPSTREAM_TIMING_FEASIBILITY_NOT_PASSED" in {
+        finding["code"] for finding in record["findings"]
+    }
+    assert record["scientific_evidence_eligible"] is False
+
+
+def test_temporal_order_assessment_rejects_untrusted_timing_hash(
+    tmp_path: Path,
+) -> None:
+    from research_machine.measurement.instrument import assess_temporal_order
+
+    events = [
+        {
+            "event_id": "state-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.000000Z",
+        },
+        {
+            "event_id": "sound-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.010000Z",
+        },
+    ]
+    _, timing_record = _write_timing_assessment_with_events(tmp_path, events)
+    order_spec = _write_temporal_order_spec(tmp_path)
+    output = tmp_path / "order-assessment"
+    with pytest.raises(ValidationError, match="expected_timing_assessment_sha256"):
+        assess_temporal_order(timing_record, "0" * 64, order_spec, output)
     assert not output.exists()
 
 

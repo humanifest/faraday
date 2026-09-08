@@ -45,6 +45,22 @@ _TIMING_ASSESSMENT_SPEC_FIELDS = {
 _TIMING_LAG_WINDOW_FIELDS = {"duration", "unit", "basis"}
 _TIMING_REQUIRED_STREAM_FIELDS = {"stream_id", "channel", "purpose"}
 _TIMING_EVENT_FIELDS = {"event_id", "stream_id", "event_time"}
+_TEMPORAL_ORDER_SPEC_FIELDS = {"assessment_id", "order_checks"}
+_TEMPORAL_ORDER_CHECK_FIELDS = {
+    "check_id",
+    "first_event_id",
+    "second_event_id",
+    "expected_relation",
+    "minimum_separation",
+    "maximum_separation",
+    "scientific_question",
+}
+_TIME_BOUND_FIELDS = {"duration", "unit"}
+_EXPECTED_TEMPORAL_RELATIONS = {
+    "first_precedes_second",
+    "second_precedes_first",
+    "indeterminate_within_uncertainty",
+}
 _ABSOLUTE_TIME_UNITS_TO_SECONDS = {
     "s": 1.0,
     "ms": 0.001,
@@ -474,6 +490,22 @@ def _time_unit_seconds(unit: Any, field: str) -> float:
     return _ABSOLUTE_TIME_UNITS_TO_SECONDS[text]
 
 
+def _time_bound_seconds(value: Any, field: str, *, allow_zero: bool = False) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValidationError(f"instrument inspection {field} must be an object")
+    _exact_fields(value, _TIME_BOUND_FIELDS, field)
+    if allow_zero:
+        duration = _nonnegative_number(value["duration"], f"{field}.duration")
+    else:
+        duration = _positive_number(value["duration"], f"{field}.duration")
+    unit = _text(value["unit"], f"{field}.unit")
+    return {
+        "duration": duration,
+        "unit": unit,
+        "seconds": duration * _time_unit_seconds(unit, f"{field}.unit"),
+    }
+
+
 def _ordered_timing_streams(value: Any) -> list[dict[str, str]]:
     if not isinstance(value, list) or not value:
         raise ValidationError("instrument inspection timing required_streams must be a non-empty array")
@@ -558,6 +590,91 @@ def _clock_uncertainty_seconds(stream: dict[str, Any]) -> float | None:
     return float(drift["uncertainty"]) * _ABSOLUTE_TIME_UNITS_TO_SECONDS[unit]
 
 
+def _normalize_temporal_order_spec(spec: dict[str, Any]) -> dict[str, Any]:
+    _exact_fields(spec, _TEMPORAL_ORDER_SPEC_FIELDS, "temporal_order")
+    checks = spec["order_checks"]
+    if not isinstance(checks, list) or not checks:
+        raise ValidationError("instrument inspection temporal_order.order_checks must be a non-empty array")
+    normalized_checks: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, check in enumerate(checks):
+        label = f"temporal_order.order_checks[{index}]"
+        if not isinstance(check, dict):
+            raise ValidationError(f"instrument inspection {label} must be an object")
+        _exact_fields(check, _TEMPORAL_ORDER_CHECK_FIELDS, label)
+        check_id = _stable_identifier(check["check_id"], f"{label}.check_id")
+        if check_id in seen:
+            raise ValidationError("instrument inspection temporal_order check_id must be unique")
+        seen.add(check_id)
+        first_event_id = _stable_identifier(check["first_event_id"], f"{label}.first_event_id")
+        second_event_id = _stable_identifier(check["second_event_id"], f"{label}.second_event_id")
+        if first_event_id == second_event_id:
+            raise ValidationError("instrument inspection temporal_order events must be distinct")
+        expected_relation = _text(check["expected_relation"], f"{label}.expected_relation")
+        if expected_relation not in _EXPECTED_TEMPORAL_RELATIONS:
+            raise ValidationError("instrument inspection temporal_order expected_relation is unsupported")
+        minimum = _time_bound_seconds(
+            check["minimum_separation"], f"{label}.minimum_separation", allow_zero=True
+        )
+        maximum = _time_bound_seconds(check["maximum_separation"], f"{label}.maximum_separation")
+        if maximum["seconds"] < minimum["seconds"]:
+            raise ValidationError(
+                "instrument inspection temporal_order maximum_separation must be at least minimum_separation"
+            )
+        normalized_checks.append({
+            "check_id": check_id,
+            "first_event_id": first_event_id,
+            "second_event_id": second_event_id,
+            "expected_relation": expected_relation,
+            "minimum_separation": minimum,
+            "maximum_separation": maximum,
+            "scientific_question": _text(check["scientific_question"], f"{label}.scientific_question"),
+        })
+    return {
+        "assessment_id": _stable_identifier(spec["assessment_id"], "temporal_order.assessment_id"),
+        "order_checks": normalized_checks,
+    }
+
+
+def _timing_events_by_id(record: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    events = record.get("events")
+    if not isinstance(events, list):
+        raise ValidationError("stream timing assessment events must be an array")
+    events_by_id: dict[str, dict[str, Any]] = {}
+    for index, event in enumerate(events):
+        if not isinstance(event, dict):
+            raise ValidationError(f"stream timing assessment events[{index}] must be an object")
+        event_id = _stable_identifier(event.get("event_id"), f"timing.events[{index}].event_id")
+        if event_id in events_by_id:
+            raise ValidationError(f"stream timing assessment has duplicate event_id: {event_id}")
+        events_by_id[event_id] = event
+    return events_by_id
+
+
+def _classify_event_order(
+    first_event: dict[str, Any],
+    second_event: dict[str, Any],
+    minimum_seconds: float,
+) -> tuple[str, float, float]:
+    _, first_time = _parse_time(first_event.get("event_time"), "temporal_order.first_event_time")
+    _, second_time = _parse_time(second_event.get("event_time"), "temporal_order.second_event_time")
+    first_uncertainty = _nonnegative_number(
+        first_event.get("clock_uncertainty_seconds"),
+        "temporal_order.first_event.clock_uncertainty_seconds",
+    )
+    second_uncertainty = _nonnegative_number(
+        second_event.get("clock_uncertainty_seconds"),
+        "temporal_order.second_event.clock_uncertainty_seconds",
+    )
+    point_delta_seconds = (second_time - first_time).total_seconds()
+    conservative_gap_seconds = abs(point_delta_seconds) - float(first_uncertainty) - float(second_uncertainty)
+    if point_delta_seconds > 0 and conservative_gap_seconds >= minimum_seconds:
+        return "first_precedes_second", point_delta_seconds, conservative_gap_seconds
+    if point_delta_seconds < 0 and conservative_gap_seconds >= minimum_seconds:
+        return "second_precedes_first", point_delta_seconds, conservative_gap_seconds
+    return "indeterminate_within_uncertainty", point_delta_seconds, conservative_gap_seconds
+
+
 def _finding(
     code: str,
     message: str,
@@ -572,6 +689,176 @@ def _finding(
     if event_id:
         finding["event_id"] = event_id
     return finding
+
+
+def assess_temporal_order(
+    timing_assessment_file: Path,
+    expected_timing_assessment_sha256: str,
+    spec_file: Path,
+    output: Path,
+) -> dict[str, Any]:
+    """Publish a non-evidentiary event-order assessment from trusted timing bytes."""
+    expected = _sha256(
+        expected_timing_assessment_sha256, "expected_timing_assessment_sha256"
+    )
+    timing, timing_bytes, retained_sha256 = _load_json_object_and_sha256(
+        timing_assessment_file, "stream timing assessment"
+    )
+    if retained_sha256 != expected:
+        raise ValidationError(
+            "stream timing assessment does not match expected_timing_assessment_sha256"
+        )
+    spec, spec_bytes, spec_sha256 = _load_json_object_and_sha256(
+        spec_file, "temporal order assessment specification"
+    )
+    normalized_spec = _normalize_temporal_order_spec(spec)
+    if timing.get("stream_timing_assessment_version") != 1:
+        raise ValidationError("unsupported stream timing assessment")
+    if timing.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("stream timing assessment must remain non-evidentiary")
+    events_by_id = _timing_events_by_id(timing)
+    findings: list[dict[str, str]] = []
+    if timing.get("status") != "timing_feasibility_passed":
+        findings.append(_finding(
+            "UPSTREAM_TIMING_FEASIBILITY_NOT_PASSED",
+            "Temporal order fails closed because the upstream timing-feasibility assessment did not pass.",
+        ))
+
+    check_results: list[dict[str, Any]] = []
+    for check in normalized_spec["order_checks"]:
+        check_id = check["check_id"]
+        first_event = events_by_id.get(check["first_event_id"])
+        second_event = events_by_id.get(check["second_event_id"])
+        result: dict[str, Any] = {
+            "check_id": check_id,
+            "first_event_id": check["first_event_id"],
+            "second_event_id": check["second_event_id"],
+            "expected_relation": check["expected_relation"],
+            "minimum_separation": check["minimum_separation"],
+            "maximum_separation": check["maximum_separation"],
+            "scientific_question": check["scientific_question"],
+        }
+        if first_event is None or second_event is None:
+            result["observed_relation"] = "not_assessed"
+            result["status"] = "failed"
+            findings.append(_finding(
+                "ORDER_EVENT_ABSENT",
+                "A temporal-order check references an event absent from the timing assessment.",
+            ))
+            check_results.append(result)
+            continue
+        if first_event.get("status") != "assessed" or second_event.get("status") != "assessed":
+            result["observed_relation"] = "not_assessed"
+            result["status"] = "failed"
+            findings.append(_finding(
+                "ORDER_EVENT_NOT_ASSESSED",
+                "A temporal-order check references an event without assessed clock uncertainty.",
+            ))
+            check_results.append(result)
+            continue
+        if first_event.get("overlapping_missing_intervals") or second_event.get(
+            "overlapping_missing_intervals"
+        ):
+            result["observed_relation"] = "not_assessed"
+            result["status"] = "failed"
+            findings.append(_finding(
+                "ORDER_EVENT_OVERLAPS_MISSING_INTERVAL",
+                "A temporal-order check references an event whose uncertainty overlaps missing or corrupted data.",
+            ))
+            check_results.append(result)
+            continue
+
+        observed, point_delta, conservative_gap = _classify_event_order(
+            first_event,
+            second_event,
+            float(check["minimum_separation"]["seconds"]),
+        )
+        result["observed_relation"] = observed
+        result["point_delta_seconds"] = point_delta
+        result["conservative_gap_seconds"] = conservative_gap
+        if observed == "indeterminate_within_uncertainty" and observed != check["expected_relation"]:
+            result["status"] = "failed"
+            findings.append(_finding(
+                "ORDER_INDETERMINATE_WITHIN_UNCERTAINTY",
+                "The event order is not directionally resolvable within measurement uncertainty.",
+            ))
+        elif (
+            observed in {"first_precedes_second", "second_precedes_first"}
+            and abs(point_delta) > float(check["maximum_separation"]["seconds"])
+        ):
+            result["status"] = "failed"
+            findings.append(_finding(
+                "ORDER_OUTSIDE_REGISTERED_WINDOW",
+                "The event order is directionally clear but outside the registered maximum separation.",
+            ))
+        elif observed != check["expected_relation"]:
+            result["status"] = "failed"
+            findings.append(_finding(
+                "ORDER_CONTRADICTS_EXPECTATION",
+                "The measured event order does not match the registered expected relation.",
+            ))
+        elif observed == "indeterminate_within_uncertainty":
+            result["status"] = "warning"
+            findings.append(_finding(
+                "ORDER_INDETERMINATE_WITHIN_UNCERTAINTY",
+                "The registered expectation was indeterminate, so no directional order is asserted.",
+                severity="warning",
+            ))
+        else:
+            result["status"] = "passed"
+        check_results.append(result)
+
+    status = "temporal_order_failed" if any(
+        finding["severity"] == "error" for finding in findings
+    ) else "temporal_order_passed"
+    record = {
+        "temporal_order_assessment_version": 1,
+        "assessment_id": normalized_spec["assessment_id"],
+        "timing_assessment": {
+            "sha256": retained_sha256,
+            "size_bytes": len(timing_bytes),
+            "status": timing.get("status"),
+        },
+        "specification": {
+            "sha256": spec_sha256,
+            "size_bytes": len(spec_bytes),
+        },
+        "order_checks": check_results,
+        "findings": findings,
+        "status": status,
+        "scientific_evidence_eligible": False,
+        "authorized_actions": [],
+        "conclusion_ceiling": (
+            "Provider-free temporal-order classification from a trusted timing assessment only. "
+            "It may distinguish clear order, reversal, registered-window misses, or timing "
+            "indeterminacy within measurement uncertainty, but it does not establish causality, "
+            "mechanism, intent, calibration truth, dataset registration, or scientific evidence."
+        ),
+    }
+    _json_safe(record)
+    encoded = (json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n").encode()
+    root = output.expanduser().resolve()
+    if root.exists():
+        raise ValidationError(f"temporal order assessment output path already exists: {root}")
+    root.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f".{root.name}-", dir=root.parent) as temporary:
+        staging = Path(temporary) / root.name
+        staging.mkdir()
+        (staging / "temporal-order-assessment.json").write_bytes(encoded)
+        try:
+            os.replace(staging, root)
+        except OSError as exc:
+            raise ValidationError(f"could not publish temporal order assessment atomically: {exc}") from exc
+    return {
+        "path": str(root),
+        "assessment_id": normalized_spec["assessment_id"],
+        "timing_assessment_sha256": retained_sha256,
+        "specification_sha256": spec_sha256,
+        "assessment_sha256": hashlib.sha256(encoded).hexdigest(),
+        "status": status,
+        "finding_count": len(findings),
+        "scientific_evidence_eligible": False,
+    }
 
 
 def assess_stream_timing(

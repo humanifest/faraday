@@ -804,6 +804,14 @@ def build_parser() -> argparse.ArgumentParser:
     measurement_timing.add_argument("--expected-inspection-sha256", required=True)
     measurement_timing.add_argument("--spec-file", type=Path, required=True)
     measurement_timing.add_argument("--output", type=Path, required=True)
+    measurement_order = measurement_commands.add_parser(
+        "assess-temporal-order",
+        help="Classify registered event order from a trusted timing assessment",
+    )
+    measurement_order.add_argument("--timing-assessment-file", type=Path, required=True)
+    measurement_order.add_argument("--expected-timing-assessment-sha256", required=True)
+    measurement_order.add_argument("--spec-file", type=Path, required=True)
+    measurement_order.add_argument("--output", type=Path, required=True)
 
     ethics = groups.add_parser(
         "ethics", help="Record append-only changes to human-subject review clearance"
@@ -1968,6 +1976,16 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
         return assess_stream_timing(
             args.inspection_file,
             args.expected_inspection_sha256,
+            args.spec_file,
+            args.output,
+        )
+
+    if args.group == "measurement" and args.action == "assess-temporal-order":
+        from research_machine.measurement.instrument import assess_temporal_order
+
+        return assess_temporal_order(
+            args.timing_assessment_file,
+            args.expected_timing_assessment_sha256,
             args.spec_file,
             args.output,
         )
