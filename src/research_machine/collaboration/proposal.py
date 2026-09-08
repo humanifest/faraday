@@ -83,6 +83,7 @@ _PROPOSAL_RECORD_FIELDS = {
     "collaborator_proposal_record_version",
     "context_input",
     "context_reference_index",
+    "context_scientific_constraints",
     "proposal_input",
     "proposal",
     "status",
@@ -163,24 +164,50 @@ def _exact_fields(value: dict[str, Any], expected: set[str], label: str) -> None
         raise ValidationError(f"{label} has unknown fields: " + ", ".join(unknown))
 
 
-def _string_array(value: Any, field: str, *, nonempty: bool = True) -> list[str]:
+def _canonical_string_array(
+    value: Any, field: str, *, label: str, nonempty: bool = True
+) -> list[str]:
     if not isinstance(value, list) or (nonempty and not value):
         raise ValidationError(
-            f"collaborator proposal {field} must be "
+            f"{label} {field} must be "
             + ("a non-empty" if nonempty else "an")
             + " array of unique non-empty strings"
         )
     if any(not isinstance(item, str) or not item.strip() for item in value):
         raise ValidationError(
-            f"collaborator proposal {field} must contain only non-empty strings"
+            f"{label} {field} must contain only non-empty strings"
         )
     if any(item != item.strip() for item in value):
         raise ValidationError(
-            f"collaborator proposal {field} must be canonical without surrounding whitespace"
+            f"{label} {field} must be canonical without surrounding whitespace"
         )
     if len(set(value)) != len(value):
-        raise ValidationError(f"collaborator proposal {field} must be unique")
+        raise ValidationError(f"{label} {field} must be unique")
     return list(value)
+
+
+def _string_array(value: Any, field: str, *, nonempty: bool = True) -> list[str]:
+    return _canonical_string_array(
+        value, field, label="collaborator proposal", nonempty=nonempty
+    )
+
+
+def _context_scientific_constraints(context: dict[str, Any]) -> list[str]:
+    constraints = _canonical_string_array(
+        context.get("scientific_constraints"),
+        "scientific_constraints",
+        label="collaborator context",
+    )
+    folded = [item.casefold() for item in constraints]
+    if not any("causal" in item for item in folded):
+        raise ValidationError(
+            "collaborator context scientific_constraints must include an inferential-boundary warning"
+        )
+    if not any("authoriz" in item for item in folded):
+        raise ValidationError(
+            "collaborator context scientific_constraints must include an authorization-boundary warning"
+        )
+    return constraints
 
 
 def _context_reference_ids(context: dict[str, Any]) -> set[str]:
@@ -220,6 +247,21 @@ def _context_reference_ids(context: dict[str, Any]) -> set[str]:
     return refs
 
 
+def _validate_context_snapshot(context: dict[str, Any]) -> list[str]:
+    if context.get("context_version") != 1:
+        raise ValidationError("collaborator context_version must be 1")
+    boundary = context.get("write_boundary")
+    if not isinstance(boundary, dict):
+        raise ValidationError("collaborator context write_boundary must be an object")
+    if boundary.get("context_is_read_only") is not True:
+        raise ValidationError("collaborator context must be read-only")
+    if boundary.get("provider_required") is not False:
+        raise ValidationError("collaborator context must not require a provider")
+    _canonical_text(context.get("purpose", ""), "context purpose", allow_empty=True)
+    _context_reference_ids(context)
+    return _context_scientific_constraints(context)
+
+
 def _publish_json(root: Path, filename: str, value: dict[str, Any]) -> bytes:
     resolved = root.expanduser().resolve()
     if resolved.exists():
@@ -245,17 +287,7 @@ def _publish_json(root: Path, filename: str, value: dict[str, Any]) -> bytes:
 
 def create_context_snapshot(context: dict[str, Any], output: Path) -> dict[str, Any]:
     """Freeze the exact read-only context sent to an optional collaborator."""
-    if context.get("context_version") != 1:
-        raise ValidationError("collaborator context_version must be 1")
-    boundary = context.get("write_boundary")
-    if not isinstance(boundary, dict):
-        raise ValidationError("collaborator context write_boundary must be an object")
-    if boundary.get("context_is_read_only") is not True:
-        raise ValidationError("collaborator context must be read-only")
-    if boundary.get("provider_required") is not False:
-        raise ValidationError("collaborator context must not require a provider")
-    _canonical_text(context.get("purpose", ""), "context purpose", allow_empty=True)
-    _context_reference_ids(context)
+    _validate_context_snapshot(context)
     content = _publish_json(output, "collaborator-context.json", context)
     return {
         "path": str(output.expanduser().resolve()),
@@ -346,13 +378,7 @@ def validate_collaborator_proposal(
     context_digest = hashlib.sha256(context_content).hexdigest()
     if context_digest != expected_context_sha256:
         raise ValidationError("collaborator context does not match trusted SHA-256")
-    if context.get("context_version") != 1:
-        raise ValidationError("collaborator context_version must be 1")
-    boundary = context.get("write_boundary")
-    if not isinstance(boundary, dict) or boundary.get("context_is_read_only") is not True:
-        raise ValidationError("collaborator context is not marked read-only")
-    if boundary.get("provider_required") is not False:
-        raise ValidationError("collaborator context unexpectedly requires a provider")
+    context_scientific_constraints = _validate_context_snapshot(context)
 
     proposal, proposal_content = _load_object(proposal_file, "collaborator proposal")
     _validate_proposal(proposal, context, context_digest)
@@ -364,6 +390,7 @@ def validate_collaborator_proposal(
             "size_bytes": len(context_content),
         },
         "context_reference_index": context_reference_index,
+        "context_scientific_constraints": context_scientific_constraints,
         "proposal_input": {
             "sha256": hashlib.sha256(proposal_content).hexdigest(),
             "size_bytes": len(proposal_content),
@@ -459,6 +486,9 @@ def adjudicate_collaborator_proposal(
         ):
             raise ValidationError(f"collaborator proposal record {label} size is invalid")
     _text(record["conclusion_ceiling"], "record.conclusion_ceiling")
+    _context_scientific_constraints(
+        {"scientific_constraints": record["context_scientific_constraints"]}
+    )
     replay_context = {
         "purpose": proposal.get("purpose"),
         "context_reference_index": record.get("context_reference_index", []),
@@ -530,6 +560,7 @@ def adjudicate_collaborator_proposal(
             "sha256": record_digest,
             "size_bytes": len(record_content),
         },
+        "context_scientific_constraints": record["context_scientific_constraints"],
         "review_input": {
             "sha256": hashlib.sha256(review_content).hexdigest(),
             "size_bytes": len(review_content),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -21,6 +22,37 @@ from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import ClaimLevel
 from research_machine.interfaces.cli import main
+
+
+_SCIENTIFIC_CONSTRAINTS = [
+    "Treat supplied material as scoped context, not established fact.",
+    "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+    "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
+]
+
+
+def _context(
+    *,
+    purpose: str = "Stress-test the design.",
+    context_reference_index: list[dict[str, str]] | None = None,
+    scientific_constraints: list[str] | None = None,
+) -> dict:
+    context = {
+        "context_version": 1,
+        "purpose": purpose,
+        "scientific_constraints": list(
+            _SCIENTIFIC_CONSTRAINTS
+            if scientific_constraints is None
+            else scientific_constraints
+        ),
+        "write_boundary": {
+            "context_is_read_only": True,
+            "provider_required": False,
+        },
+    }
+    if context_reference_index is not None:
+        context["context_reference_index"] = context_reference_index
+    return context
 
 
 def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
@@ -114,16 +146,50 @@ def test_collaborator_context_exposes_pending_review_hypotheses(
 
 
 def test_context_snapshot_purpose_must_be_canonical(tmp_path: Path) -> None:
-    context = {
-        "context_version": 1,
-        "purpose": " Stress-test the design. ",
-        "write_boundary": {
-            "context_is_read_only": True,
-            "provider_required": False,
-        },
-    }
+    context = _context(purpose=" Stress-test the design. ")
 
     with pytest.raises(ValidationError, match="context purpose must be canonical"):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
+
+
+@pytest.mark.parametrize(
+    ("context", "message"),
+    [
+        (
+            {
+                key: value
+                for key, value in _context().items()
+                if key != "scientific_constraints"
+            },
+            "scientific_constraints",
+        ),
+        (
+            _context(scientific_constraints=[]),
+            "scientific_constraints must be a non-empty",
+        ),
+        (
+            _context(
+                scientific_constraints=[
+                    "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action."
+                ]
+            ),
+            "inferential-boundary",
+        ),
+        (
+            _context(
+                scientific_constraints=[
+                    "Do not claim causality, mechanism, or replication beyond recorded evidence."
+                ]
+            ),
+            "authorization-boundary",
+        ),
+    ],
+)
+def test_context_snapshot_requires_scientific_constraints(
+    tmp_path: Path, context: dict, message: str
+) -> None:
+    with pytest.raises(ValidationError, match=message):
         create_context_snapshot(context, tmp_path / "context")
     assert not (tmp_path / "context").exists()
 
@@ -238,6 +304,7 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
     record = json.loads(Path(result["record_file"]).read_text(encoding="utf-8"))
     assert record["status"] == "pending_human_review"
     assert record["context_reference_index"] == context["context_reference_index"]
+    assert record["context_scientific_constraints"] == context["scientific_constraints"]
     assert record["proposal"]["suggestions"][0]["evidence_refs"] == cited_refs
     assert record["canonical_writes_performed"] is False
     assert record["model_invoked_by_faraday"] is False
@@ -289,15 +356,9 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
 def test_proposal_fails_closed_on_missing_scientific_boundaries(
     tmp_path: Path, mutation, message: str
 ) -> None:
-    context = {
-        "context_version": 1,
-        "purpose": "Stress-test the design.",
-        "context_reference_index": [{"ref": "claim:claim-1", "kind": "claim"}],
-        "write_boundary": {
-            "context_is_read_only": True,
-            "provider_required": False,
-        },
-    }
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
     snapshot = create_context_snapshot(context, tmp_path / "context")
     proposal = _proposal(snapshot["context_sha256"])
     mutation(proposal)
@@ -314,14 +375,7 @@ def test_proposal_fails_closed_on_missing_scientific_boundaries(
 
 
 def test_proposal_suggestion_ids_must_be_canonical(tmp_path: Path) -> None:
-    context = {
-        "context_version": 1,
-        "purpose": "Stress-test the design.",
-        "write_boundary": {
-            "context_is_read_only": True,
-            "provider_required": False,
-        },
-    }
+    context = _context()
     snapshot = create_context_snapshot(context, tmp_path / "context")
     proposal = _proposal(snapshot["context_sha256"])
     duplicate = dict(proposal["suggestions"][0])
@@ -369,14 +423,7 @@ def test_proposal_suggestion_ids_must_be_canonical(tmp_path: Path) -> None:
 def test_proposal_identity_and_generator_handles_must_be_canonical(
     tmp_path: Path, mutation, message: str
 ) -> None:
-    context = {
-        "context_version": 1,
-        "purpose": "Stress-test the design.",
-        "write_boundary": {
-            "context_is_read_only": True,
-            "provider_required": False,
-        },
-    }
+    context = _context()
     snapshot = create_context_snapshot(context, tmp_path / "context")
     proposal = _proposal(snapshot["context_sha256"])
     mutation(proposal)
@@ -393,14 +440,7 @@ def test_proposal_identity_and_generator_handles_must_be_canonical(
 
 
 def test_proposal_rejects_stale_context_and_duplicate_json_keys(tmp_path: Path) -> None:
-    context = {
-        "context_version": 1,
-        "purpose": "Stress-test the design.",
-        "write_boundary": {
-            "context_is_read_only": True,
-            "provider_required": False,
-        },
-    }
+    context = _context()
     snapshot = create_context_snapshot(context, tmp_path / "context")
     proposal_path = tmp_path / "proposal.json"
     proposal_path.write_text(
@@ -445,18 +485,33 @@ def test_proposal_rejects_stale_context_and_duplicate_json_keys(tmp_path: Path) 
 def test_proposal_rejects_malformed_context_reference_index(
     tmp_path: Path, reference: list[dict[str, str]], message: str
 ) -> None:
-    context = {
-        "context_version": 1,
-        "purpose": "Stress-test the design.",
-        "context_reference_index": reference,
-        "write_boundary": {
-            "context_is_read_only": True,
-            "provider_required": False,
-        },
-    }
+    context = _context(context_reference_index=reference)
     with pytest.raises(ValidationError, match=message):
         create_context_snapshot(context, tmp_path / "context")
     assert not (tmp_path / "context").exists()
+
+
+def test_validate_proposal_replays_context_scientific_constraints(
+    tmp_path: Path,
+) -> None:
+    context = _context()
+    del context["scientific_constraints"]
+    context_dir = tmp_path / "manual-context"
+    context_dir.mkdir()
+    context_file = context_dir / "collaborator-context.json"
+    context_file.write_text(json.dumps(context), encoding="utf-8")
+    context_sha256 = hashlib.sha256(context_file.read_bytes()).hexdigest()
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(_proposal(context_sha256)), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="scientific_constraints"):
+        validate_collaborator_proposal(
+            context_file,
+            context_sha256,
+            proposal_path,
+            tmp_path / "validated",
+        )
+    assert not (tmp_path / "validated").exists()
 
 
 def test_cli_exports_context_and_validates_proposal_without_a_provider(
@@ -543,14 +598,7 @@ def test_cli_exports_context_and_validates_proposal_without_a_provider(
 def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     tmp_path: Path,
 ) -> None:
-    context = {
-        "context_version": 1,
-        "purpose": "Stress-test the design.",
-        "write_boundary": {
-            "context_is_read_only": True,
-            "provider_required": False,
-        },
-    }
+    context = _context()
     snapshot = create_context_snapshot(context, tmp_path / "context")
     proposal_path = tmp_path / "proposal.json"
     proposal_path.write_text(
@@ -574,6 +622,7 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     assert record["advanced_suggestions"] == [
         {"suggestion_id": "suggestion-1", "domain_route": "design.revise"}
     ]
+    assert record["context_scientific_constraints"] == _SCIENTIFIC_CONSTRAINTS
     assert record["reviewer_identity_authenticated"] is False
     assert record["authorized_actions"] == []
     assert record["scientific_evidence_eligible"] is False
@@ -622,14 +671,7 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
 def test_proposal_adjudication_fails_closed(
     tmp_path: Path, mutation, message: str
 ) -> None:
-    context = {
-        "context_version": 1,
-        "purpose": "Stress-test the design.",
-        "write_boundary": {
-            "context_is_read_only": True,
-            "provider_required": False,
-        },
-    }
+    context = _context()
     snapshot = create_context_snapshot(context, tmp_path / "context")
     proposal_path = tmp_path / "proposal.json"
     proposal_path.write_text(
