@@ -1463,6 +1463,8 @@ def _action_candidates(spec: dict[str, Any]) -> list[ActionCandidate]:
         "lane_id",
         "information_targets",
         "depends_on",
+        "manipulated_factors",
+        "factorial_or_crossover_design",
         "metadata",
     }
     for value in candidate_values:

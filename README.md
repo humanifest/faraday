@@ -1502,6 +1502,10 @@ typed `information_targets` instead of pretending to distinguish a scientific
 hypothesis. Action IDs, lane IDs, hypothesis distinctions, information targets,
 dependency handles, completed-action IDs, and blocked-lane reasons must be
 canonical without surrounding whitespace before ranking or lane balancing.
+Action candidates may also name exact `manipulated_factors`; candidates that
+change more than one factor must declare `factorial_or_crossover_design: true`
+before ranking, so an apparently high-yield follow-up cannot hide an
+uninterpretable simultaneous intervention.
 Selection weights must be finite, non-negative, and include at least one
 positive utility term; Faraday rejects non-finite or all-zero weights so action
 identifiers cannot silently decide a supposedly information-driven

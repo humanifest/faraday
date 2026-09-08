@@ -38,6 +38,8 @@ def candidate(
     *,
     depends_on: list[str] | None = None,
     safety_approved: bool = True,
+    manipulated_factors: list[str] | None = None,
+    factorial_or_crossover_design: bool = False,
 ) -> ActionCandidate:
     return ActionCandidate(
         action_id=action_id,
@@ -54,6 +56,8 @@ def candidate(
         safety_approved=safety_approved,
         lane_id=lane_id,
         depends_on=depends_on or [],
+        manipulated_factors=manipulated_factors or [],
+        factorial_or_crossover_design=factorial_or_crossover_design,
     )
 
 
@@ -270,6 +274,50 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
         )
 
 
+def test_multi_factor_actions_require_factorial_or_crossover_interpretability(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    with pytest.raises(ValidationError, match="changes multiple factors"):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate(
+                        "change-room-and-device",
+                        "machine",
+                        0.9,
+                        manipulated_factors=["room", "apparatus"],
+                    ),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+
+    recommendation = service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate(
+                    "cross-room-and-device",
+                    "machine",
+                    0.9,
+                    manipulated_factors=["room", "apparatus"],
+                    factorial_or_crossover_design=True,
+                ),
+                candidate("theory-next", "theory", 0.7),
+            ],
+        )
+    )
+    selected = next(
+        item
+        for item in recommendation.candidates
+        if item.action_id == "cross-room-and-device"
+    )
+    assert selected.manipulated_factors == ["room", "apparatus"]
+    assert selected.factorial_or_crossover_design is True
+
+
 @pytest.mark.parametrize(
     ("lane_values", "candidate_values", "completed", "message"),
     [
@@ -335,6 +383,19 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
             [candidate("action-a", "machine", 0.8)],
             [" action-a "],
             "completed_action_ids item must be canonical",
+        ),
+        (
+            [ActionLane("machine", "Machine")],
+            [
+                candidate(
+                    "action-a",
+                    "machine",
+                    0.8,
+                    manipulated_factors=[" room "],
+                )
+            ],
+            [],
+            "manipulated_factors item must be canonical",
         ),
     ],
 )

@@ -2298,11 +2298,26 @@ def validate_action_candidates(
             raise ValidationError("prerequisites_met must be true or false")
         if not isinstance(candidate.safety_approved, bool):
             raise ValidationError("safety_approved must be true or false")
+        if not isinstance(candidate.factorial_or_crossover_design, bool):
+            raise ValidationError(
+                "factorial_or_crossover_design must be true or false"
+            )
         if not isinstance(candidate.metadata, dict):
             raise ValidationError("action metadata must be an object")
         depends_on = require_unique_canonical_text_list(
             candidate.depends_on, "depends_on"
         )
+        manipulated_factors = require_unique_canonical_text_list(
+            candidate.manipulated_factors, "manipulated_factors"
+        )
+        if (
+            len(manipulated_factors) > 1
+            and not candidate.factorial_or_crossover_design
+        ):
+            raise ValidationError(
+                f"action {action_id} changes multiple factors without a "
+                "factorial or crossover interpretability design"
+            )
         seen.add(action_id)
         normalized.append(
             ActionCandidate(
@@ -2321,6 +2336,10 @@ def validate_action_candidates(
                 lane_id=require_canonical_text(candidate.lane_id, "lane_id"),
                 information_targets=information_targets,
                 depends_on=depends_on,
+                manipulated_factors=manipulated_factors,
+                factorial_or_crossover_design=(
+                    candidate.factorial_or_crossover_design
+                ),
                 metadata=dict(candidate.metadata),
             )
         )
