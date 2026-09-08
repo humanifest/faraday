@@ -1316,7 +1316,18 @@ direction, indeterminate directional checks, and order outside the registered
 window fail closed, while an intentionally registered indeterminate relation
 stays visible without asserting causal direction. The artifact is still
 non-evidentiary and cannot establish causality, mechanism, intent, calibration
-truth, dataset registration, or evidence eligibility.
+truth, dataset registration, or evidence eligibility. Canonical run intake now
+treats `details.temporal_order_assessment` as a structured, artifact-bound gate
+claim: the gate must cite the assessment record as a declared output artifact
+under a passed artifact-integrity receipt, the retained record hash, upstream
+timing-assessment hash, specification hash, and status are replayed from current
+bytes, and a passed gate requires a verified `temporal_order_passed` record.
+Failed temporal-order assessments remain recordable only as failed gates, so
+reversals, unresolved timing, upstream timing failure, and registered-window
+misses stay visible without being rewritten into favorable summaries. Rigor,
+deterministic synthesis, and replication-package verification now carry those
+gates with their exact artifact locator, record hash, timing-assessment hash,
+specification hash, and bounded status.
 Preprocessing-conformance delivery: `measurement assess-preprocessing` now binds
 separately trusted registered and observed pipeline declarations, then compares
 stable pipeline IDs, ordered step IDs, operations, JSON-compatible parameters,

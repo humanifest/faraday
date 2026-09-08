@@ -25,6 +25,7 @@ from research_machine.domain.models import (
     QualityGateStatus,
 )
 from research_machine.domain.errors import ValidationError
+from research_machine.measurement.instrument import assess_temporal_order
 from research_machine.measurement.preprocessing import assess_preprocessing_conformance
 from research_machine.replication.package import verify_replication_package
 from research_machine.interfaces.cli import main
@@ -101,6 +102,49 @@ def _pipeline(*, smoothing_window: int = 5) -> dict:
                 "implementation_sha256": "5" * 64,
             },
         ],
+    }
+
+
+def _temporal_order_spec() -> dict:
+    return {
+        "assessment_id": "temporal-order",
+        "order_checks": [
+            {
+                "check_id": "state-before-sound",
+                "first_event_id": "state-event",
+                "second_event_id": "sound-event",
+                "expected_relation": "first_precedes_second",
+                "minimum_separation": {"duration": 1, "unit": "ms"},
+                "maximum_separation": {"duration": 20, "unit": "ms"},
+                "scientific_question": "Synthetic fixture for temporal ordering.",
+            }
+        ],
+    }
+
+
+def _temporal_timing_assessment() -> dict:
+    return {
+        "stream_timing_assessment_version": 1,
+        "status": "timing_feasibility_passed",
+        "events": [
+            {
+                "event_id": "state-event",
+                "stream_id": "stream-main",
+                "event_time": "2026-09-06T12:00:03.000000Z",
+                "status": "assessed",
+                "clock_uncertainty_seconds": 0.00005,
+                "overlapping_missing_intervals": [],
+            },
+            {
+                "event_id": "sound-event",
+                "stream_id": "stream-main",
+                "event_time": "2026-09-06T12:00:03.010000Z",
+                "status": "assessed",
+                "clock_uncertainty_seconds": 0.00005,
+                "overlapping_missing_intervals": [],
+            },
+        ],
+        "scientific_evidence_eligible": False,
     }
 
 
@@ -526,6 +570,102 @@ def test_replication_package_verifies_preprocessing_conformance_gate_metadata(
         commitment = _refresh_packaged_file(package, "runs.json")
 
     with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
+
+
+def test_replication_package_verifies_temporal_order_gate_metadata(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service = ResearchService(FileSystemRepository(workspace), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL, methodology="Method", quality_requirements=["gate"],
+        controls=["control"], expected_outputs=["output"], success_conditions=["success"],
+        environment_requirements=["environment"], sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    timing = tmp_path / "timing-assessment.json"
+    spec = tmp_path / "temporal-order-spec.json"
+    timing_sha256 = _write_json(timing, _temporal_timing_assessment())
+    specification_sha256 = _write_json(spec, _temporal_order_spec())
+    assessment = assess_temporal_order(
+        timing,
+        timing_sha256,
+        spec,
+        tmp_path / "temporal-order",
+    )
+    record = Path(assessment["path"]) / "temporal-order-assessment.json"
+    record_locator = str(record.relative_to(tmp_path))
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            record_locator,
+            assessment["assessment_sha256"],
+            record.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "gate",
+            QualityGateStatus.PASSED,
+            "Synthetic temporal-order fixture passed.",
+            details={
+                "evidence_sha256": assessment["assessment_sha256"],
+                "temporal_order_assessment": {
+                    "locator": record_locator,
+                    "sha256": assessment["assessment_sha256"],
+                    "status": "temporal_order_passed",
+                    "timing_assessment_sha256": timing_sha256,
+                    "specification_sha256": specification_sha256,
+                },
+            },
+        )],
+        summary="Synthetic package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    runs[0]["quality_gates"][0]["details"]["temporal_order_assessment"][
+        "status"
+    ] = "temporal_order_failed"
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match="passed temporal-order gate"):
         verify_replication_package(package, commitment)
 
 

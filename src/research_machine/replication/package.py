@@ -166,6 +166,67 @@ def _validate_preprocessing_conformance_gate_metadata(
         )
 
 
+def _validate_temporal_order_assessment_gate_metadata(
+    *,
+    run_id: str,
+    gate: QualityGateResult,
+    output_artifacts: list[DatasetArtifact],
+) -> None:
+    assessment = gate.details.get("temporal_order_assessment")
+    if assessment is None:
+        return
+    if not isinstance(assessment, dict):
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} temporal_order_assessment must be an object"
+        )
+    required_fields = {
+        "locator",
+        "sha256",
+        "status",
+        "timing_assessment_sha256",
+        "specification_sha256",
+    }
+    if set(assessment) != required_fields:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} temporal_order_assessment fields are invalid"
+        )
+    prefix = f"package run {run_id} gate {gate.gate_id} temporal_order_assessment"
+    locator = require_canonical_text(assessment["locator"], f"{prefix}.locator")
+    record_sha256 = require_sha256(assessment["sha256"], f"{prefix}.sha256")
+    declared_status = require_canonical_text(assessment["status"], f"{prefix}.status")
+    if declared_status not in {"temporal_order_passed", "temporal_order_failed"}:
+        raise ValidationError(f"{prefix}.status is unsupported")
+    require_sha256(
+        assessment["timing_assessment_sha256"],
+        f"{prefix}.timing_assessment_sha256",
+    )
+    require_sha256(
+        assessment["specification_sha256"],
+        f"{prefix}.specification_sha256",
+    )
+    if not any(
+        artifact.locator == locator and artifact.sha256 == record_sha256
+        for artifact in output_artifacts
+    ):
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} temporal-order assessment record is not a declared output artifact"
+        )
+    if gate.status is QualityGateStatus.PASSED:
+        if declared_status != "temporal_order_passed":
+            raise ValidationError(
+                f"package run {run_id} passed temporal-order gate {gate.gate_id} lacks passed assessment metadata"
+            )
+    elif gate.status is QualityGateStatus.FAILED:
+        if declared_status != "temporal_order_failed":
+            raise ValidationError(
+                f"package run {run_id} failed temporal-order gate {gate.gate_id} lacks failed assessment metadata"
+            )
+    else:
+        raise ValidationError(
+            f"package run {run_id} temporal-order gate {gate.gate_id} must be passed or failed according to assessment metadata"
+        )
+
+
 def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any]:
     """Verify packaged bytes against an independently retained export commitment."""
     expected_manifest_sha256 = require_sha256(
@@ -404,6 +465,11 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                             )
                     _validate_preprocessing_conformance_gate_metadata(
                         protocol=protocol,
+                        run_id=run.run_id,
+                        gate=gate,
+                        output_artifacts=run.output_artifacts,
+                    )
+                    _validate_temporal_order_assessment_gate_metadata(
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=run.output_artifacts,

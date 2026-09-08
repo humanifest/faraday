@@ -55,6 +55,20 @@ _TEMPORAL_ORDER_CHECK_FIELDS = {
     "maximum_separation",
     "scientific_question",
 }
+_TEMPORAL_ORDER_RECORD_FIELDS = {
+    "temporal_order_assessment_version",
+    "assessment_id",
+    "timing_assessment",
+    "specification",
+    "order_checks",
+    "findings",
+    "status",
+    "scientific_evidence_eligible",
+    "authorized_actions",
+    "conclusion_ceiling",
+}
+_TEMPORAL_ORDER_SOURCE_FIELDS = {"sha256", "size_bytes"}
+_TEMPORAL_ORDER_TIMING_FIELDS = {"sha256", "size_bytes", "status"}
 _TIME_BOUND_FIELDS = {"duration", "unit"}
 _EXPECTED_TEMPORAL_RELATIONS = {
     "first_precedes_second",
@@ -856,6 +870,130 @@ def assess_temporal_order(
         "specification_sha256": spec_sha256,
         "assessment_sha256": hashlib.sha256(encoded).hexdigest(),
         "status": status,
+        "finding_count": len(findings),
+        "scientific_evidence_eligible": False,
+    }
+
+
+def verify_temporal_order_assessment_record(
+    record_file: Path,
+    expected_record_sha256: str,
+    *,
+    expected_timing_assessment_sha256: str | None = None,
+    expected_specification_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Replay a retained temporal-order assessment record from current bytes."""
+    expected_record = _sha256(expected_record_sha256, "expected_record_sha256")
+    record, content, retained_sha256 = _load_json_object_and_sha256(
+        record_file, "temporal order assessment record"
+    )
+    if retained_sha256 != expected_record:
+        raise ValidationError(
+            "temporal order assessment record does not match expected_record_sha256"
+        )
+    _exact_fields(record, _TEMPORAL_ORDER_RECORD_FIELDS, "temporal_order record")
+    if record["temporal_order_assessment_version"] != 1:
+        raise ValidationError("unsupported temporal order assessment record")
+    assessment_id = _stable_identifier(
+        record["assessment_id"], "temporal_order record assessment_id"
+    )
+    timing = record["timing_assessment"]
+    if not isinstance(timing, dict):
+        raise ValidationError("temporal order assessment timing_assessment must be an object")
+    _exact_fields(timing, _TEMPORAL_ORDER_TIMING_FIELDS, "temporal_order timing_assessment")
+    timing_sha256 = _sha256(
+        timing["sha256"], "temporal_order timing_assessment.sha256"
+    )
+    if expected_timing_assessment_sha256 is not None and timing_sha256 != _sha256(
+        expected_timing_assessment_sha256, "expected_timing_assessment_sha256"
+    ):
+        raise ValidationError("temporal order assessment timing SHA-256 mismatch")
+    if not isinstance(timing["size_bytes"], int) or isinstance(timing["size_bytes"], bool) or timing["size_bytes"] <= 0:
+        raise ValidationError("temporal order assessment timing size_bytes must be a positive integer")
+    timing_status = _text(timing["status"], "temporal_order timing_assessment.status")
+    if timing_status not in {"timing_feasibility_passed", "timing_feasibility_failed"}:
+        raise ValidationError("temporal order assessment timing status is unsupported")
+    specification = record["specification"]
+    if not isinstance(specification, dict):
+        raise ValidationError("temporal order assessment specification must be an object")
+    _exact_fields(specification, _TEMPORAL_ORDER_SOURCE_FIELDS, "temporal_order specification")
+    specification_sha256 = _sha256(
+        specification["sha256"], "temporal_order specification.sha256"
+    )
+    if expected_specification_sha256 is not None and specification_sha256 != _sha256(
+        expected_specification_sha256, "expected_specification_sha256"
+    ):
+        raise ValidationError("temporal order assessment specification SHA-256 mismatch")
+    if not isinstance(specification["size_bytes"], int) or isinstance(specification["size_bytes"], bool) or specification["size_bytes"] <= 0:
+        raise ValidationError("temporal order assessment specification size_bytes must be a positive integer")
+    order_checks = record["order_checks"]
+    if not isinstance(order_checks, list) or not order_checks:
+        raise ValidationError("temporal order assessment order_checks must be a non-empty array")
+    check_statuses: list[str] = []
+    seen_checks: set[str] = set()
+    for index, check in enumerate(order_checks):
+        if not isinstance(check, dict):
+            raise ValidationError(f"temporal order assessment order_checks[{index}] must be an object")
+        check_id = _stable_identifier(
+            check.get("check_id"), f"temporal_order order_checks[{index}].check_id"
+        )
+        if check_id in seen_checks:
+            raise ValidationError("temporal order assessment check_id must be unique")
+        seen_checks.add(check_id)
+        observed_relation = _text(
+            check.get("observed_relation"),
+            f"temporal_order order_checks[{index}].observed_relation",
+        )
+        if observed_relation not in _EXPECTED_TEMPORAL_RELATIONS | {"not_assessed"}:
+            raise ValidationError("temporal order assessment observed_relation is unsupported")
+        status = _text(check.get("status"), f"temporal_order order_checks[{index}].status")
+        if status not in {"passed", "warning", "failed"}:
+            raise ValidationError("temporal order assessment check status is unsupported")
+        check_statuses.append(status)
+    findings = record["findings"]
+    if not isinstance(findings, list):
+        raise ValidationError("temporal order assessment findings must be an array")
+    error_findings = 0
+    for index, finding in enumerate(findings):
+        if not isinstance(finding, dict):
+            raise ValidationError(f"temporal order assessment findings[{index}] must be an object")
+        severity = _text(
+            finding.get("severity"), f"temporal_order findings[{index}].severity"
+        )
+        if severity not in {"warning", "error"}:
+            raise ValidationError("temporal order assessment finding severity is unsupported")
+        _text(finding.get("code"), f"temporal_order findings[{index}].code")
+        _text(finding.get("message"), f"temporal_order findings[{index}].message")
+        if severity == "error":
+            error_findings += 1
+    status = _text(record["status"], "temporal_order record status")
+    if status not in {"temporal_order_passed", "temporal_order_failed"}:
+        raise ValidationError("temporal order assessment status is unsupported")
+    if record["scientific_evidence_eligible"] is not False:
+        raise ValidationError("temporal order assessment must remain non-evidentiary")
+    if record["authorized_actions"] != []:
+        raise ValidationError("temporal order assessment must not authorize actions")
+    _text(record["conclusion_ceiling"], "temporal_order conclusion_ceiling")
+    if status == "temporal_order_passed" and (
+        error_findings or any(value == "failed" for value in check_statuses)
+    ):
+        raise ValidationError("temporal order passed record contains failed checks")
+    if status == "temporal_order_failed" and not (
+        error_findings or any(value == "failed" for value in check_statuses)
+    ):
+        raise ValidationError("temporal order failed record lacks failed checks")
+    return {
+        "status": "temporal_order_assessment_record_verified",
+        "record_sha256": retained_sha256,
+        "record_size_bytes": len(content),
+        "assessment_id": assessment_id,
+        "record_status": status,
+        "timing_assessment_sha256": timing_sha256,
+        "timing_assessment_status": timing_status,
+        "specification_sha256": specification_sha256,
+        "check_count": len(order_checks),
+        "failed_check_count": sum(value == "failed" for value in check_statuses),
+        "warning_check_count": sum(value == "warning" for value in check_statuses),
         "finding_count": len(findings),
         "scientific_evidence_eligible": False,
     }

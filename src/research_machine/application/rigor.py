@@ -571,25 +571,47 @@ def audit_research_state(
         protocol = protocol_by_id.get(run.protocol_id)
         for gate in run.quality_gates:
             conformance = gate.details.get("preprocessing_conformance")
-            if not isinstance(conformance, dict):
+            if isinstance(conformance, dict):
+                record_status = conformance.get("status")
+                if record_status == "preprocessing_conformance_failed":
+                    add(
+                        "RUN_PREPROCESSING_CONFORMANCE_FAILED",
+                        RigorSeverity.ERROR,
+                        "Run retains a failed preprocessing-conformance record; the discrepancy must stay visible and cannot support a passed preprocessing gate.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Inspect the conformance artifact, preserve the failed gate outcome, and bound or repeat the analysis before drawing conclusions."
+                        ),
+                    )
+                elif record_status == "preprocessing_conformance_passed":
+                    add(
+                        "RUN_PREPROCESSING_CONFORMANCE_REPLAYED",
+                        RigorSeverity.INFO,
+                        "Run exposes an artifact-bound preprocessing-conformance gate; the pass is a bounded adherence check, not proof of implementation correctness.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                    )
+            temporal_order = gate.details.get("temporal_order_assessment")
+            if not isinstance(temporal_order, dict):
                 continue
-            record_status = conformance.get("status")
-            if record_status == "preprocessing_conformance_failed":
+            record_status = temporal_order.get("status")
+            if record_status == "temporal_order_failed":
                 add(
-                    "RUN_PREPROCESSING_CONFORMANCE_FAILED",
+                    "RUN_TEMPORAL_ORDER_ASSESSMENT_FAILED",
                     RigorSeverity.ERROR,
-                    "Run retains a failed preprocessing-conformance record; the discrepancy must stay visible and cannot support a passed preprocessing gate.",
+                    "Run retains a failed temporal-order assessment; causal direction or event-order interpretation must stay bounded.",
                     entity_type="run",
                     entity_id=run.run_id,
                     remediation=(
-                        "Inspect the conformance artifact, preserve the failed gate outcome, and bound or repeat the analysis before drawing conclusions."
+                        "Inspect the temporal-order artifact, preserve the failed gate outcome, and do not infer causal direction from the affected run."
                     ),
                 )
-            elif record_status == "preprocessing_conformance_passed":
+            elif record_status == "temporal_order_passed":
                 add(
-                    "RUN_PREPROCESSING_CONFORMANCE_REPLAYED",
+                    "RUN_TEMPORAL_ORDER_ASSESSMENT_REPLAYED",
                     RigorSeverity.INFO,
-                    "Run exposes an artifact-bound preprocessing-conformance gate; the pass is a bounded adherence check, not proof of implementation correctness.",
+                    "Run exposes an artifact-bound temporal-order assessment; the pass classifies order under timing uncertainty and does not prove causality.",
                     entity_type="run",
                     entity_id=run.run_id,
                 )

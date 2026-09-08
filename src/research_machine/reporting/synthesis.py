@@ -351,6 +351,33 @@ def build_synthesis(
                     f"`{conformance.get('observed_pipeline_sha256', 'unavailable')}`. "
                     "This is a bounded conformance replay, not evidence of implementation correctness."
                 )
+    temporal_order_runs = [
+        run for run in runs
+        if any(
+            isinstance(gate.details.get("temporal_order_assessment"), dict)
+            for gate in run.quality_gates
+        )
+    ]
+    if temporal_order_runs:
+        lines.extend(["", "### Temporal order provenance", ""])
+        for run in sorted(temporal_order_runs, key=lambda item: item.run_id):
+            for gate in run.quality_gates:
+                assessment = gate.details.get("temporal_order_assessment")
+                if not isinstance(assessment, dict):
+                    continue
+                lines.append(
+                    f"- Run `{run.run_id}` gate `{gate.gate_id}` {gate.status.value}; "
+                    f"record status: {assessment.get('status', 'unclassified')}; "
+                    f"record `{assessment.get('sha256', 'unavailable')}` at "
+                    f"`{assessment.get('locator', 'unavailable')}`."
+                )
+                lines.append(
+                    "  - Timing assessment: "
+                    f"`{assessment.get('timing_assessment_sha256', 'unavailable')}`; "
+                    "temporal-order specification: "
+                    f"`{assessment.get('specification_sha256', 'unavailable')}`. "
+                    "This classifies event order under timing uncertainty; it does not prove causality."
+                )
     if evidence_status_events:
         lines.extend(["", "### Evidence correction and retraction history", ""])
         for event in sorted(evidence_status_events, key=lambda item: (item.evidence_id, item.sequence)):

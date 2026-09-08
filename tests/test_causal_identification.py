@@ -442,6 +442,13 @@ def test_causal_run_requires_artifact_bound_results_for_every_assumption(tmp_pat
     }
     template_gate = service.run_record_template(protocol.protocol_id)["record"]["quality_gates"][0]
     assert set(template_gate["details"]["causal_assumption_results"]) == set(assumption_results)
+    assert set(template_gate["details"]["temporal_order_assessment"]) == {
+        "locator",
+        "sha256",
+        "status",
+        "timing_assessment_sha256",
+        "specification_sha256",
+    }
     assert template_gate["status"] == "skipped"
 
     def command(results):
@@ -927,6 +934,7 @@ def test_observational_causal_adjustment_executes_the_exact_frozen_covariates(
             "evidence_sha256": analysis_output_sha256,
             "evidence_location": "/result/diagnostics",
         }
+    gate["details"].pop("temporal_order_assessment", None)
     record_path = tmp_path / "causal-run-record.json"
     preflight = [
         "--workspace", str(workspace), "--json", "run", "preflight",

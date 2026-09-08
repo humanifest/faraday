@@ -26,6 +26,7 @@ from research_machine.addons.execution import (
     validate_registered_information,
 )
 from research_machine.measurement.preprocessing import assess_preprocessing_conformance
+from research_machine.measurement.instrument import assess_temporal_order
 from research_machine.domain.models import (
     ActionCandidate,
     AnalysisMode,
@@ -525,6 +526,97 @@ def _preprocessing_conformance_gate_fixture(
     return [artifact], [gate], result
 
 
+def _temporal_order_spec() -> dict:
+    return {
+        "assessment_id": "temporal-order",
+        "order_checks": [
+            {
+                "check_id": "state-before-sound",
+                "first_event_id": "state-event",
+                "second_event_id": "sound-event",
+                "expected_relation": "first_precedes_second",
+                "minimum_separation": {"duration": 1, "unit": "ms"},
+                "maximum_separation": {"duration": 20, "unit": "ms"},
+                "scientific_question": "Synthetic fixture for temporal ordering.",
+            }
+        ],
+    }
+
+
+def _temporal_timing_assessment(*, reversed_order: bool = False) -> dict:
+    state_time = "2026-09-06T12:00:03.010000Z" if reversed_order else "2026-09-06T12:00:03.000000Z"
+    sound_time = "2026-09-06T12:00:03.000000Z" if reversed_order else "2026-09-06T12:00:03.010000Z"
+    return {
+        "stream_timing_assessment_version": 1,
+        "status": "timing_feasibility_passed",
+        "events": [
+            {
+                "event_id": "state-event",
+                "stream_id": "stream-main",
+                "event_time": state_time,
+                "status": "assessed",
+                "clock_uncertainty_seconds": 0.00005,
+                "overlapping_missing_intervals": [],
+            },
+            {
+                "event_id": "sound-event",
+                "stream_id": "stream-main",
+                "event_time": sound_time,
+                "status": "assessed",
+                "clock_uncertainty_seconds": 0.00005,
+                "overlapping_missing_intervals": [],
+            },
+        ],
+        "scientific_evidence_eligible": False,
+    }
+
+
+def _temporal_order_assessment_gate_fixture(
+    tmp_path: Path,
+    *,
+    reversed_order: bool = False,
+    gate_status: QualityGateStatus = QualityGateStatus.PASSED,
+) -> tuple[list[DatasetArtifact], list[QualityGateResult], dict]:
+    suffix = "reversed" if reversed_order else "passed"
+    timing = tmp_path / f"{suffix}-timing-assessment.json"
+    spec = tmp_path / f"{suffix}-temporal-order-spec.json"
+    timing_sha256 = _write_json_artifact(
+        timing,
+        _temporal_timing_assessment(reversed_order=reversed_order),
+    )
+    specification_sha256 = _write_json_artifact(spec, _temporal_order_spec())
+    result = assess_temporal_order(
+        timing,
+        timing_sha256,
+        spec,
+        tmp_path / f"{suffix}-temporal-order",
+    )
+    record = Path(result["path"]) / "temporal-order-assessment.json"
+    record_locator = str(record.relative_to(tmp_path))
+    artifact = DatasetArtifact(
+        record_locator,
+        result["assessment_sha256"],
+        size_bytes=record.stat().st_size,
+        media_type="application/json",
+    )
+    gate = QualityGateResult(
+        "proof-check",
+        gate_status,
+        "Temporal order was replayed from current bytes.",
+        details={
+            "evidence_sha256": result["assessment_sha256"],
+            "temporal_order_assessment": {
+                "locator": record_locator,
+                "sha256": result["assessment_sha256"],
+                "status": result["status"],
+                "timing_assessment_sha256": timing_sha256,
+                "specification_sha256": specification_sha256,
+            },
+        },
+    )
+    return [artifact], [gate], result
+
+
 def test_run_replays_passed_preprocessing_conformance_gate(tmp_path: Path) -> None:
     service, hypothesis_id = prepared_service(tmp_path)
     protocol = frozen_formal_protocol(service, hypothesis_id)
@@ -648,6 +740,109 @@ def test_run_rejects_preprocessing_conformance_outside_frozen_pipeline(
             quality_gates=quality_gates,
         ))
     assert protocol.preprocessing_pipeline != result["registered_pipeline_sha256"]
+
+
+def test_run_replays_passed_temporal_order_assessment_gate(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, result = _temporal_order_assessment_gate_fixture(
+        tmp_path
+    )
+
+    run = service.record_run(run_command(
+        protocol.protocol_id,
+        QualityGateStatus.PASSED,
+        artifact_root=str(tmp_path),
+        output_artifacts=output_artifacts,
+        quality_gates=quality_gates,
+    ))
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.quality_gates[0].details["temporal_order_assessment"]["status"] == (
+        "temporal_order_passed"
+    )
+    assert run.quality_gates[0].details["evidence_sha256"] == result["assessment_sha256"]
+    synthesis = service.build_synthesis()["content"]
+    assert "Temporal order provenance" in synthesis
+    assert result["assessment_sha256"] in synthesis
+    assert "does not prove causality" in synthesis
+    assert any(
+        finding.code == "RUN_TEMPORAL_ORDER_ASSESSMENT_REPLAYED"
+        for finding in service.audit_rigor().findings
+    )
+
+
+def test_run_rejects_passed_temporal_order_gate_with_failed_record(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _temporal_order_assessment_gate_fixture(
+        tmp_path,
+        reversed_order=True,
+    )
+
+    with pytest.raises(ValidationError, match="requires a passed temporal-order assessment"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
+
+
+def test_run_preserves_failed_temporal_order_assessment_gate(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _temporal_order_assessment_gate_fixture(
+        tmp_path,
+        reversed_order=True,
+        gate_status=QualityGateStatus.FAILED,
+    )
+
+    run = service.record_run(run_command(
+        protocol.protocol_id,
+        QualityGateStatus.FAILED,
+        artifact_root=str(tmp_path),
+        output_artifacts=output_artifacts,
+        quality_gates=quality_gates,
+    ))
+
+    assert run.status is RunStatus.INVALID
+    assert run.quality_gates[0].details["temporal_order_assessment"]["status"] == (
+        "temporal_order_failed"
+    )
+    assert run.scientific_evidence_eligible is False
+    synthesis = service.build_synthesis()["content"]
+    assert "record status: temporal_order_failed" in synthesis
+    assert any(
+        finding.code == "RUN_TEMPORAL_ORDER_ASSESSMENT_FAILED"
+        and finding.entity_id == run.run_id
+        for finding in service.audit_rigor().findings
+    )
+
+
+def test_run_rejects_temporal_order_assessment_upstream_hash_drift(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _temporal_order_assessment_gate_fixture(
+        tmp_path
+    )
+    quality_gates[0].details["temporal_order_assessment"]["specification_sha256"] = (
+        "0" * 64
+    )
+
+    with pytest.raises(ValidationError, match="specification SHA-256 mismatch"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
 
 
 def test_passed_quality_gate_requires_output_bound_evidence_and_passed_prerequisites(tmp_path: Path) -> None:

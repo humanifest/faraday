@@ -58,6 +58,9 @@ from research_machine.application.protocol_integrity import (
 )
 from research_machine.application.rigor import audit_research_state
 from research_machine.measurement.custody import validate_measurement_custody
+from research_machine.measurement.instrument import (
+    verify_temporal_order_assessment_record,
+)
 from research_machine.measurement.preprocessing import (
     verify_preprocessing_conformance_record,
 )
@@ -355,6 +358,91 @@ def _validate_preprocessing_conformance_gate(
     else:
         raise ValidationError(
             f"quality gate {gate.gate_id} preprocessing_conformance must be passed or failed according to the record"
+        )
+
+
+def _validate_temporal_order_assessment_gate(
+    *,
+    gate: QualityGateResult,
+    outputs: list[DatasetArtifact],
+    artifact_root: str | None,
+    artifact_integrity: Any,
+) -> None:
+    assessment = gate.details.get("temporal_order_assessment")
+    if assessment is None:
+        return
+    if not isinstance(assessment, dict):
+        raise ValidationError(
+            f"quality gate {gate.gate_id} temporal_order_assessment must be an object"
+        )
+    required_fields = {
+        "locator",
+        "sha256",
+        "status",
+        "timing_assessment_sha256",
+        "specification_sha256",
+    }
+    if set(assessment) != required_fields:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} temporal_order_assessment must contain exactly: "
+            + ", ".join(sorted(required_fields))
+        )
+    prefix = f"quality gate {gate.gate_id} temporal_order_assessment"
+    locator = require_canonical_text(assessment["locator"], f"{prefix}.locator")
+    record_sha256 = require_sha256(assessment["sha256"], f"{prefix}.sha256")
+    declared_status = require_canonical_text(assessment["status"], f"{prefix}.status")
+    allowed_statuses = {"temporal_order_passed", "temporal_order_failed"}
+    if declared_status not in allowed_statuses:
+        raise ValidationError(f"{prefix}.status is unsupported")
+    if not any(
+        artifact.locator == locator
+        and artifact.sha256 == record_sha256
+        for artifact in outputs
+    ):
+        raise ValidationError(
+            f"quality gate {gate.gate_id} temporal_order_assessment must reference a declared run output artifact"
+        )
+    if artifact_root is None:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} temporal_order_assessment requires artifact_root"
+        )
+    if (
+        artifact_integrity is None
+        or artifact_integrity.status != "passed"
+        or artifact_integrity.all_artifacts_match is not True
+    ):
+        raise ValidationError(
+            f"quality gate {gate.gate_id} temporal_order_assessment requires passed artifact_integrity"
+        )
+    verified = verify_temporal_order_assessment_record(
+        Path(artifact_root) / locator,
+        record_sha256,
+        expected_timing_assessment_sha256=require_sha256(
+            assessment["timing_assessment_sha256"],
+            f"{prefix}.timing_assessment_sha256",
+        ),
+        expected_specification_sha256=require_sha256(
+            assessment["specification_sha256"],
+            f"{prefix}.specification_sha256",
+        ),
+    )
+    if declared_status != verified["record_status"]:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} temporal_order_assessment status does not match the verified record"
+        )
+    if gate.status is QualityGateStatus.PASSED:
+        if verified["record_status"] != "temporal_order_passed":
+            raise ValidationError(
+                f"passed quality gate {gate.gate_id} requires a passed temporal-order assessment"
+            )
+    elif gate.status is QualityGateStatus.FAILED:
+        if verified["record_status"] != "temporal_order_failed":
+            raise ValidationError(
+                f"failed quality gate {gate.gate_id} requires a failed temporal-order assessment"
+            )
+    else:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} temporal_order_assessment must be passed or failed according to the record"
         )
 
 
@@ -2740,6 +2828,12 @@ class ResearchService:
                 artifact_root=artifact_root,
                 artifact_integrity=artifact_integrity,
             )
+            _validate_temporal_order_assessment_gate(
+                gate=gate,
+                outputs=outputs,
+                artifact_root=artifact_root,
+                artifact_integrity=artifact_integrity,
+            )
         controls_by_gate: dict[str, list[Any]] = {}
         for control in protocol.control_definitions:
             controls_by_gate.setdefault(control.evaluation_gate_id, []).append(control)
@@ -3427,6 +3521,14 @@ class ResearchService:
                 causal_assumptions_by_gate.setdefault(
                     assumption["assessment_gate_id"], []
                 ).append(assumption)
+        temporal_order_gate_ids = {
+            gate_id
+            for gate_id, assumptions in causal_assumptions_by_gate.items()
+            if any(
+                assumption.get("category") == "temporal_order"
+                for assumption in assumptions
+            )
+        }
         validity_checks_by_gate: dict[str, list[Any]] = {}
         for check in protocol.measurement_validity_checks:
             validity_checks_by_gate.setdefault(
@@ -3479,6 +3581,13 @@ class ResearchService:
                                 "registered_pipeline_sha256": preprocessing_pipeline_sha256,
                                 "observed_pipeline_sha256": "<hash of the observed preprocessing pipeline declaration>",
                             }} if preprocessing_pipeline_sha256 is not None else {}),
+                            **({"temporal_order_assessment": {
+                                "locator": "<path below artifact_root to temporal-order-assessment.json>",
+                                "sha256": "<hash of that temporal-order assessment record>",
+                                "status": "<temporal_order_passed or temporal_order_failed>",
+                                "timing_assessment_sha256": "<hash of the trusted stream-timing assessment>",
+                                "specification_sha256": "<hash of the registered temporal-order specification>",
+                            }} if gate_id in temporal_order_gate_ids else {}),
                             **({"control_results": {
                             control.control_id: {
                                 "observed_behavior": "",
@@ -3544,6 +3653,7 @@ class ResearchService:
                 "For every causal-assumption assessment, identify the exact location within its cited output artifact; when citing the verified analysis result, use an absolute JSON Pointer that resolves in that result.",
                 "For every performed measurement-validity check, record the observed diagnostic separately from interpretation, use the frozen evidence type, and cite the exact output location; a passed gate requires consistent_with_validity_claim, not proof of validity.",
                 "When preprocessing_pipeline_commitment_sha256 is present, any preprocessing_conformance gate must cite a verified conformance record whose registered_pipeline_sha256 exactly matches it.",
+                "For causal temporal-order gates, cite a temporal_order_assessment record whose timing and specification hashes replay from current bytes; the assessment classifies order without proving causality.",
                 "Explicitly disclose every departure from the frozen protocol. A declared departure remains recordable but blocks automatic scientific-evidence eligibility.",
                 "Run `research run preflight --record-file ...` before `research run record`.",
             ],

@@ -1072,7 +1072,16 @@ missing events, upstream failed timing, and clear order outside the registered
 window all fail closed. A passed temporal-order assessment may distinguish clear
 order from reversal or timing indeterminacy, but it still does not establish
 causality, mechanism, intent, calibration truth, dataset registration, or
-scientific evidence.
+scientific evidence. When a run quality gate declares
+`details.temporal_order_assessment`, canonical run intake requires the same
+record as a byte-verified output artifact under `artifact_root`, replays its
+retained record hash, upstream timing-assessment hash, specification hash, and
+status, and rejects a passed gate unless the verified record itself passed.
+Failed temporal-order assessments may only be retained as failed gates, keeping
+reversals, unresolved timing, and registered-window misses visible while
+blocking required-gate evidence eligibility. Rigor and synthesis expose these
+gates by run, artifact locator, record hash, timing-assessment hash,
+specification hash, and bounded status.
 
 Use `measurement assess-preprocessing --registered-pipeline-file REGISTERED
 --expected-registered-pipeline-sha256 HASH --observed-pipeline-file OBSERVED
