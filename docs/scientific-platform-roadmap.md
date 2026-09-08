@@ -1274,9 +1274,11 @@ bounded inspectors with stable IDs, supported media types, and explicit config
 fields. `measurement inspect-source` rejects media types outside that declaration,
 then gives an inspector an immutable source-byte
 snapshot, core-hashes its actual implementation module, rejects mutation of its
-config, source, or code, rejects padded retained text fields in its bounded
-metadata result, including nested native-metadata keys and string values, and
-core-hashes a write-once acquisition proposal. Inspectors may now propose typed
+config, source, or code, rejects cyclic, non-JSON, non-finite, oversized, or
+padded retained text fields in its bounded metadata result, including nested
+native-metadata keys and string values, and core-hashes a write-once acquisition
+proposal. Adapter output is capped at 1,000,000 serialized JSON bytes, depth 32,
+50,000 nodes, and 262,144 UTF-8 bytes for any string or object key. Inspectors may now propose typed
 stream metadata for synchronized sources: stable stream ID, source device,
 channel, positive sample rate, clock source, offset-aware start time, finite
 clock drift estimate with finite uncertainty, supported unit, and basis, ordered

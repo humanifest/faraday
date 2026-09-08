@@ -5,10 +5,13 @@ media types, and explicit required and optional configuration fields. Adapter
 media-type and configuration-field handles must be canonical without surrounding
 whitespace, duplicate-free, and split cleanly between required and optional
 fields. The core rejects undeclared media types, passes an immutable source-byte snapshot and a committed configuration, then
-accepts only bounded acquisition metadata. It independently hashes the source,
-binds the actual implementation-module bytes, rejects source/config/code mutation
-and unknown, non-JSON, or padded text output, and publishes a write-once
-non-evidence inspection record. `measurement verify-source-inspection` requires a
+accepts only bounded acquisition metadata. Adapter output is strict JSON data
+with no cycles, at most 1,000,000 serialized bytes, depth no greater than 32,
+at most 50,000 nodes, and no string or object key over 262,144 UTF-8 bytes. The
+core independently hashes the source, binds the actual implementation-module
+bytes, rejects source/config/code mutation and unknown, non-JSON, oversized, or
+padded text output, and publishes a write-once non-evidence inspection record.
+`measurement verify-source-inspection` requires a
 separately trusted record hash, rejects padded hash text instead of normalizing
 it, and exactly reproduces the record from the current three inputs.
 An adapter has no authority to assert

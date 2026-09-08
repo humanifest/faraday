@@ -1388,6 +1388,78 @@ def test_instrument_adapter_cannot_mutate_config_or_publish_invalid_result(
     assert not source_output.exists()
 
 
+def test_instrument_adapter_output_must_be_bounded(tmp_path: Path) -> None:
+    from research_machine.addons.models import InstrumentAdapter
+    from research_machine.measurement.instrument import inspect_instrument_source
+
+    source = tmp_path / "capture.bin"
+    source.write_bytes(b"fixture")
+
+    def inspect(source_bytes, config):
+        return {
+            "captured_at": "2026-09-06T12:00:00Z",
+            "captured_at_basis": "user_supplied",
+            "acquisition_method": "fixture",
+            "instrument_identifier": "fixture",
+            "instrument_model": "fixture",
+            "native_metadata": {},
+            "warnings": ["x" * 100 for _ in range(12_000)],
+        }
+
+    adapter = InstrumentAdapter(
+        "oversized_adapter", "Oversized adapter", "Synthetic invalid fixture.",
+        ("application/octet-stream",), ("captured_at",), inspect,
+    )
+    manifest = AddonManifest(
+        "oversized_instrument", "Oversized instrument", "1", "test", "Fixture",
+        instrument_adapters=(adapter,),
+    )
+    output = tmp_path / "oversized-inspection"
+    with pytest.raises(ValidationError, match="bounded JSON size"):
+        inspect_instrument_source(
+            manifest, adapter, source, "application/octet-stream",
+            {"captured_at": "2026-09-06T12:00:00Z"}, output,
+        )
+    assert not output.exists()
+
+
+def test_instrument_adapter_recursive_output_fails_closed(tmp_path: Path) -> None:
+    from research_machine.addons.models import InstrumentAdapter
+    from research_machine.measurement.instrument import inspect_instrument_source
+
+    source = tmp_path / "capture.bin"
+    source.write_bytes(b"fixture")
+
+    def inspect(source_bytes, config):
+        recursive = []
+        recursive.append(recursive)
+        return {
+            "captured_at": "2026-09-06T12:00:00Z",
+            "captured_at_basis": "user_supplied",
+            "acquisition_method": "fixture",
+            "instrument_identifier": "fixture",
+            "instrument_model": "fixture",
+            "native_metadata": {"recursive": recursive},
+            "warnings": [],
+        }
+
+    adapter = InstrumentAdapter(
+        "recursive_adapter", "Recursive adapter", "Synthetic invalid fixture.",
+        ("application/octet-stream",), ("captured_at",), inspect,
+    )
+    manifest = AddonManifest(
+        "recursive_instrument", "Recursive instrument", "1", "test", "Fixture",
+        instrument_adapters=(adapter,),
+    )
+    output = tmp_path / "recursive-inspection"
+    with pytest.raises(ValidationError, match="must not contain cycles"):
+        inspect_instrument_source(
+            manifest, adapter, source, "application/octet-stream",
+            {"captured_at": "2026-09-06T12:00:00Z"}, output,
+        )
+    assert not output.exists()
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [

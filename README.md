@@ -1024,8 +1024,10 @@ with `measurement inspect-source --adapter ADAPTER_ID --source-file FILE
 type to match the adapter's declared supported media types, snapshots and hashes the bytes,
 hashes the actual adapter implementation module, rejects source, implementation,
 or config mutation during inspection, validates the adapter's declared output
-shape, rejects padded top-level and nested native-metadata text, and writes a
-non-evidentiary acquisition-metadata proposal. An adapter may also propose typed
+shape, rejects cyclic, non-JSON, oversized, padded top-level, or padded nested
+native-metadata text, and writes a non-evidentiary acquisition-metadata proposal.
+Adapter output is capped at 1,000,000 serialized JSON bytes, depth 32, 50,000
+nodes, and 262,144 UTF-8 bytes for any string or object key. An adapter may also propose typed
 stream metadata for synchronized sources: stable stream ID, source device,
 channel, positive sample rate, clock source, offset-aware start time, finite
 clock drift estimate with finite uncertainty, supported unit, and basis, ordered

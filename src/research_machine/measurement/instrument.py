@@ -148,6 +148,10 @@ _ABSOLUTE_TIME_UNITS_TO_SECONDS = {
     "us": 0.000001,
     "ns": 0.000000001,
 }
+_MAX_ADAPTER_OUTPUT_BYTES = 1_000_000
+_MAX_JSON_DEPTH = 32
+_MAX_JSON_NODES = 50_000
+_MAX_JSON_STRING_BYTES = 262_144
 
 
 def _text(value: Any, field: str, *, optional: bool = False) -> str:
@@ -408,9 +412,27 @@ def _temporal_metadata_summary(streams: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _json_safe(value: Any, *, canonical_text: bool = False) -> None:
+def _json_safe(
+    value: Any,
+    *,
+    canonical_text: bool = False,
+    _depth: int = 0,
+    _seen: set[int] | None = None,
+    _node_count: list[int] | None = None,
+) -> None:
+    if _seen is None:
+        _seen = set()
+    if _node_count is None:
+        _node_count = [0]
+    if _depth > _MAX_JSON_DEPTH:
+        raise ValidationError("instrument adapter output exceeds bounded JSON depth")
+    _node_count[0] += 1
+    if _node_count[0] > _MAX_JSON_NODES:
+        raise ValidationError("instrument adapter output exceeds bounded JSON node count")
     if isinstance(value, float) and not math.isfinite(value):
         raise ValidationError("instrument adapter output must contain only finite numbers")
+    if isinstance(value, str) and len(value.encode("utf-8")) > _MAX_JSON_STRING_BYTES:
+        raise ValidationError("instrument adapter output exceeds bounded JSON string size")
     if canonical_text and isinstance(value, str) and value != value.strip():
         raise ValidationError(
             "instrument inspection native_metadata text must be canonical without surrounding whitespace"
@@ -418,18 +440,62 @@ def _json_safe(value: Any, *, canonical_text: bool = False) -> None:
     if value is None or isinstance(value, (str, bool, int, float)):
         return
     if isinstance(value, list):
+        marker = id(value)
+        if marker in _seen:
+            raise ValidationError("instrument adapter output must not contain cycles")
+        _seen.add(marker)
         for item in value:
-            _json_safe(item, canonical_text=canonical_text)
+            _json_safe(
+                item,
+                canonical_text=canonical_text,
+                _depth=_depth + 1,
+                _seen=_seen,
+                _node_count=_node_count,
+            )
+        _seen.remove(marker)
         return
     if isinstance(value, dict) and all(isinstance(key, str) for key in value):
+        marker = id(value)
+        if marker in _seen:
+            raise ValidationError("instrument adapter output must not contain cycles")
+        _seen.add(marker)
         if canonical_text and any(not key.strip() or key != key.strip() for key in value):
             raise ValidationError(
                 "instrument inspection native_metadata keys must be canonical non-empty text"
             )
+        for key in value:
+            if len(key.encode("utf-8")) > _MAX_JSON_STRING_BYTES:
+                raise ValidationError("instrument adapter output exceeds bounded JSON string size")
         for item in value.values():
-            _json_safe(item, canonical_text=canonical_text)
+            _json_safe(
+                item,
+                canonical_text=canonical_text,
+                _depth=_depth + 1,
+                _seen=_seen,
+                _node_count=_node_count,
+            )
+        _seen.remove(marker)
         return
     raise ValidationError("instrument adapter output must be JSON-compatible")
+
+
+def _bounded_json_bytes(value: Any, label: str, *, max_bytes: int) -> bytes:
+    _json_safe(value)
+    try:
+        encoded = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode()
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f"{label} must be JSON-compatible") from exc
+    if len(encoded) > max_bytes:
+        raise ValidationError(
+            f"{label} exceeds bounded JSON size of {max_bytes} bytes"
+        )
+    return encoded
 
 
 def inspect_instrument_source(
@@ -521,6 +587,11 @@ def inspect_instrument_source(
         proposed.get("streams"),
         raw_file_sha256=source_sha256,
         conversion_code_sha256=implementation_sha256,
+    )
+    _bounded_json_bytes(
+        proposed,
+        "instrument adapter output",
+        max_bytes=_MAX_ADAPTER_OUTPUT_BYTES,
     )
     record = {
         "instrument_inspection_version": 1,
