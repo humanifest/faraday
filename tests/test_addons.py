@@ -926,6 +926,10 @@ def test_instrument_adapter_output_text_must_be_canonical(
     ("mutation", "message"),
     [
         (
+            lambda stream: stream.update({"stream_id": "StreamMain"}),
+            "stream_id must be a stable lowercase identifier",
+        ),
+        (
             lambda stream: stream.update({"channel": " main "}),
             "streams\\[0\\].channel",
         ),
@@ -942,6 +946,28 @@ def test_instrument_adapter_output_text_must_be_canonical(
                 {"end_time": "2026-09-06T12:00:01Z"}
             ),
             "end_time must be after",
+        ),
+        (
+            lambda stream: stream["missing_intervals"][0].update(
+                {"start_time": "2026-09-06T11:59:59Z"}
+            ),
+            "must not precede stream start_time",
+        ),
+        (
+            lambda stream: stream["missing_intervals"].append({
+                "start_time": "2026-09-06T12:00:01.500000Z",
+                "end_time": "2026-09-06T12:00:03Z",
+                "reason": "Overlapping packet fixture",
+            }),
+            "ordered and non-overlapping",
+        ),
+        (
+            lambda stream: stream["missing_intervals"].append({
+                "start_time": "2026-09-06T12:00:00.500000Z",
+                "end_time": "2026-09-06T12:00:00.750000Z",
+                "reason": "Out-of-order packet fixture",
+            }),
+            "ordered and non-overlapping",
         ),
         (
             lambda stream: stream.update({"quality_flags": ["flag", "flag"]}),

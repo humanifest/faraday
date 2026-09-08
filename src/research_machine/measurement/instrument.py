@@ -8,6 +8,7 @@ import inspect
 import json
 import math
 import os
+import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +18,7 @@ from research_machine.addons.models import AddonManifest, InstrumentAdapter
 from research_machine.domain.errors import ValidationError
 
 
+_IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 _TIME_BASES = {"device_metadata", "sidecar", "user_supplied", "filesystem_metadata"}
 _STREAM_FIELDS = {
     "stream_id",
@@ -92,6 +94,15 @@ def _string_list(value: Any, field: str) -> list[str]:
     return list(value)
 
 
+def _stable_identifier(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if not _IDENTIFIER.fullmatch(text):
+        raise ValidationError(
+            f"instrument inspection {field} must be a stable lowercase identifier"
+        )
+    return text
+
+
 def _exact_fields(value: dict[str, Any], expected: set[str], label: str) -> None:
     missing = sorted(expected - set(value))
     unknown = sorted(set(value) - expected)
@@ -115,11 +126,13 @@ def _stream_metadata(
         if not isinstance(stream, dict):
             raise ValidationError(f"instrument inspection {label} must be an object")
         _exact_fields(stream, _STREAM_FIELDS, label)
-        stream_id = _text(stream["stream_id"], f"{label}.stream_id")
+        stream_id = _stable_identifier(stream["stream_id"], f"{label}.stream_id")
         if stream_id in seen:
             raise ValidationError(f"duplicate instrument inspection stream_id: {stream_id}")
         seen.add(stream_id)
-        start_time, _ = _parse_time(stream["start_time"], f"{label}.start_time")
+        start_time, parsed_stream_start = _parse_time(
+            stream["start_time"], f"{label}.start_time"
+        )
         drift = stream["clock_drift"]
         if not isinstance(drift, dict):
             raise ValidationError(f"instrument inspection {label}.clock_drift must be an object")
@@ -128,6 +141,7 @@ def _stream_metadata(
         if not isinstance(missing_intervals, list):
             raise ValidationError(f"instrument inspection {label}.missing_intervals must be an array")
         normalized_intervals: list[dict[str, str]] = []
+        previous_end: datetime | None = None
         for interval_index, interval in enumerate(missing_intervals):
             interval_label = f"{label}.missing_intervals[{interval_index}]"
             if not isinstance(interval, dict):
@@ -143,6 +157,15 @@ def _stream_metadata(
                 raise ValidationError(
                     f"instrument inspection {interval_label}.end_time must be after start_time"
                 )
+            if parsed_start < parsed_stream_start:
+                raise ValidationError(
+                    f"instrument inspection {interval_label}.start_time must not precede stream start_time"
+                )
+            if previous_end is not None and parsed_start < previous_end:
+                raise ValidationError(
+                    f"instrument inspection {interval_label} must be ordered and non-overlapping"
+                )
+            previous_end = parsed_end
             normalized_intervals.append({
                 "start_time": interval_start,
                 "end_time": interval_end,
