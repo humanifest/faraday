@@ -14,6 +14,12 @@ methods without changing its epistemic rules or canonical state.
   loading of local experiment add-ons without publication.
 - Write-once execution receipts binding analysis specification, data,
   implementation, environment, output, and gates.
+- Deterministic next-action and portfolio recommendations that rank only safe,
+  feasible actions with explicit utility weights. Action IDs, lane IDs,
+  hypothesis distinctions, information targets, dependency handles,
+  completed-action IDs, and blocked-lane reasons must be canonical before
+  ranking or lane balancing, so recommendation provenance does not depend on
+  silent whitespace normalization.
 - Cross-disciplinary CSV summaries, correlation, and seeded permutation testing;
   summary, correlation, two-group estimators, adjusted models, and missingness
   methods require requested column, comparison, covariate, unit, pair, family,

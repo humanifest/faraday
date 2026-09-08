@@ -227,3 +227,89 @@ def test_active_lane_cannot_borrow_an_unsafe_action_from_another_lane(
                 ],
             )
         )
+
+
+@pytest.mark.parametrize(
+    ("lane_values", "candidate_values", "completed", "message"),
+    [
+        (
+            [ActionLane(" machine ", "Machine")],
+            [candidate("machine-next", "machine", 0.8)],
+            [],
+            "lane_id must be canonical",
+        ),
+        (
+            [
+                ActionLane(
+                    "machine", "Machine", status="blocked", blocked_on=[" review "]
+                )
+            ],
+            [candidate("machine-next", "machine", 0.8)],
+            [],
+            "blocked_on item must be canonical",
+        ),
+        (
+            [ActionLane("machine", "Machine")],
+            [candidate(" action-a ", "machine", 0.8)],
+            [],
+            "action_id must be canonical",
+        ),
+        (
+            [ActionLane("machine", "Machine")],
+            [
+                ActionCandidate(
+                    **{
+                        **candidate("action-a", "machine", 0.8).to_dict(),
+                        "lane_id": " machine ",
+                    }
+                )
+            ],
+            [],
+            "lane_id must be canonical",
+        ),
+        (
+            [ActionLane("machine", "Machine")],
+            [
+                ActionCandidate(
+                    **{
+                        **candidate("action-a", "machine", 0.8).to_dict(),
+                        "information_targets": [" machine:uncertainty "],
+                    }
+                )
+            ],
+            [],
+            "information_targets item must be canonical",
+        ),
+        (
+            [ActionLane("machine", "Machine")],
+            [
+                candidate("action-a", "machine", 0.8),
+                candidate("action-b", "machine", 0.7, depends_on=[" action-a "]),
+            ],
+            [],
+            "depends_on item must be canonical",
+        ),
+        (
+            [ActionLane("machine", "Machine")],
+            [candidate("action-a", "machine", 0.8)],
+            [" action-a "],
+            "completed_action_ids item must be canonical",
+        ),
+    ],
+)
+def test_portfolio_selection_handles_must_be_canonical(
+    tmp_path: Path,
+    lane_values: list[ActionLane],
+    candidate_values: list[ActionCandidate],
+    completed: list[str],
+    message: str,
+) -> None:
+    service = prepared_service(tmp_path)
+    with pytest.raises(ValidationError, match=message):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lane_values,
+                candidates=candidate_values,
+                completed_action_ids=completed,
+            )
+        )

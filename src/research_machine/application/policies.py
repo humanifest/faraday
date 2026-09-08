@@ -83,6 +83,26 @@ def require_unique_text_list(values: Sequence[str], field_name: str) -> list[str
     return normalized
 
 
+def require_canonical_text_list(
+    values: Sequence[str], field_name: str
+) -> list[str]:
+    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
+        raise ValidationError(f"{field_name} must be a list of text values")
+    return [
+        require_canonical_text(value, f"{field_name} item")
+        for value in values
+    ]
+
+
+def require_unique_canonical_text_list(
+    values: Sequence[str], field_name: str
+) -> list[str]:
+    normalized = require_canonical_text_list(values, field_name)
+    if len(set(normalized)) != len(normalized):
+        raise ValidationError(f"{field_name} must not contain duplicates")
+    return normalized
+
+
 def normalize_confidence(value: float | None) -> float | None:
     if value is None:
         return None
@@ -2151,13 +2171,13 @@ def validate_action_candidates(
     for candidate in candidates:
         if not isinstance(candidate, ActionCandidate):
             raise ValidationError("candidates must contain ActionCandidate values")
-        action_id = require_text(candidate.action_id, "action_id")
+        action_id = require_canonical_text(candidate.action_id, "action_id")
         if action_id in seen:
             raise ValidationError(f"duplicate action_id: {action_id}")
-        hypotheses = require_text_list(
+        hypotheses = require_canonical_text_list(
             candidate.distinguishes_hypotheses, "distinguishes_hypotheses"
         )
-        information_targets = require_unique_text_list(
+        information_targets = require_unique_canonical_text_list(
             candidate.information_targets, "information_targets"
         )
         if not hypotheses and not information_targets:
@@ -2187,7 +2207,9 @@ def validate_action_candidates(
             raise ValidationError("safety_approved must be true or false")
         if not isinstance(candidate.metadata, dict):
             raise ValidationError("action metadata must be an object")
-        depends_on = require_unique_text_list(candidate.depends_on, "depends_on")
+        depends_on = require_unique_canonical_text_list(
+            candidate.depends_on, "depends_on"
+        )
         seen.add(action_id)
         normalized.append(
             ActionCandidate(
@@ -2203,7 +2225,7 @@ def validate_action_candidates(
                 rationale=require_text(candidate.rationale, "action rationale"),
                 prerequisites_met=candidate.prerequisites_met,
                 safety_approved=candidate.safety_approved,
-                lane_id=require_text(candidate.lane_id, "lane_id"),
+                lane_id=require_canonical_text(candidate.lane_id, "lane_id"),
                 information_targets=information_targets,
                 depends_on=depends_on,
                 metadata=dict(candidate.metadata),
@@ -2222,13 +2244,15 @@ def validate_action_lanes(lanes: Sequence[ActionLane]) -> list[ActionLane]:
     for lane in lanes:
         if not isinstance(lane, ActionLane):
             raise ValidationError("lanes must contain ActionLane values")
-        lane_id = require_text(lane.lane_id, "lane_id")
+        lane_id = require_canonical_text(lane.lane_id, "lane_id")
         if lane_id in seen:
             raise ValidationError(f"duplicate lane_id: {lane_id}")
-        status = require_text(lane.status, "lane status")
+        status = require_canonical_text(lane.status, "lane status")
         if status not in {"active", "blocked"}:
             raise ValidationError("lane status must be active or blocked")
-        blocked_on = require_unique_text_list(lane.blocked_on, "blocked_on")
+        blocked_on = require_unique_canonical_text_list(
+            lane.blocked_on, "blocked_on"
+        )
         if status == "active" and blocked_on:
             raise ValidationError(f"active lane {lane_id} cannot declare blocked_on")
         if status == "blocked" and not blocked_on:
@@ -2263,7 +2287,9 @@ def validate_portfolio_action_candidates(
             )
 
     action_ids = {candidate.action_id for candidate in normalized}
-    completed = require_unique_text_list(completed_action_ids, "completed_action_ids")
+    completed = require_unique_canonical_text_list(
+        completed_action_ids, "completed_action_ids"
+    )
     unknown_completed = sorted(set(completed) - action_ids)
     if unknown_completed:
         raise ValidationError(

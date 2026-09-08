@@ -1376,8 +1376,11 @@ currently feasible action per active lane, and fails rather than borrowing a
 second action from another lane. Externally blocked lanes must be marked
 `blocked` with a nonempty `blocked_on` reason. Infrastructure actions may name
 typed `information_targets` instead of pretending to distinguish a scientific
-hypothesis. The resulting recommendation remains an immutable, ledgered record;
-it does not establish scientific independence or satisfy a promotion gate.
+hypothesis. Action IDs, lane IDs, hypothesis distinctions, information targets,
+dependency handles, completed-action IDs, and blocked-lane reasons must be
+canonical without surrounding whitespace before ranking or lane balancing. The
+resulting recommendation remains an immutable, ledgered record; it does not
+establish scientific independence or satisfy a promotion gate.
 
 Use `cross-lane-lesson record` before an observed machine or substantive
 failure changes later work. A lesson must preserve the origin hash, strongest
