@@ -4,6 +4,7 @@ from collections import Counter
 from datetime import datetime
 
 from research_machine.application.policies import (
+    evidence_summary_overclaim_terms,
     normalize_confidence,
     validate_validation_tag_context,
 )
@@ -291,6 +292,21 @@ def audit_research_state(
     tag_counts: Counter[str] = Counter()
     prospective_tag_counts: Counter[str] = Counter()
     for record in evidence:
+        overclaim_terms = evidence_summary_overclaim_terms(record.summary)
+        if overclaim_terms:
+            add(
+                "EVIDENCE_SUMMARY_OVERCLAIM_LANGUAGE",
+                RigorSeverity.WARNING,
+                "Evidence summary uses report-prohibited overclaiming language: "
+                + ", ".join(overclaim_terms)
+                + ". Treat the stored prose as a legacy assertion rather than a stronger conclusion.",
+                entity_type="evidence",
+                entity_id=record.evidence_id,
+                remediation=(
+                    "Do not rewrite the historical evidence record; append a bounded "
+                    "status review or record new scoped evidence with calibrated language."
+                ),
+            )
         if not record.scope.strip():
             add(
                 "EVIDENCE_SCOPE_MISSING",

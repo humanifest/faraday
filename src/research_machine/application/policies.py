@@ -71,12 +71,25 @@ def require_text(value: str, field_name: str) -> str:
 
 def require_bounded_evidence_summary(value: str) -> str:
     summary = require_text(value, "evidence summary")
-    if _REPORT_OVERCLAIM.search(summary):
+    if evidence_summary_overclaim_terms(summary):
         raise ValidationError(
             "evidence summary uses report-prohibited overclaiming language; "
             "state bounded support, weakening, refutation, or inconclusiveness instead"
         )
     return summary
+
+
+def evidence_summary_overclaim_terms(value: str) -> list[str]:
+    if not isinstance(value, str):
+        return []
+    terms: list[str] = []
+    seen: set[str] = set()
+    for match in _REPORT_OVERCLAIM.finditer(value):
+        term = match.group(0).casefold()
+        if term not in seen:
+            seen.add(term)
+            terms.append(term)
+    return terms
 
 
 def require_canonical_text(value: str, field_name: str) -> str:

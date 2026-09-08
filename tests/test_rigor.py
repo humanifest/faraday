@@ -209,6 +209,54 @@ def _classified_evidence(hypothesis_id: str, run_id: str, **overrides):
     return RecordEvidence(**values)
 
 
+def test_rigor_flags_legacy_overclaiming_evidence_summary_without_rewriting(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path / "workspace")
+    evidence = service.record_evidence(
+        _classified_evidence(hypothesis.hypothesis_id, run.run_id)
+    )
+    legacy_evidence = replace(
+        evidence,
+        summary="This confirmed and explained the mechanism.",
+    )
+    repository = service.repository
+    inquiry_id = repository.resolve_inquiry_id(None)
+    hypotheses = repository.list_hypotheses(inquiry_id)
+    audit = audit_research_state(
+        inquiry=repository.load_inquiry(inquiry_id),
+        claims=repository.load_claims(inquiry_id),
+        hypotheses=hypotheses,
+        evidence=[legacy_evidence],
+        datasets=repository.list_datasets(inquiry_id),
+        protocols=repository.list_protocols(inquiry_id),
+        runs=repository.list_runs(inquiry_id),
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "EVIDENCE_SUMMARY_OVERCLAIM_LANGUAGE"
+    )
+    assert finding.entity_id == evidence.evidence_id
+    assert "confirmed, explained" in finding.message
+    assert "Do not rewrite" in finding.remediation
+    synthesis = build_synthesis(
+        repository.load_inquiry(inquiry_id),
+        repository.load_questions(inquiry_id),
+        repository.load_claims(inquiry_id),
+        hypotheses,
+        [legacy_evidence],
+        repository.list_datasets(inquiry_id),
+        repository.list_protocols(inquiry_id),
+        repository.list_runs(inquiry_id),
+        [],
+        [],
+        audit,
+        [],
+    )
+    assert "This confirmed and explained the mechanism." in synthesis
+    assert "EVIDENCE_SUMMARY_OVERCLAIM_LANGUAGE (1)" in synthesis
+
+
 def _status_command(
     evidence_id: str, root: Path, name: str, status: str, **overrides
 ) -> RecordEvidenceStatusEvent:

@@ -136,6 +136,10 @@ admission. Deterministic synthesis can still quote bounded user summaries, but
 new reportable evidence must use scoped language such as supported against
 specified alternatives, weakened, refuted, or inconclusive. This is a lexical
 guardrail on new reports, not a substitute for substantive scientific review.
+Rigor audit also flags legacy or imported evidence summaries that already use
+those report-prohibited verbs. The record remains visible and unedited, but the
+warning keeps current synthesis from silently treating historical prose as a
+calibrated conclusion.
 
 Canonical run-payload delivery: after run preparation completes, the service now
 hashes the full immutable run outside the hash field itself. Caller-supplied

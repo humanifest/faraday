@@ -397,6 +397,10 @@ New evidence summaries are also kept inside that boundary: reportable evidence
 cannot use overclaiming verbs such as `proved`, `confirmed`, or `explained`.
 Use bounded language like "supported against these alternatives on this
 dataset," "weakened," "refuted," or "inconclusive."
+If imported or legacy evidence already contains those verbs, rigor audit reports
+the exact evidence ID as a warning while preserving the original prose; qualify
+it through append-only status review or new bounded evidence rather than
+rewriting history.
 
 ## Guided design scaffold
 
