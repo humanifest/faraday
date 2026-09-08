@@ -316,6 +316,12 @@ def test_multi_factor_actions_require_factorial_or_crossover_interpretability(
     )
     assert selected.manipulated_factors == ["room", "apparatus"]
     assert selected.factorial_or_crossover_design is True
+    synthesis = service.build_synthesis()["content"]
+    assert (
+        "machine: room, apparatus (factorial/crossover declared)"
+        in synthesis
+    )
+    assert "theory: no manipulated factors declared" in synthesis
 
 
 @pytest.mark.parametrize(

@@ -1506,6 +1506,9 @@ Action candidates may also name exact `manipulated_factors`; candidates that
 change more than one factor must declare `factorial_or_crossover_design: true`
 before ranking, so an apparently high-yield follow-up cannot hide an
 uninterpretable simultaneous intervention.
+Deterministic synthesis reports the selected actions' manipulated-factor plan
+and design status so later reviewers can see whether the recommendation changes
+one factor, no declared factor, or a declared factorial/crossover structure.
 Selection weights must be finite, non-negative, and include at least one
 positive utility term; Faraday rejects non-finite or all-zero weights so action
 identifiers cannot silently decide a supposedly information-driven

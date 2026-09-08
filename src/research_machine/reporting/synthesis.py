@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 from research_machine.domain.models import (
+    ActionCandidate,
     ActionRecommendation,
     Claim,
     CrossLaneLesson,
@@ -719,15 +720,49 @@ def _recommendation_summary(
             "preferred explanation."
         )
     latest = recommendations[-1]
+    candidates_by_id = {
+        candidate.action_id: candidate for candidate in latest.candidates
+    }
     if latest.selection_mode == "portfolio":
         selected = "; ".join(
             f"{lane_id}: {action_id}"
             for lane_id, action_id in latest.selected_action_ids_by_lane.items()
         )
-        return "- Selected next actions by lane: " + selected
+        factors = "; ".join(
+            f"{lane_id}: {_action_factor_summary(candidates_by_id[action_id])}"
+            for lane_id, action_id in latest.selected_action_ids_by_lane.items()
+            if action_id in candidates_by_id
+        )
+        return (
+            "- Selected next actions by lane: "
+            + selected
+            + ". Factor plan: "
+            + (factors or "not available")
+            + "."
+        )
+    selected = candidates_by_id.get(latest.selected_action_id)
+    factor_summary = (
+        _action_factor_summary(selected) if selected is not None else "not available"
+    )
     return (
         "- Selected next action: "
         + latest.selected_action_id
         + " — "
         + latest.rationale
+        + " Factor plan: "
+        + factor_summary
+        + "."
     )
+
+
+def _action_factor_summary(candidate: ActionCandidate) -> str:
+    factors = candidate.manipulated_factors
+    if not factors:
+        return "no manipulated factors declared"
+    if candidate.factorial_or_crossover_design:
+        design = "factorial/crossover declared"
+    elif len(factors) == 1:
+        design = "single-factor or legacy-unresolved design"
+    else:
+        design = "missing factorial/crossover declaration"
+    return ", ".join(factors) + f" ({design})"
