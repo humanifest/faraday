@@ -1032,6 +1032,32 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
     assert service.list_recommendations() == [recommendation]
 
 
+def test_next_action_selection_handles_must_be_canonical(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+
+    with pytest.raises(
+        ValidationError, match="distinguishes_hypotheses item must be canonical"
+    ):
+        service.recommend_next_action(
+            RecommendNextAction(
+                candidates=[
+                    ActionCandidate(
+                        action_id="padded-hypothesis",
+                        title="Padded hypothesis",
+                        distinguishes_hypotheses=[f" {hypothesis_id} "],
+                        expected_discrimination=0.8,
+                        uncertainty_reduction=0.7,
+                        cost=0.1,
+                        burden=0.1,
+                        safety_risk=0.0,
+                        ambiguity_risk=0.1,
+                        rationale="Would otherwise silently normalize the target.",
+                    )
+                ]
+            )
+        )
+
+
 def test_synthetic_status_propagates_through_derived_datasets(tmp_path: Path) -> None:
     service, _ = prepared_service(tmp_path)
     source = service.register_dataset(
