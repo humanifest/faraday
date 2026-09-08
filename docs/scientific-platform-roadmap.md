@@ -18,9 +18,10 @@ methods without changing its epistemic rules or canonical state.
   feasible actions with explicit utility weights. Action IDs, lane IDs,
   hypothesis distinctions, information targets, dependency handles,
   completed-action IDs, and blocked-lane reasons must be canonical before
-  ranking or lane balancing, and the weight vector must contain at least one
-  positive utility term, so recommendation provenance does not depend on silent
-  whitespace normalization or lexicographic action identifiers.
+  ranking or lane balancing, and the weight vector must contain finite,
+  non-negative values with at least one positive utility term, so recommendation
+  provenance does not depend on silent whitespace normalization, non-finite
+  arithmetic, or lexicographic action identifiers.
 - Cross-lane process lessons preserve observed failures without rewriting prior
   conclusions. Lane IDs, artifact locators, integrity status, failure class,
   future-version handles, and prohibited-target handles must be canonical before

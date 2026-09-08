@@ -1379,11 +1379,12 @@ typed `information_targets` instead of pretending to distinguish a scientific
 hypothesis. Action IDs, lane IDs, hypothesis distinctions, information targets,
 dependency handles, completed-action IDs, and blocked-lane reasons must be
 canonical without surrounding whitespace before ranking or lane balancing.
-Selection weights must include at least one positive utility term; Faraday
-rejects all-zero weights so action identifiers cannot silently decide a
-supposedly information-driven recommendation. The resulting recommendation
-remains an immutable, ledgered record; it does not establish scientific
-independence or satisfy a promotion gate.
+Selection weights must be finite, non-negative, and include at least one
+positive utility term; Faraday rejects non-finite or all-zero weights so action
+identifiers cannot silently decide a supposedly information-driven
+recommendation. The resulting recommendation remains an immutable, ledgered
+record; it does not establish scientific independence or satisfy a promotion
+gate.
 
 Use `cross-lane-lesson record` before an observed machine or substantive
 failure changes later work. A lesson must preserve the origin hash, strongest

@@ -1107,6 +1107,40 @@ def test_next_action_selection_rejects_degenerate_utility_weights(
         )
 
 
+@pytest.mark.parametrize("weight_value", [float("nan"), float("inf")])
+def test_next_action_selection_weights_must_be_finite(
+    tmp_path: Path, weight_value: float
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+
+    with pytest.raises(
+        ValidationError,
+        match="selection weight expected_discrimination must be a finite non-negative number",
+    ):
+        service.recommend_next_action(
+            RecommendNextAction(
+                candidates=[
+                    ActionCandidate(
+                        action_id="finite-score",
+                        title="Finite score",
+                        distinguishes_hypotheses=[hypothesis_id],
+                        expected_discrimination=0.8,
+                        uncertainty_reduction=0.7,
+                        cost=0.1,
+                        burden=0.1,
+                        safety_risk=0.0,
+                        ambiguity_risk=0.1,
+                        rationale="The candidate itself has bounded inputs.",
+                    )
+                ],
+                weights=SelectionWeights(
+                    expected_discrimination=weight_value,
+                    uncertainty_reduction=0.5,
+                ),
+            )
+        )
+
+
 def test_synthetic_status_propagates_through_derived_datasets(tmp_path: Path) -> None:
     service, _ = prepared_service(tmp_path)
     source = service.register_dataset(

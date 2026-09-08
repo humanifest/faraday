@@ -2343,8 +2343,15 @@ def validate_selection_weights(weights: SelectionWeights) -> SelectionWeights:
         "ambiguity_risk",
     ):
         value = getattr(weights, field_name)
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
-            raise ValidationError(f"selection weight {field_name} must be non-negative")
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or value < 0
+        ):
+            raise ValidationError(
+                f"selection weight {field_name} must be a finite non-negative number"
+            )
         values[field_name] = float(value)
     if not any(value > 0 for value in values.values()):
         raise ValidationError(
