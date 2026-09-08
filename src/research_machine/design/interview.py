@@ -106,6 +106,26 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
         ("sample_size_justification", "Why is that amount of information useful? State the precision or power target and assumptions, or explain the feasibility limit and resulting inferential limits. Count independent units, not rows."),
     ):
         answer(key, prompt)
+    raw_factors = ask(
+        "Which factors will be deliberately changed? Separate exact factor names with semicolons [blank = none declared]"
+    )
+    brief["manipulated_factors"] = [
+        item.strip() for item in raw_factors.split(";") if item.strip()
+    ]
+    if brief["manipulated_factors"]:
+        answer(
+            "factorial_or_crossover_design",
+            "Is this a factorial or crossover design that can separate the changed factors?",
+            choices=("yes", "no"),
+        )
+        if "factorial_or_crossover_design" in brief:
+            brief["factorial_or_crossover_design"] = (
+                brief["factorial_or_crossover_design"] == "yes"
+            )
+        answer(
+            "factor_interpretability_plan",
+            "How will the design estimate or separate the effect of each changed factor?",
+        )
     answer_number("minimum_analyzable_units", "What is the minimum analyzable count required in the smaller comparison arm, or the minimum complete-pair count?", integer=True)
     answer_number("maximum_excluded_fraction", "What maximum fraction of submitted records may be excluded before the analysis must stop for review? Enter a number from 0 up to but not including 1.")
     answer_number(

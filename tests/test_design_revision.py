@@ -76,7 +76,7 @@ def test_interactive_revision_and_cancellation(tmp_path, monkeypatch, capsys, ca
     service.create_inquiry(CreateInquiry(title="Fixture", initial_statement="Question"))
     parent = service.propose_hypothesis(ProposeHypothesis(statement="Fixture"))
     before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
-    answers = iter(["Changed measurement", "Fixture", "Question", "Decision", "Score", "unit", "exploratory", "no"] + [""] * 50)
+    answers = iter(["Changed measurement", "Fixture", "Question", "Decision", "Score", "unit", "exploratory", "no"] + [""] * 60)
     def answer():
         if cancel:
             raise EOFError

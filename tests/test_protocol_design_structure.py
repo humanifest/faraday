@@ -184,6 +184,35 @@ def test_canonical_measurement_validity_plan_is_bound_and_gate_dedicated() -> No
         ))
 
 
+def test_protocol_freeze_requires_multi_factor_interpretability_plan() -> None:
+    protocol = _multi_step_protocol()
+    with pytest.raises(ValidationError, match="multi-factor interventions require"):
+        validate_protocol_freeze(replace(
+            protocol,
+            manipulated_factors=["person", "room"],
+        ))
+
+    with pytest.raises(ValidationError, match="factor_interpretability_plan"):
+        validate_protocol_freeze(replace(
+            protocol,
+            manipulated_factors=["person", "room"],
+            factorial_or_crossover_design=True,
+        ))
+
+    interpretable = replace(
+        protocol,
+        manipulated_factors=["person", "room"],
+        factorial_or_crossover_design=True,
+        factor_interpretability_plan=(
+            "Cross person and room assignments before interpreting either factor."
+        ),
+    )
+    validate_protocol_freeze(interpretable)
+    restored = ExperimentProtocol.from_dict(interpretable.to_dict())
+    assert restored.manipulated_factors == ["person", "room"]
+    assert _protocol_commitment(interpretable) != _protocol_commitment(protocol)
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

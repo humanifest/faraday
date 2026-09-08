@@ -1032,6 +1032,35 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         raise ValidationError("only draft protocols can be frozen")
     if not isinstance(protocol.causal_claim, bool):
         raise ValidationError("causal_claim must be true or false")
+    if not isinstance(protocol.factorial_or_crossover_design, bool):
+        raise ValidationError("factorial_or_crossover_design must be true or false")
+    manipulated_factors = require_unique_canonical_text_list(
+        protocol.manipulated_factors,
+        "manipulated_factors",
+    )
+    factor_plan = normalize_text(
+        protocol.factor_interpretability_plan,
+        "factor_interpretability_plan",
+    )
+    if factor_plan != protocol.factor_interpretability_plan:
+        raise ValidationError(
+            "factor_interpretability_plan must be canonical without surrounding whitespace"
+        )
+    if protocol.factorial_or_crossover_design and not manipulated_factors:
+        raise ValidationError(
+            "factorial_or_crossover_design cannot be declared without manipulated_factors"
+        )
+    if protocol.factorial_or_crossover_design and not factor_plan:
+        raise ValidationError(
+            "factorial_or_crossover_design requires a factor_interpretability_plan"
+        )
+    if len(manipulated_factors) > 1 and (
+        not protocol.factorial_or_crossover_design or not factor_plan
+    ):
+        raise ValidationError(
+            "multi-factor interventions require a factorial or crossover design "
+            "and factor_interpretability_plan"
+        )
     quality_requirement_ids = []
     for gate_id in protocol.quality_requirements:
         canonical_gate_id = require_text(gate_id, "quality_requirements item")

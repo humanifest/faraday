@@ -501,6 +501,14 @@ preserved as inquiry, hypothesis, protocol, or collection draft text.
 Guided review-list commitments, including exclusions, falsification conditions,
 and unsupported higher-level conclusions, now receive blocking findings when
 surrounding whitespace would otherwise be preserved in draft artifacts.
+Guided factor-interpretability delivery: JSON briefs and the provider-free
+interview now collect exact manipulated-factor handles plus an optional
+factorial/crossover declaration and interpretation plan. Multi-factor designs
+are blocked unless that declaration and canonical plan are present, and the
+protocol draft, data dictionary, and collection plan preserve the commitment.
+Canonical protocol freeze repeats the same check, so a copied draft cannot
+become a frozen protocol that changes person, location, apparatus, operator, or
+condition together without a prospective way to separate them.
 For causal studies it can also collect the DAG and complete typed assumption
 register interactively, validate variable and edge references, and feed the same
 deterministic audit used by file-based and canonical workflows. Declining this

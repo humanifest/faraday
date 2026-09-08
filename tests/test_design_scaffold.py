@@ -694,6 +694,52 @@ def test_controls_and_confounds_must_have_unique_scientific_labels():
     assert padded_definition["status"] == "blocked"
 
 
+def test_guided_design_flags_uninterpretable_multi_factor_interventions():
+    base = {
+        "title": "Factor fixture", "question": "Question",
+        "decision": "Decision", "outcome": "score",
+        "unit_of_observation": "unit", "human_participants": False,
+        "intervention": "Change the room and apparatus together",
+        "manipulated_factors": ["room", "apparatus"],
+    }
+    blocked = scaffold_design(base)
+    codes = {item["code"] for item in blocked["findings"]}
+    assert "MULTI_FACTOR_INTERVENTION_UNINTERPRETABLE" in codes
+    assert blocked["status"] == "blocked"
+    protocol = blocked["artifacts"]["protocol-draft.json"]
+    assert protocol["manipulated_factors"] == ["room", "apparatus"]
+    assert protocol["factorial_or_crossover_design"] is False
+    assert "room, apparatus" in blocked["artifacts"]["collection-plan.md"]
+
+    planned = scaffold_design({
+        **base,
+        "factorial_or_crossover_design": True,
+        "factor_interpretability_plan": (
+            "Cross room and apparatus assignments so each factor can be "
+            "estimated while holding the other factor balanced."
+        ),
+    })
+    planned_codes = {item["code"] for item in planned["findings"]}
+    assert "MULTI_FACTOR_INTERVENTION_UNINTERPRETABLE" not in planned_codes
+    planned_protocol = planned["artifacts"]["protocol-draft.json"]
+    assert planned_protocol["factorial_or_crossover_design"] is True
+    assert planned_protocol["factor_interpretability_plan"].startswith("Cross room")
+    dictionary = planned["artifacts"]["data-dictionary-draft.json"]
+    assert dictionary["manipulated_factors"] == ["room", "apparatus"]
+
+    padded = scaffold_design({
+        **base,
+        "manipulated_factors": [" room ", "ROOM"],
+        "factorial_or_crossover_design": True,
+        "factor_interpretability_plan": " Cross the factors by block. ",
+    })
+    padded_codes = {item["code"] for item in padded["findings"]}
+    assert "MANIPULATED_FACTOR_NONCANONICAL" in padded_codes
+    assert "MANIPULATED_FACTOR_DUPLICATE" in padded_codes
+    assert "FACTOR_INTERPRETABILITY_PLAN_NONCANONICAL" in padded_codes
+    assert padded["status"] == "blocked"
+
+
 def test_stopping_count_does_not_supply_information_justification(tmp_path, capsys):
     brief = {"title": "Fixture", "question": "Question", "decision": "Decision", "outcome": "Score",
              "unit_of_observation": "unit", "stopping_rule": "Stop after 100 units", "human_participants": False}
@@ -1215,6 +1261,7 @@ def test_complete_nonhuman_scaffold_remains_review_only(tmp_path: Path, capsys) 
     brief.write_text(json.dumps({
         "title": "Seedling light trial", "question": "Does blue light change seedling height?", "decision": "Choose a greenhouse light.", "human_participants": False,
         "study_type": "causal", "assignment_type": "randomized", "intervention": "blue light", "comparison": "white light", "outcome": "height", "outcome_unit": "millimetres",
+        "manipulated_factors": ["light spectrum"],
         "primary_estimand": "Mean final height under blue light minus white light.",
         "contrast_definition": "blue light minus white light",
         "contrast_groups": ["blue light", "white light"],
@@ -1251,6 +1298,7 @@ def test_complete_nonhuman_scaffold_remains_review_only(tmp_path: Path, capsys) 
     assert payload["status"] == "review_required"
     assert "REVIEW REQUIRED" in payload["artifacts"]["protocol-draft.json"]["hypotheses_tested"][0]
     assert payload["artifacts"]["protocol-draft.json"]["measurement_custody_requirements"]
+    assert payload["artifacts"]["protocol-draft.json"]["manipulated_factors"] == ["light spectrum"]
     measurement = payload["artifacts"]["measurement-definition-draft.json"]
     assert measurement["observable"].startswith("Mean marked-stem height")
     assert measurement["parameter_values"]["ruler_resolution"] == "1 mm"

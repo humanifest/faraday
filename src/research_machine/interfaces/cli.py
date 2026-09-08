@@ -136,6 +136,9 @@ _PROTOCOL_FIELDS = {
     "multiplicity_method",
     "multiplicity_alpha",
     "independent_variables",
+    "manipulated_factors",
+    "factorial_or_crossover_design",
+    "factor_interpretability_plan",
     "randomization_plan",
     "blinding_plan",
     "sampling_unit",
@@ -1138,6 +1141,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         "confirmatory_outcomes",
         "exploratory_outcomes",
         "independent_variables",
+        "manipulated_factors",
         "inclusion_rules",
         "exclusion_rules",
         "sensor_requirements",
@@ -1318,6 +1322,13 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             multiplicity_method=spec.get("multiplicity_method", ""),
             multiplicity_alpha=spec.get("multiplicity_alpha"),
             independent_variables=lists["independent_variables"],
+            manipulated_factors=lists["manipulated_factors"],
+            factorial_or_crossover_design=spec.get(
+                "factorial_or_crossover_design", False
+            ),
+            factor_interpretability_plan=spec.get(
+                "factor_interpretability_plan", ""
+            ),
             randomization_plan=spec.get("randomization_plan", ""),
             blinding_plan=spec.get("blinding_plan", ""),
             sampling_unit=spec.get("sampling_unit", ""),
@@ -1631,6 +1642,8 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             allowed_fields={
                 "title", "question", "decision", "study_type", "population", "setting",
                 "intervention", "exposure_definition", "assignment_type",
+                "manipulated_factors", "factorial_or_crossover_design",
+                "factor_interpretability_plan",
                 "outcome", "outcome_unit", "outcome_scale",
                 "outcome_admissible_values", "outcome_valid_min", "outcome_valid_max",
                 "outcome_missing_value_codes", "primary_analysis_family",
@@ -1686,6 +1699,8 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             allowed_fields={
                 "title", "question", "decision", "study_type", "population", "setting",
                 "intervention", "exposure_definition", "assignment_type",
+                "manipulated_factors", "factorial_or_crossover_design",
+                "factor_interpretability_plan",
                 "outcome", "outcome_unit", "outcome_scale",
                 "outcome_admissible_values", "outcome_valid_min", "outcome_valid_max",
                 "outcome_missing_value_codes", "primary_analysis_family",

@@ -78,6 +78,8 @@ def validate_brief(brief: dict[str, Any]) -> None:
     unknown = set(brief) - {
         "title", "question", "decision", "study_type", "population", "setting",
         "intervention", "exposure_definition", "assignment_type",
+        "manipulated_factors", "factorial_or_crossover_design",
+        "factor_interpretability_plan",
         "outcome", "outcome_unit", "outcome_scale",
         "outcome_admissible_values", "outcome_valid_min", "outcome_valid_max",
         "outcome_missing_value_codes", "primary_analysis_family",
@@ -123,7 +125,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     }
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -146,7 +148,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
         raise ValueError("study_type must be one of: " + ", ".join(sorted(_STUDY_TYPES)))
     if brief.get("assignment_type", "") not in {"", "randomized", "observational"}:
         raise ValueError("assignment_type must be randomized or observational")
-    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups"}:
+    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors"}:
         _text_list(brief, key)
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
         raise ValueError("outcome_scale is unsupported")
@@ -327,7 +329,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
         raise ValueError("smallest_effect_size_of_interest must be finite and non-negative")
     if brief.get("non_supporting_direction", "") not in {"", "inconclusive", "weakens"}:
         raise ValueError("non_supporting_direction must be inconclusive or weakens")
-    for key in {"human_participants", "independent_review", "repeated_measures"}:
+    for key in {"human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design"}:
         if key in brief and not isinstance(brief[key], bool):
             raise ValueError(f"design brief field {key} must be a boolean")
     if "independent_unit" in brief and (not isinstance(brief["independent_unit"], str) or not brief["independent_unit"].strip()):
@@ -395,6 +397,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
     require_canonical_list_items("confirmatory_outcomes", "CONFIRMATORY_OUTCOME_LABEL_NONCANONICAL", "Confirmatory outcomes")
     require_canonical_list_items("exploratory_outcomes", "EXPLORATORY_OUTCOME_LABEL_NONCANONICAL", "Exploratory outcomes")
     require_canonical_list_items("contrast_groups", "CONTRAST_GROUP_LABEL_NONCANONICAL", "Contrast groups")
+    require_canonical_list_items("manipulated_factors", "MANIPULATED_FACTOR_NONCANONICAL", "Manipulated factors")
     require_canonical_list_items("controls", "CONTROL_LABEL_NONCANONICAL", "Controls")
     require_canonical_list_items("confounds", "CONFOUND_LABEL_NONCANONICAL", "Confounds")
     require_canonical_list_items("exclusions", "EXCLUSION_RULE_NONCANONICAL", "Exclusion rules")
@@ -472,6 +475,47 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         )
 
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
+    manipulated_factors = _text_list(brief, "manipulated_factors")
+    normalized_factors = [item.strip().casefold() for item in manipulated_factors]
+    factorial_or_crossover = brief.get("factorial_or_crossover_design", False)
+    factor_plan = brief.get("factor_interpretability_plan", "")
+    if len(set(normalized_factors)) != len(normalized_factors):
+        add(
+            "MANIPULATED_FACTOR_DUPLICATE",
+            "error",
+            "Manipulated factors contain duplicate labels.",
+            "Give each changed person, setting, apparatus, operator, condition, or analysis-label factor one stable name before review.",
+        )
+    if factor_plan and factor_plan != factor_plan.strip():
+        add(
+            "FACTOR_INTERPRETABILITY_PLAN_NONCANONICAL",
+            "error",
+            "The factor-interpretability plan contains surrounding whitespace.",
+            "Use exact unpadded plan text before review artifacts preserve how simultaneous factor changes will be separated.",
+        )
+    if factorial_or_crossover and not manipulated_factors:
+        add(
+            "FACTOR_INTERPRETABILITY_INCOMPLETE",
+            "error",
+            "A factorial or crossover design is declared without naming the manipulated factors.",
+            "Name each manipulated factor so reviewers can tell what the design is supposed to separate.",
+        )
+    if factorial_or_crossover and not factor_plan.strip():
+        add(
+            "FACTOR_INTERPRETABILITY_INCOMPLETE",
+            "error",
+            "A factorial or crossover design is declared without a factor-interpretability plan.",
+            "State how the design estimates or otherwise separates the effect of each changed factor before review.",
+        )
+    if len(manipulated_factors) > 1 and (
+        not factorial_or_crossover or not factor_plan.strip()
+    ):
+        add(
+            "MULTI_FACTOR_INTERVENTION_UNINTERPRETABLE",
+            "error",
+            "The guided design changes multiple factors without a declared factorial or crossover plan.",
+            "Change one factor at a time, or declare a factorial/crossover design and explain how the changed factors will be interpreted separately.",
+        )
     normalized_outcomes = [item.strip().casefold() for item in secondary_outcomes]
     if len(set(normalized_outcomes)) != len(normalized_outcomes):
         add("SECONDARY_OUTCOME_DUPLICATE", "error", "Secondary outcomes contain duplicate labels.", "Give each outcome one stable, unique name before review.")
@@ -1243,6 +1287,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     study_type = brief.get("study_type", "exploratory")
     controls = _text_list(brief, "controls")
     confounds = _text_list(brief, "confounds")
+    manipulated_factors = _text_list(brief, "manipulated_factors")
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
     causal_audit = (
         audit_causal_identification(brief["causal_identification"])
@@ -1394,6 +1439,9 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         "protocol_kind": protocol_kind,
         "causal_claim": study_type == "causal",
         "methodology": f"{study_type} study; assignment: {assignment_type or 'unresolved'}; {'intervention' if assignment_type == 'randomized' else 'exposure'}: {exposure_label or 'unresolved'}; comparison: {brief.get('comparison', 'unresolved')}",
+        "manipulated_factors": manipulated_factors,
+        "factorial_or_crossover_design": brief.get("factorial_or_crossover_design", False),
+        "factor_interpretability_plan": brief.get("factor_interpretability_plan", ""),
         "group_data_column": brief.get("group_data_column", "[REVIEW REQUIRED] exact comparison or exposure column"),
         "controls": controls or ["[REVIEW REQUIRED] add a control family"],
         "sampling_unit": brief["unit_of_observation"],
@@ -1549,6 +1597,9 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                     )
                 },
                 "primary_outcome": brief["outcome"],
+                "manipulated_factors": manipulated_factors,
+                "factorial_or_crossover_design": brief.get("factorial_or_crossover_design", False),
+                "factor_interpretability_plan": brief.get("factor_interpretability_plan", ""),
                 "secondary_outcomes": secondary_outcomes,
                 "confirmatory_outcomes": _text_list(brief, "confirmatory_outcomes"),
                 "exploratory_outcomes": _text_list(brief, "exploratory_outcomes"),
@@ -1695,6 +1746,10 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "Freeze the minimum analyzable independent-unit count, total and differential exclusion thresholds, and the missingness assessment contract before protected outcomes are inspected. Crossing a threshold or contradicting the registered missingness assumption requires the frozen failure response, not silent continuation.\n\n"
                 "The proposed data dictionary needs review for scale, valid ranges, missing-value encoding, condition labels, masking, and collection timing. "
                 f"It is not an executable collection validator. Analysis should commit {brief.get('unit_id_column', '[REVIEW REQUIRED: unit ID column]')} as its unit column only after the unit definition is reviewed.\n"
+                "\n"
+                f"Manipulated factors: {', '.join(manipulated_factors) if manipulated_factors else '[REVIEW REQUIRED: none declared]'}. "
+                f"Factorial or crossover design declared: {brief.get('factorial_or_crossover_design', False)}. "
+                f"Interpretability plan: {brief.get('factor_interpretability_plan') or '[REVIEW REQUIRED if more than one factor changes]'}.\n"
             ),
         },
     }

@@ -421,6 +421,15 @@ blinding, calibration, measurement validity, analysis, stopping, prediction,
 and the null or competing model must also be exact and unpadded before they are
 copied into review artifacts. It never creates canonical
 state, activates a hypothesis, freezes a protocol, or authorizes data collection.
+Guided briefs can name exact `manipulated_factors` such as person, room,
+apparatus, operator, active/sham condition, or analysis label. A design that
+changes more than one factor is blocked unless it declares
+`factorial_or_crossover_design: true` and provides a canonical
+`factor_interpretability_plan` explaining how each changed factor will be
+separated. The same fields are preserved in protocol drafts, the data
+dictionary, and the collection plan, and canonical protocol freeze repeats the
+fail-closed check so copied drafts cannot hide an uninterpretable simultaneous
+intervention.
 
 The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,

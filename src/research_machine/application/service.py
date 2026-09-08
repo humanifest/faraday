@@ -5036,6 +5036,14 @@ class ResearchService:
             independent_variables=require_text_list(
                 command.independent_variables, "independent_variables"
             ),
+            manipulated_factors=require_text_list(
+                command.manipulated_factors, "manipulated_factors"
+            ),
+            factorial_or_crossover_design=command.factorial_or_crossover_design,
+            factor_interpretability_plan=normalize_text(
+                command.factor_interpretability_plan,
+                "factor_interpretability_plan",
+            ),
             randomization_plan=normalize_text(
                 command.randomization_plan, "randomization_plan"
             ),

@@ -206,6 +206,9 @@ class CreateProtocol:
     multiplicity_method: str = ""
     multiplicity_alpha: float | None = None
     independent_variables: list[str] = field(default_factory=list)
+    manipulated_factors: list[str] = field(default_factory=list)
+    factorial_or_crossover_design: bool = False
+    factor_interpretability_plan: str = ""
     randomization_plan: str = ""
     blinding_plan: str = ""
     sampling_unit: str = ""

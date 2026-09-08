@@ -8,7 +8,7 @@ import pytest
 @pytest.mark.parametrize("complete", [True, False])
 def test_interview_emits_reviewable_control_definitions(complete):
     answers = iter(["Fixture", "Question", "Decision", "Height", "pot", "exploratory", "no"]
-        + [""] * 23 + ["Blank sample", ""]
+        + [""] * 24 + ["Blank sample", ""]
         + (["negative", "Detect background signal", "No signal"] if complete else ["", "", ""])
         + [""] * 35)
     result = interview_design(lambda prompt: next(answers))
@@ -27,7 +27,7 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
         + [""] * 14
         + [
             "Target 40 independent pots per group for a two-millimeter interval half-width under the stated variance assumption.",
-            *([""] * 10),
+            *([""] * 11),
             "Higher mean height after 7 days",
             "No difference between conditions",
             "A zero or negative mean difference",
@@ -203,6 +203,35 @@ def test_interview_collects_numeric_information_thresholds() -> None:
     protocol = result["scaffold"]["artifacts"]["protocol-draft.json"]
     assert "missingness-assessed" in protocol["quality_requirements"]
     assert "MISSINGNESS_ASSESSMENT_INCOMPLETE" not in {
+        item["code"] for item in result["scaffold"]["findings"]
+    }
+
+
+def test_interview_collects_factor_interpretability_plan() -> None:
+    def ask(prompt: str) -> str:
+        responses = {
+            "What is the study's working title?": "Factor interview",
+            "What question do you want to investigate?": "Question",
+            "What practical decision would the findings inform?": "Decision",
+            "What exactly will you measure as the primary outcome?": "Score",
+            "What does one data row represent, such as one pot-day?": "unit",
+            "What kind of claim are you investigating?": "exploratory",
+            "Does this involve people or data about people?": "no",
+            "Which factors will be deliberately changed?": "person; room",
+            "Is this a factorial or crossover design that can separate the changed factors?": "yes",
+            "How will the design estimate or separate the effect of each changed factor?": (
+                "Cross each person condition with each room before interpreting either factor."
+            ),
+        }
+        return next((value for key, value in responses.items() if prompt.startswith(key)), "")
+
+    result = interview_design(ask)
+    assert result["brief"]["manipulated_factors"] == ["person", "room"]
+    assert result["brief"]["factorial_or_crossover_design"] is True
+    assert result["brief"]["factor_interpretability_plan"].startswith("Cross each")
+    protocol = result["scaffold"]["artifacts"]["protocol-draft.json"]
+    assert protocol["manipulated_factors"] == ["person", "room"]
+    assert "MULTI_FACTOR_INTERVENTION_UNINTERPRETABLE" not in {
         item["code"] for item in result["scaffold"]["findings"]
     }
 
@@ -439,7 +468,7 @@ def test_provider_free_interview_collects_auditable_causal_design() -> None:
 
 def test_human_interview_retains_hold_and_retries_invalid_choice():
     answers = iter(["Fixture", "Question", "Decision", "Score", "participant-day",
-                    "invalid choice", "causal", "yes"] + [""] * 34 + ["no"] + [""] * 33)
+                    "invalid choice", "causal", "yes"] + [""] * 35 + ["no"] + [""] * 33)
     result = interview_design(lambda prompt: next(answers))
     assert result["brief"]["study_type"] == "causal"
     assert "BLINDING_UNRESOLVED" in {item["code"] for item in result["scaffold"]["findings"]}
