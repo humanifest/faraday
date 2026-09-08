@@ -1386,9 +1386,12 @@ Use `cross-lane-lesson record` before an observed machine or substantive
 failure changes later work. A lesson must preserve the origin hash, strongest
 alternative explanation, failure class, challenged invariant, first permitted
 future versions, prohibited retroactive targets, proposed repair, falsifier,
-and conclusion ceiling. The future and prohibited version sets must be
-disjoint. A lesson is process state only: recording one does not create
-evidence, change an old verdict, or raise a synthesis conclusion ceiling.
+and conclusion ceiling. Lane IDs, artifact locators, integrity status,
+failure class, future-version handles, and prohibited-target handles must be
+canonical without surrounding whitespace before the lesson can become process
+state. The future and prohibited version sets must be disjoint. A lesson is
+process state only: recording one does not create evidence, change an old
+verdict, or raise a synthesis conclusion ceiling.
 
 `run template` and `run preflight` are read-only. The template deliberately
 contains invalid placeholders and skipped gates so it cannot be mistaken for an

@@ -83,6 +83,28 @@ def test_cross_lane_lesson_is_immutable_ledgered_process_state(tmp_path: Path) -
             {"strongest_alternative_explanation": ""},
             "strongest_alternative_explanation must not be empty",
         ),
+        ({"origin_lane_id": " theory "}, "origin_lane_id must be canonical"),
+        (
+            {"target_lane_ids": [" machine "]},
+            "target_lane_ids item must be canonical",
+        ),
+        (
+            {"origin_artifact_locator": " results/exposed-run.json "},
+            "origin_artifact_locator must be canonical",
+        ),
+        (
+            {"origin_integrity_status": " declared "},
+            "origin_integrity_status must be canonical",
+        ),
+        ({"failure_class": " interface_ambiguity "}, "failure_class must be canonical"),
+        (
+            {"first_permitted_future_versions": [" machine-v-next "]},
+            "first_permitted_future_versions item must be canonical",
+        ),
+        (
+            {"prohibited_retroactive_targets": [" protocol-v1 "]},
+            "prohibited_retroactive_targets item must be canonical",
+        ),
     ],
 )
 def test_cross_lane_lesson_fails_closed_before_ledger_mutation(

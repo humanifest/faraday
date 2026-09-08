@@ -20,6 +20,10 @@ methods without changing its epistemic rules or canonical state.
   completed-action IDs, and blocked-lane reasons must be canonical before
   ranking or lane balancing, so recommendation provenance does not depend on
   silent whitespace normalization.
+- Cross-lane process lessons preserve observed failures without rewriting prior
+  conclusions. Lane IDs, artifact locators, integrity status, failure class,
+  future-version handles, and prohibited-target handles must be canonical before
+  the lesson can influence later work.
 - Cross-disciplinary CSV summaries, correlation, and seeded permutation testing;
   summary, correlation, two-group estimators, adjusted models, and missingness
   methods require requested column, comparison, covariate, unit, pair, family,

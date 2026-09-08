@@ -2366,20 +2366,22 @@ def validate_cross_lane_lesson(
     repair_falsifier: str,
     conclusion_ceiling: str,
 ) -> dict[str, object]:
-    origin_lane = require_text(origin_lane_id, "origin_lane_id")
-    target_lanes = require_unique_text_list(target_lane_ids, "target_lane_ids")
+    origin_lane = require_canonical_text(origin_lane_id, "origin_lane_id")
+    target_lanes = require_unique_canonical_text_list(
+        target_lane_ids, "target_lane_ids"
+    )
     if not target_lanes:
         raise ValidationError("target_lane_ids must name at least one target lane")
     if origin_lane in target_lanes:
         raise ValidationError("a cross-lane lesson must target a different lane")
-    integrity_status = require_text(
+    integrity_status = require_canonical_text(
         origin_integrity_status, "origin_integrity_status"
     )
     if integrity_status not in {"declared", "verified_elsewhere"}:
         raise ValidationError(
             "origin_integrity_status must be declared or verified_elsewhere"
         )
-    failure = require_text(failure_class, "failure_class")
+    failure = require_canonical_text(failure_class, "failure_class")
     if failure not in {
         "theory_failure",
         "machine_failure",
@@ -2388,10 +2390,10 @@ def validate_cross_lane_lesson(
         "inconclusive",
     }:
         raise ValidationError("failure_class is not recognized")
-    future_versions = require_unique_text_list(
+    future_versions = require_unique_canonical_text_list(
         first_permitted_future_versions, "first_permitted_future_versions"
     )
-    prohibited_targets = require_unique_text_list(
+    prohibited_targets = require_unique_canonical_text_list(
         prohibited_retroactive_targets, "prohibited_retroactive_targets"
     )
     if not future_versions:
@@ -2412,7 +2414,7 @@ def validate_cross_lane_lesson(
     return {
         "origin_lane_id": origin_lane,
         "target_lane_ids": target_lanes,
-        "origin_artifact_locator": require_text(
+        "origin_artifact_locator": require_canonical_text(
             origin_artifact_locator, "origin_artifact_locator"
         ),
         "origin_artifact_sha256": require_sha256(
