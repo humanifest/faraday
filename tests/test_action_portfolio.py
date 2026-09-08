@@ -254,6 +254,22 @@ def test_portfolio_rejects_degenerate_utility_weights(tmp_path: Path) -> None:
         )
 
 
+def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
+    service = prepared_service(tmp_path)
+
+    with pytest.raises(ValidationError, match="top action utility is tied"):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate("machine-alpha", "machine", 0.8),
+                    candidate("machine-beta", "machine", 0.8),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+
+
 @pytest.mark.parametrize(
     ("lane_values", "candidate_values", "completed", "message"),
     [

@@ -39,7 +39,16 @@ def rank_actions(
         )
         for candidate in eligible
     ]
-    return sorted(scores, key=lambda score: (-score.utility, score.action_id))
+    ranked = sorted(scores, key=lambda score: (-score.utility, score.action_id))
+    tied_top = [
+        score.action_id for score in ranked if score.utility == ranked[0].utility
+    ]
+    if len(tied_top) > 1:
+        raise ValidationError(
+            "top action utility is tied; refine selection weights or candidate "
+            "estimates before choosing among: " + ", ".join(tied_top)
+        )
+    return ranked
 
 
 def rank_actions_by_lane(

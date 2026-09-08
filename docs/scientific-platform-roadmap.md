@@ -21,7 +21,9 @@ methods without changing its epistemic rules or canonical state.
   ranking or lane balancing, and the weight vector must contain finite,
   non-negative values with at least one positive utility term, so recommendation
   provenance does not depend on silent whitespace normalization, non-finite
-  arithmetic, or lexicographic action identifiers.
+  arithmetic, or lexicographic action identifiers. The selected action must have
+  a unique highest utility; tied top candidates require a refined utility model
+  or candidate estimates before any recommendation is recorded.
 - Cross-lane process lessons preserve observed failures without rewriting prior
   conclusions. Lane IDs, artifact locators, integrity status, failure class,
   future-version handles, and prohibited-target handles must be canonical before

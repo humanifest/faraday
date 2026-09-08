@@ -1141,6 +1141,42 @@ def test_next_action_selection_weights_must_be_finite(
         )
 
 
+def test_next_action_selection_rejects_tied_top_utility(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+
+    with pytest.raises(ValidationError, match="top action utility is tied"):
+        service.recommend_next_action(
+            RecommendNextAction(
+                candidates=[
+                    ActionCandidate(
+                        action_id="alpha-action",
+                        title="Alpha action",
+                        distinguishes_hypotheses=[hypothesis_id],
+                        expected_discrimination=0.8,
+                        uncertainty_reduction=0.6,
+                        cost=0.1,
+                        burden=0.1,
+                        safety_risk=0.0,
+                        ambiguity_risk=0.1,
+                        rationale="One equally informative option.",
+                    ),
+                    ActionCandidate(
+                        action_id="beta-action",
+                        title="Beta action",
+                        distinguishes_hypotheses=[hypothesis_id],
+                        expected_discrimination=0.8,
+                        uncertainty_reduction=0.6,
+                        cost=0.1,
+                        burden=0.1,
+                        safety_risk=0.0,
+                        ambiguity_risk=0.1,
+                        rationale="Another equally informative option.",
+                    ),
+                ]
+            )
+        )
+
+
 def test_synthetic_status_propagates_through_derived_datasets(tmp_path: Path) -> None:
     service, _ = prepared_service(tmp_path)
     source = service.register_dataset(
