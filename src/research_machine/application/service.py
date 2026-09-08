@@ -684,6 +684,11 @@ class ResearchService:
         self, inquiry_id: str | None = None, *, purpose: str = ""
     ) -> dict[str, Any]:
         """Read-only context for a UI or optional local/remote model adapter."""
+        purpose_text = normalize_text(purpose, "purpose")
+        if purpose_text != purpose:
+            raise ValidationError(
+                "purpose must be canonical without surrounding whitespace"
+            )
         state = self.show_inquiry(inquiry_id)
         open_questions = [
             question
@@ -728,7 +733,7 @@ class ResearchService:
         ]
         return {
             "context_version": 1,
-            "purpose": normalize_text(purpose, "purpose"),
+            "purpose": purpose_text,
             "inquiry": state["inquiry"],
             "open_questions": open_questions,
             "active_hypotheses": [

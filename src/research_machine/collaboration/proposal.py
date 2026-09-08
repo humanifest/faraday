@@ -253,6 +253,7 @@ def create_context_snapshot(context: dict[str, Any], output: Path) -> dict[str, 
         raise ValidationError("collaborator context must be read-only")
     if boundary.get("provider_required") is not False:
         raise ValidationError("collaborator context must not require a provider")
+    _canonical_text(context.get("purpose", ""), "context purpose", allow_empty=True)
     _context_reference_ids(context)
     content = _publish_json(output, "collaborator-context.json", context)
     return {
@@ -277,7 +278,8 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
         raise ValidationError("collaborator proposal is not bound to the exact context hash")
     if proposal["purpose"] != context.get("purpose"):
         raise ValidationError("collaborator proposal purpose does not match its context")
-    for field in ("purpose", "summary", "uncertainty"):
+    _canonical_text(proposal["purpose"], "purpose")
+    for field in ("summary", "uncertainty"):
         _text(proposal[field], field)
     for field in ("competing_explanations", "disconfirming_evidence", "limitations"):
         _string_array(proposal[field], field)

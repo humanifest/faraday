@@ -47,6 +47,30 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
     assert any("causality" in item for item in context["scientific_constraints"])
 
 
+def test_collaborator_context_purpose_must_be_canonical(tmp_path: Path) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Question", "Statement", "question"))
+
+    with pytest.raises(ValidationError, match="purpose must be canonical"):
+        service.collaborator_context(purpose=" design review ")
+
+
+def test_context_snapshot_purpose_must_be_canonical(tmp_path: Path) -> None:
+    context = {
+        "context_version": 1,
+        "purpose": " Stress-test the design. ",
+        "write_boundary": {
+            "context_is_read_only": True,
+            "provider_required": False,
+        },
+    }
+
+    with pytest.raises(ValidationError, match="context purpose must be canonical"):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
+
+
 def _proposal(context_sha256: str, *, evidence_refs: list[str] | None = None) -> dict:
     if evidence_refs is None:
         evidence_refs = []
@@ -264,6 +288,12 @@ def test_proposal_suggestion_ids_must_be_canonical(tmp_path: Path) -> None:
         (
             lambda proposal: proposal.update({"proposal_id": " proposal-1 "}),
             "proposal_id must be canonical",
+        ),
+        (
+            lambda proposal: proposal.update(
+                {"purpose": " Stress-test the design. "}
+            ),
+            "purpose does not match its context",
         ),
         (
             lambda proposal: proposal["generated_by"].update(
