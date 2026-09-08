@@ -24,6 +24,26 @@ def _text(value: str) -> str:
     return value.strip() or "Not specified."
 
 
+def _protocol_factor_summary(protocol: ExperimentProtocol) -> str:
+    factors = protocol.manipulated_factors
+    has_plan = bool(protocol.factor_interpretability_plan.strip())
+    if not factors:
+        if protocol.factorial_or_crossover_design or has_plan:
+            return "no manipulated factors declared; factor plan state is unresolved"
+        return "no manipulated factors declared"
+    if protocol.factorial_or_crossover_design:
+        design = "factorial/crossover declared"
+    elif len(factors) == 1:
+        design = "single-factor or legacy-unresolved design"
+    else:
+        design = "missing factorial/crossover declaration"
+    if has_plan:
+        design += f"; plan: {protocol.factor_interpretability_plan}"
+    elif len(factors) > 1 or protocol.factorial_or_crossover_design:
+        design += "; missing factor-interpretability plan"
+    return ", ".join(factors) + f" ({design})"
+
+
 def _evidence_detail_lines(
     records: list[EvidenceRecord], statuses: dict[str, EvidenceStatusEvent]
 ) -> list[str]:
@@ -266,6 +286,22 @@ def build_synthesis(
             f"- Evidence records under qualification, withdrawal, or retraction: {len(evidence) - len(contributing_ids)}",
         ]
     )
+    factor_protocols = [
+        protocol for protocol in protocols
+        if (
+            protocol.manipulated_factors
+            or protocol.factorial_or_crossover_design
+            or protocol.factor_interpretability_plan
+        )
+    ]
+    if factor_protocols:
+        lines.extend(["", "### Manipulated-factor interpretability", ""])
+        for protocol in sorted(factor_protocols, key=lambda item: item.protocol_id):
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}`: "
+                f"{_protocol_factor_summary(protocol)}. This is prospective "
+                "interpretability provenance, not proof that factor effects are separable."
+            )
     planned_runs = [
         run for run in runs
         if isinstance(run.metadata.get("sample_size_plan_check"), dict)

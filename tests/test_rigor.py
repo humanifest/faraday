@@ -31,6 +31,7 @@ from research_machine.domain.models import (
     QualityGateResult,
     QualityGateStatus,
     ResearchRun,
+    RigorSeverity,
     ValidationTag,
 )
 
@@ -45,7 +46,7 @@ def _service(root: Path, *, actor: str = "author") -> ResearchService:
     )
 
 
-def _prepared_run(root: Path):
+def _prepared_run(root: Path, *, protocol_overrides: dict | None = None):
     service = _service(root)
     service.init_workspace()
     service.create_inquiry(
@@ -60,26 +61,26 @@ def _prepared_run(root: Path):
         )
     )
     service.activate_hypothesis(hypothesis.hypothesis_id)
-    draft = service.create_protocol(
-        CreateProtocol(
-            experiment_id="rigor-check",
-            title="Controlled invariant check",
-            analysis_mode=AnalysisMode.CONFIRMATORY,
-            hypotheses_tested=[hypothesis.hypothesis_id],
-            primary_outcome="Checker acceptance",
-            protocol_kind=ProtocolKind.FORMAL,
-            methodology="Replay the candidate and a deliberately invalid control.",
-            quality_requirements=["checker"],
-            controls=["The deliberately invalid candidate must fail."],
-            expected_outputs=["Checker transcript"],
-            success_conditions=["The candidate passes and the control fails."],
-            environment_requirements=["Pinned checker"],
-            sample_size_or_stopping_rule="One candidate and one fixed negative control.",
-            failure_conditions=["Any required assertion fails."],
-            safety_constraints=["No physical intervention."],
-            analysis_code_hash="a" * 64,
-        )
-    )
+    protocol_values = {
+        "experiment_id": "rigor-check",
+        "title": "Controlled invariant check",
+        "analysis_mode": AnalysisMode.CONFIRMATORY,
+        "hypotheses_tested": [hypothesis.hypothesis_id],
+        "primary_outcome": "Checker acceptance",
+        "protocol_kind": ProtocolKind.FORMAL,
+        "methodology": "Replay the candidate and a deliberately invalid control.",
+        "quality_requirements": ["checker"],
+        "controls": ["The deliberately invalid candidate must fail."],
+        "expected_outputs": ["Checker transcript"],
+        "success_conditions": ["The candidate passes and the control fails."],
+        "environment_requirements": ["Pinned checker"],
+        "sample_size_or_stopping_rule": "One candidate and one fixed negative control.",
+        "failure_conditions": ["Any required assertion fails."],
+        "safety_constraints": ["No physical intervention."],
+        "analysis_code_hash": "a" * 64,
+    }
+    protocol_values.update(protocol_overrides or {})
+    draft = service.create_protocol(CreateProtocol(**protocol_values))
     protocol = service.freeze_protocol(draft.protocol_id)
     output = root / "result.json"
     output.write_text('{"checker":"passed"}\n', encoding="utf-8")
@@ -183,6 +184,97 @@ def test_rigor_reports_missed_precision_without_marking_run_invalid(tmp_path) ->
     assert "Variability assumption: exceeded_registered_tolerance" in synthesis
     assert "Registered maximum ratio 1.25." in synthesis
     assert "a planning miss does not erase the result or imply invalidity." in synthesis
+
+
+def test_rigor_and_synthesis_expose_protocol_factor_interpretability(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(
+        tmp_path / "workspace",
+        protocol_overrides={
+            "manipulated_factors": ["person", "room"],
+            "factorial_or_crossover_design": True,
+            "factor_interpretability_plan": (
+                "Cross person and room assignments before interpreting either factor."
+            ),
+        },
+    )
+    repository = service.repository
+    inquiry_id = repository.resolve_inquiry_id(None)
+    protocols = repository.list_protocols(inquiry_id)
+    audit = audit_research_state(
+        inquiry=repository.load_inquiry(inquiry_id),
+        claims=repository.load_claims(inquiry_id),
+        hypotheses=[hypothesis],
+        evidence=repository.list_evidence(inquiry_id),
+        datasets=repository.list_datasets(inquiry_id),
+        protocols=protocols,
+        runs=[run],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "PROTOCOL_FACTOR_INTERPRETABILITY_DECLARED"
+    )
+    assert finding.entity_id == run.protocol_id
+    synthesis = build_synthesis(
+        repository.load_inquiry(inquiry_id),
+        repository.load_questions(inquiry_id),
+        repository.load_claims(inquiry_id),
+        [hypothesis],
+        repository.list_evidence(inquiry_id),
+        repository.list_datasets(inquiry_id),
+        protocols,
+        [run],
+        [],
+        [],
+        audit,
+        [],
+    )
+    assert "Manipulated-factor interpretability" in synthesis
+    assert "person, room (factorial/crossover declared; plan:" in synthesis
+    assert "not proof that factor effects are separable" in synthesis
+
+
+def test_rigor_flags_legacy_unresolved_multi_factor_protocol(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path / "workspace")
+    repository = service.repository
+    inquiry_id = repository.resolve_inquiry_id(None)
+    protocol = replace(
+        repository.list_protocols(inquiry_id)[0],
+        manipulated_factors=["person", "room"],
+    )
+    audit = audit_research_state(
+        inquiry=repository.load_inquiry(inquiry_id),
+        claims=repository.load_claims(inquiry_id),
+        hypotheses=[hypothesis],
+        evidence=repository.list_evidence(inquiry_id),
+        datasets=repository.list_datasets(inquiry_id),
+        protocols=[protocol],
+        runs=[run],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "PROTOCOL_FACTOR_INTERPRETABILITY_UNRESOLVED"
+    )
+    assert finding.severity is RigorSeverity.ERROR
+    synthesis = build_synthesis(
+        repository.load_inquiry(inquiry_id),
+        repository.load_questions(inquiry_id),
+        repository.load_claims(inquiry_id),
+        [hypothesis],
+        repository.list_evidence(inquiry_id),
+        repository.list_datasets(inquiry_id),
+        [protocol],
+        [run],
+        [],
+        [],
+        audit,
+        [],
+    )
+    assert "person, room (missing factorial/crossover declaration" in synthesis
+    assert "missing factor-interpretability plan" in synthesis
 
 
 def _classified_evidence(hypothesis_id: str, run_id: str, **overrides):

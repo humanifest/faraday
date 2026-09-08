@@ -71,6 +71,26 @@ def _has_preprocessing_conformance_gate(run: ResearchRun) -> bool:
     )
 
 
+def _factor_interpretability_state(protocol: ExperimentProtocol) -> str:
+    factors = protocol.manipulated_factors
+    has_plan = bool(protocol.factor_interpretability_plan.strip())
+    if protocol.factorial_or_crossover_design and not factors:
+        return "invalid"
+    if protocol.factorial_or_crossover_design and not has_plan:
+        return "invalid"
+    if len(factors) > 1 and (
+        not protocol.factorial_or_crossover_design or not has_plan
+    ):
+        return "invalid"
+    if len(factors) > 1:
+        return "planned_multi_factor"
+    if len(factors) == 1:
+        return "single_factor"
+    if has_plan:
+        return "plan_without_factor"
+    return "none"
+
+
 def audit_research_state(
     *,
     inquiry: Inquiry,
@@ -478,6 +498,42 @@ def audit_research_state(
                 "Frozen protocol has no comparator or negative control.",
                 entity_type="protocol",
                 entity_id=protocol.protocol_id,
+            )
+        factor_state = _factor_interpretability_state(protocol)
+        if factor_state == "invalid":
+            add(
+                "PROTOCOL_FACTOR_INTERPRETABILITY_UNRESOLVED",
+                RigorSeverity.ERROR,
+                "Frozen protocol has unresolved manipulated-factor interpretability commitments.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "Do not interpret simultaneous factor changes as separable effects; "
+                    "freeze a new prospective factorial or crossover protocol with a "
+                    "factor-interpretability plan before drawing factor-specific conclusions."
+                ),
+            )
+        elif factor_state == "planned_multi_factor":
+            add(
+                "PROTOCOL_FACTOR_INTERPRETABILITY_DECLARED",
+                RigorSeverity.INFO,
+                "Frozen protocol declares a multi-factor intervention with a prospective factor-interpretability plan.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "Report the plan as provenance only; it does not prove that observed effects are separable by factor."
+                ),
+            )
+        elif factor_state == "single_factor":
+            add(
+                "PROTOCOL_MANIPULATED_FACTOR_DECLARED",
+                RigorSeverity.INFO,
+                "Frozen protocol declares one manipulated factor.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "Keep factor-specific interpretation scoped to the frozen protocol and observed controls."
+                ),
             )
         if (
             protocol.analysis_mode

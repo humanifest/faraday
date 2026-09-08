@@ -430,6 +430,9 @@ separated. The same fields are preserved in protocol drafts, the data
 dictionary, and the collection plan, and canonical protocol freeze repeats the
 fail-closed check so copied drafts cannot hide an uninterpretable simultaneous
 intervention.
+Deterministic rigor and synthesis reports then expose the frozen factor plan as
+prospective interpretability provenance, and flag legacy multi-factor protocols
+whose simultaneous interventions still lack a separable design and plan.
 
 The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,
@@ -1519,6 +1522,9 @@ uninterpretable simultaneous intervention.
 Deterministic synthesis reports the selected actions' manipulated-factor plan
 and design status so later reviewers can see whether the recommendation changes
 one factor, no declared factor, or a declared factorial/crossover structure.
+Protocol-level synthesis likewise keeps frozen manipulated-factor commitments
+visible, including unresolved legacy simultaneous interventions that must not
+be interpreted as factor-specific effects.
 Selection weights must be finite, non-negative, and include at least one
 positive utility term; Faraday rejects non-finite or all-zero weights so action
 identifiers cannot silently decide a supposedly information-driven
