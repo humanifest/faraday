@@ -1735,7 +1735,10 @@ and adapter-code hashes rather than trusting an adapter-supplied digest. The
 inspection record now also exposes a `temporal_metadata` summary: streams are
 labeled `proposed_unverified`, and missing typed streams are labeled
 `not_provided` with an explicit limitation, so future event-timing workflows
-cannot treat absent metadata as timing readiness.
+cannot treat absent metadata as timing readiness. Independent replay now also
+requires retained temporal limitations to remain nonempty, canonical, and
+unique, so a hash-consistent rewritten inspection record cannot drop the visible
+reason that absent or unverified stream metadata is not timing readiness.
 `measurement verify-source-inspection` requires
 an independently trusted record hash and exactly re-executes all three inputs.
 The trusted record hash must now be a canonical lowercase digest without

@@ -1136,6 +1136,57 @@ def test_instrument_inspection_discloses_absent_stream_metadata(tmp_path: Path) 
     assert record["scientific_evidence_eligible"] is False
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda metadata: metadata.update({"limitations": []}),
+        lambda metadata: metadata.update({"limitations": [" No typed stream metadata. "]}),
+    ],
+)
+def test_verify_instrument_inspection_requires_temporal_limitations(
+    tmp_path: Path, mutation
+) -> None:
+    from research_machine.measurement.instrument import (
+        inspect_instrument_source,
+        verify_instrument_inspection_record,
+    )
+
+    source = tmp_path / "capture.bin"
+    source.write_bytes(b"fixture")
+
+    def inspect(source_bytes, config):
+        return {
+            "captured_at": "2026-09-06T12:00:00Z",
+            "captured_at_basis": "user_supplied",
+            "acquisition_method": "fixture",
+            "instrument_identifier": "fixture-01",
+            "instrument_model": "FixtureScope",
+            "native_metadata": {},
+            "warnings": [],
+        }
+
+    adapter = InstrumentAdapter(
+        "stream_omitted", "Stream omitted", "Synthetic absent stream fixture.",
+        ("application/octet-stream",), ("captured_at",), inspect,
+    )
+    manifest = AddonManifest(
+        "stream_omitted_instrument", "Stream omitted instrument", "1", "test", "Fixture",
+        instrument_adapters=(adapter,),
+    )
+    result = inspect_instrument_source(
+        manifest, adapter, source, "application/octet-stream",
+        {"captured_at": "2026-09-06T12:00:00Z"}, tmp_path / "inspection",
+    )
+    record_path = Path(result["path"], "instrument-inspection.json")
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    mutation(record["temporal_metadata"])
+    record_path.write_text(json.dumps(record, sort_keys=True), encoding="utf-8")
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="temporal_metadata.limitations"):
+        verify_instrument_inspection_record(record_path, trusted_hash)
+
+
 def _write_stream_timing_fixture(
     tmp_path: Path,
     *,

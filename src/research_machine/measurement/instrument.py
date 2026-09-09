@@ -1978,7 +1978,13 @@ def verify_instrument_inspection_record(
         or temporal["stream_count"] < 0
     ):
         raise ValidationError("instrument inspection temporal_metadata.stream_count must be a non-negative integer")
-    _string_list(temporal["limitations"], "temporal_metadata.limitations")
+    temporal_limitations = _string_list(
+        temporal["limitations"], "temporal_metadata.limitations"
+    )
+    if not temporal_limitations:
+        raise ValidationError(
+            "instrument inspection temporal_metadata.limitations must retain at least one limitation"
+        )
 
     streams = record["streams"]
     if not isinstance(streams, list):
