@@ -874,6 +874,12 @@ def _recommendation_summary(
             + selected
             + ". Factor plan: "
             + (factors or "not available")
+            + ". Discrimination targets: "
+            + "; ".join(
+                f"{lane_id}: {_action_discrimination_summary(candidates_by_id[action_id])}"
+                for lane_id, action_id in latest.selected_action_ids_by_lane.items()
+                if action_id in candidates_by_id
+            )
             + ". Utility components: "
             + (score_summaries or "not available")
             + "."
@@ -894,6 +900,12 @@ def _recommendation_summary(
         + latest.rationale
         + " Factor plan: "
         + factor_summary
+        + ". Discrimination targets: "
+        + (
+            _action_discrimination_summary(selected)
+            if selected is not None
+            else "not available"
+        )
         + ". Utility components: "
         + score_summary
         + "."
@@ -932,3 +944,16 @@ def _action_factor_summary(candidate: ActionCandidate) -> str:
     if candidate.factor_interpretability_plan:
         design += f"; plan: {candidate.factor_interpretability_plan}"
     return ", ".join(factors) + f" ({design})"
+
+
+def _action_discrimination_summary(candidate: ActionCandidate) -> str:
+    targets = candidate.hypothesis_discrimination_targets
+    if not targets:
+        if candidate.distinguishes_hypotheses:
+            return "hypothesis IDs named without retained discriminating observations"
+        return "no hypothesis-specific discrimination declared"
+    return "; ".join(
+        f"{target.hypothesis_id}: {target.discriminating_observation}; "
+        f"weakens if {target.would_weaken_if}"
+        for target in targets
+    )

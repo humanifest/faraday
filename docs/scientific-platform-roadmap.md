@@ -18,14 +18,21 @@ methods without changing its epistemic rules or canonical state.
   feasible actions with explicit utility weights. Action IDs, lane IDs,
   hypothesis distinctions, information targets, dependency handles,
   completed-action IDs, blocked-lane reasons, and manipulated-factor handles
-  must be canonical before ranking or lane balancing. Multi-factor candidates
-  must declare a factorial or crossover design plus a canonical
+  must be canonical before ranking or lane balancing. Candidates that claim to
+  distinguish hypotheses must now retain exact
+  `hypothesis_discrimination_targets`: one canonical target for every named
+  hypothesis, including the discriminating observation, the expected result
+  under the target hypothesis, the expected result under the alternative, and
+  the observation that would weaken it. Infrastructure work may name
+  information targets instead, without pretending to test a hypothesis.
+  Multi-factor candidates must declare a factorial or crossover design plus a canonical
   factor-interpretability plan before they can be ranked, so action selection
   cannot prefer a simultaneous intervention whose result would not distinguish
   the changed factors. Deterministic synthesis now reports the selected actions'
-  factor plan and design status, and protocol-level rigor and synthesis now
-  expose frozen manipulated-factor interpretability plans while flagging legacy
-  simultaneous interventions that remain unresolved. The weight vector must contain finite,
+  factor plan, design status, and retained hypothesis-discrimination targets,
+  and protocol-level rigor and synthesis now expose frozen manipulated-factor
+  interpretability plans while flagging legacy simultaneous interventions that
+  remain unresolved. The weight vector must contain finite,
   non-negative values with at least one positive utility term, so recommendation
   provenance does not depend on silent whitespace normalization, non-finite
   arithmetic, or lexicographic action identifiers. Ranked scores now retain the
@@ -34,8 +41,9 @@ methods without changing its epistemic rules or canonical state.
   synthesis reports those components for selected actions. Authoritative
   recommendation reads now replay the selected action, lane selections, ranked
   utilities, and signed components from the stored candidates, lanes,
-  dependencies, completed actions, and weights before list, inquiry display, or
-  synthesis can trust them. The selected action must have a unique highest
+  dependencies, completed actions, weights, and hypothesis-discrimination
+  targets before list, inquiry display, or synthesis can trust them. The
+  selected action must have a unique highest
   utility; tied top candidates require a refined utility model or candidate
   estimates before any recommendation is recorded.
 - Cross-lane process lessons preserve observed failures without rewriting prior

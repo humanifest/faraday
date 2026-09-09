@@ -6,6 +6,7 @@ from research_machine.domain.models import (
     ActionLane,
     ActionRecommendation,
     ActionScore,
+    HypothesisDiscriminationTarget,
     SelectionWeights,
 )
 
@@ -31,11 +32,80 @@ def _weighted_components(
     }
 
 
+def _require_canonical_text(value: object, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError(f"{field} must be non-empty text")
+    if value != value.strip():
+        raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return value
+
+
+def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
+    hypotheses = [_require_canonical_text(item, "distinguishes_hypotheses item")
+                  for item in candidate.distinguishes_hypotheses]
+    if len(set(hypotheses)) != len(hypotheses):
+        raise ValidationError(
+            f"action {candidate.action_id} repeats a hypothesis distinction"
+        )
+    targets = candidate.hypothesis_discrimination_targets
+    if not isinstance(targets, list):
+        raise ValidationError("hypothesis_discrimination_targets must be a list")
+    if not hypotheses:
+        if targets:
+            raise ValidationError(
+                f"action {candidate.action_id} declares hypothesis_discrimination_targets "
+                "without distinguishes_hypotheses"
+            )
+        return
+    if not targets:
+        raise ValidationError(
+            f"action {candidate.action_id} must retain hypothesis discrimination targets"
+        )
+    seen = set()
+    for target in targets:
+        if not isinstance(target, HypothesisDiscriminationTarget):
+            raise ValidationError(
+                "hypothesis_discrimination_targets must contain "
+                "HypothesisDiscriminationTarget values"
+            )
+        hypothesis_id = _require_canonical_text(
+            target.hypothesis_id, "hypothesis_discrimination_target hypothesis_id"
+        )
+        if hypothesis_id in seen:
+            raise ValidationError(
+                "hypothesis_discrimination_targets repeat a hypothesis_id"
+            )
+        seen.add(hypothesis_id)
+        _require_canonical_text(
+            target.discriminating_observation,
+            "hypothesis_discrimination_target discriminating_observation",
+        )
+        _require_canonical_text(
+            target.expected_if_hypothesis,
+            "hypothesis_discrimination_target expected_if_hypothesis",
+        )
+        _require_canonical_text(
+            target.expected_if_alternative,
+            "hypothesis_discrimination_target expected_if_alternative",
+        )
+        _require_canonical_text(
+            target.would_weaken_if,
+            "hypothesis_discrimination_target would_weaken_if",
+        )
+    if seen != set(hypotheses):
+        raise ValidationError(
+            f"action {candidate.action_id} hypothesis discrimination targets "
+            "do not replay from distinguishes_hypotheses"
+        )
+
+
 def rank_actions(
     candidates: list[ActionCandidate], weights: SelectionWeights
 ) -> list[ActionScore]:
     """Rank safe, currently feasible actions using an auditable utility function."""
 
+    for candidate in candidates:
+        _validate_discrimination_target_replay(candidate)
     eligible = [
         candidate
         for candidate in candidates
@@ -76,6 +146,8 @@ def rank_actions_by_lane(
 ) -> dict[str, list[ActionScore]]:
     """Rank feasible actions separately so one active lane cannot starve another."""
 
+    for candidate in candidates:
+        _validate_discrimination_target_replay(candidate)
     completed = set(completed_action_ids)
     rankings: dict[str, list[ActionScore]] = {}
     for lane in lanes:

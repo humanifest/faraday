@@ -1495,6 +1495,7 @@ def _action_candidates(spec: dict[str, Any]) -> list[ActionCandidate]:
         "action_id",
         "title",
         "distinguishes_hypotheses",
+        "hypothesis_discrimination_targets",
         "expected_discrimination",
         "uncertainty_reduction",
         "cost",

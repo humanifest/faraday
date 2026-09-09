@@ -38,6 +38,7 @@ from research_machine.domain.models import (
     DatasetRole,
     EvidenceDirection,
     Hypothesis,
+    HypothesisDiscriminationTarget,
     ProtocolKind,
     QualityGateResult,
     QualityGateStatus,
@@ -52,6 +53,26 @@ CODE_HASH = "a" * 64
 ENVIRONMENT_HASH = "b" * 64
 SEED_REVEAL = "registered-seed-42"
 SEED_COMMITMENT = hashlib.sha256(SEED_REVEAL.encode("utf-8")).hexdigest()
+
+
+def action_discrimination_target(
+    hypothesis_id: str,
+) -> HypothesisDiscriminationTarget:
+    return HypothesisDiscriminationTarget(
+        hypothesis_id=hypothesis_id,
+        discriminating_observation=(
+            "A separately implemented checker reaches the same registered result."
+        ),
+        expected_if_hypothesis=(
+            "The independent checker accepts the registered derivation and rejects the invalid control."
+        ),
+        expected_if_alternative=(
+            "The independent checker disagrees with the original implementation-dependent result."
+        ),
+        would_weaken_if=(
+            "The independent checker fails the registered derivation or accepts the invalid control."
+        ),
+    )
 
 
 def _measurement_contract(**overrides):
@@ -1950,6 +1971,9 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
             action_id="unsafe-high-score",
             title="Unsafe intervention",
             distinguishes_hypotheses=[hypothesis_id],
+            hypothesis_discrimination_targets=[
+                action_discrimination_target(hypothesis_id)
+            ],
             expected_discrimination=1.0,
             uncertainty_reduction=1.0,
             cost=0.0,
@@ -1963,6 +1987,9 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
             action_id="cheap-ambiguous",
             title="Cheap but ambiguous check",
             distinguishes_hypotheses=[hypothesis_id],
+            hypothesis_discrimination_targets=[
+                action_discrimination_target(hypothesis_id)
+            ],
             expected_discrimination=0.4,
             uncertainty_reduction=0.3,
             cost=0.1,
@@ -1975,6 +2002,9 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
             action_id="decisive-proof-check",
             title="Independent proof check",
             distinguishes_hypotheses=[hypothesis_id],
+            hypothesis_discrimination_targets=[
+                action_discrimination_target(hypothesis_id)
+            ],
             expected_discrimination=0.9,
             uncertainty_reduction=0.8,
             cost=0.2,
@@ -2009,6 +2039,21 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
     assert "Utility components: utility 1.14" in synthesis
     assert "expected_discrimination 0.9" in synthesis
     assert "ambiguity_risk_penalty -0.075" in synthesis
+    assert "Discrimination targets: " in synthesis
+    assert f"{hypothesis_id}: A separately implemented checker" in synthesis
+
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["candidates"][0]["hypothesis_discrimination_targets"] = []
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        ValidationError,
+        match="must retain hypothesis discrimination targets",
+    ):
+        service.list_recommendations()
 
 
 def test_next_action_selection_handles_must_be_canonical(tmp_path: Path) -> None:
@@ -2052,6 +2097,9 @@ def test_next_action_selection_rejects_degenerate_utility_weights(
                         action_id="lexicographic-first",
                         title="Lexicographic first",
                         distinguishes_hypotheses=[hypothesis_id],
+                        hypothesis_discrimination_targets=[
+                            action_discrimination_target(hypothesis_id)
+                        ],
                         expected_discrimination=0.1,
                         uncertainty_reduction=0.1,
                         cost=0.1,
@@ -2064,6 +2112,9 @@ def test_next_action_selection_rejects_degenerate_utility_weights(
                         action_id="more-informative",
                         title="More informative",
                         distinguishes_hypotheses=[hypothesis_id],
+                        hypothesis_discrimination_targets=[
+                            action_discrimination_target(hypothesis_id)
+                        ],
                         expected_discrimination=0.9,
                         uncertainty_reduction=0.8,
                         cost=0.1,
@@ -2102,6 +2153,9 @@ def test_next_action_selection_weights_must_be_finite(
                         action_id="finite-score",
                         title="Finite score",
                         distinguishes_hypotheses=[hypothesis_id],
+                        hypothesis_discrimination_targets=[
+                            action_discrimination_target(hypothesis_id)
+                        ],
                         expected_discrimination=0.8,
                         uncertainty_reduction=0.7,
                         cost=0.1,
@@ -2130,6 +2184,9 @@ def test_next_action_selection_rejects_tied_top_utility(tmp_path: Path) -> None:
                         action_id="alpha-action",
                         title="Alpha action",
                         distinguishes_hypotheses=[hypothesis_id],
+                        hypothesis_discrimination_targets=[
+                            action_discrimination_target(hypothesis_id)
+                        ],
                         expected_discrimination=0.8,
                         uncertainty_reduction=0.6,
                         cost=0.1,
@@ -2142,6 +2199,9 @@ def test_next_action_selection_rejects_tied_top_utility(tmp_path: Path) -> None:
                         action_id="beta-action",
                         title="Beta action",
                         distinguishes_hypotheses=[hypothesis_id],
+                        hypothesis_discrimination_targets=[
+                            action_discrimination_target(hypothesis_id)
+                        ],
                         expected_discrimination=0.8,
                         uncertainty_reduction=0.6,
                         cost=0.1,

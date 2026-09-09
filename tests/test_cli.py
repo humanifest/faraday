@@ -761,6 +761,27 @@ def test_cli_records_general_protocol_run_and_next_action(
                         "action_id": "independent-check",
                         "title": "Independent proof check",
                         "distinguishes_hypotheses": [hypothesis["hypothesis_id"]],
+                        "hypothesis_discrimination_targets": [
+                            {
+                                "hypothesis_id": hypothesis["hypothesis_id"],
+                                "discriminating_observation": (
+                                    "A separately implemented checker reaches the "
+                                    "same registered result."
+                                ),
+                                "expected_if_hypothesis": (
+                                    "The independent checker accepts the registered "
+                                    "proof and rejects the invalid control."
+                                ),
+                                "expected_if_alternative": (
+                                    "The independent checker disagrees with the "
+                                    "original implementation-dependent result."
+                                ),
+                                "would_weaken_if": (
+                                    "The independent checker fails the registered "
+                                    "proof or accepts the invalid control."
+                                ),
+                            }
+                        ],
                         "expected_discrimination": 0.9,
                         "uncertainty_reduction": 0.8,
                         "cost": 0.2,

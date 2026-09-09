@@ -812,6 +812,19 @@ class RigorAudit(Serializable):
 
 
 @dataclass(frozen=True)
+class HypothesisDiscriminationTarget(Serializable):
+    hypothesis_id: str
+    discriminating_observation: str
+    expected_if_hypothesis: str
+    expected_if_alternative: str
+    would_weaken_if: str
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "HypothesisDiscriminationTarget":
+        return cls(**value)
+
+
+@dataclass(frozen=True)
 class ActionCandidate(Serializable):
     action_id: str
     title: str
@@ -823,6 +836,9 @@ class ActionCandidate(Serializable):
     safety_risk: float
     ambiguity_risk: float
     rationale: str
+    hypothesis_discrimination_targets: list[HypothesisDiscriminationTarget] = field(
+        default_factory=list
+    )
     prerequisites_met: bool = True
     safety_approved: bool = True
     lane_id: str = "default"
@@ -835,7 +851,15 @@ class ActionCandidate(Serializable):
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "ActionCandidate":
-        return cls(**value)
+        copied = dict(value)
+        copied.setdefault("hypothesis_discrimination_targets", [])
+        copied["hypothesis_discrimination_targets"] = [
+            item
+            if isinstance(item, HypothesisDiscriminationTarget)
+            else HypothesisDiscriminationTarget.from_dict(item)
+            for item in copied["hypothesis_discrimination_targets"]
+        ]
+        return cls(**copied)
 
 
 @dataclass(frozen=True)

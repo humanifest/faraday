@@ -6,11 +6,17 @@ import pytest
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import (
     CreateInquiry,
+    ProposeHypothesis,
     RecommendActionPortfolio,
 )
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ValidationError
-from research_machine.domain.models import ActionCandidate, ActionLane, SelectionWeights
+from research_machine.domain.models import (
+    ActionCandidate,
+    ActionLane,
+    HypothesisDiscriminationTarget,
+    SelectionWeights,
+)
 
 
 def prepared_service(root: Path) -> ResearchService:
@@ -42,11 +48,13 @@ def candidate(
     manipulated_factors: list[str] | None = None,
     factorial_or_crossover_design: bool = False,
     factor_interpretability_plan: str = "",
+    distinguishes_hypotheses: list[str] | None = None,
+    hypothesis_discrimination_targets: list[HypothesisDiscriminationTarget] | None = None,
 ) -> ActionCandidate:
     return ActionCandidate(
         action_id=action_id,
         title=action_id.replace("-", " ").title(),
-        distinguishes_hypotheses=[],
+        distinguishes_hypotheses=distinguishes_hypotheses or [],
         information_targets=[f"{lane_id}:uncertainty"],
         expected_discrimination=score,
         uncertainty_reduction=score,
@@ -61,6 +69,7 @@ def candidate(
         manipulated_factors=manipulated_factors or [],
         factorial_or_crossover_design=factorial_or_crossover_design,
         factor_interpretability_plan=factor_interpretability_plan,
+        hypothesis_discrimination_targets=hypothesis_discrimination_targets or [],
     )
 
 
@@ -69,6 +78,30 @@ def lanes() -> list[ActionLane]:
         ActionLane("machine", "Research Machine"),
         ActionLane("theory", "Theory falsification"),
     ]
+
+
+def reviewed_hypothesis(service: ResearchService, statement: str) -> str:
+    hypothesis = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement=statement,
+            observable_prediction="The prespecified observable differs by target condition.",
+            null_model="No condition-linked difference is observed.",
+            competing_models=["Measurement error or selection explains the apparent pattern."],
+            falsification_conditions=["The effect disappears under the discriminating control."],
+        )
+    )
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    return hypothesis.hypothesis_id
+
+
+def discrimination_target(hypothesis_id: str, label: str) -> HypothesisDiscriminationTarget:
+    return HypothesisDiscriminationTarget(
+        hypothesis_id=hypothesis_id,
+        discriminating_observation=f"{label} separates the target pattern from the comparator.",
+        expected_if_hypothesis=f"{label} follows the target hypothesis prediction.",
+        expected_if_alternative=f"{label} follows the competing model prediction.",
+        would_weaken_if=f"{label} is absent or follows the competing model.",
+    )
 
 
 def test_portfolio_selects_one_action_per_active_lane_without_starvation(
@@ -112,6 +145,67 @@ def test_portfolio_selects_one_action_per_active_lane_without_starvation(
     )
     assert "machine: utility 1.365" in synthesis
     assert "expected_discrimination 1" in synthesis
+
+
+def test_hypothesis_discrimination_targets_are_retained_and_visible(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    target_hypothesis = reviewed_hypothesis(
+        service, "The target-linked pattern survives the planned control."
+    )
+    competing_hypothesis = reviewed_hypothesis(
+        service, "The same pattern follows an ordinary competing process."
+    )
+    recommendation = service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate(
+                    "machine-discriminator",
+                    "machine",
+                    0.9,
+                    distinguishes_hypotheses=[
+                        target_hypothesis,
+                        competing_hypothesis,
+                    ],
+                    hypothesis_discrimination_targets=[
+                        discrimination_target(target_hypothesis, "Target channel"),
+                        discrimination_target(competing_hypothesis, "Control channel"),
+                    ],
+                ),
+                candidate("theory-next", "theory", 0.7),
+            ],
+        )
+    )
+
+    selected = next(
+        item
+        for item in recommendation.candidates
+        if item.action_id == "machine-discriminator"
+    )
+    assert [item.hypothesis_id for item in selected.hypothesis_discrimination_targets] == [
+        *sorted([competing_hypothesis, target_hypothesis]),
+    ]
+    synthesis = service.build_synthesis()["content"]
+    assert "Discrimination targets: machine: " in synthesis
+    assert f"{target_hypothesis}: Target channel separates" in synthesis
+    assert "weakens if Target channel is absent" in synthesis
+
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["candidates"][0]["hypothesis_discrimination_targets"][0][
+        "would_weaken_if"
+    ] = " rewritten after scoring "
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        ValidationError,
+        match="hypothesis_discrimination_target would_weaken_if",
+    ):
+        service.list_recommendations()
 
 
 def test_recommendation_reads_replay_ranked_score_components(
@@ -341,6 +435,107 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                 candidates=[
                     candidate("machine-alpha", "machine", 0.8),
                     candidate("machine-beta", "machine", 0.8),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("targets", "message"),
+    [
+        ([], "must explain how it distinguishes each named hypothesis"),
+        (
+            [
+                discrimination_target("hyp-placeholder", "Duplicate A"),
+                discrimination_target("hyp-placeholder", "Duplicate B"),
+            ],
+            "repeat a hypothesis_id",
+        ),
+        (
+            [
+                HypothesisDiscriminationTarget(
+                    " hyp-placeholder ",
+                    "Observation",
+                    "Expected target",
+                    "Expected alternative",
+                    "Weakening condition",
+                )
+            ],
+            "hypothesis_discrimination_target hypothesis_id",
+        ),
+        (
+            [
+                HypothesisDiscriminationTarget(
+                    "hyp-placeholder",
+                    " Observation ",
+                    "Expected target",
+                    "Expected alternative",
+                    "Weakening condition",
+                )
+            ],
+            "hypothesis_discrimination_target discriminating_observation",
+        ),
+    ],
+)
+def test_hypothesis_distinguishing_actions_require_discrimination_targets(
+    tmp_path: Path,
+    targets: list[HypothesisDiscriminationTarget],
+    message: str,
+) -> None:
+    service = prepared_service(tmp_path)
+    hypothesis_id = reviewed_hypothesis(
+        service, "The proposed follow-up separates two competing models."
+    )
+    normalized_targets = [
+        HypothesisDiscriminationTarget(
+            hypothesis_id if target.hypothesis_id == "hyp-placeholder" else target.hypothesis_id,
+            target.discriminating_observation,
+            target.expected_if_hypothesis,
+            target.expected_if_alternative,
+            target.would_weaken_if,
+        )
+        for target in targets
+    ]
+
+    with pytest.raises(ValidationError, match=message):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate(
+                        "machine-discriminator",
+                        "machine",
+                        0.9,
+                        distinguishes_hypotheses=[hypothesis_id],
+                        hypothesis_discrimination_targets=normalized_targets,
+                    ),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+
+
+def test_information_target_actions_cannot_carry_hypothesis_discriminators(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    with pytest.raises(
+        ValidationError,
+        match="without distinguishes_hypotheses",
+    ):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate(
+                        "machine-infrastructure",
+                        "machine",
+                        0.9,
+                        hypothesis_discrimination_targets=[
+                            discrimination_target("hyp-unknown", "Target channel")
+                        ],
+                    ),
                     candidate("theory-next", "theory", 0.7),
                 ],
             )

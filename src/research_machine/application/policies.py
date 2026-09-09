@@ -24,6 +24,7 @@ from research_machine.domain.models import (
     EvidenceDirection,
     ExperimentProtocol,
     Hypothesis,
+    HypothesisDiscriminationTarget,
     HypothesisWorkflowState,
     MeasurementDefinition,
     MeasurementValidityCheck,
@@ -2391,6 +2392,9 @@ def validate_action_candidates(
                 f"action {action_id} references unknown hypotheses: "
                 + ", ".join(unknown)
             )
+        discrimination_targets = _validate_hypothesis_discrimination_targets(
+            candidate.hypothesis_discrimination_targets, hypotheses, action_id
+        )
         for field_name in score_fields:
             value = getattr(candidate, field_name)
             if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -2455,6 +2459,7 @@ def validate_action_candidates(
                 safety_risk=float(candidate.safety_risk),
                 ambiguity_risk=float(candidate.ambiguity_risk),
                 rationale=require_text(candidate.rationale, "action rationale"),
+                hypothesis_discrimination_targets=discrimination_targets,
                 prerequisites_met=candidate.prerequisites_met,
                 safety_approved=candidate.safety_approved,
                 lane_id=require_canonical_text(candidate.lane_id, "lane_id"),
@@ -2469,6 +2474,77 @@ def validate_action_candidates(
             )
         )
     return normalized
+
+
+def _validate_hypothesis_discrimination_targets(
+    targets: Sequence[HypothesisDiscriminationTarget],
+    hypotheses: list[str],
+    action_id: str,
+) -> list[HypothesisDiscriminationTarget]:
+    if isinstance(targets, (str, bytes)) or not isinstance(targets, Sequence):
+        raise ValidationError("hypothesis_discrimination_targets must be a list")
+    if not hypotheses:
+        if targets:
+            raise ValidationError(
+                f"action {action_id} declares hypothesis_discrimination_targets "
+                "without distinguishes_hypotheses"
+            )
+        return []
+    if not targets:
+        raise ValidationError(
+            f"action {action_id} must explain how it distinguishes each named "
+            "hypothesis"
+        )
+    normalized: list[HypothesisDiscriminationTarget] = []
+    seen: set[str] = set()
+    for target in targets:
+        if not isinstance(target, HypothesisDiscriminationTarget):
+            raise ValidationError(
+                "hypothesis_discrimination_targets must contain "
+                "HypothesisDiscriminationTarget values"
+            )
+        hypothesis_id = require_canonical_text(
+            target.hypothesis_id, "hypothesis_discrimination_target hypothesis_id"
+        )
+        if hypothesis_id in seen:
+            raise ValidationError(
+                "hypothesis_discrimination_targets repeat a hypothesis_id"
+            )
+        seen.add(hypothesis_id)
+        normalized.append(
+            HypothesisDiscriminationTarget(
+                hypothesis_id=hypothesis_id,
+                discriminating_observation=require_canonical_text(
+                    target.discriminating_observation,
+                    "hypothesis_discrimination_target discriminating_observation",
+                ),
+                expected_if_hypothesis=require_canonical_text(
+                    target.expected_if_hypothesis,
+                    "hypothesis_discrimination_target expected_if_hypothesis",
+                ),
+                expected_if_alternative=require_canonical_text(
+                    target.expected_if_alternative,
+                    "hypothesis_discrimination_target expected_if_alternative",
+                ),
+                would_weaken_if=require_canonical_text(
+                    target.would_weaken_if,
+                    "hypothesis_discrimination_target would_weaken_if",
+                ),
+            )
+        )
+    if set(hypotheses) != seen:
+        missing = sorted(set(hypotheses) - seen)
+        extra = sorted(seen - set(hypotheses))
+        details = []
+        if missing:
+            details.append("missing " + ", ".join(missing))
+        if extra:
+            details.append("extra " + ", ".join(extra))
+        raise ValidationError(
+            f"action {action_id} hypothesis_discrimination_targets must exactly "
+            "cover distinguishes_hypotheses: " + "; ".join(details)
+        )
+    return sorted(normalized, key=lambda target: target.hypothesis_id)
 
 
 def validate_action_lanes(lanes: Sequence[ActionLane]) -> list[ActionLane]:

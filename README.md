@@ -1640,9 +1640,18 @@ change more than one factor must declare `factorial_or_crossover_design: true`
 and a canonical `factor_interpretability_plan`
 before ranking, so an apparently high-yield follow-up cannot hide an
 uninterpretable simultaneous intervention.
+When a candidate claims to distinguish specific hypotheses, it must also provide
+exact `hypothesis_discrimination_targets`: one canonical target per named
+hypothesis with the discriminating observation, expected result if the hypothesis
+is right, expected result under the alternative, and the observation that would
+weaken it. Infrastructure actions may instead name typed `information_targets`
+without pretending to discriminate a hypothesis.
 Deterministic synthesis reports the selected actions' manipulated-factor plan
 and design status so later reviewers can see whether the recommendation changes
 one factor, no declared factor, or a declared factorial/crossover structure.
+It also reports the selected actions' retained hypothesis-discrimination targets
+so action selection remains tied to falsifiable observations rather than only to
+utility scores.
 Protocol-level synthesis likewise keeps frozen manipulated-factor commitments
 visible, including unresolved legacy simultaneous interventions that must not
 be interpreted as factor-specific effects.
@@ -1655,8 +1664,8 @@ ambiguity risk, and deterministic synthesis reports the selected actions'
 components so the tradeoff remains inspectable. Authoritative recommendation
 reads replay the selected action, lane selections, ranked utilities, and signed
 components from the stored candidates, lanes, dependencies, completed actions,
-and weights; mismatches fail before list, inquiry display, or synthesis can use
-a stale score record. If the top utility is tied,
+weights, and hypothesis-discrimination targets; mismatches fail before list,
+inquiry display, or synthesis can use a stale score record. If the top utility is tied,
 Faraday rejects the selection until the utility model or candidate estimates
 distinguish the actions. The resulting recommendation remains an immutable,
 ledgered record; it does not establish scientific independence or satisfy a
