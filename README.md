@@ -868,7 +868,7 @@ review material therefore fails closed.
 
 The scientific core does not call a model. An app or researcher can freeze a
 provider-neutral, read-only context payload for a local model, user-selected
-provider, or human reviewer:
+provider, or human reviewer by declaring a nonempty purpose:
 
 ```bash
 ./research --json collaborator context --purpose "Help clarify the design" \

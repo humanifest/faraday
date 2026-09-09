@@ -1127,9 +1127,11 @@ against a separately trusted canonical lowercase manifest hash, and requires
 every manifest file digest to be canonical before comparison; it does not
 reproduce the experiment.
 
-Provider-boundary delivery: `research collaborator context --output <directory>`
-freezes read-only inquiry state, open questions, and scientific constraints for
-a future app, local model, user-selected provider, or human reviewer. The
+Provider-boundary delivery: `research collaborator context --purpose <purpose>
+--output <directory>` freezes read-only inquiry state, open questions, and
+scientific constraints for a future app, local model, user-selected provider, or
+human reviewer. The purpose is required and nonempty because later proposal and
+review records bind to it exactly. The
 write-once file has a separately reported SHA-256. `research collaborator
 validate-proposal` requires that trusted hash and strictly validates an untrusted
 human/LLM/hybrid response. Responses must expose uncertainty, alternatives,

@@ -234,6 +234,8 @@ def test_collaborator_context_purpose_must_be_canonical(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError, match="purpose must be canonical"):
         service.collaborator_context(purpose=" design review ")
+    with pytest.raises(ValidationError, match="purpose must not be empty"):
+        service.collaborator_context(purpose="")
 
 
 def test_collaborator_context_exposes_pending_review_hypotheses(
@@ -292,6 +294,14 @@ def test_context_snapshot_purpose_must_be_canonical(tmp_path: Path) -> None:
     context = _context(purpose=" Stress-test the design. ")
 
     with pytest.raises(ValidationError, match="context purpose must be canonical"):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
+
+
+def test_context_snapshot_purpose_must_be_non_empty(tmp_path: Path) -> None:
+    context = _context(purpose="")
+
+    with pytest.raises(ValidationError, match="context purpose must be non-empty"):
         create_context_snapshot(context, tmp_path / "context")
     assert not (tmp_path / "context").exists()
 
@@ -1150,6 +1160,14 @@ def test_cli_exports_context_and_validates_proposal_without_a_provider(
     assert verified["proposal_record_replay"] == "verified"
     assert verified["proposal_suggestion_replay"] == "verified"
     assert verified["canonical_writes_performed"] is False
+
+
+def test_collaborator_context_cli_requires_purpose(tmp_path: Path) -> None:
+    common = ["--workspace", str(tmp_path / "workspace"), "--json"]
+    assert main([*common, "workspace", "init"]) == 0
+
+    with pytest.raises(SystemExit):
+        main([*common, "collaborator", "context"])
 
 
 def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(

@@ -877,7 +877,7 @@ def build_parser() -> argparse.ArgumentParser:
     collaborator_context = collaborator_commands.add_parser(
         "context", help="Emit constraints and inquiry state without calling a model"
     )
-    collaborator_context.add_argument("--purpose", default="")
+    collaborator_context.add_argument("--purpose", required=True)
     collaborator_context.add_argument(
         "--output",
         type=Path,

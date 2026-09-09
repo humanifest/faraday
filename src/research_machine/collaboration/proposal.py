@@ -533,7 +533,7 @@ def _validate_context_snapshot(context: dict[str, Any]) -> list[str]:
         raise ValidationError("collaborator context must be read-only")
     if boundary.get("provider_required") is not False:
         raise ValidationError("collaborator context must not require a provider")
-    _canonical_text(context.get("purpose", ""), "context purpose", allow_empty=True)
+    _canonical_text(context.get("purpose", ""), "context purpose")
     indexed_refs = _context_reference_ids(context)
     body_refs = _context_body_reference_ids(context)
     missing_from_body = sorted(indexed_refs - body_refs)
