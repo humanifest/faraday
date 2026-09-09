@@ -334,6 +334,83 @@ def test_evidence_summary_rejects_report_overclaim_language(
     assert "confirmed the mechanism" not in synthesis
 
 
+def test_supporting_evidence_cannot_promote_to_explanatory_claim_levels(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            "Mechanism ceiling",
+            "Can calibration support a mechanism claim?",
+            "mechanism-ceiling",
+        )
+    )
+    hypothesis = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement="The observed process has an explanatory mechanism.",
+            observable_prediction="The observed process recurs under the registered condition.",
+            null_model="The recurrence is compatible with ordinary measurement error.",
+            competing_models=["Selection or measurement error creates the pattern."],
+            falsification_conditions=["The registered observation is absent."],
+        )
+    )
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    claim = service.add_claim(
+        AddClaim(
+            statement="The proposed mechanism explains the observed process.",
+            level=ClaimLevel.MECHANISM,
+        )
+    )
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="dataset-mechanism-fixture",
+            name="Mechanism fixture",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[DatasetArtifact("mechanism.csv", "a" * 64)],
+        )
+    )
+
+    with pytest.raises(ValidationError, match="cannot target mechanism"):
+        service.record_evidence(
+            RecordEvidence(
+                hypothesis_id=hypothesis.hypothesis_id,
+                claim_id=claim.claim_id,
+                direction=EvidenceDirection.SUPPORTS,
+                summary="The calibration fixture is consistent with the mechanism.",
+                dataset_id="dataset-mechanism-fixture",
+                analysis_id="analysis-mechanism-fixture",
+                uncertainty="The fixture does not distinguish mechanism from alternatives.",
+                scope="Synthetic fixture only.",
+                controls_passed=["negative control fixture"],
+                higher_level_conclusions_unsupported=[
+                    "Mechanism, adaptation, and intent remain unsupported."
+                ],
+                validation_tags=[ValidationTag.CALIBRATION],
+                exploratory=True,
+            )
+        )
+
+    inconclusive = service.record_evidence(
+        RecordEvidence(
+            hypothesis_id=hypothesis.hypothesis_id,
+            claim_id=claim.claim_id,
+            direction=EvidenceDirection.INCONCLUSIVE,
+            summary="The calibration fixture does not discriminate the mechanism claim.",
+            dataset_id="dataset-mechanism-fixture",
+            analysis_id="analysis-mechanism-fixture",
+            uncertainty="The fixture remains compatible with mundane alternatives.",
+            scope="Synthetic fixture only.",
+            higher_level_conclusions_unsupported=[
+                "Mechanism, adaptation, and intent remain unsupported."
+            ],
+            validation_tags=[ValidationTag.CALIBRATION],
+            exploratory=True,
+        )
+    )
+    assert inconclusive.claim_id == claim.claim_id
+
+
 def test_ledger_verification_detects_tampering(tmp_path: Path) -> None:
     service = make_service(tmp_path)
     service.init_workspace()

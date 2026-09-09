@@ -211,6 +211,13 @@ and decision owner remain outside the proposition digest, allowing transparent
 later reassessment without changing what the evidence originally addressed.
 Changing a claim’s scope, wording, level, or parents after admission therefore
 fails closed rather than broadening a conclusion through a stable identifier.
+Validation-tag claim-ceiling delivery: the shared validation-tag policy now
+rejects supporting evidence attached to mechanism, adaptation, or
+attribution/intent claims because the current machine-validated evidence
+capabilities do not establish those explanatory levels. Inconclusive, weakening,
+and refuting records can still be preserved when ordinary evidence requirements
+are satisfied, keeping disconfirming material visible without promoting lower
+level observations into mechanism, adaptation, attribution, or intent.
 
 Post-discovery evidence-status delivery: evidence records remain immutable, but
 `research evidence record-status` appends a locally artifact-verified `active`,

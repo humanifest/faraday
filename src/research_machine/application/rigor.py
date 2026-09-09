@@ -527,6 +527,7 @@ def audit_research_state(
             try:
                 validate_validation_tag_context(
                     tags=record.validation_tags,
+                    direction=record.direction,
                     hypothesis=hypothesis,
                     exploratory=record.exploratory,
                     protocol=protocol,

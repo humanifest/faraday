@@ -457,8 +457,25 @@ def validate_validation_tag_context(
     controls_passed: Sequence[str],
     replicated_run: ResearchRun | None,
     claim: Claim | None = None,
+    direction: EvidenceDirection = EvidenceDirection.INCONCLUSIVE,
 ) -> None:
     tag_set = set(tags)
+
+    if (
+        claim is not None
+        and direction is EvidenceDirection.SUPPORTS
+        and claim.level
+        in {
+            ClaimLevel.MECHANISM,
+            ClaimLevel.ADAPTATION,
+            ClaimLevel.ATTRIBUTION_INTENT,
+        }
+    ):
+        raise ValidationError(
+            "supporting evidence cannot target mechanism, adaptation, or "
+            "attribution-intent claims under the current validation-tag "
+            "capability model"
+        )
 
     if (
         claim is not None

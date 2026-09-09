@@ -4890,6 +4890,7 @@ class ResearchService:
             )
         validate_validation_tag_context(
             tags=validation_tags,
+            direction=command.direction,
             hypothesis=hypothesis,
             exploratory=command.exploratory,
             protocol=protocol,

@@ -27,7 +27,10 @@ from research_machine.domain.models import (
     Claim,
     ClaimLevel,
     DatasetArtifact,
+    DatasetManifest,
+    DatasetRole,
     EvidenceDirection,
+    EvidenceRecord,
     MeasurementDefinition,
     MeasurementRole,
     ProtocolKind,
@@ -275,6 +278,76 @@ def test_rigor_flags_inverted_claim_dependency_levels(tmp_path: Path) -> None:
     )
     assert finding.entity_id == measurement.claim_id
     assert causal.claim_id in finding.message
+
+
+def test_rigor_flags_legacy_support_for_explanatory_claim_levels(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            "Mechanism ceiling",
+            "Can weak validation tags support a mechanism claim?",
+            "mechanism-ceiling",
+        )
+    )
+    hypothesis = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement="A mechanism explains the observed pattern.",
+            observable_prediction="The registered pattern recurs.",
+            null_model="The pattern does not recur beyond measurement error.",
+            competing_models=["Measurement error creates the pattern."],
+            falsification_conditions=["The registered pattern is absent."],
+        )
+    )
+    hypothesis = service.activate_hypothesis(hypothesis.hypothesis_id)
+    claim = service.add_claim(
+        AddClaim(
+            statement="The proposed mechanism explains the observed pattern.",
+            level=ClaimLevel.MECHANISM,
+        )
+    )
+    dataset = DatasetManifest(
+        "dataset-mechanism-fixture",
+        "Mechanism fixture",
+        DatasetRole.EXPLORATORY,
+        "2026-09-02T12:00:00Z",
+        [DatasetArtifact("mechanism.csv", "a" * 64)],
+    )
+    evidence = EvidenceRecord(
+        "evd-legacy-mechanism",
+        hypothesis.hypothesis_id,
+        EvidenceDirection.SUPPORTS,
+        "A legacy fixture incorrectly supports the mechanism claim.",
+        dataset.dataset_id,
+        "analysis-mechanism-fixture",
+        "2026-09-02T12:00:00Z",
+        claim_id=claim.claim_id,
+        uncertainty="The fixture does not distinguish mechanism from alternatives.",
+        scope="Synthetic fixture only.",
+        controls_passed=["negative control fixture"],
+        higher_level_conclusions_unsupported=[
+            "Adaptation and intent remain unsupported."
+        ],
+        validation_tags=[ValidationTag.CALIBRATION],
+        exploratory=True,
+    )
+    audit = audit_research_state(
+        inquiry=service.repository.load_inquiry("mechanism-ceiling"),
+        claims=[claim],
+        hypotheses=[hypothesis],
+        evidence=[evidence],
+        datasets=[dataset],
+        protocols=[],
+        runs=[],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "VALIDATION_TAG_UNSUPPORTED"
+    )
+    assert finding.entity_id == evidence.evidence_id
+    assert "supporting evidence cannot target mechanism" in finding.message
 
 
 def test_rigor_flags_legacy_unresolved_multi_factor_protocol(

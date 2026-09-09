@@ -1876,6 +1876,12 @@ Evidence is classified by what it actually tests: `source_assessment`,
 `calibration`, `internal_consistency`, `controlled_benchmark`,
 `independent_replication`, `known_result_reproduction`, `novel_prediction`, or
 `empirical_test`. Higher tags have enforceable prerequisites. In particular,
+supporting evidence cannot target mechanism, adaptation, or attribution/intent
+claims under the current validation-tag capability model; record lower-level
+support and keep those explanatory conclusions explicitly unsupported until a
+future reviewed authority path exists. Inconclusive, weakening, and refuting
+records remain admissible when their ordinary evidence requirements are met, so
+disconfirming material is preserved rather than promoted.
 independent replication must name an eligible earlier run through
 `metadata.replicates_run_id`, use a different executor identity, and use a
 different analysis-code hash. It must also declare a clean-room design with
