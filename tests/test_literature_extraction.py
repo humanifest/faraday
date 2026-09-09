@@ -62,14 +62,18 @@ def test_extraction_preserves_canonical_source_study_and_record_ids(tmp_path):
     screening, digest = prepared_screening(tmp_path)
     review = extraction_review()
     record = review["source_reviews"][0]["records"][0]
+    retained_source_sha = json.loads(screening.read_text())["decisions"][0][
+        "source_retained_file_sha256"
+    ]
     result = create_extraction(screening, digest, review, tmp_path / "extraction")
     source_review = result["source_reviews"][0]
     assert source_review["source_id"] == "s0"
+    assert source_review["source_retained_file_sha256"] == retained_source_sha
     assert source_review["records"][0]["extraction_id"] == "ext-1"
     assert source_review["records"][0]["study_id"] == "study-1"
 
 
-@pytest.mark.parametrize("failure", ["hash", "excluded", "missing", "duplicate", "padded_id", "duplicate_source", "location", "layer", "empty"])
+@pytest.mark.parametrize("failure", ["hash", "excluded", "missing", "duplicate", "padded_id", "duplicate_source", "duplicate_screening_source", "location", "layer", "empty"])
 def test_invalid_extraction_never_publishes(tmp_path, failure):
     screening, digest = prepared_screening(tmp_path)
     review = extraction_review()
@@ -84,6 +88,11 @@ def test_invalid_extraction_never_publishes(tmp_path, failure):
         duplicate = dict(review["source_reviews"][0])
         duplicate["source_id"] = "s0"
         review["source_reviews"].append(duplicate)
+    elif failure == "duplicate_screening_source":
+        value = json.loads(screening.read_text())
+        value["decisions"].append(dict(value["decisions"][0]))
+        screening.write_text(json.dumps(value, sort_keys=True) + "\n")
+        digest = hashlib.sha256(screening.read_bytes()).hexdigest()
     elif failure == "location": record["evidence_location"] = ""
     elif failure == "layer": record["epistemic_layer"] = "fact"
     elif failure == "empty":

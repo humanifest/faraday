@@ -40,11 +40,24 @@ def create_extraction(screening_path: Path, expected_sha256: str,
     decisions = screening.get("decisions")
     if not isinstance(decisions, list):
         raise ValidationError("screening decisions must be an array")
-    included = {
-        _canonical_text(item.get("source_id"), "screening source_id")
-        for item in decisions
-        if isinstance(item, dict) and item.get("decision") == "include"
-    }
+    included: dict[str, str] = {}
+    screening_source_ids: set[str] = set()
+    for item in decisions:
+        if not isinstance(item, dict):
+            raise ValidationError("screening decisions must be objects")
+        source_id = _canonical_text(item.get("source_id"), "screening source_id")
+        if source_id in screening_source_ids:
+            raise ValidationError("screening decisions contain duplicate source_id")
+        screening_source_ids.add(source_id)
+        if item.get("decision") == "include":
+            if "source_retained_file_sha256" in item:
+                source_hash = require_sha256(
+                    item.get("source_retained_file_sha256"),
+                    "screening source_retained_file_sha256",
+                )
+            else:
+                source_hash = "legacy_missing"
+            included[source_id] = source_hash
     if not included:
         raise ValidationError("extraction requires at least one included source")
     if not isinstance(review, dict) or set(review) != {"reviewer", "source_reviews"}:
@@ -90,10 +103,14 @@ def create_extraction(screening_path: Path, expected_sha256: str,
             if normalized["result_direction"] not in _DIRECTIONS:
                 raise ValidationError("invalid extraction result_direction")
             normalized_records.append(normalized)
-        by_source[source_id] = {"source_id": source_id, "status": status,
-                                "reason": reason,
-                                "records": sorted(normalized_records, key=lambda item: item["extraction_id"])}
-    if set(by_source) != included:
+        by_source[source_id] = {
+            "source_id": source_id,
+            "source_retained_file_sha256": included[source_id],
+            "status": status,
+            "reason": reason,
+            "records": sorted(normalized_records, key=lambda item: item["extraction_id"]),
+        }
+    if set(by_source) != set(included):
         raise ValidationError("source reviews must cover exactly all included sources")
     result = {
         "extraction_version": 1, "screening_sha256": digest,

@@ -15,7 +15,7 @@ def write_json(path, value):
     return hashlib.sha256(encoded).hexdigest()
 
 
-def claim_digest(source_id, record):
+def claim_digest(source_id, record, source_retained_file_sha256="legacy_missing"):
     payload = {
         "source_id": source_id,
         "extraction_id": record["extraction_id"],
@@ -27,6 +27,8 @@ def claim_digest(source_id, record):
         "uncertainty": record["uncertainty"],
         "notes": record["notes"],
     }
+    if source_retained_file_sha256 != "legacy_missing":
+        payload["source_retained_file_sha256"] = source_retained_file_sha256
     return hashlib.sha256(
         json.dumps(
             payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
@@ -34,20 +36,26 @@ def claim_digest(source_id, record):
     ).hexdigest()
 
 
-def chain(tmp_path, bias_judgment="some_concerns"):
+def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
     extraction = tmp_path / "extraction.json"
     extraction_record = {"extraction_id": "e1", "study_id": "study-1",
         "claim_text": "Synthetic claim", "evidence_location": "page fixture",
         "epistemic_layer": "inferred", "result_direction": "mixed",
         "uncertainty": "fixture", "notes": "fixture notes"}
+    source_review = {"source_id": "s1", "records": [extraction_record]}
+    if source_sha != "legacy_missing":
+        source_review["source_retained_file_sha256"] = source_sha
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded", "snapshot_id": "snap",
-        "source_reviews": [{"source_id": "s1", "records": [extraction_record]}]})
+        "source_reviews": [source_review]})
     verification = tmp_path / "verification.json"
+    citation = {"extraction_id": "e1", "study_id": "study-1",
+        "source_id": "s1", "verdict": "supported", "checked_location": "page 4",
+        "rationale": "fixture citation check",
+        "extraction_claim_sha256": claim_digest("s1", extraction_record, source_sha)}
+    if source_sha != "legacy_missing":
+        citation["source_retained_file_sha256"] = source_sha
     verification_sha = write_json(verification, {"citation_verification_version": 1, "status": "citation_review_recorded",
-        "extraction_sha256": extraction_sha, "assessments": [{"extraction_id": "e1", "study_id": "study-1",
-            "source_id": "s1", "verdict": "supported", "checked_location": "page 4",
-            "rationale": "fixture citation check",
-            "extraction_claim_sha256": claim_digest("s1", extraction_record)}]})
+        "extraction_sha256": extraction_sha, "assessments": [citation]})
     bias = tmp_path / "bias.json"
     domains = [
         {"domain": name, "judgment": bias_judgment, "evidence_locations": ["table 1"]}
@@ -102,6 +110,19 @@ def test_evidence_map_preserves_canonical_join_handles(tmp_path):
     assert result["claims"][0]["bias_domain_judgments"][0]["evidence_locations"] == ["table 1"]
 
 
+def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path):
+    extraction, verification, bias, reconciliation, digest = chain(tmp_path, source_sha="b" * 64)
+    result = create_evidence_map(
+        extraction, verification, bias, reconciliation, digest, tmp_path / "map"
+    )
+    assert result["claims"][0]["source_retained_file_sha256"] == "b" * 64
+    assert result["claims"][0]["extraction_claim_sha256"] == claim_digest(
+        "s1",
+        json.loads(extraction.read_text())["source_reviews"][0]["records"][0],
+        "b" * 64,
+    )
+
+
 @pytest.mark.parametrize("failure", [
     "terminal-hash", "extraction-link", "verification-link", "bias-link", "unresolved",
     "coverage", "padded-extraction-duplicate", "padded-citation-duplicate",
@@ -111,6 +132,7 @@ def test_evidence_map_preserves_canonical_join_handles(tmp_path):
     "padded-citation-location", "padded-citation-rationale", "padded-bias-study",
     "padded-bias-domain", "padded-bias-location", "padded-reconciliation-study",
     "citation-provenance", "bias-provenance", "claim-digest", "claim-payload",
+    "source-anchor-mismatch",
 ])
 def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
     extraction, verification, bias, reconciliation, digest = chain(tmp_path)
@@ -139,6 +161,15 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         extraction_sha = write_json(extraction, value)
         value = json.loads(verification.read_text())
         value["extraction_sha256"] = extraction_sha
+        verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure == "source-anchor-mismatch":
+        extraction, verification, bias, reconciliation, digest = chain(
+            tmp_path, source_sha="b" * 64
+        )
+        value = json.loads(verification.read_text())
+        value["assessments"][0]["source_retained_file_sha256"] = "c" * 64
         verification_sha = write_json(verification, value)
         value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)

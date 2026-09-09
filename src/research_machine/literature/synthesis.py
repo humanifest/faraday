@@ -12,6 +12,8 @@ from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
+_LEGACY_SOURCE_ANCHOR = "legacy_missing"
+
 
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
     try:
@@ -29,6 +31,12 @@ def _canonical_text(value: Any, field: str) -> str:
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
     return text
+
+
+def _source_anchor(value: object, field: str) -> str:
+    if value == _LEGACY_SOURCE_ANCHOR:
+        return _LEGACY_SOURCE_ANCHOR
+    return require_sha256(value, field)
 
 
 def execute_qualitative_synthesis(
@@ -118,7 +126,12 @@ def execute_qualitative_synthesis(
     seen = set()
     normalized_claims = []
     for claim in claims:
-        if not isinstance(claim, dict) or set(claim) != required_claim_fields:
+        if not isinstance(claim, dict):
+            raise ValidationError("evidence-map claim fields do not match the synthesis contract")
+        claim_fields = set(claim)
+        if claim_fields == required_claim_fields:
+            claim = {**claim, "source_retained_file_sha256": _LEGACY_SOURCE_ANCHOR}
+        elif claim_fields != required_claim_fields | {"source_retained_file_sha256"}:
             raise ValidationError("evidence-map claim fields do not match the synthesis contract")
         extraction_id = _canonical_text(claim["extraction_id"], "evidence-map extraction_id")
         if extraction_id in seen:
@@ -128,6 +141,10 @@ def execute_qualitative_synthesis(
         source_id = _canonical_text(claim["source_id"], "evidence-map source_id")
         extraction_claim_sha256 = require_sha256(
             claim["extraction_claim_sha256"], "evidence-map extraction_claim_sha256"
+        )
+        source_retained_file_sha256 = _source_anchor(
+            claim["source_retained_file_sha256"],
+            "evidence-map source_retained_file_sha256",
         )
         if claim["result_direction"] not in {"supports", "weakens", "mixed", "null", "not_applicable"}:
             raise ValidationError("evidence-map result direction is invalid")
@@ -164,6 +181,7 @@ def execute_qualitative_synthesis(
             "extraction_id": extraction_id,
             "study_id": study_id,
             "source_id": source_id,
+            "source_retained_file_sha256": source_retained_file_sha256,
             "extraction_claim_sha256": extraction_claim_sha256,
             "bias_domain_judgments": [
                 {**domain, "domain": domain["domain"],

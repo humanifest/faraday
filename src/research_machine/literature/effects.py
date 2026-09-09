@@ -13,6 +13,8 @@ from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
+_LEGACY_SOURCE_ANCHOR = "legacy_missing"
+
 
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
     try:
@@ -30,6 +32,12 @@ def _canonical_text(value: Any, field: str) -> str:
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
     return text
+
+
+def _source_anchor(value: object, field: str) -> str:
+    if value == _LEGACY_SOURCE_ANCHOR:
+        return _LEGACY_SOURCE_ANCHOR
+    return require_sha256(value, field)
 
 
 def create_effect_records(
@@ -100,10 +108,15 @@ def create_effect_records(
         extraction_claim_sha256 = require_sha256(
             claim.get("extraction_claim_sha256"), "mapped claim extraction_claim_sha256"
         )
+        source_retained_file_sha256 = _source_anchor(
+            claim.get("source_retained_file_sha256", _LEGACY_SOURCE_ANCHOR),
+            "mapped claim source_retained_file_sha256",
+        )
         claim_summary = {
             "extraction_id": claim.get("extraction_id"),
             "extraction_claim_sha256": extraction_claim_sha256,
             "source_id": claim.get("source_id"),
+            "source_retained_file_sha256": source_retained_file_sha256,
             "result_direction": claim.get("result_direction"),
             "interpretive_ceiling": claim.get("interpretive_ceiling"),
             "citation_verdict": claim.get("citation_verdict"),

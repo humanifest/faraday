@@ -42,7 +42,11 @@ def test_screening_preserves_canonical_source_and_criterion_references(tmp_path)
     snapshot, digest, review = setup_snapshot(tmp_path)
     result = create_screening(snapshot, digest, review, tmp_path / "screening")
     included = result["decisions"][0]
+    retained_source_sha = json.loads(snapshot.read_text())["sources"][0][
+        "retained_file_sha256"
+    ]
     assert included["source_id"] == "a"
+    assert included["source_retained_file_sha256"] == retained_source_sha
     assert included["criterion_refs"] == ["inclusion:1"]
 
 

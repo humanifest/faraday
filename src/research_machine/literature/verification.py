@@ -24,6 +24,7 @@ _EXTRACTION_RECORD_FIELDS = {
     "uncertainty",
     "notes",
 }
+_LEGACY_SOURCE_ANCHOR = "legacy_missing"
 
 
 def _canonical_text(value: Any, field: str) -> str:
@@ -33,7 +34,17 @@ def _canonical_text(value: Any, field: str) -> str:
     return text
 
 
-def _extraction_claim_payload_sha256(source_id: str, record: dict[str, Any]) -> str:
+def _source_anchor(value: Any, field: str) -> str:
+    if value == _LEGACY_SOURCE_ANCHOR:
+        return _LEGACY_SOURCE_ANCHOR
+    return require_sha256(value, field)
+
+
+def _extraction_claim_payload_sha256(
+    source_id: str,
+    record: dict[str, Any],
+    source_retained_file_sha256: str = _LEGACY_SOURCE_ANCHOR,
+) -> str:
     payload = {
         "source_id": source_id,
         "extraction_id": record["extraction_id"],
@@ -45,6 +56,8 @@ def _extraction_claim_payload_sha256(source_id: str, record: dict[str, Any]) -> 
         "uncertainty": record["uncertainty"],
         "notes": record["notes"],
     }
+    if source_retained_file_sha256 != _LEGACY_SOURCE_ANCHOR:
+        payload["source_retained_file_sha256"] = source_retained_file_sha256
     encoded = json.dumps(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
     ).encode("utf-8")
@@ -80,6 +93,12 @@ def create_citation_verification(
         if not isinstance(source_review, dict):
             raise ValidationError("extraction source review must be an object")
         source_id = _canonical_text(source_review.get("source_id"), "extraction source_id")
+        source_retained_file_sha256 = _source_anchor(
+            source_review.get(
+                "source_retained_file_sha256", _LEGACY_SOURCE_ANCHOR
+            ),
+            "extraction source_retained_file_sha256",
+        )
         source_records = source_review.get("records")
         if not isinstance(source_records, list):
             raise ValidationError("extraction records must be an array")
@@ -97,11 +116,12 @@ def create_citation_verification(
             }
             records[extraction_id] = {
                 "source_id": source_id,
+                "source_retained_file_sha256": source_retained_file_sha256,
                 "study_id": normalized_record["study_id"],
                 "claim_text": normalized_record["claim_text"],
                 "extracted_evidence_location": normalized_record["evidence_location"],
                 "extraction_claim_sha256": _extraction_claim_payload_sha256(
-                    source_id, normalized_record
+                    source_id, normalized_record, source_retained_file_sha256
                 ),
             }
     if not records:

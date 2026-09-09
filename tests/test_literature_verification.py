@@ -29,7 +29,7 @@ def extraction_file(tmp_path):
     return path, hashlib.sha256(encoded).hexdigest()
 
 
-def claim_digest(source_id, record):
+def claim_digest(source_id, record, source_retained_file_sha256="legacy_missing"):
     payload = {
         "source_id": source_id,
         "extraction_id": record["extraction_id"],
@@ -41,6 +41,8 @@ def claim_digest(source_id, record):
         "uncertainty": record["uncertainty"],
         "notes": record["notes"],
     }
+    if source_retained_file_sha256 != "legacy_missing":
+        payload["source_retained_file_sha256"] = source_retained_file_sha256
     return hashlib.sha256(
         json.dumps(
             payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
@@ -88,6 +90,25 @@ def test_citation_verification_preserves_canonical_extraction_handles(tmp_path):
     assert result["assessments"][0]["checked_location"] == "page 1"
     assert result["assessments"][0]["extraction_claim_sha256"] == claim_digest(
         "source-1", extraction_record
+    )
+
+
+def test_citation_verification_binds_retained_source_bytes_when_available(tmp_path):
+    extraction, digest = extraction_file(tmp_path)
+    retained_source_sha = "b" * 64
+    value = json.loads(extraction.read_text())
+    value["source_reviews"][0]["source_retained_file_sha256"] = retained_source_sha
+    encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+    extraction.write_bytes(encoded)
+    digest = hashlib.sha256(encoded).hexdigest()
+
+    result = create_citation_verification(
+        extraction, digest, review(), tmp_path / "verification"
+    )
+    extraction_record = value["source_reviews"][0]["records"][0]
+    assert result["assessments"][0]["source_retained_file_sha256"] == retained_source_sha
+    assert result["assessments"][0]["extraction_claim_sha256"] == claim_digest(
+        "source-1", extraction_record, retained_source_sha
     )
 
 

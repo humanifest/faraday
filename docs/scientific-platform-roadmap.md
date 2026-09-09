@@ -1085,6 +1085,17 @@ Screening reviewer text, pinned source IDs, decision source IDs, reasons, and
 criterion references must be canonical without surrounding whitespace before
 coverage and duplicate checks, so whitespace padding cannot create a second
 apparent screening decision or criterion citation.
+Screening now also carries each source's exact retained-file SHA-256 from the
+pinned snapshot into the downstream decision record. Extraction preserves that
+source-byte anchor by source review; citation verification retains it on each
+assessment and includes it in the compact extracted-claim payload digest for new
+anchored records; evidence maps replay the anchor before joining source, study,
+and claim provenance and expose it to qualitative synthesis and quantitative
+effect preparation. Legacy chains without the anchor remain readable as
+`legacy_missing`, but they are not silently upgraded to hash-anchored
+source-byte provenance. This is byte provenance only: it still does not
+interpret source text, verify that a cited passage supports a claim,
+authenticate reviewers, or assess bias.
 `research literature extract --screening-file <screening>
 --expected-screening-sha256 <hash> --review-file <review>
 --output <new-directory>` creates a separate write-once extraction record for
@@ -1108,8 +1119,9 @@ SHA-256 before it can pin the extraction bytes. The citation reviewer must
 differ from the extraction reviewer and must record the checked location,
 rationale, and a supported, partially-supported, unsupported, or unclear
 verdict. Each assessment also binds a compact SHA-256 over the exact extracted
-claim payload: source, extraction ID, study ID, claim text, evidence location,
-epistemic layer, result direction, uncertainty, and notes. Unsupported and
+claim payload: source, retained source-file hash when available, extraction ID,
+study ID, claim text, evidence location, epistemic layer, result direction,
+uncertainty, and notes. Unsupported and
 unclear claims remain in the artifact and force `review_required`; they are
 never silently dropped. This records independent human citation checking but
 does not make a claim true, authenticate reviewer identities, assess study bias,

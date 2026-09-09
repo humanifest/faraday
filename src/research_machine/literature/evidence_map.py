@@ -23,6 +23,7 @@ _EXTRACTION_RECORD_FIELDS = {
     "uncertainty",
     "notes",
 }
+_LEGACY_SOURCE_ANCHOR = "legacy_missing"
 
 
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
@@ -53,7 +54,17 @@ def _ceiling(citation_verdict: str, bias_judgment: str, epistemic_layer: str) ->
     return "reviewed_source_claim"
 
 
-def _extraction_claim_payload_sha256(source_id: str, record: dict[str, Any]) -> str:
+def _source_anchor(value: Any, field: str) -> str:
+    if value == _LEGACY_SOURCE_ANCHOR:
+        return _LEGACY_SOURCE_ANCHOR
+    return require_sha256(value, field)
+
+
+def _extraction_claim_payload_sha256(
+    source_id: str,
+    record: dict[str, Any],
+    source_retained_file_sha256: str = _LEGACY_SOURCE_ANCHOR,
+) -> str:
     payload = {
         "source_id": source_id,
         "extraction_id": record["extraction_id"],
@@ -65,6 +76,8 @@ def _extraction_claim_payload_sha256(source_id: str, record: dict[str, Any]) -> 
         "uncertainty": record["uncertainty"],
         "notes": record["notes"],
     }
+    if source_retained_file_sha256 != _LEGACY_SOURCE_ANCHOR:
+        payload["source_retained_file_sha256"] = source_retained_file_sha256
     encoded = json.dumps(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
     ).encode("utf-8")
@@ -134,6 +147,12 @@ def create_evidence_map(
         if not isinstance(source_review, dict):
             raise ValidationError("extraction source reviews are malformed")
         source_id = _canonical_text(source_review.get("source_id"), "extraction source_id")
+        source_retained_file_sha256 = _source_anchor(
+            source_review.get(
+                "source_retained_file_sha256", _LEGACY_SOURCE_ANCHOR
+            ),
+            "extraction source_retained_file_sha256",
+        )
         for record in source_review.get("records", []):
             if not isinstance(record, dict):
                 raise ValidationError("extraction records are malformed")
@@ -152,12 +171,21 @@ def create_evidence_map(
             study_bias = bias_by_study.get(study_id)
             if (citation is None or study_bias is None or study_id not in reconciled_studies
                     or _canonical_text(citation.get("source_id"), "citation source_id") != source_id
-                    or _canonical_text(citation.get("study_id"), "citation study_id") != study_id):
+                    or _canonical_text(citation.get("study_id"), "citation study_id") != study_id
+                    or _source_anchor(
+                        citation.get(
+                            "source_retained_file_sha256",
+                            _LEGACY_SOURCE_ANCHOR,
+                        ),
+                        "citation source_retained_file_sha256",
+                    ) != source_retained_file_sha256):
                 raise ValidationError("literature artifacts do not provide consistent claim, source, and study coverage")
             citation_claim_sha = require_sha256(
                 citation.get("extraction_claim_sha256"), "citation extraction_claim_sha256"
             )
-            if citation_claim_sha != _extraction_claim_payload_sha256(source_id, normalized_record):
+            if citation_claim_sha != _extraction_claim_payload_sha256(
+                source_id, normalized_record, source_retained_file_sha256
+            ):
                 raise ValidationError("citation verification does not bind the exact extracted claim payload")
             verdict, overall = citation.get("verdict"), study_bias.get("overall_judgment")
             layer = normalized_record["epistemic_layer"]
@@ -201,6 +229,7 @@ def create_evidence_map(
                 })
             claims.append({
                 "extraction_id": extraction_id, "study_id": study_id, "source_id": source_id,
+                "source_retained_file_sha256": source_retained_file_sha256,
                 "extracted_evidence_location": extracted_location,
                 "extraction_claim_sha256": citation_claim_sha,
                 "claim_text": normalized_record["claim_text"], "epistemic_layer": layer,

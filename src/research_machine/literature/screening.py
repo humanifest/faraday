@@ -37,6 +37,12 @@ def create_screening(snapshot_path: Path, expected_sha256: str, review: dict[str
     ]
     if len(set(source_ids)) != len(source_ids):
         raise ValidationError("snapshot has duplicate source IDs")
+    source_hashes: dict[str, str] = {}
+    for source in sources:
+        source_id = _canonical_text(source.get("source_id"), "source_id")
+        source_hashes[source_id] = require_sha256(
+            source.get("retained_file_sha256"), "retained_file_sha256"
+        )
     if not isinstance(review, dict) or set(review) != {"reviewer", "decisions"}:
         raise ValidationError("screening review requires exactly reviewer and decisions")
     reviewer = _canonical_text(review["reviewer"], "reviewer")
@@ -74,13 +80,19 @@ def create_screening(snapshot_path: Path, expected_sha256: str, review: dict[str
         if item["decision"] != "unresolved" and not refs:
             raise ValidationError("include/exclude decisions require at least one criterion reference")
         by_id[source_id] = {
-            **item, "source_id": source_id, "reason": reason, "criterion_refs": refs
+            **item,
+            "source_id": source_id,
+            "source_retained_file_sha256": source_hashes[source_id],
+            "reason": reason,
+            "criterion_refs": refs,
         }
     if set(by_id) != set(source_ids):
         raise ValidationError("screening decisions must cover exactly the snapshot source IDs")
     groups: dict[str, list[str]] = {}
     for source in sources:
-        digest = _text(source.get("retained_file_sha256"), "retained_file_sha256")
+        digest = require_sha256(
+            source.get("retained_file_sha256"), "retained_file_sha256"
+        )
         groups.setdefault(digest, []).append(
             _canonical_text(source["source_id"], "source_id")
         )

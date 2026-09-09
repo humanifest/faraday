@@ -884,17 +884,27 @@ cannot mint padded provenance handles for downstream review. Screening reviewer
 text, pinned source IDs, decision source IDs, reasons, and criterion references
 must be canonical without surrounding whitespace before coverage and duplicate
 checks, so whitespace padding cannot create a second apparent screening decision
-or criterion citation. The trusted snapshot hash supplied to screening must be a
-canonical lowercase SHA-256 digest before it can pin the source bytes. Downstream
-extraction and synthesis-planning commands apply the same canonical hash
-contract when they pin a screening record.
+or criterion citation. Version 2 screening decisions also retain each source's
+exact snapshot `retained_file_sha256`. Extraction preserves that source-byte
+anchor by source review; citation verification includes it in each reviewed
+claim and, for newly anchored records, in the compact extracted-claim payload
+digest; evidence maps replay the same anchor before joining claims and expose it
+to synthesis and effect preparation. Legacy chains without the anchor remain
+readable as `legacy_missing`, but they are not treated as hash-anchored
+source-byte provenance. This still does not mean Faraday has interpreted the
+source text or verified a cited passage. The trusted snapshot hash supplied to
+screening must be a canonical lowercase SHA-256 digest before it can pin the
+source bytes. Downstream extraction and synthesis-planning commands apply the
+same canonical hash contract when they pin a screening record.
 
 Downstream literature evidence maps retain the extraction location, independent
 citation-review location and rationale, and study-level bias-domain judgments
-with their cited locations for every mapped claim. Citation verification also
-binds a compact SHA-256 over each exact extracted claim payload, and evidence
-maps replay that payload digest before preserving it for qualitative synthesis
-and quantitative effect preparation. Qualitative synthesis now requires the
+with their cited locations for every mapped claim, plus the retained source-file
+hash when the chain was produced by anchored screening. Citation verification
+also binds a compact SHA-256 over each exact extracted claim payload, including
+the retained source-file hash for new anchored records, and evidence maps replay
+that payload digest before preserving it for qualitative synthesis and
+quantitative effect preparation. Qualitative synthesis now requires the
 extraction source set to match the synthesis plan's frozen included sources, and
 preserves those provenance anchors instead of carrying only a ceiling label.
 Trusted extraction, citation-verification, bias-assessment, and
