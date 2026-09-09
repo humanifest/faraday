@@ -685,7 +685,12 @@ protocol-gate coverage, passed-gate output evidence, prerequisite satisfaction,
 run validity, and final scientific-evidence eligibility. Gate IDs and
 prerequisite references must also be nonblank, unique, and canonical without
 surrounding whitespace before package verification accepts the run, so malformed
-package metadata cannot survive independent verification. Structured
+package metadata cannot survive independent verification. Packaged run output
+artifact declarations are replayed before any gate can cite them: locators,
+digests, media types, sizes, and metadata shape must remain canonical,
+nonnegative where applicable, and duplicate-free. This prevents a package from
+anchoring scientific checks to ambiguous, padded, or duplicated output handles
+while keeping the manifest hashes self-consistent. Structured
 protocol-deviation disclosure metadata is also checked: legacy silence remains
 ineligible, explicit no-deviation declarations must retain their interpretation
 boundary, declared departures must preserve exact typed fields, and every

@@ -364,7 +364,9 @@ def test_replication_verify_rejects_noncanonical_manifest_file_hash(
     "privacy_mode", "locator_policy", "limitations", "ethics_summary",
     "instructions", "dataset_summary", "dataset_cycle", "run_eligibility",
     "blank_prerequisite", "padded_prerequisite", "quality_gate_duplicate_after_trim",
-    "protocol_gate_duplicate", "protocol_gate_padded",
+    "protocol_gate_duplicate", "protocol_gate_padded", "output_duplicate_locator",
+    "output_duplicate_digest", "output_padded_locator", "output_bad_hash",
+    "output_negative_size", "output_bad_metadata", "output_padded_media_type",
 ])
 def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Path, mutation, capsys) -> None:
     service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
@@ -563,6 +565,42 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         duplicate = dict(runs[0]["quality_gates"][0])
         duplicate["gate_id"] = f" {duplicate['gate_id']} "
         runs[0]["quality_gates"].append(duplicate)
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation in {
+        "output_duplicate_locator",
+        "output_duplicate_digest",
+        "output_padded_locator",
+        "output_bad_hash",
+        "output_negative_size",
+        "output_bad_metadata",
+        "output_padded_media_type",
+    }:
+        runs_path = package / "runs.json"
+        runs = json.loads(runs_path.read_text())
+        artifact = runs[0]["output_artifacts"][0]
+        if mutation == "output_duplicate_locator":
+            duplicate = dict(artifact)
+            duplicate["sha256"] = "f" * 64
+            runs[0]["output_artifacts"].append(duplicate)
+        elif mutation == "output_duplicate_digest":
+            duplicate = dict(artifact)
+            duplicate["locator"] = "duplicate-digest.json"
+            runs[0]["output_artifacts"].append(duplicate)
+        elif mutation == "output_padded_locator":
+            artifact["locator"] = f" {artifact['locator']} "
+        elif mutation == "output_bad_hash":
+            artifact["sha256"] = "A" * 64
+        elif mutation == "output_negative_size":
+            artifact["size_bytes"] = -1
+        elif mutation == "output_bad_metadata":
+            artifact["metadata"] = []
+        elif mutation == "output_padded_media_type":
+            artifact["media_type"] = f" {artifact['media_type']} "
         runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
         manifest_path = package / "package-manifest.json"
         manifest = json.loads(manifest_path.read_text())
@@ -1129,7 +1167,7 @@ def test_replication_package_verifies_canary_target_gate_metadata(
     elif mutation == "gate_evidence_mismatch":
         gate["details"]["evidence_sha256"] = "f" * 64
         runs[0]["output_artifacts"].append({
-            "locator": "[redacted: obtain from authorized source]",
+            "locator": "alternate-canary-output.json",
             "sha256": "f" * 64,
             "size_bytes": None,
             "media_type": "application/json",

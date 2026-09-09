@@ -29,6 +29,7 @@ from research_machine.application.policies import (
     require_sha256,
     require_canonical_text,
     require_unique_canonical_text_list,
+    validate_dataset_artifacts,
     validate_quality_gates,
 )
 from research_machine.application.protocol_integrity import protocol_commitment
@@ -1350,6 +1351,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     raise ValidationError(
                         f"package run {run.run_id} drops synthetic status from an input"
                     )
+                output_artifacts = validate_dataset_artifacts(run.output_artifacts)
                 quality_gates = validate_quality_gates(run.quality_gates)
                 gate_by_id = {item.gate_id: item for item in quality_gates}
                 if len(gate_by_id) != len(quality_gates):
@@ -1364,7 +1366,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     item.required and item.status is not QualityGateStatus.PASSED
                     for item in quality_gates
                 )
-                output_hashes = {item.sha256 for item in run.output_artifacts}
+                output_hashes = {item.sha256 for item in output_artifacts}
                 for gate in quality_gates:
                     if gate.status is QualityGateStatus.PASSED:
                         if gate.details.get("evidence_sha256") not in output_hashes:
@@ -1375,52 +1377,52 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
-                        output_artifacts=run.output_artifacts,
+                        output_artifacts=output_artifacts,
                     )
                     _validate_instrument_inspection_gate_metadata(
                         run_id=run.run_id,
                         gate=gate,
-                        output_artifacts=run.output_artifacts,
+                        output_artifacts=output_artifacts,
                     )
                     _validate_stream_timing_assessment_gate_metadata(
                         run_id=run.run_id,
                         gate=gate,
-                        output_artifacts=run.output_artifacts,
+                        output_artifacts=output_artifacts,
                     )
                     _validate_temporal_order_assessment_gate_metadata(
                         run_id=run.run_id,
                         gate=gate,
-                        output_artifacts=run.output_artifacts,
+                        output_artifacts=output_artifacts,
                     )
                     _validate_canary_target_assessment_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
-                        output_artifacts=run.output_artifacts,
+                        output_artifacts=output_artifacts,
                     )
                     _validate_control_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
-                        output_artifacts=run.output_artifacts,
+                        output_artifacts=output_artifacts,
                     )
                     _validate_measurement_validity_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
-                        output_artifacts=run.output_artifacts,
+                        output_artifacts=output_artifacts,
                     )
                     _validate_missingness_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
-                        output_artifacts=run.output_artifacts,
+                        output_artifacts=output_artifacts,
                     )
                     _validate_causal_assumption_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
-                        output_artifacts=run.output_artifacts,
+                        output_artifacts=output_artifacts,
                     )
                     prerequisites = gate.details.get("prerequisite_gate_ids", [])
                     if not isinstance(prerequisites, list) or any(
@@ -1467,7 +1469,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 deviation_disclosure = _validate_protocol_deviation_disclosure_metadata(
                     run_id=run.run_id,
                     metadata=run.metadata,
-                    output_artifacts=run.output_artifacts,
+                    output_artifacts=output_artifacts,
                 )
                 sample_size_plan_check = _validate_sample_size_plan_check_metadata(
                     protocol=protocol,
