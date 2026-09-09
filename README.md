@@ -817,9 +817,9 @@ the original record and append an artifact-backed status event:
 ```
 
 Statuses are `active`, `qualified`, `withdrawn`, and terminal `retracted`.
-Status, evidence, event, predecessor, review-artifact locator/root, creator,
-and retained conclusion-ceiling handles must be canonical without surrounding
-whitespace; every later event must name the exact latest event with
+Status, evidence, event, predecessor, reason, review-artifact locator/root,
+creator, and retained conclusion-ceiling handles must be canonical without
+surrounding whitespace; every later event must name the exact latest event with
 `--supersedes-event`. Qualified, withdrawn, and retracted evidence remains in
 the report and history but cannot contribute to current rigor capabilities or
 conclusion ceilings. Faraday verifies the local review artifact and chronology;

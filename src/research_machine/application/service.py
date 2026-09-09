@@ -5060,13 +5060,16 @@ class ResearchService:
                 "evidence status artifact verification failed: "
                 + ", ".join(item["code"] for item in report.findings)
             )
+        reason = require_canonical_text(
+            command.reason, "evidence status reason"
+        )
         event = EvidenceStatusEvent(
             event_id=event_id or f"evidence-status-{self.token()}",
             sequence=len(prior) + 1,
             evidence_id=evidence.evidence_id,
             status=status,
             effective_at=effective_at,
-            reason=require_text(command.reason, "evidence status reason"),
+            reason=reason,
             review_artifact_locator=review_artifact_locator,
             review_artifact_sha256=artifact_hash,
             review_artifact_root=str(

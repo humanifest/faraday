@@ -596,6 +596,7 @@ def test_evidence_status_chain_requires_exact_predecessor_and_retraction_is_term
         ("evidence_id", "{evidence_id} ", "evidence_id must be canonical"),
         ("status", " qualified", "evidence status must be canonical"),
         ("event_id", " evidence-status-manual", "event_id must be canonical"),
+        ("reason", " Independent review classified this evidence as qualified. ", "evidence status reason must be canonical"),
         ("review_artifact_locator", " qualified.txt", "review_artifact_locator must be canonical"),
         ("review_artifact_root", "{root} ", "review_artifact_root must be canonical"),
     ],
@@ -680,6 +681,7 @@ def test_evidence_status_reads_fail_closed_on_semantic_chain_tampering(
         ("review_artifact_locator", " qualified.txt", "review artifact locator must be canonical"),
         ("review_artifact_root", "{root} ", "review artifact root must be canonical"),
         ("created_by", " test-researcher", "evidence status created_by must be canonical"),
+        ("reason", " Independent review classified this evidence as qualified. ", "evidence status reason must be canonical"),
         ("conclusion_ceiling", " Append-only evidence interpretation status.", "evidence status conclusion ceiling must be canonical"),
     ],
 )

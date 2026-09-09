@@ -95,7 +95,7 @@ def validate_evidence_status_event_chains(
                 raise ValidationError(
                     f"evidence {evidence_id} status effective time moves backward"
                 )
-            require_text(event.reason, "evidence status reason")
+            _canonical_text(event.reason, "evidence status reason")
             review_artifact_locator = _canonical_text(
                 event.review_artifact_locator, "review artifact locator"
             )
