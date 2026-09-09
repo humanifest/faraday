@@ -913,6 +913,7 @@ class ActionRecommendation(Serializable):
     selected_action_ids_by_lane: dict[str, str] = field(default_factory=dict)
     lanes: list[ActionLane] = field(default_factory=list)
     completed_action_ids: list[str] = field(default_factory=list)
+    recommendation_payload_sha256: str = ""
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "ActionRecommendation":
@@ -927,6 +928,7 @@ class ActionRecommendation(Serializable):
         copied["lanes"] = [
             ActionLane.from_dict(item) for item in copied.get("lanes", [])
         ]
+        copied.setdefault("recommendation_payload_sha256", "")
         return cls(**copied)
 
 

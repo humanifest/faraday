@@ -1431,8 +1431,9 @@ generated or replayed.
   manifest establish an explicitly attested external-freeze accession.
 - Prevent failed or synthetic runs from becoming confirmatory evidence.
 - Rank feasible, safety-approved next actions with an explicit utility function,
-  retained signed score components, and authoritative read-time replay from the
-  stored candidates and weights.
+  retained signed score components, a service-generated recommendation payload
+  commitment, and authoritative read-time replay from the stored candidates and
+  weights.
 - Attach evidence only after a hypothesis has been reviewed and activated;
   confirmatory evidence must trace to an eligible recorded run.
 - Bind admitted scientific evidence to the referenced claim’s immutable
@@ -1665,11 +1666,16 @@ components so the tradeoff remains inspectable. Authoritative recommendation
 reads replay the selected action, lane selections, ranked utilities, and signed
 components from the stored candidates, lanes, dependencies, completed actions,
 weights, and hypothesis-discrimination targets; mismatches fail before list,
-inquiry display, or synthesis can use a stale score record. If the top utility is tied,
-Faraday rejects the selection until the utility model or candidate estimates
-distinguish the actions. The resulting recommendation remains an immutable,
-ledgered record; it does not establish scientific independence or satisfy a
-promotion gate.
+inquiry display, or synthesis can use a stale score record. New recommendations
+also retain a service-generated `recommendation_payload_sha256` over the complete
+immutable recommendation outside that field itself, so a canonical rewrite of a
+candidate rationale, hypothesis-discrimination target, lane context, completed
+dependency, weight, score, or selected action fails before it can influence later
+reports. Legacy uncommitted recommendations remain readable only as legacy
+records and are not silently upgraded. If the top utility is tied, Faraday
+rejects the selection until the utility model or candidate estimates distinguish
+the actions. The resulting recommendation remains an immutable, ledgered record;
+it does not establish scientific independence or satisfy a promotion gate.
 
 Use `cross-lane-lesson record` before an observed machine or substantive
 failure changes later work. A lesson must preserve the origin hash, strongest

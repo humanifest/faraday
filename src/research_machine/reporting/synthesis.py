@@ -850,6 +850,11 @@ def _recommendation_summary(
             "preferred explanation."
         )
     latest = recommendations[-1]
+    commitment = (
+        latest.recommendation_payload_sha256
+        if latest.recommendation_payload_sha256
+        else "legacy_missing"
+    )
     candidates_by_id = {
         candidate.action_id: candidate for candidate in latest.candidates
     }
@@ -882,6 +887,8 @@ def _recommendation_summary(
             )
             + ". Utility components: "
             + (score_summaries or "not available")
+            + ". Payload commitment: "
+            + commitment
             + "."
         )
     selected = candidates_by_id.get(latest.selected_action_id)
@@ -908,6 +915,8 @@ def _recommendation_summary(
         )
         + ". Utility components: "
         + score_summary
+        + ". Payload commitment: "
+        + commitment
         + "."
     )
 

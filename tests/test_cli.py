@@ -129,6 +129,7 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
     )
     recommendation = result_from(capsys)
     assert recommendation["selection_mode"] == "portfolio"
+    assert len(recommendation["recommendation_payload_sha256"]) == 64
     assert recommendation["selected_action_ids_by_lane"] == {
         "machine": "machine-audit",
         "science": "science-falsifier",
@@ -809,6 +810,7 @@ def test_cli_records_general_protocol_run_and_next_action(
     )
     recommendation = result_from(capsys)
     assert recommendation["selected_action_id"] == "independent-check"
+    assert len(recommendation["recommendation_payload_sha256"]) == 64
     assert recommendation["ranked_scores"][0]["weighted_components"] == {
         "expected_discrimination": 0.9,
         "uncertainty_reduction": 0.4,

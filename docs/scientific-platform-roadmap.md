@@ -42,8 +42,13 @@ methods without changing its epistemic rules or canonical state.
   recommendation reads now replay the selected action, lane selections, ranked
   utilities, and signed components from the stored candidates, lanes,
   dependencies, completed actions, weights, and hypothesis-discrimination
-  targets before list, inquiry display, or synthesis can trust them. The
-  selected action must have a unique highest
+  targets before list, inquiry display, or synthesis can trust them. New
+  recommendations also carry a service-generated payload commitment over the
+  complete immutable recommendation, excluding only that commitment field, so
+  canonical rewrites of rationales, discriminator targets, lane context,
+  dependencies, weights, scores, or selections are detected even when utility
+  replay still matches. Legacy uncommitted recommendations remain visible
+  without being silently upgraded. The selected action must have a unique highest
   utility; tied top candidates require a refined utility model or candidate
   estimates before any recommendation is recorded.
 - Cross-lane process lessons preserve observed failures without rewriting prior

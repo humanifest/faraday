@@ -120,6 +120,7 @@ def test_portfolio_selects_one_action_per_active_lane_without_starvation(
     )
 
     assert recommendation.selection_mode == "portfolio"
+    assert len(recommendation.recommendation_payload_sha256) == 64
     assert recommendation.selected_action_ids_by_lane == {
         "machine": "machine-high",
         "theory": "theory-best",
@@ -145,6 +146,10 @@ def test_portfolio_selects_one_action_per_active_lane_without_starvation(
     )
     assert "machine: utility 1.365" in synthesis
     assert "expected_discrimination 1" in synthesis
+    assert (
+        "Payload commitment: " + recommendation.recommendation_payload_sha256
+        in synthesis
+    )
 
 
 def test_hypothesis_discrimination_targets_are_retained_and_visible(
@@ -178,6 +183,7 @@ def test_hypothesis_discrimination_targets_are_retained_and_visible(
             ],
         )
     )
+    assert len(recommendation.recommendation_payload_sha256) == 64
 
     selected = next(
         item
@@ -196,14 +202,14 @@ def test_hypothesis_discrimination_targets_are_retained_and_visible(
     payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
     payload["candidates"][0]["hypothesis_discrimination_targets"][0][
         "would_weaken_if"
-    ] = " rewritten after scoring "
+    ] = "A canonical post-score rewrite would weaken the target hypothesis."
     recommendation_file.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     with pytest.raises(
         ValidationError,
-        match="hypothesis_discrimination_target would_weaken_if",
+        match="payload no longer matches its service-generated commitment",
     ):
         service.list_recommendations()
 

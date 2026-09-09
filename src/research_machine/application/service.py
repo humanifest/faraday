@@ -115,6 +115,7 @@ from research_machine.replication.package import export_replication_package
 from research_machine.selection import (
     rank_actions,
     rank_actions_by_lane,
+    recommendation_payload_sha256,
     verify_recommendation_score_replay,
 )
 
@@ -4181,6 +4182,12 @@ class ResearchService:
             ranked_scores=scores,
             weights=weights,
         )
+        recommendation = replace(
+            recommendation,
+            recommendation_payload_sha256=recommendation_payload_sha256(
+                recommendation
+            ),
+        )
         self.repository.save_recommendation(resolved, recommendation)
         self._event(
             resolved,
@@ -4245,6 +4252,12 @@ class ResearchService:
             selected_action_ids_by_lane=selected_by_lane,
             lanes=lanes,
             completed_action_ids=completed,
+        )
+        recommendation = replace(
+            recommendation,
+            recommendation_payload_sha256=recommendation_payload_sha256(
+                recommendation
+            ),
         )
         self.repository.save_recommendation(resolved, recommendation)
         self._event(

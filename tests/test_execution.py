@@ -2020,6 +2020,7 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
     )
 
     assert recommendation.selected_action_id == "decisive-proof-check"
+    assert len(recommendation.recommendation_payload_sha256) == 64
     assert [score.action_id for score in recommendation.ranked_scores] == [
         "decisive-proof-check",
         "cheap-ambiguous",
@@ -2041,17 +2042,23 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
     assert "ambiguity_risk_penalty -0.075" in synthesis
     assert "Discrimination targets: " in synthesis
     assert f"{hypothesis_id}: A separately implemented checker" in synthesis
+    assert (
+        "Payload commitment: " + recommendation.recommendation_payload_sha256
+        in synthesis
+    )
 
     recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
     payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
-    payload["candidates"][0]["hypothesis_discrimination_targets"] = []
+    payload["candidates"][0]["hypothesis_discrimination_targets"][0][
+        "would_weaken_if"
+    ] = "A canonical rewrite after seeing the recommendation."
     recommendation_file.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     with pytest.raises(
         ValidationError,
-        match="must retain hypothesis discrimination targets",
+        match="payload no longer matches its service-generated commitment",
     ):
         service.list_recommendations()
 

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     ActionCandidate,
@@ -170,6 +173,32 @@ def rank_actions_by_lane(
     return rankings
 
 
+def recommendation_payload_sha256(recommendation: ActionRecommendation) -> str:
+    """Commit the immutable recommendation while excluding the commitment itself."""
+    payload = recommendation.to_dict()
+    payload.pop("recommendation_payload_sha256", None)
+    return hashlib.sha256(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def validate_recommendation_payload_commitment(
+    recommendation: ActionRecommendation,
+) -> str | None:
+    retained = recommendation.recommendation_payload_sha256
+    if retained == "":
+        return None
+    expected = recommendation_payload_sha256(recommendation)
+    if retained != expected:
+        raise ValidationError(
+            f"recommendation {recommendation.recommendation_id} payload no "
+            "longer matches its service-generated commitment"
+        )
+    return retained
+
+
 def verify_recommendation_score_replay(
     recommendation: ActionRecommendation,
 ) -> None:
@@ -227,3 +256,4 @@ def verify_recommendation_score_replay(
             f"recommendation {recommendation.recommendation_id} ranked scores "
             "do not replay from stored candidates and weights"
         )
+    validate_recommendation_payload_commitment(recommendation)
