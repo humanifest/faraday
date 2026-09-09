@@ -1429,6 +1429,13 @@ false scientific-evidence, conclusion-authorization, and
 publication-authorization flags. Quantitative plans fail closed until effect-size
 extraction, variance checks, heterogeneity diagnostics, and validated pooling are
 available.
+The qualitative synthesis artifact now replays its own non-authority and summary
+boundary before it is written: false scientific-evidence, conclusion, and
+publication authorization; claim and independent-study counts; the frozen
+minimum-study requirement status; deviation-derived review status; directional
+and interpretive-ceiling counts; and bounded-conclusion wording must all derive
+from retained claims and deviation status rather than being trusted summary
+fields.
 The quantitative branch begins with `research literature prepare-effects`. It
 requires canonical lowercase trusted hashes for the frozen quantitative plan and
 exact evidence-map lineage, then records exactly one effect measure, standard

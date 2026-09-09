@@ -1,4 +1,5 @@
 """Synthetic qualitative synthesis verifies commitments without claiming truth."""
+import copy
 import hashlib
 import json
 
@@ -6,7 +7,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.synthesis import execute_qualitative_synthesis
+from research_machine.literature.synthesis import (
+    execute_qualitative_synthesis,
+    validate_literature_synthesis_boundary,
+)
 
 
 def write_json(path, value):
@@ -169,6 +173,59 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     assert result["status"] == "deviation_review_required"
     assert result["deviations"] == value["deviations"]
     assert result["inputs"]["synthesis_deviations_sha256"] == deviations_sha
+
+
+@pytest.mark.parametrize("tamper", [
+    "scientific-authority",
+    "conclusion-authority",
+    "publication-authority",
+    "limitations-missing",
+    "deviation-status",
+    "claim-count",
+    "study-count",
+    "minimum-met",
+    "status-drift",
+    "bounded-conclusion",
+    "direction-count",
+    "ceiling-count",
+    "claim-provenance",
+])
+def test_literature_synthesis_boundary_replays_output_summaries(tmp_path, tamper):
+    plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(tmp_path)
+    result = execute_qualitative_synthesis(
+        plan, plan_sha, extraction, evidence_map, map_sha,
+        deviations, deviations_sha, tmp_path / "synthesis",
+    )
+    candidate = copy.deepcopy(result)
+    if tamper == "scientific-authority":
+        candidate["scientific_evidence_eligible"] = True
+    elif tamper == "conclusion-authority":
+        candidate["conclusion_authorized"] = True
+    elif tamper == "publication-authority":
+        candidate["publication_authorized"] = True
+    elif tamper == "limitations-missing":
+        candidate["limitations"] = []
+    elif tamper == "deviation-status":
+        candidate["deviation_status"] = "review_complete"
+    elif tamper == "claim-count":
+        candidate["claim_count"] = 2
+    elif tamper == "study-count":
+        candidate["independent_study_count"] = 2
+    elif tamper == "minimum-met":
+        candidate["minimum_study_requirement_met"] = False
+    elif tamper == "status-drift":
+        candidate["status"] = "qualitative_synthesis_recorded"
+        candidate["deviation_status"] = "retrospective_or_uncertain_deviation_review_required"
+    elif tamper == "bounded-conclusion":
+        candidate["bounded_conclusion"] = "Synthetic claim supported."
+    elif tamper == "direction-count":
+        candidate["result_direction_counts"]["supports"] = 1
+    elif tamper == "ceiling-count":
+        candidate["interpretive_ceiling_counts"]["reviewed_source_claim"] = 1
+    elif tamper == "claim-provenance":
+        candidate["claims"][0]["citation_checked_location"] = " page 1 "
+    with pytest.raises(ValidationError):
+        validate_literature_synthesis_boundary(candidate)
 
 
 def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_path):

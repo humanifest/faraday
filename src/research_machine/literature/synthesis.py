@@ -17,6 +17,18 @@ from research_machine.literature.snapshot import _text
 from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
+_DEVIATION_STATUSES = {
+    "no_deviations_declared",
+    "prospective_deviations_recorded",
+    "retrospective_or_uncertain_deviation_review_required",
+}
+_RESULT_DIRECTIONS = ("supports", "weakens", "mixed", "null", "not_applicable")
+_INTERPRETIVE_CEILINGS = (
+    "reviewed_source_claim",
+    "qualified_source_claim",
+    "source_hypothesis_only",
+    "insufficient_for_conclusion",
+)
 _EXTRACTION_RECORD_FIELDS = {
     "extraction_id",
     "study_id",
@@ -120,6 +132,124 @@ def _validate_extraction_boundary_and_records(
     if not extracted_claims:
         raise ValidationError("qualitative synthesis requires extracted claim records")
     return source_ids, extracted_claims
+
+
+def validate_literature_synthesis_boundary(synthesis: dict[str, Any]) -> None:
+    """Replay qualitative synthesis non-authority and retained summary boundaries."""
+    if synthesis.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("literature synthesis must remain scientifically ineligible")
+    if synthesis.get("conclusion_authorized") is not False:
+        raise ValidationError("literature synthesis must not authorize conclusions")
+    if synthesis.get("publication_authorized") is not False:
+        raise ValidationError("literature synthesis must not authorize publication claims")
+    limitations = synthesis.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("literature synthesis requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"literature synthesis limitation {index + 1}")
+
+    deviation_status = synthesis.get("deviation_status")
+    if deviation_status not in _DEVIATION_STATUSES:
+        raise ValidationError("literature synthesis deviation_status is invalid")
+    minimum = synthesis.get("minimum_independent_studies")
+    if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
+        raise ValidationError("literature synthesis minimum_independent_studies is invalid")
+
+    claims = synthesis.get("claims")
+    if not isinstance(claims, list) or not claims:
+        raise ValidationError("literature synthesis requires retained claims")
+    seen_claims: set[str] = set()
+    study_ids: set[str] = set()
+    for claim in claims:
+        if not isinstance(claim, dict):
+            raise ValidationError("literature synthesis claim is malformed")
+        extraction_id = _canonical_text(claim.get("extraction_id"), "literature synthesis extraction_id")
+        if extraction_id in seen_claims:
+            raise ValidationError("literature synthesis claim IDs must be unique")
+        seen_claims.add(extraction_id)
+        study_ids.add(_canonical_text(claim.get("study_id"), "literature synthesis study_id"))
+        _canonical_text(claim.get("source_id"), "literature synthesis source_id")
+        require_sha256(
+            claim.get("extraction_claim_sha256"),
+            "literature synthesis extraction_claim_sha256",
+        )
+        _source_anchor(
+            claim.get("source_retained_file_sha256", _LEGACY_SOURCE_ANCHOR),
+            "literature synthesis source_retained_file_sha256",
+        )
+        for field in (
+            "extracted_evidence_location",
+            "citation_checked_location",
+            "citation_rationale",
+            "claim_text",
+            "epistemic_layer",
+            "uncertainty",
+        ):
+            _canonical_text(claim.get(field), f"literature synthesis {field}")
+        if claim.get("result_direction") not in _RESULT_DIRECTIONS:
+            raise ValidationError("literature synthesis result direction is invalid")
+        if claim.get("interpretive_ceiling") not in _INTERPRETIVE_CEILINGS:
+            raise ValidationError("literature synthesis interpretive ceiling is invalid")
+        if claim.get("citation_verdict") not in {"supported", "partially_supported"}:
+            raise ValidationError("literature synthesis citation verdict is invalid")
+        if claim.get("risk_of_bias") not in {"low", "some_concerns", "high", "unclear"}:
+            raise ValidationError("literature synthesis risk_of_bias is invalid")
+        domains = claim.get("bias_domain_judgments")
+        if not isinstance(domains, list) or not domains:
+            raise ValidationError("literature synthesis requires retained bias-domain judgments")
+        seen_domains: set[str] = set()
+        for domain in domains:
+            if not isinstance(domain, dict) or set(domain) != {"domain", "judgment", "evidence_locations"}:
+                raise ValidationError("literature synthesis bias-domain provenance is malformed")
+            name = _canonical_text(domain.get("domain"), "literature synthesis bias-domain")
+            if name in seen_domains:
+                raise ValidationError("literature synthesis bias-domain names must be unique")
+            seen_domains.add(name)
+            if domain.get("judgment") not in {"low", "some_concerns", "high", "unclear", "not_applicable"}:
+                raise ValidationError("literature synthesis bias-domain judgment is invalid")
+            locations = domain.get("evidence_locations")
+            if (not isinstance(locations, list)
+                    or any(not isinstance(item, str) or not item.strip() or item != item.strip()
+                           for item in locations)
+                    or (domain.get("judgment") != "not_applicable" and not locations)):
+                raise ValidationError("literature synthesis bias-domain locations are invalid")
+
+    claim_count = synthesis.get("claim_count")
+    if isinstance(claim_count, bool) or claim_count != len(claims):
+        raise ValidationError("literature synthesis claim_count does not replay from claims")
+    independent_study_count = synthesis.get("independent_study_count")
+    if isinstance(independent_study_count, bool) or independent_study_count != len(study_ids):
+        raise ValidationError("literature synthesis independent_study_count does not replay from claims")
+    minimum_met = len(study_ids) >= minimum
+    if synthesis.get("minimum_study_requirement_met") is not minimum_met:
+        raise ValidationError("literature synthesis minimum_study_requirement_met does not replay")
+    expected_status = (
+        "deviation_review_required"
+        if deviation_status == "retrospective_or_uncertain_deviation_review_required"
+        else "qualitative_synthesis_recorded" if minimum_met else "insufficient_independent_studies"
+    )
+    if synthesis.get("status") != expected_status:
+        raise ValidationError("literature synthesis status does not replay from deviation and study counts")
+    bounded_conclusion = synthesis.get("bounded_conclusion")
+    if not isinstance(bounded_conclusion, str) or not bounded_conclusion.strip():
+        raise ValidationError("literature synthesis requires a bounded conclusion boundary")
+    if minimum_met and "No automated substantive conclusion" not in bounded_conclusion:
+        raise ValidationError("literature synthesis must not author an automated substantive conclusion")
+    if not minimum_met and not bounded_conclusion.startswith("No conclusion:"):
+        raise ValidationError("literature synthesis insufficient-study conclusion boundary is invalid")
+
+    expected_directions = {
+        value: sum(claim.get("result_direction") == value for claim in claims)
+        for value in _RESULT_DIRECTIONS
+    }
+    if synthesis.get("result_direction_counts") != expected_directions:
+        raise ValidationError("literature synthesis result_direction_counts do not replay from claims")
+    expected_ceilings = {
+        value: sum(claim.get("interpretive_ceiling") == value for claim in claims)
+        for value in _INTERPRETIVE_CEILINGS
+    }
+    if synthesis.get("interpretive_ceiling_counts") != expected_ceilings:
+        raise ValidationError("literature synthesis interpretive_ceiling_counts do not replay from claims")
 
 
 def execute_qualitative_synthesis(
@@ -284,10 +414,9 @@ def execute_qualitative_synthesis(
         raise ValidationError("frozen synthesis minimum_independent_studies is invalid")
     minimum_met = len(study_ids) >= minimum
     directions = {value: sum(claim["result_direction"] == value for claim in normalized_claims)
-                  for value in ("supports", "weakens", "mixed", "null", "not_applicable")}
+                  for value in _RESULT_DIRECTIONS}
     ceilings = {value: sum(claim["interpretive_ceiling"] == value for claim in normalized_claims)
-                for value in ("reviewed_source_claim", "qualified_source_claim",
-                              "source_hypothesis_only", "insufficient_for_conclusion")}
+                for value in _INTERPRETIVE_CEILINGS}
     result = {
         "literature_synthesis_version": 1,
         "inputs": {"synthesis_plan_sha256": plan_sha, "extraction_sha256": extraction_sha,
@@ -321,6 +450,7 @@ def execute_qualitative_synthesis(
             "Execution requires an explicit plan-bound deviation declaration; retrospective or unknown-timing departures force review status.",
         ],
     }
+    validate_literature_synthesis_boundary(result)
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("literature synthesis output already exists")
