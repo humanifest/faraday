@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from research_machine.domain.models import (
     ActionCandidate,
     ActionRecommendation,
+    ActionScore,
     Claim,
     CrossLaneLesson,
     DatasetManifest,
@@ -838,6 +839,7 @@ def _recommendation_summary(
     candidates_by_id = {
         candidate.action_id: candidate for candidate in latest.candidates
     }
+    scores_by_id = {score.action_id: score for score in latest.ranked_scores}
     if latest.selection_mode == "portfolio":
         selected = "; ".join(
             f"{lane_id}: {action_id}"
@@ -848,16 +850,28 @@ def _recommendation_summary(
             for lane_id, action_id in latest.selected_action_ids_by_lane.items()
             if action_id in candidates_by_id
         )
+        score_summaries = "; ".join(
+            f"{lane_id}: {_score_component_summary(scores_by_id[action_id])}"
+            for lane_id, action_id in latest.selected_action_ids_by_lane.items()
+            if action_id in scores_by_id
+        )
         return (
             "- Selected next actions by lane: "
             + selected
             + ". Factor plan: "
             + (factors or "not available")
+            + ". Utility components: "
+            + (score_summaries or "not available")
             + "."
         )
     selected = candidates_by_id.get(latest.selected_action_id)
     factor_summary = (
         _action_factor_summary(selected) if selected is not None else "not available"
+    )
+    score_summary = (
+        _score_component_summary(scores_by_id[latest.selected_action_id])
+        if latest.selected_action_id in scores_by_id
+        else "not available"
     )
     return (
         "- Selected next action: "
@@ -866,8 +880,29 @@ def _recommendation_summary(
         + latest.rationale
         + " Factor plan: "
         + factor_summary
+        + ". Utility components: "
+        + score_summary
         + "."
     )
+
+
+def _score_component_summary(score: ActionScore) -> str:
+    components = score.weighted_components
+    if not components:
+        return f"utility {score.utility:.8g}; component breakdown not recorded"
+    order = [
+        "expected_discrimination",
+        "uncertainty_reduction",
+        "cost_penalty",
+        "burden_penalty",
+        "safety_risk_penalty",
+        "ambiguity_risk_penalty",
+    ]
+    parts = [f"utility {score.utility:.8g}"]
+    parts.extend(
+        f"{key} {components[key]:.8g}" for key in order if key in components
+    )
+    return ", ".join(parts)
 
 
 def _action_factor_summary(candidate: ActionCandidate) -> str:

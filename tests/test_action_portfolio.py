@@ -91,12 +91,26 @@ def test_portfolio_selects_one_action_per_active_lane_without_starvation(
         "theory": "theory-best",
     }
     assert recommendation.selected_action_id == "machine-high"
+    score_by_id = {
+        score.action_id: score for score in recommendation.ranked_scores
+    }
+    assert score_by_id["machine-high"].weighted_components == {
+        "expected_discrimination": 1.0,
+        "uncertainty_reduction": 0.5,
+        "cost_penalty": -0.025,
+        "burden_penalty": -0.035,
+        "safety_risk_penalty": -0.0,
+        "ambiguity_risk_penalty": -0.075,
+    }
+    assert score_by_id["machine-high"].utility == 1.365
     assert service.list_recommendations() == [recommendation]
     synthesis = service.build_synthesis()["content"]
     assert (
         "Selected next actions by lane: machine: machine-high; "
         "theory: theory-best" in synthesis
     )
+    assert "machine: utility 1.365" in synthesis
+    assert "expected_discrimination 1" in synthesis
 
 
 def test_blocked_lane_is_visible_but_not_selected(tmp_path: Path) -> None:

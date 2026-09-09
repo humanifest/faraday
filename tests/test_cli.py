@@ -133,6 +133,12 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
         "machine": "machine-audit",
         "science": "science-falsifier",
     }
+    machine_score = next(
+        score for score in recommendation["ranked_scores"]
+        if score["action_id"] == "machine-audit"
+    )
+    assert machine_score["weighted_components"]["expected_discrimination"] == 0.9
+    assert machine_score["weighted_components"]["ambiguity_risk_penalty"] == -0.075
 
 
 def test_json_cli_records_cross_lane_lesson(tmp_path: Path, capsys) -> None:
@@ -782,3 +788,11 @@ def test_cli_records_general_protocol_run_and_next_action(
     )
     recommendation = result_from(capsys)
     assert recommendation["selected_action_id"] == "independent-check"
+    assert recommendation["ranked_scores"][0]["weighted_components"] == {
+        "expected_discrimination": 0.9,
+        "uncertainty_reduction": 0.4,
+        "cost_penalty": -0.05,
+        "burden_penalty": -0.035,
+        "safety_risk_penalty": -0.0,
+        "ambiguity_risk_penalty": -0.075,
+    }

@@ -9,6 +9,27 @@ from research_machine.domain.models import (
 )
 
 
+def _weighted_components(
+    candidate: ActionCandidate, weights: SelectionWeights
+) -> dict[str, float]:
+    return {
+        "expected_discrimination": round(
+            weights.expected_discrimination * candidate.expected_discrimination, 8
+        ),
+        "uncertainty_reduction": round(
+            weights.uncertainty_reduction * candidate.uncertainty_reduction, 8
+        ),
+        "cost_penalty": round(-(weights.cost * candidate.cost), 8),
+        "burden_penalty": round(-(weights.burden * candidate.burden), 8),
+        "safety_risk_penalty": round(
+            -(weights.safety_risk * candidate.safety_risk), 8
+        ),
+        "ambiguity_risk_penalty": round(
+            -(weights.ambiguity_risk * candidate.ambiguity_risk), 8
+        ),
+    }
+
+
 def rank_actions(
     candidates: list[ActionCandidate], weights: SelectionWeights
 ) -> list[ActionScore]:
@@ -24,21 +45,16 @@ def rank_actions(
             "no action candidate has both satisfied prerequisites and safety approval"
         )
 
-    scores = [
-        ActionScore(
-            action_id=candidate.action_id,
-            utility=round(
-                weights.expected_discrimination * candidate.expected_discrimination
-                + weights.uncertainty_reduction * candidate.uncertainty_reduction
-                - weights.cost * candidate.cost
-                - weights.burden * candidate.burden
-                - weights.safety_risk * candidate.safety_risk
-                - weights.ambiguity_risk * candidate.ambiguity_risk,
-                8,
-            ),
+    scores = []
+    for candidate in eligible:
+        components = _weighted_components(candidate, weights)
+        scores.append(
+            ActionScore(
+                action_id=candidate.action_id,
+                utility=round(sum(components.values()), 8),
+                weighted_components=components,
+            )
         )
-        for candidate in eligible
-    ]
     ranked = sorted(scores, key=lambda score: (-score.utility, score.action_id))
     tied_top = [
         score.action_id for score in ranked if score.utility == ranked[0].utility

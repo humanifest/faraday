@@ -1994,8 +1994,21 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
         "decisive-proof-check",
         "cheap-ambiguous",
     ]
+    assert recommendation.ranked_scores[0].weighted_components == {
+        "expected_discrimination": 0.9,
+        "uncertainty_reduction": 0.4,
+        "cost_penalty": -0.05,
+        "burden_penalty": -0.035,
+        "safety_risk_penalty": -0.0,
+        "ambiguity_risk_penalty": -0.075,
+    }
+    assert recommendation.ranked_scores[0].utility == 1.14
     assert recommendation.candidates == candidates
     assert service.list_recommendations() == [recommendation]
+    synthesis = service.build_synthesis()["content"]
+    assert "Utility components: utility 1.14" in synthesis
+    assert "expected_discrimination 0.9" in synthesis
+    assert "ambiguity_risk_penalty -0.075" in synthesis
 
 
 def test_next_action_selection_handles_must_be_canonical(tmp_path: Path) -> None:

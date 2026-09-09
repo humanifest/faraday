@@ -856,6 +856,7 @@ class SelectionWeights(Serializable):
 class ActionScore(Serializable):
     action_id: str
     utility: float
+    weighted_components: dict[str, float] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "ActionScore":
