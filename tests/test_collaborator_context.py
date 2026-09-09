@@ -1148,6 +1148,7 @@ def test_cli_exports_context_and_validates_proposal_without_a_provider(
     assert verified["reviewed_suggestion_count"] == 1
     assert verified["context_reference_replay"] == "verified"
     assert verified["proposal_record_replay"] == "verified"
+    assert verified["proposal_suggestion_replay"] == "verified"
     assert verified["canonical_writes_performed"] is False
 
 
@@ -1193,6 +1194,7 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     assert record["advanced_suggestions"] == [
         {"suggestion_id": "suggestion-1", "domain_route": "design.revise"}
     ]
+    assert record["proposal_suggestion_ids"] == ["suggestion-1", "suggestion-2"]
     assert record["context_reference_index"] == []
     assert record["proposal_record_replay"] == {
         "context_reference_index_sha256": _canonical_json_sha256([]),
@@ -1242,7 +1244,156 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     assert verified["advanced_suggestion_count"] == 1
     assert verified["context_reference_replay"] == "verified"
     assert verified["proposal_record_replay"] == "verified"
+    assert verified["proposal_suggestion_replay"] == "verified"
     assert verified["scientific_evidence_eligible"] is False
+
+
+def test_verify_collaborator_review_rejects_omitted_proposal_suggestion(
+    tmp_path: Path,
+) -> None:
+    context = _context()
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(snapshot["context_sha256"])
+    proposal["suggestions"].append(
+        {
+            **proposal["suggestions"][0],
+            "suggestion_id": "suggestion-2",
+            "kind": "question",
+            "statement": "Ask whether a simpler artifact explanation fits first.",
+            "rationale": "The review should not jump to the favored explanation.",
+            "next_test": "Check the existing evidence graph for artifact controls.",
+        }
+    )
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review = _review(validated["record_sha256"])
+    review["decisions"].append(
+        {
+            "suggestion_id": "suggestion-2",
+            "disposition": "defer",
+            "rationale": "The artifact explanation needs separate domain review.",
+            "domain_route": "none",
+        }
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(review), encoding="utf-8")
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["review"]["decisions"] = record["review"]["decisions"][:1]
+    record["reviewed_suggestions"] = record["reviewed_suggestions"][:1]
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="exactly cover"):
+        verify_collaborator_review_record(record_path, trusted_hash)
+
+
+def test_verify_collaborator_review_rejects_reordered_proposal_suggestions(
+    tmp_path: Path,
+) -> None:
+    context = _context()
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(snapshot["context_sha256"])
+    proposal["suggestions"].append(
+        {
+            **proposal["suggestions"][0],
+            "suggestion_id": "suggestion-2",
+            "kind": "question",
+            "statement": "Ask whether a simpler artifact explanation fits first.",
+            "rationale": "The review should not jump to the favored explanation.",
+            "next_test": "Check the existing evidence graph for artifact controls.",
+        }
+    )
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review = _review(validated["record_sha256"])
+    review["decisions"].append(
+        {
+            "suggestion_id": "suggestion-2",
+            "disposition": "defer",
+            "rationale": "The artifact explanation needs separate domain review.",
+            "domain_route": "none",
+        }
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(review), encoding="utf-8")
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["reviewed_suggestions"].reverse()
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="order and coverage"):
+        verify_collaborator_review_record(record_path, trusted_hash)
+
+
+def test_verify_legacy_collaborator_review_discloses_missing_suggestion_ids(
+    tmp_path: Path,
+) -> None:
+    context = _context()
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(_proposal(snapshot["context_sha256"])), encoding="utf-8"
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(_review(validated["record_sha256"])), encoding="utf-8")
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record.pop("proposal_suggestion_ids")
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    verified = verify_collaborator_review_record(record_path, trusted_hash)
+
+    assert verified["context_reference_replay"] == "verified"
+    assert verified["proposal_record_replay"] == "verified"
+    assert verified["proposal_suggestion_replay"] == "legacy_missing"
 
 
 def test_verify_legacy_collaborator_review_discloses_missing_proposal_replay(
@@ -1291,6 +1442,7 @@ def test_verify_legacy_collaborator_review_discloses_missing_proposal_replay(
 
     assert verified["context_reference_replay"] == "verified"
     assert verified["proposal_record_replay"] == "legacy_missing"
+    assert verified["proposal_suggestion_replay"] == "verified"
     assert verified["reviewed_suggestion_count"] == 1
     assert verified["scientific_evidence_eligible"] is False
 
@@ -1342,6 +1494,7 @@ def test_verify_legacy_collaborator_review_discloses_missing_context_index(
 
     assert verified["context_reference_replay"] == "legacy_missing"
     assert verified["proposal_record_replay"] == "legacy_missing"
+    assert verified["proposal_suggestion_replay"] == "verified"
     assert verified["reviewed_suggestion_count"] == 1
     assert verified["scientific_evidence_eligible"] is False
 

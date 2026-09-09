@@ -1149,11 +1149,12 @@ collaborator verify-review` independently replays a saved review record against
 a trusted review-record hash, checking the authority flags, retained scientific
 constraints, retained context reference index, proposal-record replay digests,
 review payload version, reviewed suggestion digests, reviewed-suggestion
-evidence references, decision coverage, compatible routes, and advanced-
-suggestion summary without performing canonical writes or authenticating the
-reviewer. Legacy review records without a retained context index or proposal-
-record replay digest remain visible with `legacy_missing` replay rather than
-being silently upgraded.
+evidence references, exact coverage of the retained ordered proposal suggestion
+IDs, compatible routes, and advanced-suggestion summary without performing
+canonical writes or authenticating the reviewer. Legacy review records without a
+retained context index, proposal-record replay digest, or ordered suggestion-ID
+anchor remain visible with `legacy_missing` replay rather than being silently
+upgraded.
 
 Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally

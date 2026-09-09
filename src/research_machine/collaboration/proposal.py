@@ -99,6 +99,7 @@ _REVIEW_RECORD_FIELDS = {
     "collaborator_proposal_review_record_version",
     "proposal_record_input",
     "proposal_record_replay",
+    "proposal_suggestion_ids",
     "context_reference_index",
     "context_scientific_constraints",
     "proposal_body_grounding",
@@ -121,10 +122,20 @@ _PROPOSAL_RECORD_REPLAY_FIELDS = {
 _LEGACY_REVIEW_RECORD_FIELDS = _REVIEW_RECORD_FIELDS - {
     "context_reference_index",
     "proposal_record_replay",
+    "proposal_suggestion_ids",
 }
 _LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_REPLAY = _REVIEW_RECORD_FIELDS - {
     "proposal_record_replay"
 }
+_LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_SUGGESTION_IDS = _REVIEW_RECORD_FIELDS - {
+    "proposal_suggestion_ids"
+}
+_LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_REPLAY_OR_SUGGESTION_IDS = (
+    _REVIEW_RECORD_FIELDS - {"proposal_record_replay", "proposal_suggestion_ids"}
+)
+_LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_CONTEXT_OR_REPLAY = (
+    _REVIEW_RECORD_FIELDS - {"context_reference_index", "proposal_record_replay"}
+)
 _REVIEWED_SUGGESTION_FIELDS = {
     "suggestion_id",
     "suggestion_sha256",
@@ -925,6 +936,7 @@ def adjudicate_collaborator_proposal(
     _canonical_text(reviewer["role"], "reviewer.role")
 
     suggestions = proposal["suggestions"]
+    proposal_suggestion_ids = [suggestion["suggestion_id"] for suggestion in suggestions]
     suggestions_by_id = {item["suggestion_id"]: item for item in suggestions}
     decisions = review["decisions"]
     if not isinstance(decisions, list):
@@ -993,6 +1005,7 @@ def adjudicate_collaborator_proposal(
             "size_bytes": len(record_content),
         },
         "proposal_record_replay": _proposal_record_replay(record),
+        "proposal_suggestion_ids": proposal_suggestion_ids,
         "context_reference_index": record["context_reference_index"],
         "context_scientific_constraints": record["context_scientific_constraints"],
         "proposal_body_grounding": record["proposal_body_grounding"],
@@ -1060,30 +1073,57 @@ def verify_collaborator_review_record(
         )
     context_reference_status = "verified"
     proposal_record_replay_status = "verified"
+    proposal_suggestion_replay_status = "verified"
     has_context_reference_index = "context_reference_index" in record
     has_proposal_record_replay = "proposal_record_replay" in record
-    if has_context_reference_index and has_proposal_record_replay:
+    has_proposal_suggestion_ids = "proposal_suggestion_ids" in record
+    if (
+        has_context_reference_index
+        and has_proposal_record_replay
+        and has_proposal_suggestion_ids
+    ):
         _exact_fields(
             record, _REVIEW_RECORD_FIELDS, "collaborator proposal review record"
         )
-    elif has_context_reference_index:
+    elif has_context_reference_index and has_proposal_record_replay:
+        _exact_fields(
+            record,
+            _LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_SUGGESTION_IDS,
+            "collaborator proposal review record",
+        )
+        proposal_suggestion_replay_status = "legacy_missing"
+    elif has_context_reference_index and has_proposal_suggestion_ids:
         _exact_fields(
             record,
             _LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_REPLAY,
             "collaborator proposal review record",
         )
         proposal_record_replay_status = "legacy_missing"
-    elif not has_proposal_record_replay:
+    elif has_context_reference_index:
         _exact_fields(
             record,
-            _LEGACY_REVIEW_RECORD_FIELDS,
+            _LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_REPLAY_OR_SUGGESTION_IDS,
+            "collaborator proposal review record",
+        )
+        proposal_record_replay_status = "legacy_missing"
+        proposal_suggestion_replay_status = "legacy_missing"
+    elif not has_context_reference_index and not has_proposal_record_replay:
+        expected = (
+            _LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_CONTEXT_OR_REPLAY
+            if has_proposal_suggestion_ids else _LEGACY_REVIEW_RECORD_FIELDS
+        )
+        _exact_fields(
+            record,
+            expected,
             "collaborator proposal review record",
         )
         context_reference_status = "legacy_missing"
         proposal_record_replay_status = "legacy_missing"
+        if not has_proposal_suggestion_ids:
+            proposal_suggestion_replay_status = "legacy_missing"
     else:
         raise ValidationError(
-            "collaborator proposal review record proposal_record_replay requires context_reference_index"
+            "collaborator proposal review record retained replay fields require context_reference_index"
         )
     if record.get("collaborator_proposal_review_record_version") != 1:
         raise ValidationError("collaborator proposal review record version must be 1")
@@ -1128,6 +1168,19 @@ def verify_collaborator_review_record(
         allowed_evidence_refs,
         require_grounding=bool(allowed_evidence_refs),
     )
+    proposal_suggestion_ids: list[str] | None = None
+    proposal_suggestion_id_set: set[str] | None = None
+    if has_proposal_suggestion_ids:
+        proposal_suggestion_ids = _canonical_string_array(
+            record["proposal_suggestion_ids"],
+            "proposal_suggestion_ids",
+            label="collaborator proposal review record",
+        )
+        if not proposal_suggestion_ids:
+            raise ValidationError(
+                "collaborator proposal review record proposal_suggestion_ids must be non-empty"
+            )
+        proposal_suggestion_id_set = set(proposal_suggestion_ids)
 
     review = record["review"]
     if not isinstance(review, dict):
@@ -1181,6 +1234,13 @@ def verify_collaborator_review_record(
         suggestion_id = _canonical_text(item["suggestion_id"], "reviewed_suggestion.suggestion_id")
         if suggestion_id in reviewed_ids:
             raise ValidationError(f"duplicate collaborator reviewed_suggestion: {suggestion_id}")
+        if (
+            proposal_suggestion_id_set is not None
+            and suggestion_id not in proposal_suggestion_id_set
+        ):
+            raise ValidationError(
+                f"{label} is not present in the retained proposal suggestion set"
+            )
         reviewed_ids.add(suggestion_id)
         if suggestion_id not in decisions_by_id:
             raise ValidationError(f"{label} has no matching review decision")
@@ -1239,6 +1299,24 @@ def verify_collaborator_review_record(
             advanced.append({"suggestion_id": suggestion_id, "domain_route": route})
         elif route != "none":
             raise ValidationError(f"{label} domain_route must be none unless advanced")
+    if proposal_suggestion_ids is not None:
+        if proposal_suggestion_id_set is None:
+            raise ValidationError(
+                "collaborator proposal review record proposal_suggestion_ids are invalid"
+            )
+        missing_decisions = sorted(proposal_suggestion_id_set - set(decisions_by_id))
+        extra_decisions = sorted(set(decisions_by_id) - proposal_suggestion_id_set)
+        if missing_decisions or extra_decisions:
+            raise ValidationError(
+                "collaborator proposal review decisions must exactly cover the "
+                "retained proposal suggestions"
+            )
+        reviewed_order = [item["suggestion_id"] for item in reviewed_suggestions]
+        if reviewed_order != proposal_suggestion_ids:
+            raise ValidationError(
+                "collaborator proposal reviewed_suggestions must retain the "
+                "proposal suggestion order and coverage"
+            )
     missing = sorted(set(decisions_by_id) - reviewed_ids)
     if missing:
         raise ValidationError(
@@ -1256,6 +1334,7 @@ def verify_collaborator_review_record(
         "advanced_suggestion_count": len(advanced),
         "context_reference_replay": context_reference_status,
         "proposal_record_replay": proposal_record_replay_status,
+        "proposal_suggestion_replay": proposal_suggestion_replay_status,
         "canonical_writes_performed": False,
         "scientific_evidence_eligible": False,
     }
