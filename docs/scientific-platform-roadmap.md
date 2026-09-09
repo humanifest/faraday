@@ -611,9 +611,12 @@ Scaffold provenance delivery: every review-only JSON draft now carries a
 provider-neutral `scaffold_provenance` anchor with deterministic hashes of the
 canonical brief content and design-audit findings. The scaffold also emits a
 `design-scaffold-provenance.json` manifest with per-artifact content hashes, and
-`design initialize` carries that receipt into `experiment-machine.json`. This
-preserves the draft chain of custody for human review without treating the
-scaffold as approval, protocol freeze, evidence, or reviewer authentication.
+`design initialize` carries that receipt into `experiment-machine.json`, replays
+the staged draft bytes against the manifest before publishing the local
+experiment directory, records the review-artifact index, and exposes whether the
+canary-target draft is absent or review-required. This preserves the draft chain
+of custody for human review without treating the scaffold as approval, protocol
+freeze, hidden-assignment authentication, evidence, or reviewer authentication.
 Required title, question, decision, outcome, and unit-of-observation fields now
 receive blocking findings when surrounding whitespace would otherwise be
 preserved as inquiry, hypothesis, protocol, or collection draft text.

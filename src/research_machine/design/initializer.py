@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -20,6 +21,115 @@ def _write_json(path: Path, value: Any) -> None:
         json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+
+
+def _read_json(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValidationError(f"invalid initialized scaffold artifact JSON: {path.name}") from exc
+    except OSError as exc:
+        raise ValidationError(f"could not read initialized scaffold artifact: {path.name}") from exc
+
+
+def _sha256_file(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise ValidationError(f"could not hash initialized scaffold artifact: {path.name}") from exc
+
+
+def _safe_draft_path(root: Path, name: str) -> Path:
+    relative = Path(name)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValidationError(f"invalid scaffold artifact name in manifest: {name}")
+    return root / "drafts" / relative
+
+
+def _verify_initialized_scaffold(staging: Path, scaffold: dict[str, Any]) -> dict[str, Any]:
+    """Replay staged review-artifact hashes before publishing the experiment tree."""
+    manifest_path = staging / "drafts" / "design-scaffold-provenance.json"
+    manifest = _read_json(manifest_path)
+    provenance = scaffold["provenance"]
+    if (
+        manifest.get("artifact_manifest_sha256")
+        != provenance.get("artifact_manifest_sha256")
+    ):
+        raise ValidationError("initialized scaffold provenance manifest hash mismatch")
+    entries = manifest.get("artifact_manifest")
+    if not isinstance(entries, list):
+        raise ValidationError("initialized scaffold provenance artifact_manifest must be a list")
+    expected_names = set(scaffold["artifacts"]) - {"design-scaffold-provenance.json"}
+    seen_names: set[str] = set()
+    review_artifacts: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValidationError("initialized scaffold provenance artifact entries must be objects")
+        name = entry.get("name")
+        digest = entry.get("content_sha256")
+        media_type = entry.get("media_type")
+        if not isinstance(name, str) or not name.strip():
+            raise ValidationError("initialized scaffold provenance artifact entry is missing a name")
+        if name in seen_names:
+            raise ValidationError(f"duplicate initialized scaffold artifact entry: {name}")
+        seen_names.add(name)
+        if name not in expected_names:
+            raise ValidationError(f"unexpected initialized scaffold artifact entry: {name}")
+        if not isinstance(digest, str) or len(digest) != 64:
+            raise ValidationError(f"initialized scaffold artifact {name} has an invalid digest")
+        artifact_path = _safe_draft_path(staging, name)
+        if not artifact_path.is_file():
+            raise ValidationError(f"initialized scaffold artifact is missing: {name}")
+        actual_digest = _sha256_file(artifact_path)
+        if actual_digest != digest:
+            raise ValidationError(f"initialized scaffold artifact hash mismatch: {name}")
+        review_artifacts.append(
+            {"name": name, "media_type": media_type, "content_sha256": digest}
+        )
+    if seen_names != expected_names:
+        missing = sorted(expected_names - seen_names)
+        raise ValidationError(
+            "initialized scaffold provenance manifest is missing artifacts: "
+            + ", ".join(missing)
+        )
+
+    protocol = _read_json(staging / "drafts" / "protocol-draft.json")
+    canary = _read_json(staging / "drafts" / "canary-target-plan-draft.json")
+    protocol_plan = protocol.get("canary_target_plan")
+    canary_plan = canary.get("canary_target_plan")
+    if protocol_plan is None:
+        if canary.get("status") != "unresolved":
+            raise ValidationError("initialized canary target draft must be unresolved when no plan is supplied")
+        canary_status = "absent"
+    else:
+        if canary.get("status") != "review_required":
+            raise ValidationError("initialized canary target draft must require review")
+        if canary_plan != protocol_plan:
+            raise ValidationError("initialized canary target draft does not match protocol draft")
+        required = canary.get("required_run_assessment")
+        if not isinstance(required, dict):
+            raise ValidationError("initialized canary target draft is missing required assessment metadata")
+        if required.get("gate_id") != protocol_plan.get("assessment_gate_id"):
+            raise ValidationError("initialized canary target assessment gate does not match protocol draft")
+        shape = required.get("result_shape")
+        if not isinstance(shape, dict):
+            raise ValidationError("initialized canary target draft is missing result shape")
+        if shape.get("plan_id") != protocol_plan.get("plan_id"):
+            raise ValidationError("initialized canary target result shape has the wrong plan ID")
+        if (
+            shape.get("assignment_artifact_sha256")
+            != protocol_plan.get("assignment_artifact_sha256")
+        ):
+            raise ValidationError(
+                "initialized canary target result shape has the wrong assignment artifact hash"
+            )
+        canary_status = "review_required"
+
+    return {
+        "review_artifacts": review_artifacts,
+        "canary_target_plan_status": canary_status,
+        "canary_target_plan_artifact": "drafts/canary-target-plan-draft.json",
+    }
 
 
 def initialize_experiment_repository(
@@ -105,9 +215,14 @@ def initialize_experiment_repository(
                 "hypothesis_state": hypothesis.workflow_state.value,
                 "scaffold_provenance": scaffold["provenance"],
                 "scaffold_provenance_artifact": "drafts/design-scaffold-provenance.json",
+                "git_initialized": initialize_git,
                 "notice": "The hypothesis remains unreviewed. No protocol is frozen and no data are registered.",
             },
         )
+        initialized_scaffold = _verify_initialized_scaffold(staging, scaffold)
+        state = _read_json(staging / "experiment-machine.json")
+        state.update(initialized_scaffold)
+        _write_json(staging / "experiment-machine.json", state)
         if initialize_git:
             try:
                 completed = subprocess.run(
@@ -137,6 +252,7 @@ def initialize_experiment_repository(
         "hypothesis_id": hypothesis.hypothesis_id,
         "hypothesis_state": hypothesis.workflow_state.value,
         "scaffold_provenance": scaffold["provenance"],
+        **initialized_scaffold,
         "git_initialized": initialize_git,
         "notice": "Created locally without a network service or LLM. Review drafts before activation, protocol freeze, or collection.",
     }

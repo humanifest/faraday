@@ -693,8 +693,11 @@ workspace. Its generated hypothesis is explicitly `unreviewed`; design-audit
 findings become canonical open questions. The local `experiment-machine.json`
 retains the scaffold provenance receipt and points to the draft manifest so a
 future reviewer can tie the workspace back to the exact brief, findings, and
-draft artifact hashes. Pass `--no-git` only when Git is not desired for that
-experiment.
+draft artifact hashes. Initialization replays the staged draft bytes against the
+manifest before publishing the directory, records the review-artifact index, and
+marks the canary-target draft as absent or review-required without treating it as
+approval, authentication of the hidden assignment, or evidence. Pass `--no-git`
+only when Git is not desired for that experiment.
 
 ## Replication packages
 
