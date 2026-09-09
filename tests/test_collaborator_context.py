@@ -53,6 +53,48 @@ def _context(
     }
     if context_reference_index is not None:
         context["context_reference_index"] = context_reference_index
+        for item in context_reference_index:
+            ref = item.get("ref", "")
+            kind = item.get("kind")
+            if kind == "inquiry" and ref.startswith("inquiry:"):
+                context["inquiry"] = {"inquiry_id": ref.removeprefix("inquiry:")}
+            elif kind == "open_question" and ref.startswith("question:"):
+                context.setdefault("open_questions", []).append(
+                    {"question_id": ref.removeprefix("question:")}
+                )
+            elif kind == "claim" and ref.startswith("claim:"):
+                context.setdefault("claims", []).append(
+                    {"claim_id": ref.removeprefix("claim:")}
+                )
+            elif kind in {"active_hypothesis", "pending_hypothesis"} and ref.startswith("hypothesis:"):
+                collection = (
+                    "active_hypotheses"
+                    if kind == "active_hypothesis"
+                    else "pending_hypotheses"
+                )
+                context.setdefault(collection, []).append(
+                    {"hypothesis_id": ref.removeprefix("hypothesis:")}
+                )
+            elif kind == "evidence" and ref.startswith("evidence:"):
+                context.setdefault("evidence", []).append(
+                    {"evidence_id": ref.removeprefix("evidence:")}
+                )
+            elif kind == "dataset" and ref.startswith("dataset:"):
+                context.setdefault("datasets", []).append(
+                    {"dataset_id": ref.removeprefix("dataset:")}
+                )
+            elif kind == "protocol" and ref.startswith("protocol:"):
+                context.setdefault("protocols", []).append(
+                    {"protocol_id": ref.removeprefix("protocol:")}
+                )
+            elif kind == "run" and ref.startswith("run:"):
+                context.setdefault("runs", []).append(
+                    {"run_id": ref.removeprefix("run:")}
+                )
+            elif kind == "ethics_review_event" and ref.startswith("ethics_review_event:"):
+                context.setdefault("ethics_review_events", []).append(
+                    {"event_id": ref.removeprefix("ethics_review_event:")}
+                )
     return context
 
 
@@ -74,6 +116,11 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
     assert context["ethics_review_events"] == []
     assert context["write_boundary"]["context_is_read_only"] is True
     assert context["open_questions"][0]["text"].startswith("What comparison")
+    assert context["claims"][0]["claim_id"] == claim.claim_id
+    assert context["evidence"] == []
+    assert context["datasets"] == []
+    assert context["protocols"] == []
+    assert context["runs"] == []
     assert context["context_reference_index"] == [
         {"ref": f"inquiry:{context['inquiry']['inquiry_id']}", "kind": "inquiry"},
         {
@@ -83,6 +130,31 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
         {"ref": f"claim:{claim.claim_id}", "kind": "claim"},
     ]
     assert any("causality" in item for item in context["scientific_constraints"])
+
+
+def test_context_snapshot_rejects_index_without_visible_body_record(
+    tmp_path: Path,
+) -> None:
+    context = _context()
+    context["context_reference_index"] = [
+        {"ref": "claim:claim-1", "kind": "claim"}
+    ]
+
+    with pytest.raises(ValidationError, match="absent from the frozen context body"):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
+
+
+def test_context_snapshot_rejects_visible_body_record_missing_from_index(
+    tmp_path: Path,
+) -> None:
+    context = _context()
+    context["claims"] = [{"claim_id": "claim-1"}]
+    context["context_reference_index"] = []
+
+    with pytest.raises(ValidationError, match="missing from context_reference_index"):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
 
 
 def test_collaborator_context_purpose_must_be_canonical(tmp_path: Path) -> None:

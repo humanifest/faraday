@@ -1252,6 +1252,14 @@ class ResearchService:
                 if hypothesis["workflow_state"]
                 == HypothesisWorkflowState.PENDING_REVIEW.value
             ],
+            "claims": state["claims"],
+            "evidence": state["evidence"],
+            "evidence_status_events": state["evidence_status_events"],
+            "datasets": state["datasets"],
+            "protocols": state["protocols"],
+            "runs": state["runs"],
+            "recommendations": state["recommendations"],
+            "cross_lane_lessons": state["cross_lane_lessons"],
             "ethics_review_events": state["ethics_review_events"],
             "context_reference_index": context_reference_index,
             "scientific_constraints": [

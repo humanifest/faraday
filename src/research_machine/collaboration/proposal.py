@@ -135,6 +135,14 @@ _CONTEXT_REFERENCE_PREFIXES = {
     "run": "run:",
     "ethics_review_event": "ethics_review_event:",
 }
+_CONTEXT_RECORD_COLLECTIONS = {
+    "claims": ("claim:", "claim_id"),
+    "evidence": ("evidence:", "evidence_id"),
+    "datasets": ("dataset:", "dataset_id"),
+    "protocols": ("protocol:", "protocol_id"),
+    "runs": ("run:", "run_id"),
+    "ethics_review_events": ("ethics_review_event:", "event_id"),
+}
 
 
 def _duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -281,6 +289,76 @@ def _context_reference_ids(context: dict[str, Any]) -> set[str]:
     return refs
 
 
+def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
+    refs: set[str] = set()
+    inquiry = context.get("inquiry")
+    if inquiry is not None:
+        if not isinstance(inquiry, dict):
+            raise ValidationError("collaborator context inquiry must be an object")
+        inquiry_id = inquiry.get("inquiry_id")
+        if not isinstance(inquiry_id, str) or not inquiry_id.strip():
+            raise ValidationError("collaborator context inquiry.inquiry_id must be non-empty text")
+        if inquiry_id != inquiry_id.strip():
+            raise ValidationError(
+                "collaborator context inquiry.inquiry_id must be canonical without surrounding whitespace"
+            )
+        refs.add(f"inquiry:{inquiry_id}")
+    open_questions = context.get("open_questions")
+    if open_questions is not None:
+        if not isinstance(open_questions, list):
+            raise ValidationError("collaborator context open_questions must be an array")
+        for index, item in enumerate(open_questions):
+            if not isinstance(item, dict):
+                raise ValidationError(f"collaborator context open_questions[{index}] must be an object")
+            question_id = item.get("question_id")
+            if not isinstance(question_id, str) or not question_id.strip():
+                raise ValidationError(f"collaborator context open_questions[{index}].question_id must be non-empty text")
+            if question_id != question_id.strip():
+                raise ValidationError(
+                    f"collaborator context open_questions[{index}].question_id must be canonical without surrounding whitespace"
+                )
+            refs.add(f"question:{question_id}")
+    for collection, (prefix, id_field) in _CONTEXT_RECORD_COLLECTIONS.items():
+        records = context.get(collection)
+        if records is None:
+            continue
+        if not isinstance(records, list):
+            raise ValidationError(f"collaborator context {collection} must be an array")
+        for index, item in enumerate(records):
+            if not isinstance(item, dict):
+                raise ValidationError(f"collaborator context {collection}[{index}] must be an object")
+            record_id = item.get(id_field)
+            if not isinstance(record_id, str) or not record_id.strip():
+                raise ValidationError(
+                    f"collaborator context {collection}[{index}].{id_field} must be non-empty text"
+                )
+            if record_id != record_id.strip():
+                raise ValidationError(
+                    f"collaborator context {collection}[{index}].{id_field} must be canonical without surrounding whitespace"
+                )
+            refs.add(prefix + record_id)
+    for collection in ("active_hypotheses", "pending_hypotheses"):
+        records = context.get(collection)
+        if records is None:
+            continue
+        if not isinstance(records, list):
+            raise ValidationError(f"collaborator context {collection} must be an array")
+        for index, item in enumerate(records):
+            if not isinstance(item, dict):
+                raise ValidationError(f"collaborator context {collection}[{index}] must be an object")
+            hypothesis_id = item.get("hypothesis_id")
+            if not isinstance(hypothesis_id, str) or not hypothesis_id.strip():
+                raise ValidationError(
+                    f"collaborator context {collection}[{index}].hypothesis_id must be non-empty text"
+                )
+            if hypothesis_id != hypothesis_id.strip():
+                raise ValidationError(
+                    f"collaborator context {collection}[{index}].hypothesis_id must be canonical without surrounding whitespace"
+                )
+            refs.add(f"hypothesis:{hypothesis_id}")
+    return refs
+
+
 def _validate_context_snapshot(context: dict[str, Any]) -> list[str]:
     if context.get("context_version") != 1:
         raise ValidationError("collaborator context_version must be 1")
@@ -292,7 +370,20 @@ def _validate_context_snapshot(context: dict[str, Any]) -> list[str]:
     if boundary.get("provider_required") is not False:
         raise ValidationError("collaborator context must not require a provider")
     _canonical_text(context.get("purpose", ""), "context purpose", allow_empty=True)
-    _context_reference_ids(context)
+    indexed_refs = _context_reference_ids(context)
+    body_refs = _context_body_reference_ids(context)
+    missing_from_body = sorted(indexed_refs - body_refs)
+    if missing_from_body:
+        raise ValidationError(
+            "collaborator context_reference_index cites records absent from the frozen context body: "
+            + ", ".join(missing_from_body)
+        )
+    missing_from_index = sorted(body_refs - indexed_refs)
+    if missing_from_index:
+        raise ValidationError(
+            "collaborator context body records are missing from context_reference_index: "
+            + ", ".join(missing_from_index)
+        )
     return _context_scientific_constraints(context)
 
 

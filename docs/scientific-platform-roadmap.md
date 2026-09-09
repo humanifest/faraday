@@ -1049,7 +1049,10 @@ suggestion has `review_only` authority. The context now includes a compact
 reference index for inquiry, question, claim, hypothesis, evidence, dataset,
 protocol, run, and ethics-review-event records, and proposal `evidence_refs`
 must cite only those frozen typed handles; each handle prefix must match its
-declared context kind. The trusted context must also include canonical, nonempty
+declared context kind. The reference index is now checked against the frozen
+context body, so every citable handle must correspond to visible read-only
+record content and every visible record must appear in the index. The trusted
+context must also include canonical, nonempty
 scientific constraints with explicit inferential-boundary and
 authorization-boundary warnings; proposal validation replays them from the
 hash-checked context file, and both proposal and adjudication records retain the
