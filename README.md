@@ -816,8 +816,9 @@ input row count before trusting the redacted receipt metadata. The retained
 analysis-result body must also keep the closed version-2 execution envelope and
 receipt-matching authority identity: unsupported inference levels, extra
 authority fields, rewritten method-enforced ceiling status, altered
-non-authority missing-data scope, or receipt/result identity drift reject before
-any packaged gate can rely on that body. Retained workflow-adjudication handoffs
+non-authority missing-data scope, receipt/result identity drift, or disagreement
+with the declared packaged run output digest, locator, and byte count reject
+before any packaged gate can rely on that body. Retained workflow-adjudication handoffs
 similarly must keep their exact completed receipt semantics, false evidence
 eligibility, `reviewed_composite_run_required` status, and bounded composite
 claim ceiling, and must bind the adjudication to the packaged protocol,

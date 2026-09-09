@@ -70,7 +70,14 @@ def _after_registration_times(registration_timestamp: str) -> tuple[str, str]:
     )
 
 
-def _execution_handoff_for_result(output_sha256: str, result: dict) -> dict:
+def _packaged_output_artifact_for_sha(run: dict, output_sha256: str) -> dict:
+    return next(
+        artifact for artifact in run["output_artifacts"]
+        if artifact["sha256"] == output_sha256
+    )
+
+
+def _execution_handoff_for_result(output_artifact: dict, result: dict) -> dict:
     return {
         "receipt": {
             "addon": {"addon_id": "general_science", "version": "fixture"},
@@ -78,7 +85,11 @@ def _execution_handoff_for_result(output_sha256: str, result: dict) -> dict:
             "maximum_inference_level": "descriptive",
             "randomness_control": "deterministic",
             "randomness_binding": {"control": "deterministic"},
-            "output": {"sha256": output_sha256},
+            "output": {
+                "locator": output_artifact["locator"],
+                "sha256": output_artifact["sha256"],
+                "size_bytes": output_artifact["size_bytes"],
+            },
         },
         "result": {
             "result_contract_version": 2,
@@ -1730,7 +1741,7 @@ def test_replication_package_verifies_canary_target_gate_metadata(
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
     runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
-        record_sha256,
+        _packaged_output_artifact_for_sha(runs[0], record_sha256),
         {
             "canary": {
                 "comparison": {
@@ -2093,6 +2104,16 @@ def test_replication_package_verifies_sample_size_plan_check_metadata(
         ("missing_analysis_location", "does not resolve"),
         ("extra_handoff_authority", "result contract is invalid"),
         ("handoff_identity_mismatch", "authority identity disagrees"),
+        ("handoff_output_missing_locator", "execution_handoff output is invalid"),
+        (
+            "handoff_output_locator_mismatch",
+            "execution_handoff output is not a declared run artifact",
+        ),
+        (
+            "handoff_output_size_mismatch",
+            "execution_handoff output is not a declared run artifact",
+        ),
+        ("handoff_output_boolean_size", "execution_handoff output is invalid"),
     ],
 )
 def test_replication_package_verifies_control_gate_metadata(
@@ -2189,7 +2210,7 @@ def test_replication_package_verifies_control_gate_metadata(
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
     runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
-        record_sha256,
+        _packaged_output_artifact_for_sha(runs[0], record_sha256),
         {"controls": {"negative-1": {"matches_expected": True}}},
     )
     runs[0]["quality_gates"][0]["details"]["control_results"]["negative-1"][
@@ -2226,6 +2247,22 @@ def test_replication_package_verifies_control_gate_metadata(
         runs[0]["metadata"]["execution_handoff"]["receipt"][
             "maximum_inference_level"
         ] = "association"
+    elif mutation == "handoff_output_missing_locator":
+        del runs[0]["metadata"]["execution_handoff"]["receipt"]["output"][
+            "locator"
+        ]
+    elif mutation == "handoff_output_locator_mismatch":
+        runs[0]["metadata"]["execution_handoff"]["receipt"]["output"][
+            "locator"
+        ] = "control-output.json"
+    elif mutation == "handoff_output_size_mismatch":
+        runs[0]["metadata"]["execution_handoff"]["receipt"]["output"][
+            "size_bytes"
+        ] += 1
+    elif mutation == "handoff_output_boolean_size":
+        runs[0]["metadata"]["execution_handoff"]["receipt"]["output"][
+            "size_bytes"
+        ] = True
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 
@@ -2389,7 +2426,7 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
     runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
-        record_sha256,
+        _packaged_output_artifact_for_sha(runs[0], record_sha256),
         {
             "validity": {
                 "checker-reference-agreement": {"acceptance": 1}
@@ -2675,7 +2712,7 @@ def test_replication_package_verifies_missingness_gate_metadata(
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
     runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
-        record_sha256,
+        _packaged_output_artifact_for_sha(runs[0], record_sha256),
         {
             "controls": {"reference-1": {"matches_expected": True}},
             "missingness": {"exclusion_report": {"excluded_fraction": 0.0}},
@@ -3098,7 +3135,7 @@ def test_replication_package_verifies_causal_assumption_gate_metadata(
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
     runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
-        record_sha256,
+        _packaged_output_artifact_for_sha(runs[0], record_sha256),
         {
             "controls": {"reference-1": {"matches_expected": True}},
             "diagnostics": {

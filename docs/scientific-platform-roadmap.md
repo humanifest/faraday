@@ -101,6 +101,9 @@ methods without changing its epistemic rules or canonical state.
   inference levels, authority-smuggling top-level fields, rewritten
   method-enforced ceiling status, or altered non-authority missing-data scope
   before downstream run, evidence, replication, or rigor paths can trust it.
+  Replication packages additionally require retained execution handoff output
+  digest, locator, and byte count to match a declared packaged run artifact
+  before structured gates may cite the retained result body.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit

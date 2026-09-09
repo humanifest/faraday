@@ -968,14 +968,29 @@ def _verified_handoff_results_by_output_sha(
             f"package run {run.run_id} execution_handoff receipt/result authority identity disagrees"
         )
     output = receipt.get("output")
-    if not isinstance(output, dict):
+    if (
+        not isinstance(output, dict)
+        or not isinstance(output.get("locator"), str)
+        or isinstance(output.get("size_bytes"), bool)
+        or not isinstance(output.get("size_bytes"), int)
+        or output["size_bytes"] <= 0
+    ):
         raise ValidationError(
-            f"package run {run.run_id} execution_handoff output must be an object"
+            f"package run {run.run_id} execution_handoff output is invalid"
         )
     digest = require_sha256(
         output.get("sha256"),
         f"package run {run.run_id} execution_handoff output.sha256",
     )
+    if not any(
+        artifact.sha256 == digest
+        and artifact.locator == output["locator"]
+        and artifact.size_bytes == output["size_bytes"]
+        for artifact in output_artifacts
+    ):
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff output is not a declared run artifact"
+        )
     return {digest: result}
 
 
