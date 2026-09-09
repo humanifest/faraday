@@ -1915,6 +1915,12 @@ existing safe artifact verifier. Protected dataset registration now requires the
 artifact root, repeats that byte verification in the canonical service, and
 persists the integrity report with hashes of the receipt and frozen protocol.
 Exploratory custody can request the same persisted check but does not require it.
+Custody receipt objects are now closed at every nested boundary: raw sources,
+transformations, calibrations, quality gates, derived observations, and
+supporting evidence artifacts cannot carry extra assertion fields that Faraday
+would preserve but not validate. Optional raw-source and evidence-artifact
+`size_bytes` commitments are accepted only as non-negative integers or null so
+byte-size checks remain part of the shared artifact verifier.
 Custody receipts now require offset-aware transformation, gate-evaluation, and
 derived-observation timestamps. Validation rejects a transformation before its
 input, a gate before its calibration prerequisite, or an observation before its

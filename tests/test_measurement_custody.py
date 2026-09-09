@@ -610,6 +610,44 @@ def test_custody_retained_text_fields_must_be_canonical(mutate, message) -> None
 
 
 @pytest.mark.parametrize(
+    ("section", "message"),
+    [
+        ("evidence_artifacts", "evidence artifact has unknown fields"),
+        ("raw_sources", "raw_sources\\[0\\] has unknown fields"),
+        ("transformations", "transformations\\[0\\] has unknown fields"),
+        ("calibrations", "calibration has unknown fields"),
+        ("quality_gates", "quality gate has unknown fields"),
+        ("derived_observations", "derived observation has unknown fields"),
+    ],
+)
+def test_custody_nested_objects_cannot_carry_unvalidated_claims(section, message) -> None:
+    receipt = _receipt()
+    receipt[section][0]["scientific_interpretation"] = "This proves the construct is valid."
+
+    with pytest.raises(ValidationError, match=message):
+        validate_measurement_custody(receipt)
+
+
+@pytest.mark.parametrize("section", ["evidence_artifacts", "raw_sources"])
+@pytest.mark.parametrize("size_bytes", [0, 128, None])
+def test_custody_artifact_size_commitments_may_be_declared(section, size_bytes) -> None:
+    receipt = _receipt()
+    receipt[section][0]["size_bytes"] = size_bytes
+
+    assert validate_measurement_custody(receipt)[section][0]["size_bytes"] is size_bytes
+
+
+@pytest.mark.parametrize("section", ["evidence_artifacts", "raw_sources"])
+@pytest.mark.parametrize("size_bytes", [-1, 1.5, True, "128"])
+def test_custody_artifact_size_commitments_must_be_verifiable(section, size_bytes) -> None:
+    receipt = _receipt()
+    receipt[section][0]["size_bytes"] = size_bytes
+
+    with pytest.raises(ValidationError, match="size_bytes"):
+        validate_measurement_custody(receipt)
+
+
+@pytest.mark.parametrize(
     ("field", "value", "message"),
     [
         ("observed_unit", "seconds", "observed_unit"),

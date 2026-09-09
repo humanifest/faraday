@@ -399,7 +399,10 @@ For local custody-file checks, use `./research measurement validate --receipt-fi
 custody.json --artifact-root /path/to/artifacts`. This verifies listed raw sources
 and supporting evidence bytes with relative-path and symlink safeguards. Without
 the artifact root, only reference consistency is checked. Neither mode proves
-measurement validity or authentic acquisition.
+measurement validity or authentic acquisition. Custody receipt objects use a
+closed schema: extra nested assertion fields are rejected rather than retained as
+unvalidated provenance. Raw-source and supporting-evidence artifacts may include
+`size_bytes`, but only as a verifiable non-negative integer or null.
 
 Start a provider-free, plain-language study interview with
 `./research design interview`. No JSON authoring or LLM API is required. Optional

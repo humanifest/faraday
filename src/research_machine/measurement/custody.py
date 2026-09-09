@@ -77,6 +77,25 @@ def _finite_number(value: Any, field: str) -> float | int:
     return value
 
 
+def _nonnegative_int_or_none(value: Any, field: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValidationError(
+            f"measurement custody {field} must be a non-negative integer or null"
+        )
+    return value
+
+
+def _require_known_fields(item: dict[str, Any], allowed: set[str], label: str) -> None:
+    unknown = sorted(set(item) - allowed)
+    if unknown:
+        raise ValidationError(
+            f"measurement custody {label} has unknown fields: "
+            + ", ".join(unknown)
+        )
+
+
 def validate_measurement_custody(
     receipt: Any,
     required_gate_ids: Sequence[str] = (),
@@ -108,7 +127,13 @@ def validate_measurement_custody(
     for item in evidence:
         if not isinstance(item, dict):
             raise ValidationError("each evidence artifact must be an object")
+        _require_known_fields(
+            item, {"locator", "sha256", "size_bytes"}, "evidence artifact"
+        )
         _canonical_text(item.get("locator"), "evidence artifact locator")
+        _nonnegative_int_or_none(
+            item.get("size_bytes"), "evidence artifact size_bytes"
+        )
         digest = _digest(item.get("sha256"), "evidence artifact sha256")
         if digest in evidence_hashes:
             raise ValidationError("duplicate evidence artifact hash")
@@ -126,8 +151,16 @@ def validate_measurement_custody(
     for index, source in enumerate(sources):
         if not isinstance(source, dict):
             raise ValidationError("each raw source must be an object")
+        _require_known_fields(
+            source,
+            {"locator", "sha256", "size_bytes", "captured_at", "acquisition_method"},
+            f"raw_sources[{index}]",
+        )
         for field in ("locator", "captured_at", "acquisition_method"):
             _canonical_text(source.get(field), f"raw_sources[{index}].{field}")
+        _nonnegative_int_or_none(
+            source.get("size_bytes"), f"raw_sources[{index}].size_bytes"
+        )
         captured_at = _timestamp(source["captured_at"], f"raw_sources[{index}].captured_at")
         digest = _digest(source.get("sha256"), f"raw_sources[{index}].sha256")
         if digest in hashes:
@@ -142,6 +175,20 @@ def validate_measurement_custody(
     for index, item in enumerate(transformations):
         if not isinstance(item, dict):
             raise ValidationError("each transformation must be an object")
+        _require_known_fields(
+            item,
+            {
+                "transformation_id",
+                "version",
+                "performed_at",
+                "implementation_locator",
+                "implementation_sha256",
+                "input_sha256",
+                "output_locator",
+                "output_sha256",
+            },
+            f"transformations[{index}]",
+        )
         for field in ("transformation_id", "version", "performed_at", "implementation_locator", "output_locator"):
             _canonical_text(item.get(field), f"transformations[{index}].{field}")
         performed_at = _timestamp(item["performed_at"], f"transformations[{index}].performed_at")
@@ -190,8 +237,30 @@ def validate_measurement_custody(
     for item in calibrations:
         if not isinstance(item, dict):
             raise ValidationError("each calibration must be an object")
+        _require_known_fields(
+            item,
+            {
+                "calibration_id",
+                "reference",
+                "performed_at",
+                "result",
+                "status",
+                "criterion_id",
+                "observed_value",
+                "observed_unit",
+                "observed_components",
+                "evidence_sha256",
+            },
+            "calibration",
+        )
         for field in ("calibration_id", "reference", "performed_at", "result"):
             _canonical_text(item.get(field), f"calibration.{field}")
+        if "observed_components" in item and (
+            "observed_value" in item or "observed_unit" in item
+        ):
+            raise ValidationError(
+                "measurement custody calibration must not mix scalar and component observations"
+            )
         performed_at = _timestamp(item["performed_at"], "calibration.performed_at")
         if item.get("status") != "passed":
             raise ValidationError("measurement custody calibration status must be passed")
@@ -299,6 +368,19 @@ def validate_measurement_custody(
     for item in gates:
         if not isinstance(item, dict):
             raise ValidationError("each measurement quality gate must be an object")
+        _require_known_fields(
+            item,
+            {
+                "gate_id",
+                "status",
+                "evaluated_at",
+                "summary",
+                "evidence_sha256",
+                "prerequisite_calibration_ids",
+                "prerequisite_artifact_sha256s",
+            },
+            "quality gate",
+        )
         gate_id = _canonical_text(item.get("gate_id"), "quality gate gate_id")
         if gate_id in gate_ids:
             raise ValidationError("measurement custody gate_id must be unique")
@@ -351,6 +433,17 @@ def validate_measurement_custody(
     for item in observations:
         if not isinstance(item, dict):
             raise ValidationError("each derived observation must be an object")
+        _require_known_fields(
+            item,
+            {
+                "observation_id",
+                "definition",
+                "derived_at",
+                "source_output_sha256",
+                "quality_gate_ids",
+            },
+            "derived observation",
+        )
         identifier = _canonical_text(
             item.get("observation_id"), "derived observation observation_id"
         )
