@@ -430,6 +430,14 @@ def _context_reference_ids(context: dict[str, Any]) -> set[str]:
 
 def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
     refs: set[str] = set()
+
+    def add_ref(ref: str) -> None:
+        if ref in refs:
+            raise ValidationError(
+                f"collaborator context body contains duplicate citable record: {ref}"
+            )
+        refs.add(ref)
+
     inquiry = context.get("inquiry")
     if inquiry is not None:
         if not isinstance(inquiry, dict):
@@ -441,7 +449,7 @@ def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
             raise ValidationError(
                 "collaborator context inquiry.inquiry_id must be canonical without surrounding whitespace"
             )
-        refs.add(f"inquiry:{inquiry_id}")
+        add_ref(f"inquiry:{inquiry_id}")
     open_questions = context.get("open_questions")
     if open_questions is not None:
         if not isinstance(open_questions, list):
@@ -456,7 +464,7 @@ def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
                 raise ValidationError(
                     f"collaborator context open_questions[{index}].question_id must be canonical without surrounding whitespace"
                 )
-            refs.add(f"question:{question_id}")
+            add_ref(f"question:{question_id}")
     for collection, (prefix, id_field) in _CONTEXT_RECORD_COLLECTIONS.items():
         records = context.get(collection)
         if records is None:
@@ -475,7 +483,7 @@ def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
                 raise ValidationError(
                     f"collaborator context {collection}[{index}].{id_field} must be canonical without surrounding whitespace"
                 )
-            refs.add(prefix + record_id)
+            add_ref(prefix + record_id)
     for collection in ("active_hypotheses", "pending_hypotheses"):
         records = context.get(collection)
         if records is None:
@@ -494,7 +502,7 @@ def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
                 raise ValidationError(
                     f"collaborator context {collection}[{index}].hypothesis_id must be canonical without surrounding whitespace"
                 )
-            refs.add(f"hypothesis:{hypothesis_id}")
+            add_ref(f"hypothesis:{hypothesis_id}")
     return refs
 
 

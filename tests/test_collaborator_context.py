@@ -193,6 +193,40 @@ def test_context_snapshot_rejects_visible_body_record_missing_from_index(
     assert not (tmp_path / "context").exists()
 
 
+def test_context_snapshot_rejects_duplicate_visible_body_reference(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    context["claims"].append({"claim_id": "claim-1"})
+
+    with pytest.raises(
+        ValidationError,
+        match="duplicate citable record: claim:claim-1",
+    ):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
+
+
+def test_context_snapshot_rejects_duplicate_hypothesis_across_review_lanes(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[
+            {"ref": "hypothesis:hypothesis-1", "kind": "active_hypothesis"}
+        ]
+    )
+    context["pending_hypotheses"] = [{"hypothesis_id": "hypothesis-1"}]
+
+    with pytest.raises(
+        ValidationError,
+        match="duplicate citable record: hypothesis:hypothesis-1",
+    ):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
+
+
 def test_collaborator_context_purpose_must_be_canonical(tmp_path: Path) -> None:
     service = ResearchService(FileSystemRepository(tmp_path), actor="test")
     service.init_workspace()

@@ -864,9 +864,10 @@ inspection. The frozen context also carries a compact reference index such as
 frozen context body; a dangling reference index entry is rejected rather than
 becoming a citable but unseen authority. Evidence correction, qualification,
 withdrawal, and retraction events are therefore independently citable alongside
-the evidence they qualify. Active and `pending_review` hypotheses are exposed in
-separate context lanes, and pending hypotheses retain their unapproved workflow
-state when cited for review. When the frozen context has citable records, every
+the evidence they qualify. The body side is duplicate-free as well: each citable
+handle may correspond to exactly one visible record, including hypotheses split
+between active and `pending_review` lanes. Pending hypotheses retain their
+unapproved workflow state when cited for review. When the frozen context has citable records, every
 proposal suggestion must cite at least one typed, prefix-checked, body-backed
 handle, so an optional collaborator cannot smuggle uncited external claims
 across the provider boundary. The proposal body's competing explanations,

@@ -1101,7 +1101,9 @@ item-level retained context references when the index is nonempty; validation
 derives a hash-based grounding receipt for those claims, adjudication replays it
 against the retained proposal, and review verification checks the copied receipt
 against the retained context index. The trusted
-context must also include canonical, nonempty
+context body is now duplicate-free for citable records, so a retained handle
+cannot ambiguously point at two visible claims, hypotheses, evidence records,
+datasets, protocols, runs, or review events. The trusted context must also include canonical, nonempty
 scientific constraints with explicit inferential-boundary and
 authorization-boundary warnings; proposal validation replays them from the
 hash-checked context file, and both proposal and adjudication records retain the
