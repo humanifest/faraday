@@ -1446,6 +1446,32 @@ def test_passed_quality_gate_requires_output_bound_evidence_and_passed_prerequis
         ))
 
 
+def test_run_rejects_skipped_gate_with_structured_result_metadata(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+
+    command = run_command(
+        protocol.protocol_id,
+        QualityGateStatus.SKIPPED,
+        quality_gates=[
+            QualityGateResult(
+                "proof-check",
+                QualityGateStatus.SKIPPED,
+                "The synthetic fixture gate was not performed.",
+                details={"measurement_validity_results": {}},
+            )
+        ],
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="skipped quality gate proof-check cannot report structured results",
+    ):
+        service.record_run(command, "formal")
+
+
 def test_run_requires_explicit_no_deviation_disclosure_for_evidence(tmp_path: Path) -> None:
     service, hypothesis_id = prepared_service(tmp_path)
     protocol = frozen_formal_protocol(service, hypothesis_id)

@@ -269,6 +269,44 @@ def _verify_json_artifact_location(
     return True
 
 
+_STRUCTURED_RESULT_DETAIL_KEYS = {
+    "canary_target_assessment",
+    "causal_assumption_results",
+    "instrument_inspection",
+    "measurement_validity_results",
+    "missingness_assessment_result",
+    "preprocessing_conformance",
+    "stream_timing_assessment",
+    "temporal_order_assessment",
+}
+
+
+def _contains_template_placeholder(value: Any) -> bool:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped == "" or (stripped.startswith("<") and stripped.endswith(">"))
+    if isinstance(value, dict):
+        return any(_contains_template_placeholder(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_template_placeholder(item) for item in value)
+    return False
+
+
+def _reject_skipped_gate_structured_results(gate: QualityGateResult) -> None:
+    if gate.status is not QualityGateStatus.SKIPPED:
+        return
+    retained = sorted(
+        key
+        for key in _STRUCTURED_RESULT_DETAIL_KEYS.intersection(gate.details)
+        if not _contains_template_placeholder(gate.details[key])
+    )
+    if retained:
+        raise ValidationError(
+            f"skipped quality gate {gate.gate_id} cannot report structured results: "
+            + ", ".join(retained)
+        )
+
+
 def _validate_canary_target_assessment_gate(
     *,
     protocol: ExperimentProtocol,
@@ -290,8 +328,6 @@ def _validate_canary_target_assessment_gate(
         raise ValidationError(
             "canary_target_assessment must be recorded on the frozen canary assessment gate"
         )
-    if gate.status is QualityGateStatus.SKIPPED:
-        raise ValidationError("skipped canary assessment gate cannot report results")
     required_fields = {
         "plan_id",
         "assignment_artifact_sha256",
@@ -3151,6 +3187,7 @@ class ResearchService:
             None
         )
         for gate in gates:
+            _reject_skipped_gate_structured_results(gate)
             prerequisites = gate.details.get("prerequisite_gate_ids", [])
             if not isinstance(prerequisites, list) or any(
                 not isinstance(item, str) or not item.strip() for item in prerequisites

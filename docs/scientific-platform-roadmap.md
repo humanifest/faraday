@@ -1006,7 +1006,12 @@ precision-target status, variance-ratio disclosure, target handles, receipt
 hashes, and the `scientific_interpretation_verified=false` boundary must match
 exactly, preventing exported packages from collapsing planning accountability
 into a bare `passed` label or presenting a planning check as achieved power.
-Structured
+Skipped gates now reject completed structured assessment or retained-record
+payloads across canonical intake and package verification, including
+measurement-validity results, missingness assessments, causal-assumption
+diagnostics, canary assessments, and retained acquisition/conformance records.
+This preserves skipped as an explicit unperformed gate state rather than an
+invalid-run hiding place for observations. Structured
 preprocessing-conformance gate metadata is also checked in package verification:
 the declared conformance record hash must be the gate evidence and a packaged run
 output, registered and observed pipeline hashes must be canonical, and passed or

@@ -1435,7 +1435,7 @@ def test_replication_package_verifies_temporal_order_gate_metadata(
         ("wrong_evidence", "is not a declared output artifact"),
         ("gate_evidence_mismatch", "does not match gate evidence"),
         ("wrong_gate", "is not bound to the frozen canary gate"),
-        ("skipped_gate_with_assessment", "skipped canary assessment gate"),
+        ("skipped_gate_with_assessment", "skipped quality gate"),
     ],
 )
 def test_replication_package_verifies_canary_target_gate_metadata(
@@ -2023,6 +2023,7 @@ def test_replication_package_verifies_control_gate_metadata(
         ("padded_status", "assessment_status must be canonical"),
         ("unbound_evidence", "must reference a run output artifact"),
         ("blank_diagnostic", "observed_diagnostic must be nonempty text"),
+        ("skipped_gate_with_results", "skipped quality gate"),
     ],
 )
 def test_replication_package_verifies_measurement_validity_gate_metadata(
@@ -2186,6 +2187,10 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
         result["evidence_sha256"] = "f" * 64
     elif mutation == "blank_diagnostic":
         result["observed_diagnostic"] = ""
+    elif mutation == "skipped_gate_with_results":
+        gate["status"] = "skipped"
+        runs[0]["status"] = "invalid"
+        runs[0]["scientific_evidence_eligible"] = False
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 
@@ -2204,6 +2209,7 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
         ("bad_status", "unsupported assessment_status"),
         ("unbound_evidence", "must reference a run output artifact"),
         ("blank_interpretation", "interpretation must be nonempty text"),
+        ("skipped_gate_with_result", "skipped quality gate"),
     ],
 )
 def test_replication_package_verifies_missingness_gate_metadata(
@@ -2435,6 +2441,10 @@ def test_replication_package_verifies_missingness_gate_metadata(
         result["evidence_sha256"] = "f" * 64
     elif mutation == "blank_interpretation":
         result["interpretation"] = ""
+    elif mutation == "skipped_gate_with_result":
+        gate["status"] = "skipped"
+        runs[0]["status"] = "invalid"
+        runs[0]["scientific_evidence_eligible"] = False
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 
@@ -2457,6 +2467,7 @@ def test_replication_package_verifies_missingness_gate_metadata(
         ("passed_contradiction", "passed causal assessment gate"),
         ("warning_without_inconclusive", "warning causal assessment gate"),
         ("failed_without_contradiction", "failed causal assessment gate"),
+        ("skipped_gate_with_results", "skipped quality gate"),
     ],
 )
 def test_replication_package_verifies_causal_assumption_gate_metadata(
@@ -2837,6 +2848,10 @@ def test_replication_package_verifies_causal_assumption_gate_metadata(
         gate["status"] = "warning"
     elif mutation == "failed_without_contradiction":
         gate["status"] = "failed"
+    elif mutation == "skipped_gate_with_results":
+        gate["status"] = "skipped"
+        runs[0]["status"] = "invalid"
+        runs[0]["scientific_evidence_eligible"] = False
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 

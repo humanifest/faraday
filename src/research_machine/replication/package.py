@@ -52,6 +52,17 @@ _V1_VERIFICATION_CONTRACT = "replication_package_v1_file_integrity"
 _V2_VERIFICATION_CONTRACT = "replication_package_v2_guardrails"
 _REDACTED_ARTIFACT_LOCATOR = "[redacted: obtain from authorized source]"
 
+_STRUCTURED_RESULT_DETAIL_KEYS = {
+    "canary_target_assessment",
+    "causal_assumption_results",
+    "instrument_inspection",
+    "measurement_validity_results",
+    "missingness_assessment_result",
+    "preprocessing_conformance",
+    "stream_timing_assessment",
+    "temporal_order_assessment",
+}
+
 
 _V2_INSTRUCTIONS = (
     "# Independent replication instructions\n\n"
@@ -148,6 +159,35 @@ def _validate_packaged_artifacts(
 
 def _validate_package_identity_list(values: Any, field_name: str) -> list[str]:
     return require_unique_canonical_text_list(values, field_name)
+
+
+def _contains_template_placeholder(value: Any) -> bool:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped == "" or (stripped.startswith("<") and stripped.endswith(">"))
+    if isinstance(value, dict):
+        return any(_contains_template_placeholder(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_template_placeholder(item) for item in value)
+    return False
+
+
+def _reject_skipped_gate_structured_results(
+    *, run_id: str, gate: QualityGateResult
+) -> None:
+    if gate.status is not QualityGateStatus.SKIPPED:
+        return
+    retained = sorted(
+        key
+        for key in _STRUCTURED_RESULT_DETAIL_KEYS.intersection(gate.details)
+        if not _contains_template_placeholder(gate.details[key])
+    )
+    if retained:
+        raise ValidationError(
+            f"package run {run_id} skipped quality gate {gate.gate_id} "
+            "cannot report structured results: "
+            + ", ".join(retained)
+        )
 
 
 def _validate_preprocessing_conformance_gate_metadata(
@@ -1542,6 +1582,10 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 )
                 output_hashes = {item.sha256 for item in output_artifacts}
                 for gate in quality_gates:
+                    _reject_skipped_gate_structured_results(
+                        run_id=run.run_id,
+                        gate=gate,
+                    )
                     if gate.status is QualityGateStatus.PASSED:
                         if gate.details.get("evidence_sha256") not in output_hashes:
                             raise ValidationError(
