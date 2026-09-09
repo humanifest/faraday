@@ -285,6 +285,13 @@ def _publish_json(root: Path, filename: str, value: dict[str, Any]) -> bytes:
     return content
 
 
+def _sha256_json(value: dict[str, Any]) -> str:
+    content = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    )
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
 def create_context_snapshot(context: dict[str, Any], output: Path) -> dict[str, Any]:
     """Freeze the exact read-only context sent to an optional collaborator."""
     _validate_context_snapshot(context)
@@ -518,6 +525,7 @@ def adjudicate_collaborator_proposal(
         raise ValidationError("collaborator proposal review decisions must be an array")
     seen: set[str] = set()
     advanced: list[dict[str, str]] = []
+    decisions_by_id: dict[str, dict[str, Any]] = {}
     for index, decision in enumerate(decisions):
         label = f"collaborator proposal review decision {index + 1}"
         if not isinstance(decision, dict):
@@ -529,6 +537,7 @@ def adjudicate_collaborator_proposal(
         if suggestion_id not in suggestions_by_id:
             raise ValidationError(f"unknown collaborator review suggestion_id: {suggestion_id}")
         seen.add(suggestion_id)
+        decisions_by_id[suggestion_id] = decision
         disposition = decision["disposition"]
         if disposition not in _DISPOSITIONS:
             raise ValidationError(f"{label} disposition is invalid")
@@ -553,6 +562,23 @@ def adjudicate_collaborator_proposal(
             "collaborator proposal review must decide every suggestion; missing: "
             + ", ".join(missing)
         )
+    reviewed_suggestions = []
+    for suggestion in suggestions:
+        suggestion_id = suggestion["suggestion_id"]
+        decision = decisions_by_id[suggestion_id]
+        reviewed_suggestions.append({
+            "suggestion_id": suggestion_id,
+            "suggestion_sha256": _sha256_json(suggestion),
+            "suggestion": suggestion,
+            "disposition": decision["disposition"],
+            "rationale": decision["rationale"],
+            "domain_route": decision["domain_route"],
+            "manual_domain_review_required": (
+                decision["disposition"] == "advance_to_domain_review"
+            ),
+            "canonical_writes_performed": False,
+            "scientific_evidence_eligible": False,
+        })
 
     adjudication = {
         "collaborator_proposal_review_record_version": 1,
@@ -566,6 +592,7 @@ def adjudicate_collaborator_proposal(
             "size_bytes": len(review_content),
         },
         "review": review,
+        "reviewed_suggestions": reviewed_suggestions,
         "advanced_suggestions": advanced,
         "status": "reviewed_requires_manual_domain_action",
         "reviewer_identity_authenticated": False,

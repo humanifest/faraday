@@ -1027,11 +1027,14 @@ All canonical changes retain the existing domain commands and scientific gates.
 `research collaborator review-proposal` adds a second independently hash-bound
 human adjudication artifact. It requires exactly one reject, defer, or
 advance-to-domain-review disposition for every proposal suggestion and checks
-that an advancement route is compatible with the suggestion kind. The reviewer
-identity is explicitly unauthenticated, and advancement neither invokes nor
-authorizes the route. This prevents omission and default acceptance while
-preserving an auditable path from generated suggestion to later manual domain
-review.
+that an advancement route is compatible with the suggestion kind. The review
+record now retains one receipt per proposal suggestion, including the exact
+suggestion snapshot, its SHA-256, the disposition, rationale, route, and manual
+review flag, so later domain work can cite the reviewed content rather than only
+a suggestion ID. The reviewer identity is explicitly unauthenticated, and
+advancement neither invokes nor authorizes the route. This prevents omission and
+default acceptance while preserving an auditable path from generated suggestion
+to later manual domain review.
 
 Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally

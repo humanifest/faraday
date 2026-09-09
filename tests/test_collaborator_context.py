@@ -254,6 +254,14 @@ def _review(proposal_record_sha256: str) -> dict:
     }
 
 
+def _canonical_json_sha256(value: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
     tmp_path: Path,
 ) -> None:
@@ -600,18 +608,33 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
 ) -> None:
     context = _context()
     snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(snapshot["context_sha256"])
+    second_suggestion = {
+        **proposal["suggestions"][0],
+        "suggestion_id": "suggestion-2",
+        "kind": "question",
+        "statement": "Ask whether selection into the exposure is measured.",
+        "rationale": "The design cannot interpret exposure differences without it.",
+        "next_test": "Decide whether this is already represented in the DAG.",
+    }
+    proposal["suggestions"].append(second_suggestion)
     proposal_path = tmp_path / "proposal.json"
-    proposal_path.write_text(
-        json.dumps(_proposal(snapshot["context_sha256"])), encoding="utf-8"
-    )
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
     validated = validate_collaborator_proposal(
         Path(snapshot["context_file"]),
         snapshot["context_sha256"],
         proposal_path,
         tmp_path / "validated",
     )
+    review = _review(validated["record_sha256"])
+    review["decisions"].append({
+        "suggestion_id": "suggestion-2",
+        "disposition": "defer",
+        "rationale": "The existing design record needs to be checked first.",
+        "domain_route": "none",
+    })
     review_path = tmp_path / "review.json"
-    review_path.write_text(json.dumps(_review(validated["record_sha256"])), encoding="utf-8")
+    review_path.write_text(json.dumps(review), encoding="utf-8")
     result = adjudicate_collaborator_proposal(
         Path(validated["record_file"]),
         validated["record_sha256"],
@@ -621,6 +644,32 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     record = json.loads(Path(result["record_file"]).read_text(encoding="utf-8"))
     assert record["advanced_suggestions"] == [
         {"suggestion_id": "suggestion-1", "domain_route": "design.revise"}
+    ]
+    expected_suggestions = proposal["suggestions"]
+    reviewed = record["reviewed_suggestions"]
+    assert reviewed == [
+        {
+            "suggestion_id": "suggestion-1",
+            "suggestion_sha256": _canonical_json_sha256(expected_suggestions[0]),
+            "suggestion": expected_suggestions[0],
+            "disposition": "advance_to_domain_review",
+            "rationale": "The proposed control could discriminate an alternative explanation.",
+            "domain_route": "design.revise",
+            "manual_domain_review_required": True,
+            "canonical_writes_performed": False,
+            "scientific_evidence_eligible": False,
+        },
+        {
+            "suggestion_id": "suggestion-2",
+            "suggestion_sha256": _canonical_json_sha256(expected_suggestions[1]),
+            "suggestion": expected_suggestions[1],
+            "disposition": "defer",
+            "rationale": "The existing design record needs to be checked first.",
+            "domain_route": "none",
+            "manual_domain_review_required": False,
+            "canonical_writes_performed": False,
+            "scientific_evidence_eligible": False,
+        },
     ]
     assert record["context_scientific_constraints"] == _SCIENTIFIC_CONSTRAINTS
     assert record["reviewer_identity_authenticated"] is False

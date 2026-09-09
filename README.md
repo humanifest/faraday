@@ -845,8 +845,10 @@ than treating the generated response as accepted by default:
 Each suggestion must be rejected, deferred, or advanced to a compatible named
 domain review such as `question.add`, `hypothesis.propose`, `design.revise`, or
 `protocol.amend`. Advancement is triage, not acceptance: the review record
-authenticates neither reviewer identity nor scientific adequacy, authorizes no
-action, and does not execute the named command.
+retains one decision receipt per proposal suggestion, including the exact
+suggestion snapshot, its SHA-256, disposition, rationale, compatible route, and
+manual-review flag. It authenticates neither reviewer identity nor scientific
+adequacy, authorizes no action, and does not execute the named command.
 
 ## Literature snapshots
 
