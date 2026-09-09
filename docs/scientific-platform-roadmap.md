@@ -582,6 +582,13 @@ is contradicted. Deterministic synthesis lists every frozen check and every
 reported diagnostic, interpretation, disposition, output digest, and location,
 including unavailable results. Numerical success cannot suppress measurement
 validity limitations.
+Replication-package verification now replays performed measurement-validity
+gates against the frozen checks: every mapped check must have exactly one result,
+the retained evidence type must match the protocol, gate status must agree with
+`consistent_with_validity_claim`, `inconclusive`, or
+`contradicted_validity_claim`, and each result must cite a packaged run output.
+This keeps validity contradictions and ambiguity attached to exported runs
+without treating a consistent diagnostic as construct-validity proof.
 Validity-to-evidence binding delivery: each evidence record now carries the
 service-derived ordered IDs of frozen measurement-validity checks with
 artifact-bound `consistent_with_validity_claim` results. Evidence admission

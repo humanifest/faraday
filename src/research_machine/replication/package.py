@@ -506,6 +506,84 @@ def _validate_control_gate_metadata(
             raise ValidationError(f"{prefix}.evidence_location must be nonempty text")
 
 
+def _validate_measurement_validity_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    run_id: str,
+    gate: QualityGateResult,
+    output_artifacts: list[DatasetArtifact],
+) -> None:
+    checks = [
+        check
+        for check in protocol.measurement_validity_checks
+        if check.assessment_gate_id == gate.gate_id
+    ]
+    if not checks or gate.status is QualityGateStatus.SKIPPED:
+        return
+    results = gate.details.get("measurement_validity_results")
+    expected_ids = {check.check_id for check in checks}
+    if not isinstance(results, dict) or set(results) != expected_ids:
+        raise ValidationError(
+            f"package run {run_id} performed measurement validity gate {gate.gate_id} requires exact results for: "
+            + ", ".join(sorted(expected_ids))
+        )
+    expected_status = {
+        QualityGateStatus.PASSED: "consistent_with_validity_claim",
+        QualityGateStatus.WARNING: "inconclusive",
+        QualityGateStatus.FAILED: "contradicted_validity_claim",
+    }.get(gate.status)
+    if expected_status is None:
+        raise ValidationError(
+            f"package run {run_id} measurement-validity gate {gate.gate_id} must be passed, warning, failed, or skipped"
+        )
+    output_hashes = {artifact.sha256 for artifact in output_artifacts}
+    for check in checks:
+        result = results[check.check_id]
+        required_fields = {
+            "observed_diagnostic",
+            "interpretation",
+            "assessment_status",
+            "evidence_type",
+            "evidence_sha256",
+            "evidence_location",
+        }
+        if not isinstance(result, dict) or set(result) != required_fields:
+            raise ValidationError(
+                f"package run {run_id} measurement validity result for {check.check_id} must contain exactly the documented fields"
+            )
+        prefix = (
+            f"package run {run_id} gate {gate.gate_id} measurement_validity_results "
+            f"{check.check_id}"
+        )
+        for field in ("observed_diagnostic", "interpretation", "evidence_location"):
+            if not isinstance(result[field], str) or not result[field].strip():
+                raise ValidationError(f"{prefix}.{field} must be nonempty text")
+        if result["evidence_type"] != check.evidence_type:
+            raise ValidationError(
+                f"package run {run_id} measurement validity evidence_type does not match the frozen protocol"
+            )
+        status = require_canonical_text(
+            result["assessment_status"], f"{prefix}.assessment_status"
+        )
+        if status not in {
+            "consistent_with_validity_claim",
+            "contradicted_validity_claim",
+            "inconclusive",
+        }:
+            raise ValidationError(
+                f"package run {run_id} measurement validity result has an unsupported assessment_status"
+            )
+        if status != expected_status:
+            raise ValidationError(
+                f"package run {run_id} {gate.status.value} measurement validity gate requires {expected_status}"
+            )
+        digest = require_sha256(result["evidence_sha256"], f"{prefix}.evidence_sha256")
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"package run {run_id} measurement validity evidence must reference a run output artifact"
+            )
+
+
 def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any]:
     """Verify packaged bytes against an independently retained export commitment."""
     expected_manifest_sha256 = require_sha256(
@@ -770,6 +848,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         output_artifacts=run.output_artifacts,
                     )
                     _validate_control_gate_metadata(
+                        protocol=protocol,
+                        run_id=run.run_id,
+                        gate=gate,
+                        output_artifacts=run.output_artifacts,
+                    )
+                    _validate_measurement_validity_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,

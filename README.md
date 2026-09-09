@@ -684,7 +684,13 @@ control mapped to the gate must have exactly one evaluation, no extra controls
 may appear, `matches_expected` must remain boolean, and the evaluation evidence
 hash must reference a packaged run output. This keeps failed or unexpected
 controls visible as scientific outcomes without treating expected behavior as
-proof that the study is valid. Structured
+proof that the study is valid. Structured measurement-validity metadata is also
+replayed for every performed validity gate: each frozen check must have exactly
+one result, the evidence type must match the protocol, passed/warning/failed
+gates must retain `consistent_with_validity_claim`, `inconclusive`, or
+`contradicted_validity_claim` respectively, and each result must cite a packaged
+run output. Consistency remains a bounded diagnostic, not proof of construct
+validity. Structured
 canary-target gate metadata is replayed against the packaged protocol and run:
 the gate must be the frozen canary assessment gate, the plan and hidden
 assignment hashes must agree with `canary_target_plan`, the revealed and

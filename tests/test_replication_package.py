@@ -22,6 +22,9 @@ from research_machine.domain.models import (
     DatasetArtifact,
     DatasetManifest,
     DatasetRole,
+    MeasurementDefinition,
+    MeasurementRole,
+    MeasurementValidityCheck,
     ProtocolKind,
     QualityGateResult,
     QualityGateStatus,
@@ -1257,6 +1260,188 @@ def test_replication_package_verifies_control_gate_metadata(
         results["negative-1"]["evidence_sha256"] = "f" * 64
     elif mutation == "blank_location":
         results["negative-1"]["evidence_location"] = ""
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing_results", "requires exact results"),
+        ("missing_check", "requires exact results"),
+        ("extra_check", "requires exact results"),
+        ("missing_field", "documented fields"),
+        ("wrong_evidence_type", "evidence_type does not match"),
+        ("wrong_status", "passed measurement validity gate requires"),
+        ("padded_status", "assessment_status must be canonical"),
+        ("unbound_evidence", "must reference a run output artifact"),
+        ("blank_diagnostic", "observed_diagnostic must be nonempty text"),
+    ],
+)
+def test_replication_package_verifies_measurement_validity_gate_metadata(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service = ResearchService(FileSystemRepository(workspace), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    measurement = MeasurementDefinition(
+        measurement_id="primary-measurement",
+        role=MeasurementRole.PRIMARY,
+        registered_target="Outcome",
+        observable="Synthetic acceptance indicator",
+        input_condition="Synthetic fixture input.",
+        parameter_values={"parser": "fixture"},
+        evaluation_point="After fixture replay.",
+        convention="One indicates acceptance and zero indicates rejection.",
+        aggregation="One value per fixture unit.",
+        tolerance="Exact JSON value.",
+        expected_behavior="Retain the fixture indicator.",
+        data_column="acceptance",
+        temporal_role="not_applicable",
+        scale_type="binary",
+        unit="indicator",
+        admissible_values=["0", "1"],
+        missing_value_codes=["<blank>"],
+    )
+    control_measurement = MeasurementDefinition(
+        measurement_id="control-measurement",
+        role=MeasurementRole.CONTROL,
+        registered_target="Control",
+        observable="Synthetic control transcript",
+        input_condition="Synthetic control input.",
+        parameter_values={"parser": "fixture"},
+        evaluation_point="During fixture replay.",
+        convention="Retain the control transcript.",
+        aggregation="One transcript.",
+        tolerance="Exact retained text.",
+        expected_behavior="The control transcript is retained.",
+    )
+    check = MeasurementValidityCheck(
+        check_id="checker-reference-agreement",
+        measurement_id="primary-measurement",
+        evidence_type="criterion",
+        validity_claim="The parsed indicator agrees with the retained checker transcript.",
+        assessment_plan="Compare the JSON indicator with the retained transcript.",
+        acceptance_criterion="The indicator and transcript agree exactly.",
+        failure_response="Stop interpretation and repair the parser.",
+        assessment_gate_id="measurement-validity-assessed",
+    )
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL, methodology="Method",
+        quality_requirements=["proof-check", "measurement-validity-assessed"],
+        controls=["Control"], expected_outputs=["output"], success_conditions=["success"],
+        environment_requirements=["environment"], sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+        measurement_definitions=[measurement, control_measurement],
+        measurement_validity_checks=[check],
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    record_path = tmp_path / "validity-output.json"
+    record_sha256 = _write_json(
+        record_path,
+        {"validity": {"checker-reference-agreement": {"acceptance": 1}}},
+    )
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            record_path.name,
+            record_sha256,
+            record_path.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[
+            QualityGateResult(
+                "proof-check",
+                QualityGateStatus.PASSED,
+                "Synthetic proof fixture passed.",
+                details={"evidence_sha256": record_sha256},
+            ),
+            QualityGateResult(
+                "measurement-validity-assessed",
+                QualityGateStatus.PASSED,
+                "Synthetic validity fixture passed.",
+                details={
+                    "evidence_sha256": record_sha256,
+                    "measurement_validity_results": {
+                        "checker-reference-agreement": {
+                            "observed_diagnostic": "The parsed indicator matched the transcript.",
+                            "interpretation": "Fixture consistency only; no validity proof.",
+                            "assessment_status": "consistent_with_validity_claim",
+                            "evidence_type": "criterion",
+                            "evidence_sha256": record_sha256,
+                            "evidence_location": "/validity/checker-reference-agreement",
+                        }
+                    },
+                },
+            ),
+        ],
+        summary="Synthetic package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    gate = next(
+        item for item in runs[0]["quality_gates"]
+        if item["gate_id"] == "measurement-validity-assessed"
+    )
+    results = gate["details"]["measurement_validity_results"]
+    result = results["checker-reference-agreement"]
+    if mutation == "missing_results":
+        del gate["details"]["measurement_validity_results"]
+    elif mutation == "missing_check":
+        del results["checker-reference-agreement"]
+    elif mutation == "extra_check":
+        results["invented-check"] = dict(result)
+    elif mutation == "missing_field":
+        del result["interpretation"]
+    elif mutation == "wrong_evidence_type":
+        result["evidence_type"] = "attestation"
+    elif mutation == "wrong_status":
+        result["assessment_status"] = "inconclusive"
+    elif mutation == "padded_status":
+        result["assessment_status"] = " consistent_with_validity_claim"
+    elif mutation == "unbound_evidence":
+        result["evidence_sha256"] = "f" * 64
+    elif mutation == "blank_diagnostic":
+        result["observed_diagnostic"] = ""
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 
