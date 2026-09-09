@@ -1090,14 +1090,19 @@ review flag, so later domain work can cite the reviewed content rather than only
 a suggestion ID. The reviewer identity is explicitly unauthenticated, and
 advancement neither invokes nor authorizes the route. This prevents omission and
 default acceptance while preserving an auditable path from generated suggestion
-to later manual domain review. `research collaborator verify-review` independently
-replays a saved review record against a trusted review-record hash, checking the
-authority flags, scientific constraints, retained context reference index,
-reviewed suggestion digests, reviewed-suggestion evidence references, decision
-coverage, compatible routes, and advanced-suggestion summary without performing
-canonical writes or authenticating the reviewer. Legacy review records without a
-retained context index remain visible with `legacy_missing` reference replay
-rather than being silently upgraded.
+to later manual domain review. The review record also now retains a proposal-
+record replay digest over the copied context reference index, scientific
+constraints, and proposal-body grounding receipt, so later verification can
+detect guardrail rewrites inside the review record itself. `research
+collaborator verify-review` independently replays a saved review record against
+a trusted review-record hash, checking the authority flags, retained scientific
+constraints, retained context reference index, proposal-record replay digests,
+review payload version, reviewed suggestion digests, reviewed-suggestion
+evidence references, decision coverage, compatible routes, and advanced-
+suggestion summary without performing canonical writes or authenticating the
+reviewer. Legacy review records without a retained context index or proposal-
+record replay digest remain visible with `legacy_missing` replay rather than
+being silently upgraded.
 
 Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally

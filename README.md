@@ -886,14 +886,15 @@ Replay a saved review record before relying on it as triage provenance:
   --expected-review-record-sha256 <trusted-review-record-sha256>
 ```
 
-Verification checks the trusted record hash, authority flags, scientific
-constraints, retained context reference index, review decisions, every retained
-suggestion digest, reviewed-suggestion evidence references, and the advanced-
-suggestion summary. It still does not authenticate the reviewer or turn the
-review into a canonical scientific action. Older review records that lack the
-retained context index remain verifiable as `legacy_missing`, but their
-reviewed-suggestion citations cannot be replayed against the frozen context and
-must not be treated as upgraded provenance.
+Verification checks the trusted record hash, authority flags, retained
+scientific constraints, retained context reference index, proposal-record
+guardrail replay digests, review payload version, review decisions, every
+retained suggestion digest, reviewed-suggestion evidence references, and the
+advanced-suggestion summary. It still does not authenticate the reviewer or turn
+the review into a canonical scientific action. Older review records that lack
+the retained context index or proposal-record replay digest remain verifiable as
+`legacy_missing`, but their copied guardrails or reviewed-suggestion citations
+cannot be treated as upgraded provenance.
 
 ## Literature snapshots
 

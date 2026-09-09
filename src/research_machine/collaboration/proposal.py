@@ -98,6 +98,7 @@ _PROPOSAL_RECORD_FIELDS = {
 _REVIEW_RECORD_FIELDS = {
     "collaborator_proposal_review_record_version",
     "proposal_record_input",
+    "proposal_record_replay",
     "context_reference_index",
     "context_scientific_constraints",
     "proposal_body_grounding",
@@ -112,7 +113,18 @@ _REVIEW_RECORD_FIELDS = {
     "authorized_actions",
     "conclusion_ceiling",
 }
-_LEGACY_REVIEW_RECORD_FIELDS = _REVIEW_RECORD_FIELDS - {"context_reference_index"}
+_PROPOSAL_RECORD_REPLAY_FIELDS = {
+    "context_reference_index_sha256",
+    "context_scientific_constraints_sha256",
+    "proposal_body_grounding_sha256",
+}
+_LEGACY_REVIEW_RECORD_FIELDS = _REVIEW_RECORD_FIELDS - {
+    "context_reference_index",
+    "proposal_record_replay",
+}
+_LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_REPLAY = _REVIEW_RECORD_FIELDS - {
+    "proposal_record_replay"
+}
 _REVIEWED_SUGGESTION_FIELDS = {
     "suggestion_id",
     "suggestion_sha256",
@@ -537,11 +549,53 @@ def _publish_json(root: Path, filename: str, value: dict[str, Any]) -> bytes:
     return content
 
 
-def _sha256_json(value: dict[str, Any]) -> str:
+def _sha256_json(value: Any) -> str:
     content = json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
     )
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _proposal_record_replay(record: dict[str, Any]) -> dict[str, str]:
+    return {
+        "context_reference_index_sha256": _sha256_json(
+            record.get("context_reference_index", [])
+        ),
+        "context_scientific_constraints_sha256": _sha256_json(
+            record["context_scientific_constraints"]
+        ),
+        "proposal_body_grounding_sha256": _sha256_json(
+            record["proposal_body_grounding"]
+        ),
+    }
+
+
+def _validate_proposal_record_replay(
+    value: Any, record: dict[str, Any]
+) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise ValidationError(
+            "collaborator proposal review record proposal_record_replay must be an object"
+        )
+    _exact_fields(
+        value,
+        _PROPOSAL_RECORD_REPLAY_FIELDS,
+        "collaborator proposal review record proposal_record_replay",
+    )
+    replay: dict[str, str] = {}
+    for field in _PROPOSAL_RECORD_REPLAY_FIELDS:
+        digest = value[field]
+        if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+            raise ValidationError(
+                f"collaborator proposal review record proposal_record_replay.{field} is invalid"
+            )
+        replay[field] = digest
+    expected = _proposal_record_replay(record)
+    if replay != expected:
+        raise ValidationError(
+            "collaborator proposal review record proposal_record_replay disagrees with retained proposal-record guardrails"
+        )
+    return replay
 
 
 def create_context_snapshot(context: dict[str, Any], output: Path) -> dict[str, Any]:
@@ -849,6 +903,7 @@ def adjudicate_collaborator_proposal(
             "sha256": record_digest,
             "size_bytes": len(record_content),
         },
+        "proposal_record_replay": _proposal_record_replay(record),
         "context_reference_index": record["context_reference_index"],
         "context_scientific_constraints": record["context_scientific_constraints"],
         "proposal_body_grounding": record["proposal_body_grounding"],
@@ -915,17 +970,32 @@ def verify_collaborator_review_record(
             "collaborator proposal review record does not match trusted SHA-256"
         )
     context_reference_status = "verified"
-    if "context_reference_index" in record:
+    proposal_record_replay_status = "verified"
+    has_context_reference_index = "context_reference_index" in record
+    has_proposal_record_replay = "proposal_record_replay" in record
+    if has_context_reference_index and has_proposal_record_replay:
         _exact_fields(
             record, _REVIEW_RECORD_FIELDS, "collaborator proposal review record"
         )
-    else:
+    elif has_context_reference_index:
+        _exact_fields(
+            record,
+            _LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_REPLAY,
+            "collaborator proposal review record",
+        )
+        proposal_record_replay_status = "legacy_missing"
+    elif not has_proposal_record_replay:
         _exact_fields(
             record,
             _LEGACY_REVIEW_RECORD_FIELDS,
             "collaborator proposal review record",
         )
         context_reference_status = "legacy_missing"
+        proposal_record_replay_status = "legacy_missing"
+    else:
+        raise ValidationError(
+            "collaborator proposal review record proposal_record_replay requires context_reference_index"
+        )
     if record.get("collaborator_proposal_review_record_version") != 1:
         raise ValidationError("collaborator proposal review record version must be 1")
     if record.get("status") != "reviewed_requires_manual_domain_action":
@@ -952,6 +1022,11 @@ def verify_collaborator_review_record(
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
+    if has_proposal_record_replay:
+        _validate_proposal_record_replay(
+            record["proposal_record_replay"],
+            record,
+        )
     allowed_evidence_refs = (
         _context_reference_ids(
             {"context_reference_index": record["context_reference_index"]}
@@ -969,6 +1044,8 @@ def verify_collaborator_review_record(
     if not isinstance(review, dict):
         raise ValidationError("collaborator proposal review record review must be an object")
     _exact_fields(review, _REVIEW_FIELDS, "collaborator proposal review")
+    if review["review_version"] != 1:
+        raise ValidationError("collaborator proposal review_version must be 1")
     if review["proposal_record_sha256"] != record["proposal_record_input"]["sha256"]:
         raise ValidationError(
             "collaborator proposal review record review is bound to a different proposal record"
@@ -1089,6 +1166,7 @@ def verify_collaborator_review_record(
         "reviewed_suggestion_count": len(reviewed_suggestions),
         "advanced_suggestion_count": len(advanced),
         "context_reference_replay": context_reference_status,
+        "proposal_record_replay": proposal_record_replay_status,
         "canonical_writes_performed": False,
         "scientific_evidence_eligible": False,
     }

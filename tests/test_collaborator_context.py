@@ -985,6 +985,7 @@ def test_cli_exports_context_and_validates_proposal_without_a_provider(
     verified = json.loads(capsys.readouterr().out)["result"]
     assert verified["reviewed_suggestion_count"] == 1
     assert verified["context_reference_replay"] == "verified"
+    assert verified["proposal_record_replay"] == "verified"
     assert verified["canonical_writes_performed"] is False
 
 
@@ -1031,6 +1032,15 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
         {"suggestion_id": "suggestion-1", "domain_route": "design.revise"}
     ]
     assert record["context_reference_index"] == []
+    assert record["proposal_record_replay"] == {
+        "context_reference_index_sha256": _canonical_json_sha256([]),
+        "context_scientific_constraints_sha256": _canonical_json_sha256(
+            _SCIENTIFIC_CONSTRAINTS
+        ),
+        "proposal_body_grounding_sha256": _canonical_json_sha256(
+            _proposal_body_grounding(proposal)
+        ),
+    }
     assert record["proposal_body_grounding"] == _proposal_body_grounding(proposal)
     expected_suggestions = proposal["suggestions"]
     reviewed = record["reviewed_suggestions"]
@@ -1069,6 +1079,57 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     assert verified["reviewed_suggestion_count"] == 2
     assert verified["advanced_suggestion_count"] == 1
     assert verified["context_reference_replay"] == "verified"
+    assert verified["proposal_record_replay"] == "verified"
+    assert verified["scientific_evidence_eligible"] is False
+
+
+def test_verify_legacy_collaborator_review_discloses_missing_proposal_replay(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(
+            _proposal(
+                snapshot["context_sha256"],
+                evidence_refs=["claim:claim-1"],
+            )
+        ),
+        encoding="utf-8",
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(
+        json.dumps(_review(validated["record_sha256"])), encoding="utf-8"
+    )
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record.pop("proposal_record_replay")
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    verified = verify_collaborator_review_record(record_path, trusted_hash)
+
+    assert verified["context_reference_replay"] == "verified"
+    assert verified["proposal_record_replay"] == "legacy_missing"
+    assert verified["reviewed_suggestion_count"] == 1
     assert verified["scientific_evidence_eligible"] is False
 
 
@@ -1108,6 +1169,7 @@ def test_verify_legacy_collaborator_review_discloses_missing_context_index(
     record_path = Path(reviewed["record_file"])
     record = json.loads(record_path.read_text(encoding="utf-8"))
     record.pop("context_reference_index")
+    record.pop("proposal_record_replay")
     record_path.write_text(
         json.dumps(record, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -1117,6 +1179,7 @@ def test_verify_legacy_collaborator_review_discloses_missing_context_index(
     verified = verify_collaborator_review_record(record_path, trusted_hash)
 
     assert verified["context_reference_replay"] == "legacy_missing"
+    assert verified["proposal_record_replay"] == "legacy_missing"
     assert verified["reviewed_suggestion_count"] == 1
     assert verified["scientific_evidence_eligible"] is False
 
@@ -1211,6 +1274,9 @@ def test_verify_collaborator_review_replays_proposal_body_grounding_refs(
     record_path = Path(reviewed["record_file"])
     record = json.loads(record_path.read_text(encoding="utf-8"))
     record["proposal_body_grounding"][0]["context_refs"] = ["claim:not-in-context"]
+    record["proposal_record_replay"]["proposal_body_grounding_sha256"] = (
+        _canonical_json_sha256(record["proposal_body_grounding"])
+    )
     record_path.write_text(
         json.dumps(record, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -1251,6 +1317,10 @@ def test_verify_collaborator_review_replays_proposal_body_grounding_refs(
             "different proposal record",
         ),
         (
+            lambda record: record["review"].update({"review_version": 2}),
+            "review_version must be 1",
+        ),
+        (
             lambda record: record["reviewed_suggestions"][0]["suggestion"].update(
                 {"authority": "canonical_write"}
             ),
@@ -1271,6 +1341,12 @@ def test_verify_collaborator_review_replays_proposal_body_grounding_refs(
         (
             _pad_retained_suggestion_statement,
             "statement must be canonical",
+        ),
+        (
+            lambda record: record["context_scientific_constraints"].append(
+                "Additional causal and authorization boundary reminder."
+            ),
+            "proposal_record_replay disagrees",
         ),
     ],
 )
