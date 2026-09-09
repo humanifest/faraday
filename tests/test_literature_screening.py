@@ -3,7 +3,7 @@ import json
 import pytest
 
 from research_machine.literature.snapshot import create_snapshot
-from research_machine.literature.screening import create_screening
+from research_machine.literature.screening import create_screening, validate_screening_boundary
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
 
@@ -33,6 +33,9 @@ def test_screening_cli_preserves_duplicate_disagreement(tmp_path, capsys):
     assert result["status"] == "review_required"
     assert result["duplicate_decision_conflicts"] == [["a", "b"]]
     assert result["scientific_evidence_eligible"] is False
+    assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
+    assert isinstance(result["limitations"], list)
     assert snapshot.read_bytes() == original
     with pytest.raises(ValidationError, match="already exists"):
         create_screening(snapshot, digest, review, tmp_path / "screening")
@@ -48,6 +51,32 @@ def test_screening_preserves_canonical_source_and_criterion_references(tmp_path)
     assert included["source_id"] == "a"
     assert included["source_retained_file_sha256"] == retained_source_sha
     assert included["criterion_refs"] == ["inclusion:1"]
+    validate_screening_boundary(result)
+
+
+@pytest.mark.parametrize("tamper", [
+    "scientific_evidence_eligible", "conclusion_authorized", "publication_authorized",
+    "limitations", "source_record_counts", "duplicate_decision_conflicts", "status",
+])
+def test_screening_boundary_replays_authority_counts_and_status(tmp_path, tamper):
+    snapshot, digest, review = setup_snapshot(tmp_path)
+    result = create_screening(snapshot, digest, review, tmp_path / "screening")
+    if tamper == "scientific_evidence_eligible":
+        result["scientific_evidence_eligible"] = True
+    elif tamper == "conclusion_authorized":
+        result["conclusion_authorized"] = True
+    elif tamper == "publication_authorized":
+        result["publication_authorized"] = True
+    elif tamper == "limitations":
+        result["limitations"] = []
+    elif tamper == "source_record_counts":
+        result["source_record_counts"] = {"include": 2, "exclude": 0, "unresolved": 0}
+    elif tamper == "duplicate_decision_conflicts":
+        result["duplicate_decision_conflicts"] = []
+    else:
+        result["status"] = "screening_recorded"
+    with pytest.raises(ValidationError):
+        validate_screening_boundary(result)
 
 
 @pytest.mark.parametrize("failure", ["hash", "missing", "duplicate", "padded_source", "reason", "criterion", "padded_criterion", "duplicate_criterion", "no_criterion"])

@@ -10,9 +10,22 @@ from research_machine.literature.synthesis_plan import create_synthesis_plan
 
 
 def screening_file(tmp_path, status="screening_recorded"):
-    value = {"screening_version": 2, "status": status, "snapshot_id": "snap",
-        "decisions": [{"source_id": "s1", "decision": "include"},
-                      {"source_id": "s2", "decision": "exclude"}]}
+    value = {"screening_version": 2, "snapshot_sha256": "a" * 64,
+        "status": status, "snapshot_id": "snap", "reviewer": "Screening reviewer",
+        "criteria": {"inclusion:1": "Eligible", "exclusion:1": "Ineligible"},
+        "decisions": [
+            {"source_id": "s1", "decision": "include", "reason": "Eligible",
+             "criterion_refs": ["inclusion:1"], "source_retained_file_sha256": "1" * 64},
+            {"source_id": "s2", "decision": "exclude", "reason": "Ineligible",
+             "criterion_refs": ["exclusion:1"], "source_retained_file_sha256": "2" * 64}],
+        "source_record_counts": {"include": 1, "exclude": 1, "unresolved": 0},
+        "duplicate_decision_conflicts": [],
+        "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
+        "limitations": [
+            "Inclusion is not claim acceptance, evidence admission, or support for any extracted claim."
+        ]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
     path = tmp_path / "screening.json"
     path.write_bytes(encoded)
@@ -20,8 +33,21 @@ def screening_file(tmp_path, status="screening_recorded"):
 
 
 def padded_screening_file(tmp_path):
-    value = {"screening_version": 2, "status": "screening_recorded", "snapshot_id": "snap",
-        "decisions": [{"source_id": " s1", "decision": "include"}]}
+    value = {"screening_version": 2, "snapshot_sha256": "a" * 64,
+        "status": "screening_recorded", "snapshot_id": "snap",
+        "reviewer": "Screening reviewer",
+        "criteria": {"inclusion:1": "Eligible"},
+        "decisions": [{"source_id": " s1", "decision": "include",
+            "reason": "Eligible", "criterion_refs": ["inclusion:1"],
+            "source_retained_file_sha256": "1" * 64}],
+        "source_record_counts": {"include": 1, "exclude": 0, "unresolved": 0},
+        "duplicate_decision_conflicts": [],
+        "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
+        "limitations": [
+            "Inclusion is not claim acceptance, evidence admission, or support for any extracted claim."
+        ]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
     path = tmp_path / "screening.json"
     path.write_bytes(encoded)
@@ -68,13 +94,26 @@ def test_qualitative_plan_rejects_quantitative_choices(tmp_path):
         create_synthesis_plan(screening, digest, candidate, tmp_path / "plan")
 
 
-@pytest.mark.parametrize("failure", ["hash", "screening", "no-included", "minimum", "sensitivity", "unknown-sensitivity", "same-model", "quant-effect", "quant-model"])
+@pytest.mark.parametrize("failure", [
+    "hash", "screening", "no-included", "screening-conclusion",
+    "screening-publication", "screening-count", "minimum", "sensitivity",
+    "unknown-sensitivity", "same-model", "quant-effect", "quant-model",
+])
 def test_invalid_synthesis_plan_never_publishes(tmp_path, failure):
     screening, digest = screening_file(tmp_path, "review_required" if failure == "screening" else "screening_recorded")
     candidate = spec()
     if failure == "hash": digest = "0" * 64
     elif failure == "no-included":
         value = json.loads(screening.read_text()); value["decisions"][0]["decision"] = "exclude"
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode(); screening.write_bytes(encoded); digest = hashlib.sha256(encoded).hexdigest()
+    elif failure == "screening-conclusion":
+        value = json.loads(screening.read_text()); value["conclusion_authorized"] = True
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode(); screening.write_bytes(encoded); digest = hashlib.sha256(encoded).hexdigest()
+    elif failure == "screening-publication":
+        value = json.loads(screening.read_text()); value["publication_authorized"] = True
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode(); screening.write_bytes(encoded); digest = hashlib.sha256(encoded).hexdigest()
+    elif failure == "screening-count":
+        value = json.loads(screening.read_text()); value["source_record_counts"]["include"] = 2
         encoded = (json.dumps(value, sort_keys=True) + "\n").encode(); screening.write_bytes(encoded); digest = hashlib.sha256(encoded).hexdigest()
     elif failure == "minimum": candidate["minimum_independent_studies"] = True
     elif failure == "sensitivity": candidate["sensitivity_analyses"] = []
@@ -117,7 +156,7 @@ def test_synthesis_plan_rejects_padded_list_commitments(tmp_path, field):
 def test_synthesis_plan_rejects_padded_frozen_source_ids(tmp_path):
     screening, digest = padded_screening_file(tmp_path)
     output = tmp_path / "plan"
-    with pytest.raises(ValidationError, match="included source records"):
+    with pytest.raises(ValidationError, match="screening source_id must be canonical"):
         create_synthesis_plan(screening, digest, spec(), output)
     assert not output.exists()
 

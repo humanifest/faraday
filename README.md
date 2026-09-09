@@ -1031,7 +1031,10 @@ source-byte provenance. This still does not mean Faraday has interpreted the
 source text or verified a cited passage. The trusted snapshot hash supplied to
 screening must be a canonical lowercase SHA-256 digest before it can pin the
 source bytes. Downstream extraction and synthesis-planning commands apply the
-same canonical hash contract when they pin a screening record.
+same canonical hash contract when they pin a screening record. They also replay
+the screening record's non-evidence, non-conclusion, non-publication boundary,
+retained limitations, source-record counts, duplicate-content conflicts, and
+derived status before trusting the screened-in source set.
 
 Downstream literature evidence maps retain the extraction location, independent
 citation-review location and rationale, and study-level bias-domain judgments

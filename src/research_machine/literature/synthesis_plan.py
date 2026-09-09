@@ -10,6 +10,7 @@ from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.screening import validate_screening_boundary
 from research_machine.literature.snapshot import _text
 
 
@@ -73,6 +74,7 @@ def create_synthesis_plan(
     if (not isinstance(screening, dict) or screening.get("screening_version") != 2
             or screening.get("status") != "screening_recorded"):
         raise ValidationError("synthesis planning requires a completed version 2 screening")
+    validate_screening_boundary(screening)
     included = sorted(item.get("source_id") for item in screening.get("decisions", [])
                       if isinstance(item, dict) and item.get("decision") == "include")
     if (not included

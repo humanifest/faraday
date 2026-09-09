@@ -10,6 +10,7 @@ from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.screening import validate_screening_boundary
 from research_machine.literature.snapshot import _text
 
 _LAYERS = {"observed", "derived", "model-dependent", "inferred", "hypothesized", "speculative"}
@@ -37,6 +38,7 @@ def create_extraction(screening_path: Path, expected_sha256: str,
     if (not isinstance(screening, dict) or screening.get("screening_version") != 2
             or screening.get("status") != "screening_recorded"):
         raise ValidationError("extraction requires a completed version 2 screening record")
+    validate_screening_boundary(screening)
     decisions = screening.get("decisions")
     if not isinstance(decisions, list):
         raise ValidationError("screening decisions must be an array")

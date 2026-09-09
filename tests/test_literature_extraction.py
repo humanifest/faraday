@@ -53,6 +53,7 @@ def test_extraction_cli_is_write_once_and_non_evidentiary(tmp_path, capsys):
     assert result["record_count"] == 1
     assert result["source_reviews"][0]["records"][0]["evidence_location"] == "page 2, table 1"
     assert result["scientific_evidence_eligible"] is False
+    assert json.loads(screening.read_text())["conclusion_authorized"] is False
     assert screening.read_bytes() == original
     with pytest.raises(ValidationError, match="already exists"):
         create_extraction(screening, digest, extraction_review(), output)
@@ -73,7 +74,11 @@ def test_extraction_preserves_canonical_source_study_and_record_ids(tmp_path):
     assert source_review["records"][0]["study_id"] == "study-1"
 
 
-@pytest.mark.parametrize("failure", ["hash", "excluded", "missing", "duplicate", "padded_id", "duplicate_source", "duplicate_screening_source", "location", "layer", "empty"])
+@pytest.mark.parametrize("failure", [
+    "hash", "excluded", "missing", "duplicate", "padded_id", "duplicate_source",
+    "duplicate_screening_source", "screening-conclusion", "screening-publication",
+    "screening-count", "location", "layer", "empty",
+])
 def test_invalid_extraction_never_publishes(tmp_path, failure):
     screening, digest = prepared_screening(tmp_path)
     review = extraction_review()
@@ -91,6 +96,21 @@ def test_invalid_extraction_never_publishes(tmp_path, failure):
     elif failure == "duplicate_screening_source":
         value = json.loads(screening.read_text())
         value["decisions"].append(dict(value["decisions"][0]))
+        screening.write_text(json.dumps(value, sort_keys=True) + "\n")
+        digest = hashlib.sha256(screening.read_bytes()).hexdigest()
+    elif failure == "screening-conclusion":
+        value = json.loads(screening.read_text())
+        value["conclusion_authorized"] = True
+        screening.write_text(json.dumps(value, sort_keys=True) + "\n")
+        digest = hashlib.sha256(screening.read_bytes()).hexdigest()
+    elif failure == "screening-publication":
+        value = json.loads(screening.read_text())
+        value["publication_authorized"] = True
+        screening.write_text(json.dumps(value, sort_keys=True) + "\n")
+        digest = hashlib.sha256(screening.read_bytes()).hexdigest()
+    elif failure == "screening-count":
+        value = json.loads(screening.read_text())
+        value["source_record_counts"]["include"] = 2
         screening.write_text(json.dumps(value, sort_keys=True) + "\n")
         digest = hashlib.sha256(screening.read_bytes()).hexdigest()
     elif failure == "location": record["evidence_location"] = ""

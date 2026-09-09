@@ -1265,7 +1265,8 @@ an empty list. Version 2 screening records retain the criterion text. This does
 not validate the reviewer's application of the criteria. Every
 source must have exactly one decision. Conflicting decisions for byte-identical
 sources remain visible and mark the screening as requiring review. Inclusion
-does not accept a claim, authenticate a reviewer, or establish independent studies.
+does not accept a claim, authenticate a reviewer, authorize conclusions,
+authorize publication claims, or establish independent studies.
 Screening reviewer text, pinned source IDs, decision source IDs, reasons, and
 criterion references must be canonical without surrounding whitespace before
 coverage and duplicate checks, so whitespace padding cannot create a second
@@ -1280,7 +1281,11 @@ effect preparation. Legacy chains without the anchor remain readable as
 `legacy_missing`, but they are not silently upgraded to hash-anchored
 source-byte provenance. This is byte provenance only: it still does not
 interpret source text, verify that a cited passage supports a claim,
-authenticate reviewers, or assess bias.
+authenticate reviewers, or assess bias. Extraction and synthesis planning replay
+the screening artifact's non-authority flags, retained limitations,
+source-record counts, duplicate-content conflict summary, and derived status
+before trusting its included source IDs, so a rewritten screening summary cannot
+launder a source set into extraction or synthesis planning.
 `research literature extract --screening-file <screening>
 --expected-screening-sha256 <hash> --review-file <review>
 --output <new-directory>` creates a separate write-once extraction record for
