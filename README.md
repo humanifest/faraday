@@ -1101,7 +1101,10 @@ structural errors, and deterministic synthesis exposes each protected dataset's
 lineage state as protocol-closure provenance rather than consent, custody,
 measurement-validity, or analysis proof. Replication-package verification
 replays the same protocol-closed lineage boundary from packaged metadata before
-trusting a redacted handoff.
+trusting a redacted handoff. Authoritative inquiry display, protocol-bound
+execution checks, run intake, and evidence admission also walk the complete
+protected ancestor graph and reject resealed missing, duplicated, cyclic, or
+cross-boundary lineage before the dataset can support scientific use.
 
 Non-synthetic confirmatory and replication datasets must also prove that their
 declared observation artifacts exist at registration. Supply `--artifact-root`;

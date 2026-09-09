@@ -1000,6 +1000,7 @@ class ResearchService:
         for hypothesis in hypotheses:
             validate_hypothesis_scientific_commitment(hypothesis)
         protocols_by_id = {item.protocol_id: item for item in protocols}
+        datasets_by_id = {item.dataset_id: item for item in datasets}
         hypotheses_by_id = {item.hypothesis_id: item for item in hypotheses}
         from research_machine.application.hypothesis_integrity import (
             validate_protocol_hypothesis_commitments,
@@ -1017,11 +1018,15 @@ class ResearchService:
         from research_machine.application.ethics import (
             reverify_ethics_condition_discharge,
         )
+        from research_machine.application.dataset_integrity import (
+            validate_protected_dataset_lineage_closure,
+        )
         for dataset in datasets:
             from research_machine.application.dataset_integrity import (
                 validate_dataset_payload_commitment,
             )
             validate_dataset_payload_commitment(dataset)
+            validate_protected_dataset_lineage_closure(dataset, datasets_by_id)
             if (
                 dataset.role in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
                 and not dataset.synthetic
@@ -1072,7 +1077,7 @@ class ResearchService:
                 self.repository.find_dataset(resolved, dataset_id)
                 for dataset_id in run.dataset_ids
             ]
-            self._validate_run_datasets(protocol, run_datasets)
+            self._validate_run_datasets(protocol, run_datasets, all_datasets=datasets)
             reverify_run_artifacts(run)
         from research_machine.application.evidence_admission import (
             validate_evidence_admission_receipts,
@@ -1927,12 +1932,20 @@ class ResearchService:
         )
         from research_machine.application.dataset_integrity import (
             dataset_payload_sha256,
+            validate_protected_dataset_lineage_closure,
         )
         dataset = replace(
             dataset,
             metadata={
                 **dataset.metadata,
                 "dataset_payload_sha256": dataset_payload_sha256(dataset),
+            },
+        )
+        validate_protected_dataset_lineage_closure(
+            dataset,
+            {
+                item.dataset_id: item
+                for item in [*self.repository.list_datasets(resolved), dataset]
             },
         )
         self.repository.save_dataset(resolved, dataset)
@@ -2516,7 +2529,11 @@ class ResearchService:
             raise ValidationError("confirmatory-test allocation does not match the frozen randomization")
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         dataset = self.repository.find_dataset(resolved, dataset_id)
-        self._validate_run_datasets(protocol, [dataset])
+        self._validate_run_datasets(
+            protocol,
+            [dataset],
+            all_datasets=self.repository.list_datasets(resolved),
+        )
         digest = require_sha256(input_sha256, "input_sha256")
         artifacts = [item for item in dataset.artifacts if item.sha256 == digest]
         if not artifacts:
@@ -2579,7 +2596,11 @@ class ResearchService:
             raise ValidationError("Holm alpha does not match the frozen analysis step")
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         dataset = self.repository.find_dataset(resolved, dataset_id)
-        self._validate_run_datasets(protocol, [dataset])
+        self._validate_run_datasets(
+            protocol,
+            [dataset],
+            all_datasets=self.repository.list_datasets(resolved),
+        )
         digest = require_sha256(input_sha256, "input_sha256")
         artifacts = [item for item in dataset.artifacts if item.sha256 == digest]
         if not artifacts:
@@ -2712,7 +2733,11 @@ class ResearchService:
             raise ValidationError("analysis specification does not match the frozen protocol")
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         dataset = self.repository.find_dataset(resolved, dataset_id)
-        self._validate_run_datasets(protocol, [dataset])
+        self._validate_run_datasets(
+            protocol,
+            [dataset],
+            all_datasets=self.repository.list_datasets(resolved),
+        )
         digest = require_sha256(input_sha256, "input_sha256")
         matches = [artifact for artifact in dataset.artifacts if artifact.sha256 == digest]
         if not matches:
@@ -2859,7 +2884,11 @@ class ResearchService:
             self.repository.find_dataset(resolved, dataset_id)
             for dataset_id in dataset_ids
         ]
-        self._validate_run_datasets(protocol, datasets)
+        self._validate_run_datasets(
+            protocol,
+            datasets,
+            all_datasets=self.repository.list_datasets(resolved),
+        )
         from research_machine.application.ethics import (
             evaluate_ethics_clearance,
             validate_ethics_conditions_for_run,
@@ -4325,7 +4354,11 @@ class ResearchService:
                     "evidence admission requires the run's exact frozen protocol commitment"
                 )
             if run.scientific_evidence_eligible:
-                self._validate_run_datasets(protocol, datasets)
+                self._validate_run_datasets(
+                    protocol,
+                    datasets,
+                    all_datasets=self.repository.list_datasets(resolved),
+                )
                 from research_machine.application.run_integrity import (
                     reverify_run_artifacts,
                 )
@@ -5049,13 +5082,20 @@ class ResearchService:
 
     @staticmethod
     def _validate_run_datasets(
-        protocol: ExperimentProtocol, datasets: list[DatasetManifest]
+        protocol: ExperimentProtocol,
+        datasets: list[DatasetManifest],
+        *,
+        all_datasets: list[DatasetManifest] | None = None,
     ) -> None:
         from research_machine.application.dataset_integrity import (
             validate_dataset_payload_commitment,
+            validate_protected_dataset_lineage_closure,
         )
+        dataset_scope = all_datasets if all_datasets is not None else datasets
+        datasets_by_id = {dataset.dataset_id: dataset for dataset in dataset_scope}
         for dataset in datasets:
             validate_dataset_payload_commitment(dataset)
+            validate_protected_dataset_lineage_closure(dataset, datasets_by_id)
         if any(
             dataset.protocol_id and dataset.protocol_id != protocol.protocol_id
             for dataset in datasets

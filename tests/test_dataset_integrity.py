@@ -5,9 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from research_machine.application.commands import CreateProtocol, RegisterDataset
+from research_machine.application.commands import CreateProtocol, RecordRun, RegisterDataset
 from research_machine.application.dataset_integrity import (
+    dataset_payload_sha256,
     reverify_dataset_artifacts,
+    validate_protected_dataset_lineage_closure,
     verify_dataset_artifacts,
 )
 from research_machine.application.rigor import audit_research_state
@@ -21,6 +23,8 @@ from research_machine.domain.models import (
     Inquiry,
     ProtocolKind,
     ProtocolStatus,
+    QualityGateResult,
+    QualityGateStatus,
 )
 from research_machine.reporting.synthesis import build_synthesis
 from test_ethics_gate import _human_protocol
@@ -45,6 +49,16 @@ def _artifact(path: Path) -> DatasetArtifact:
         path.stat().st_size,
         "text/csv",
     )
+
+
+def _reseal_dataset_record(path: Path, **updates: object) -> None:
+    record = json.loads(path.read_text(encoding="utf-8"))
+    record.update(updates)
+    record.setdefault("metadata", {}).pop("dataset_payload_sha256", None)
+    record["metadata"]["dataset_payload_sha256"] = dataset_payload_sha256(
+        DatasetManifest.from_dict(record)
+    )
+    path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def test_audit_and_synthesis_expose_protected_lineage_mismatch() -> None:
@@ -130,6 +144,190 @@ def test_audit_and_synthesis_expose_protected_lineage_mismatch() -> None:
     assert "### Protected dataset lineage" in synthesis
     assert "cross-boundary source `source-dataset`" in synthesis
     assert "protocol-closure provenance, not proof" in synthesis
+
+
+@pytest.mark.parametrize(
+    ("datasets", "root_id", "message"),
+    [
+        (
+            [
+                DatasetManifest(
+                    dataset_id="root",
+                    name="Root",
+                    role=DatasetRole.CONFIRMATORY,
+                    created_at="2026-09-09T00:00:00Z",
+                    artifacts=[DatasetArtifact("root.csv", "a" * 64)],
+                    source_dataset_ids=["source", "source"],
+                    protocol_id="protocol-v1",
+                    synthetic=True,
+                ),
+                DatasetManifest(
+                    dataset_id="source",
+                    name="Source",
+                    role=DatasetRole.CONFIRMATORY,
+                    created_at="2026-09-09T00:00:00Z",
+                    artifacts=[DatasetArtifact("source.csv", "b" * 64)],
+                    protocol_id="protocol-v1",
+                    synthetic=True,
+                ),
+            ],
+            "root",
+            "repeats lineage source",
+        ),
+        (
+            [
+                DatasetManifest(
+                    dataset_id="root",
+                    name="Root",
+                    role=DatasetRole.CONFIRMATORY,
+                    created_at="2026-09-09T00:00:00Z",
+                    artifacts=[DatasetArtifact("root.csv", "a" * 64)],
+                    source_dataset_ids=["source"],
+                    protocol_id="protocol-v1",
+                    synthetic=True,
+                ),
+                DatasetManifest(
+                    dataset_id="source",
+                    name="Source",
+                    role=DatasetRole.CONFIRMATORY,
+                    created_at="2026-09-09T00:00:00Z",
+                    artifacts=[DatasetArtifact("source.csv", "b" * 64)],
+                    source_dataset_ids=["root"],
+                    protocol_id="protocol-v1",
+                    synthetic=True,
+                ),
+            ],
+            "root",
+            "contains a cycle",
+        ),
+    ],
+)
+def test_protected_lineage_closure_rejects_invalid_graphs(
+    datasets: list[DatasetManifest],
+    root_id: str,
+    message: str,
+) -> None:
+    datasets_by_id = {dataset.dataset_id: dataset for dataset in datasets}
+
+    with pytest.raises(ValidationError, match=message):
+        validate_protected_dataset_lineage_closure(
+            datasets_by_id[root_id],
+            datasets_by_id,
+            validate_payload=False,
+        )
+
+
+def test_show_inquiry_rejects_resealed_cross_protocol_protected_lineage(
+    tmp_path: Path,
+) -> None:
+    service, protocol = _protected_protocol(tmp_path)
+    source = service.register_dataset(RegisterDataset(
+        dataset_id="source-observations",
+        name="Source observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("source.csv", "c" * 64)],
+        protocol_id=protocol.protocol_id,
+        synthetic=True,
+    ))
+    service.register_dataset(RegisterDataset(
+        dataset_id="derived-observations",
+        name="Derived observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("derived.csv", "d" * 64)],
+        source_dataset_ids=[source.dataset_id],
+        protocol_id=protocol.protocol_id,
+        synthetic=True,
+    ))
+    source_path = (
+        tmp_path
+        / "inquiries"
+        / "formal"
+        / "datasets"
+        / f"{source.dataset_id}.json"
+    )
+    _reseal_dataset_record(source_path, protocol_id="other-protocol-v1")
+
+    with pytest.raises(ValidationError, match="lineage crosses role or protocol"):
+        service.show_inquiry()
+
+
+def test_run_intake_rejects_resealed_cross_protocol_protected_lineage(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    draft = service.create_protocol(CreateProtocol(
+        experiment_id="lineage-run-test",
+        title="Lineage run test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis_id],
+        primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL,
+        methodology="Replay a synthetic lineage fixture.",
+        quality_requirements=["gate"],
+        controls=["control"],
+        expected_outputs=["result"],
+        success_conditions=["quality gate passes"],
+        environment_requirements=["deterministic fixture"],
+        sample_size_or_stopping_rule="one synthetic fixture",
+        failure_conditions=["quality gate fails"],
+        safety_constraints=["synthetic fixture only"],
+        analysis_code_hash="a" * 64,
+    ))
+    protocol = service.freeze_protocol(draft.protocol_id)
+    source = service.register_dataset(RegisterDataset(
+        dataset_id="run-source-observations",
+        name="Run source observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("source.csv", "c" * 64)],
+        protocol_id=protocol.protocol_id,
+        synthetic=True,
+    ))
+    derived = service.register_dataset(RegisterDataset(
+        dataset_id="run-derived-observations",
+        name="Run derived observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("derived.csv", "d" * 64)],
+        source_dataset_ids=[source.dataset_id],
+        protocol_id=protocol.protocol_id,
+        synthetic=True,
+    ))
+    source_path = (
+        tmp_path
+        / "inquiries"
+        / "formal"
+        / "datasets"
+        / f"{source.dataset_id}.json"
+    )
+    _reseal_dataset_record(source_path, protocol_id="other-protocol-v1")
+
+    with pytest.raises(ValidationError, match="lineage crosses role or protocol"):
+        service.record_run(RecordRun(
+            protocol_id=protocol.protocol_id,
+            started_at="2026-09-02T12:01:00Z",
+            completed_at="2026-09-02T12:02:00Z",
+            analysis_code_hash="a" * 64,
+            environment_hash="b" * 64,
+            dataset_ids=[derived.dataset_id],
+            output_artifacts=[
+                DatasetArtifact("result.json", "e" * 64, media_type="application/json")
+            ],
+            quality_gates=[
+                QualityGateResult(
+                    "gate",
+                    QualityGateStatus.PASSED,
+                    "Synthetic fixture gate.",
+                    details={"evidence_sha256": "e" * 64},
+                )
+            ],
+            summary="Synthetic lineage fixture.",
+            synthetic=True,
+            metadata={
+                "protocol_deviation_disclosure": {
+                    "status": "no_deviations_declared",
+                    "deviations": [],
+                }
+            },
+        ))
 
 
 def test_real_protected_dataset_requires_current_registered_bytes(tmp_path: Path) -> None:

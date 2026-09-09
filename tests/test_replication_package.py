@@ -742,8 +742,8 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     ("mutation", "message"),
     [
         ("padded_source_id", "source_dataset_ids item"),
-        ("source_protocol_mismatch", "outside the packaged protocol-closed lineage"),
-        ("source_role_mismatch", "outside the packaged protocol-closed lineage"),
+        ("source_protocol_mismatch", "protocol-closed lineage"),
+        ("source_role_mismatch", "protocol-closed lineage"),
     ],
 )
 def test_replication_package_rejects_invalid_protected_lineage(

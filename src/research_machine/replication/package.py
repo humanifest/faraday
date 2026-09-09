@@ -35,6 +35,7 @@ from research_machine.application.policies import (
 from research_machine.application.protocol_integrity import protocol_commitment
 from research_machine.application.dataset_integrity import (
     validate_dataset_payload_commitment,
+    validate_protected_dataset_lineage_closure,
 )
 from research_machine.application.run_integrity import validate_run_payload_commitment
 
@@ -1410,6 +1411,17 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         f"package dataset {dataset_id} has unavailable lineage sources: "
                         + ", ".join(unavailable)
                     )
+                try:
+                    validate_protected_dataset_lineage_closure(
+                        dataset,
+                        dataset_by_id,
+                        validate_payload=False,
+                    )
+                except ValidationError as exc:
+                    raise ValidationError(
+                        f"package protected dataset {dataset_id} violates "
+                        f"protocol-closed lineage: {exc}"
+                    ) from exc
             visiting: set[str] = set()
             visited: set[str] = set()
 

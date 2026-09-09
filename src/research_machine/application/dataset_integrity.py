@@ -6,15 +6,21 @@ from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from research_machine.application.artifact_integrity import verify_run_artifacts
 from research_machine.application.policies import require_canonical_text
 from research_machine.domain.errors import ValidationError
-from research_machine.domain.models import DatasetArtifact, DatasetManifest, ExperimentProtocol
+from research_machine.domain.models import (
+    DatasetArtifact,
+    DatasetManifest,
+    DatasetRole,
+    ExperimentProtocol,
+)
 
 
 _SCOPE = "registered observation bytes under the supplied local artifact root"
+_PROTECTED_ROLES = {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
 
 
 def dataset_payload_sha256(dataset: DatasetManifest) -> str:
@@ -37,6 +43,58 @@ def validate_dataset_payload_commitment(dataset: DatasetManifest) -> str:
             f"dataset {dataset.dataset_id} payload no longer matches its service-generated commitment"
         )
     return retained
+
+
+def validate_protected_dataset_lineage_closure(
+    dataset: DatasetManifest,
+    datasets_by_id: Mapping[str, DatasetManifest],
+    *,
+    validate_payload: bool = True,
+) -> list[DatasetManifest]:
+    """Validate protected ancestry under one frozen protocol boundary."""
+    if dataset.role not in _PROTECTED_ROLES:
+        return [dataset]
+    root_protocol_id = dataset.protocol_id
+    if not root_protocol_id:
+        raise ValidationError(
+            f"protected dataset {dataset.dataset_id} is not bound to a frozen protocol"
+        )
+
+    ordered: list[DatasetManifest] = []
+    visited: set[str] = set()
+    visiting: set[str] = set()
+
+    def visit(current: DatasetManifest) -> None:
+        if validate_payload:
+            validate_dataset_payload_commitment(current)
+        if current.dataset_id in visiting:
+            raise ValidationError("protected dataset lineage contains a cycle")
+        if current.dataset_id in visited:
+            return
+        visiting.add(current.dataset_id)
+        ordered.append(current)
+        if len(set(current.source_dataset_ids)) != len(current.source_dataset_ids):
+            raise ValidationError(
+                f"protected dataset {current.dataset_id} repeats lineage source"
+            )
+        for source_id in current.source_dataset_ids:
+            source = datasets_by_id.get(source_id)
+            if source is None:
+                raise ValidationError(
+                    f"protected dataset {current.dataset_id} references unavailable "
+                    f"source dataset {source_id}"
+                )
+            if source.role is not dataset.role or source.protocol_id != root_protocol_id:
+                raise ValidationError(
+                    f"protected dataset {dataset.dataset_id} lineage crosses role or "
+                    f"protocol boundaries at source dataset {source.dataset_id}"
+                )
+            visit(source)
+        visiting.remove(current.dataset_id)
+        visited.add(current.dataset_id)
+
+    visit(dataset)
+    return ordered
 
 
 def _integrity(

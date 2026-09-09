@@ -1628,7 +1628,11 @@ dataset's lineage state while explicitly treating it as protocol-closure
 provenance only, not consent, custody, measurement-validity, or analysis
 adequacy. Replication-package verification replays the same protocol-closed
 lineage rule from packaged metadata, including redacted packages that cannot
-reopen local dataset payload commitments.
+reopen local dataset payload commitments. A shared application integrity check
+now recursively walks protected ancestors during inquiry display, execution
+binding, run intake, and evidence admission; resealed records with missing,
+duplicated, cyclic, or cross-role/cross-protocol ancestry fail before scientific
+use.
 Literature synthesis-plan freezing now requires canonical plan IDs, reviewer
 text, questions, outcomes, effect measures, contrast definitions, subgroup and
 sensitivity entries, policy prose, conclusion rules, deviation policies, and
