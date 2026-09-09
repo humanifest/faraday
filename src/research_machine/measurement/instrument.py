@@ -100,6 +100,21 @@ _STREAM_TIMING_RECORD_FIELDS = {
     "authorized_actions",
     "conclusion_ceiling",
 }
+_STREAM_TIMING_REQUIRED_STREAM_BASE_FIELDS = {
+    "stream_id",
+    "channel",
+    "purpose",
+    "status",
+}
+_STREAM_TIMING_REQUIRED_STREAM_OBSERVED_FIELDS = (
+    _STREAM_TIMING_REQUIRED_STREAM_BASE_FIELDS | {"observed_channel"}
+)
+_STREAM_TIMING_EVENT_BASE_FIELDS = {"event_id", "stream_id", "event_time", "status"}
+_STREAM_TIMING_EVENT_ASSESSED_FIELDS = _STREAM_TIMING_EVENT_BASE_FIELDS | {
+    "clock_uncertainty_seconds",
+    "uncertainty_fraction_of_lag_window",
+    "overlapping_missing_intervals",
+}
 _STREAM_TIMING_INSPECTION_FIELDS = {
     "sha256",
     "size_bytes",
@@ -136,6 +151,18 @@ _TEMPORAL_ORDER_RECORD_FIELDS = {
 }
 _TEMPORAL_ORDER_SOURCE_FIELDS = {"sha256", "size_bytes"}
 _TEMPORAL_ORDER_TIMING_FIELDS = {"sha256", "size_bytes", "status"}
+_TEMPORAL_ORDER_CHECK_BASE_RECORD_FIELDS = _TEMPORAL_ORDER_CHECK_FIELDS | {
+    "observed_relation",
+    "status",
+}
+_TEMPORAL_ORDER_CHECK_ASSESSED_RECORD_FIELDS = (
+    _TEMPORAL_ORDER_CHECK_BASE_RECORD_FIELDS
+    | {"point_delta_seconds", "conservative_gap_seconds"}
+)
+_FINDING_FIELDS = {"severity", "code", "message"}
+_FINDING_WITH_STREAM_FIELDS = _FINDING_FIELDS | {"stream_id"}
+_FINDING_WITH_EVENT_FIELDS = _FINDING_FIELDS | {"event_id"}
+_FINDING_WITH_STREAM_EVENT_FIELDS = _FINDING_FIELDS | {"stream_id", "event_id"}
 _TIME_BOUND_FIELDS = {"duration", "unit"}
 _RETAINED_TIME_BOUND_FIELDS = {"duration", "unit", "seconds"}
 _EXPECTED_TEMPORAL_RELATIONS = {
@@ -892,6 +919,32 @@ def _finding(
     return finding
 
 
+def _validate_retained_finding(value: Any, label: str) -> str:
+    if not isinstance(value, dict):
+        raise ValidationError(f"{label} must be an object")
+    has_stream = "stream_id" in value
+    has_event = "event_id" in value
+    if has_stream and has_event:
+        expected = _FINDING_WITH_STREAM_EVENT_FIELDS
+    elif has_stream:
+        expected = _FINDING_WITH_STREAM_FIELDS
+    elif has_event:
+        expected = _FINDING_WITH_EVENT_FIELDS
+    else:
+        expected = _FINDING_FIELDS
+    _exact_fields(value, expected, label)
+    severity = _text(value["severity"], f"{label}.severity")
+    if severity not in {"warning", "error"}:
+        raise ValidationError("instrument inspection finding severity is unsupported")
+    _text(value["code"], f"{label}.code")
+    _text(value["message"], f"{label}.message")
+    if has_stream:
+        _stable_identifier(value["stream_id"], f"{label}.stream_id")
+    if has_event:
+        _stable_identifier(value["event_id"], f"{label}.event_id")
+    return severity
+
+
 def assess_temporal_order(
     timing_assessment_file: Path,
     expected_timing_assessment_sha256: str,
@@ -1123,6 +1176,12 @@ def verify_temporal_order_assessment_record(
     for index, check in enumerate(order_checks):
         if not isinstance(check, dict):
             raise ValidationError(f"temporal order assessment order_checks[{index}] must be an object")
+        expected_fields = (
+            _TEMPORAL_ORDER_CHECK_BASE_RECORD_FIELDS
+            if check.get("observed_relation") == "not_assessed"
+            else _TEMPORAL_ORDER_CHECK_ASSESSED_RECORD_FIELDS
+        )
+        _exact_fields(check, expected_fields, f"temporal_order order_checks[{index}]")
         check_id = _stable_identifier(
             check.get("check_id"), f"temporal_order order_checks[{index}].check_id"
         )
@@ -1194,15 +1253,9 @@ def verify_temporal_order_assessment_record(
         raise ValidationError("temporal order assessment findings must be an array")
     error_findings = 0
     for index, finding in enumerate(findings):
-        if not isinstance(finding, dict):
-            raise ValidationError(f"temporal order assessment findings[{index}] must be an object")
-        severity = _text(
-            finding.get("severity"), f"temporal_order findings[{index}].severity"
+        severity = _validate_retained_finding(
+            finding, f"temporal_order findings[{index}]"
         )
-        if severity not in {"warning", "error"}:
-            raise ValidationError("temporal order assessment finding severity is unsupported")
-        _text(finding.get("code"), f"temporal_order findings[{index}].code")
-        _text(finding.get("message"), f"temporal_order findings[{index}].message")
         if severity == "error":
             error_findings += 1
     status = _text(record["status"], "temporal_order record status")
@@ -1543,6 +1596,15 @@ def verify_stream_timing_assessment_record(
     for index, stream in enumerate(required_streams):
         if not isinstance(stream, dict):
             raise ValidationError(f"stream timing assessment required_streams[{index}] must be an object")
+        _exact_fields(
+            stream,
+            (
+                _STREAM_TIMING_REQUIRED_STREAM_BASE_FIELDS
+                if stream.get("status") == "absent"
+                else _STREAM_TIMING_REQUIRED_STREAM_OBSERVED_FIELDS
+            ),
+            f"stream_timing required_streams[{index}]",
+        )
         stream_id = _stable_identifier(
             stream.get("stream_id"), f"stream_timing required_streams[{index}].stream_id"
         )
@@ -1570,6 +1632,15 @@ def verify_stream_timing_assessment_record(
     for index, event in enumerate(events):
         if not isinstance(event, dict):
             raise ValidationError(f"stream timing assessment events[{index}] must be an object")
+        _exact_fields(
+            event,
+            (
+                _STREAM_TIMING_EVENT_ASSESSED_FIELDS
+                if event.get("status") == "assessed"
+                else _STREAM_TIMING_EVENT_BASE_FIELDS
+            ),
+            f"stream_timing events[{index}]",
+        )
         event_id = _stable_identifier(event.get("event_id"), f"stream_timing events[{index}].event_id")
         if event_id in seen_events:
             raise ValidationError("stream timing assessment events must be unique")
@@ -1605,15 +1676,9 @@ def verify_stream_timing_assessment_record(
         raise ValidationError("stream timing assessment findings must be an array")
     error_findings = 0
     for index, finding in enumerate(findings):
-        if not isinstance(finding, dict):
-            raise ValidationError(f"stream timing assessment findings[{index}] must be an object")
-        severity = _text(
-            finding.get("severity"), f"stream_timing findings[{index}].severity"
+        severity = _validate_retained_finding(
+            finding, f"stream_timing findings[{index}]"
         )
-        if severity not in {"warning", "error"}:
-            raise ValidationError("stream timing assessment finding severity is unsupported")
-        _text(finding.get("code"), f"stream_timing findings[{index}].code")
-        _text(finding.get("message"), f"stream_timing findings[{index}].message")
         if severity == "error":
             error_findings += 1
     status = _text(record["status"], "stream_timing record status")

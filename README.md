@@ -1254,7 +1254,9 @@ status, and rejects a passed gate unless the verified record itself passed. The
 independent verifier now derives retained channel mismatches, absent streams,
 unsupported uncertainty units, excessive uncertainty fractions, and
 missing-interval overlaps from the structured record rather than trusting a
-copied findings list or status label.
+copied findings list or status label. It also rejects status-incompatible,
+missing, or hidden extra fields in retained stream, event, and finding entries,
+so downstream tools receive one exact machine-readable timing shape.
 Failed stream-timing assessments may only be retained as failed gates, preserving
 missing stream metadata, channel mismatches, unusable uncertainty units, and
 missing-interval overlaps while blocking required-gate evidence eligibility.
@@ -1284,7 +1286,9 @@ status, and rejects a passed gate unless the verified record itself passed. The
 independent verifier also recomputes retained separation-window seconds and
 derives each check's pass, warning, or failure status from the recorded expected
 relation, observed relation, point delta, conservative gap, and registered
-window.
+window. It rejects missing or hidden extra fields in retained order-check and
+finding entries rather than allowing unreviewed annotations to ride along with
+a trusted assessment.
 Failed temporal-order assessments may only be retained as failed gates, keeping
 reversals, unresolved timing, and registered-window misses visible while
 blocking required-gate evidence eligibility. Rigor and synthesis expose these
