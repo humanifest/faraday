@@ -282,6 +282,13 @@ mapped results are `consistent_with_assumption`, warning requires at least one
 `contradicted_assumption`. Extra, missing, unsupported, or rhetorically mismatched
 results fail intake. These outcomes remain diagnostics, not proof or disproof of
 the full real-world identification condition.
+Replication-package verification now replays the same structured causal
+assessment semantics against the frozen assumption register. Exported packages
+must retain exact mapped categories, frozen assessment kinds, canonical
+`consistent_with_assumption`, `inconclusive`, or `contradicted_assumption`
+statuses, gate/result agreement, and output-bound diagnostic hashes. This keeps
+failed and ambiguous causal assessments visible after export without letting a
+package-level metadata rewrite imply that the DAG or assumptions were verified.
 When an assessment cites the verified analysis output itself, run intake requires
 an absolute JSON Pointer and resolves it against the hash-verified result bytes.
 Other artifact formats retain exact human-inspectable locations without pretending
@@ -945,7 +952,13 @@ contract: retained assessment kind and status must match the registered gate
 semantics, and the assessment evidence must cite a packaged run output. This
 keeps exclusions, inconclusive diagnostics, and contradicted missingness
 assumptions attached to exported runs without treating them as proof that
-missingness was ignorable.
+missingness was ignorable. Causal-assumption gate metadata is now replayed
+against the packaged causal audit as well: every mapped assumption category must
+have exactly one result, assessment kinds must match the frozen register, gate
+status must agree with the retained constrained dispositions, and every cited
+diagnostic hash must be a packaged run output. This prevents exported packages
+from hiding contradicted causal assumptions or upgrading inconclusive diagnostics
+into identification support.
 When a package includes locators, verification also recomputes the packaged
 protocol, dataset, and run frozen hash commitments from the unredacted bytes;
 redacted packages preserve but cannot independently replay locator-bearing

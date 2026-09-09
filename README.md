@@ -285,6 +285,13 @@ result and no contradiction; failed gates require at least one
 `contradicted_assumption`. Skipped means the assessment was not performed. This
 preserves disconfirming and ambiguous results while preventing a gate label from
 misrepresenting the recorded diagnostic outcomes.
+Replication-package verification replays the same causal-assumption result
+structure against the frozen assumption register: mapped categories must be
+exact, assessment kinds cannot be relabeled, statuses must be canonical and
+match the gate disposition, and every cited diagnostic hash must be a packaged
+run output. Exported packages can therefore preserve failed and inconclusive
+causal diagnostics without letting a receiver rewrite them into support for the
+DAG or its assumptions.
 Analysis methods now publish a machine-readable maximum inference level:
 `computation_only`, `descriptive`, `association`, or
 `design_conditional_effect`. The level is validated in the add-on manifest and
@@ -697,8 +704,14 @@ contract, passed/warning/failed gates must retain
 `contradicted_assumption` respectively, and the assessment evidence must cite a
 packaged run output. This preserves missingness ambiguity and contradictions in
 the handoff without treating a diagnostic as proof that exclusions were
-ignorable. Structured canary-target gate metadata is replayed against the
-packaged protocol and run:
+ignorable. Structured causal-assumption gate metadata is replayed against the
+frozen assumption register: every mapped category must have exactly one result,
+the retained assessment kind and constrained status must match the registered
+gate semantics, and the cited diagnostic hash must be a packaged run output.
+This keeps causal assumption warnings and contradictions visible without
+treating a consistent diagnostic as proof that identification assumptions are
+true. Structured canary-target gate metadata is replayed against the packaged
+protocol and run:
 the gate must be the frozen canary assessment gate, the plan and hidden
 assignment hashes must agree with `canary_target_plan`, the revealed and
 comparator targets must come from the frozen candidate set without overlap, and

@@ -6,6 +6,7 @@ import hashlib
 import json
 import pytest
 
+from research_machine.design.causal import audit_causal_identification
 from research_machine.application.commands import (
     CreateInquiry,
     CreateProtocol,
@@ -1695,6 +1696,408 @@ def test_replication_package_verifies_missingness_gate_metadata(
         result["evidence_sha256"] = "f" * 64
     elif mutation == "blank_interpretation":
         result["interpretation"] = ""
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing_results", "requires exact results"),
+        ("missing_category", "requires exact results"),
+        ("extra_category", "requires exact results"),
+        ("missing_field", "requires an exact result"),
+        ("wrong_kind", "assessment_kind does not match"),
+        ("padded_status", "assessment_status must be canonical"),
+        ("bad_status", "unsupported assessment_status"),
+        ("unbound_evidence", "must reference a run output artifact"),
+        ("blank_location", "evidence_location must be nonempty text"),
+        ("passed_contradiction", "passed causal assessment gate"),
+        ("warning_without_inconclusive", "warning causal assessment gate"),
+        ("failed_without_contradiction", "failed causal assessment gate"),
+    ],
+)
+def test_replication_package_verifies_causal_assumption_gate_metadata(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service = ResearchService(FileSystemRepository(workspace), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Treatment changes the registered outcome.",
+        observable_prediction="The adjusted treatment-minus-control interval excludes zero.",
+        null_model="The adjusted treatment-minus-control effect is zero.",
+        primary_estimand="Mean outcome difference, treatment minus control.",
+        contrast_definition="treatment minus control",
+        contrast_groups=["treatment", "control"],
+        expected_effect_direction="two_sided",
+        falsification_conditions=["The registered interval remains compatible with the null."],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    assumptions = [
+        {
+            "category": category,
+            "statement": f"Synthetic {category} assumption.",
+            "assessment_kind": "design_record_review",
+            "assessment_plan": f"Inspect registered diagnostics for {category}.",
+            "failure_response": f"Stop causal interpretation if {category} is contradicted.",
+            "assessment_gate_id": "causal-assumptions-assessed",
+        }
+        for category in (
+            "positivity",
+            "consistency",
+            "interference",
+            "temporal_order",
+            "measurement_validity",
+            "selection_bias",
+            "exchangeability",
+        )
+    ]
+    graph = {
+        "nodes": [
+            {"id": "treatment", "observed": True},
+            {"id": "outcome", "observed": True},
+            {"id": "baseline", "observed": True},
+        ],
+        "edges": [
+            {"cause": "baseline", "effect": "treatment"},
+            {"cause": "baseline", "effect": "outcome"},
+            {"cause": "treatment", "effect": "outcome"},
+        ],
+        "exposure": "treatment",
+        "outcome": "outcome",
+        "proposed_adjustment_set": ["baseline"],
+        "assignment_type": "observational",
+        "assumptions": assumptions,
+        "causal_estimand": {
+            "target_hypothesis_id": hypothesis.hypothesis_id,
+            "description": "Mean outcome difference, treatment minus control.",
+            "population": "Synthetic package fixture units.",
+            "exposure_strategies": ["assign treatment", "assign control"],
+            "outcome_variable": "outcome",
+            "time_zero": "At synthetic fixture assignment.",
+            "outcome_time": "At the registered synthetic endpoint.",
+            "contrast": "Treatment minus control.",
+            "summary_measure": "Population mean difference.",
+            "intercurrent_events_policy": "Retain all assigned eligible units and report missing outcomes.",
+        },
+    }
+    audit = audit_causal_identification(graph)
+    measurement = MeasurementDefinition(
+        measurement_id="primary-measurement",
+        role=MeasurementRole.PRIMARY,
+        registered_target="outcome",
+        observable="Synthetic outcome value",
+        input_condition="Synthetic fixture rows.",
+        parameter_values={"parser": "fixture"},
+        evaluation_point="Registered synthetic endpoint.",
+        convention="Higher is larger.",
+        aggregation="Mean by registered exposure group.",
+        tolerance="Exact JSON fixture value.",
+        expected_behavior="Retain the fixture outcome regardless of direction.",
+        data_column="outcome",
+        temporal_role="post_exposure",
+        scale_type="interval",
+        unit="fixture units",
+        valid_min=0.0,
+        valid_max=100.0,
+        missing_value_codes=["<blank>"],
+    )
+    exposure = MeasurementDefinition(
+        measurement_id="exposure-measurement",
+        role=MeasurementRole.EXPOSURE,
+        registered_target="treatment",
+        observable="Synthetic exposure group label",
+        input_condition="At fixture assignment.",
+        parameter_values={"levels": "treatment, control"},
+        evaluation_point="At synthetic fixture assignment.",
+        convention="treatment is contrasted against control.",
+        aggregation="One label per synthetic participant.",
+        tolerance="Exact registered label.",
+        expected_behavior="Both registered groups remain reportable.",
+        data_column="treatment",
+        temporal_role="at_exposure",
+        scale_type="nominal",
+        unit="category",
+        admissible_values=["treatment", "control"],
+        missing_value_codes=["<blank>"],
+    )
+    covariate = MeasurementDefinition(
+        measurement_id="baseline-measurement",
+        role=MeasurementRole.COVARIATE,
+        registered_target="baseline",
+        observable="Synthetic baseline score",
+        input_condition="Before synthetic exposure assignment.",
+        parameter_values={"parser": "fixture"},
+        evaluation_point="Registered synthetic baseline.",
+        convention="Higher is larger.",
+        aggregation="One score per synthetic participant.",
+        tolerance="Exact fixture value.",
+        expected_behavior="Retain the baseline score regardless of outcome direction.",
+        data_column="baseline",
+        temporal_role="pre_exposure",
+        scale_type="interval",
+        unit="fixture units",
+        valid_min=0.0,
+        valid_max=100.0,
+        missing_value_codes=["<blank>"],
+    )
+    control_measurement = MeasurementDefinition(
+        measurement_id="control-measurement",
+        role=MeasurementRole.CONTROL,
+        registered_target="Reference control",
+        observable="Synthetic control transcript",
+        input_condition="Synthetic control fixture rows.",
+        parameter_values={"parser": "fixture"},
+        evaluation_point="During fixture replay.",
+        convention="Retain the control transcript.",
+        aggregation="One transcript.",
+        tolerance="Exact retained text.",
+        expected_behavior="The control transcript is retained.",
+    )
+    control = ControlDefinition(
+        "reference-1",
+        "Reference control",
+        "reference",
+        "Keep a control measurement visible.",
+        "The control transcript is retained.",
+        "control-gate",
+    )
+    analysis = AnalysisContract(
+        primary_hypothesis_id=hypothesis.hypothesis_id,
+        primary_measurement_id="primary-measurement",
+        method="adjusted_linear_effect",
+        outcome_column="outcome",
+        group_column="treatment",
+        groups=["treatment", "control"],
+        adjustment_columns=["baseline"],
+        estimand="Mean outcome difference, treatment minus control.",
+        missing_data_policy="complete_case",
+        assignment_type="observational",
+        effect_estimate_path="/result/adjusted_mean_difference_first_minus_second",
+        uncertainty_path="/result/robust_confidence_interval",
+        null_value=0.0,
+        support_rule="interval_excludes_null",
+        minimum_analyzable_units=2,
+        maximum_excluded_fraction=0.25,
+        maximum_group_excluded_fraction_difference=0.25,
+        missingness_assumption="Excluded records do not materially distort the registered contrast.",
+        missingness_assessment_plan="Inspect total and group-specific exclusions before interpretation.",
+        missingness_failure_response="Stop primary interpretation if missingness is not defensible.",
+        missingness_assessment_kind="empirical_diagnostic",
+        missingness_assessment_gate_id="missingness-assessed",
+        confidence_level=0.95,
+        contrast_definition="treatment minus control",
+        contrast_groups=["treatment", "control"],
+    )
+    conclusion = ConclusionContract(
+        primary_hypothesis_id=hypothesis.hypothesis_id,
+        decision_rule="interval_and_practical_significance",
+        smallest_effect_size_of_interest=1.0,
+        effect_scale="adjusted_mean_difference_first_minus_second",
+        effect_unit="fixture units",
+        population="Synthetic package fixture units.",
+        setting="Synthetic package fixture setting.",
+        time_window="Registered synthetic endpoint.",
+        non_supporting_direction=EvidenceDirection.INCONCLUSIVE,
+        permitted_claim_level=ClaimLevel.CAUSAL_DIRECTION,
+        higher_level_conclusions_unsupported=[
+            "No mechanism, adaptation, intent, or out-of-scope generalization."
+        ],
+    )
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test-causal-package",
+        title="Synthetic causal package fixture",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id],
+        primary_outcome="outcome",
+        protocol_kind=ProtocolKind.OBSERVATIONAL,
+        methodology="Synthetic causal package fixture; not a scientific study.",
+        quality_requirements=[
+            "control-gate",
+            "causal-assumptions-assessed",
+            "missingness-assessed",
+        ],
+        controls=["Reference control"],
+        control_definitions=[control],
+        expected_outputs=["causal diagnostics"],
+        success_conditions=["Synthetic fixture runs to completion."],
+        environment_requirements=["Synthetic fixture environment."],
+        sample_size_or_stopping_rule="Synthetic fixed fixture rows.",
+        sampling_unit="synthetic participant",
+        independent_unit="synthetic participant",
+        repeated_measures=False,
+        analysis_design="independent_groups",
+        unit_id_column="participant_id",
+        preprocessing_pipeline="Parse the synthetic fixture table.",
+        statistical_model="Covariate-adjusted treatment-minus-control contrast.",
+        multiple_testing_policy="Single registered primary contrast.",
+        missing_data_policy="Complete-case handling with registered diagnostics.",
+        failure_conditions=["Stop causal interpretation if required gates fail."],
+        safety_constraints=["Synthetic fixture only."],
+        analysis_code_hash="a" * 64,
+        measurement_definitions=[
+            measurement,
+            exposure,
+            covariate,
+            control_measurement,
+        ],
+        analysis_contract=analysis,
+        conclusion_contract=conclusion,
+        causal_claim=True,
+        causal_identification=graph,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    dataset = service.register_dataset(RegisterDataset(
+        name="Synthetic causal observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic causal package fixture."],
+    ))
+    record_path = tmp_path / "causal-output.json"
+    record_sha256 = _write_json(
+        record_path,
+        {
+            "diagnostics": {
+                category: {"status": "consistent_with_assumption"}
+                for category in (
+                    "positivity",
+                    "consistency",
+                    "interference",
+                    "temporal_order",
+                    "measurement_validity",
+                    "selection_bias",
+                    "exchangeability",
+                )
+            },
+            "missingness": {"excluded_fraction": 0.0},
+            "controls": {"reference-1": {"matches_expected": True}},
+        },
+    )
+    causal_results = {
+        item["category"]: {
+            "observed_diagnostic": f"Synthetic diagnostic reviewed for {item['category']}.",
+            "interpretation": "No fixture contradiction was encoded.",
+            "assessment_status": "consistent_with_assumption",
+            "assessment_kind": item["assessment_kind"],
+            "evidence_sha256": record_sha256,
+            "evidence_location": f"/diagnostics/{item['category']}",
+        }
+        for item in audit["assumption_register"]
+    }
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        dataset_ids=[dataset.dataset_id],
+        output_artifacts=[DatasetArtifact(
+            record_path.name,
+            record_sha256,
+            record_path.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[
+            QualityGateResult(
+                "control-gate",
+                QualityGateStatus.PASSED,
+                "Synthetic control fixture was retained.",
+                details={
+                    "evidence_sha256": record_sha256,
+                    "control_results": {
+                        "reference-1": {
+                            "observed_behavior": "The synthetic control transcript was retained.",
+                            "interpretation": "Fixture-only control interpretation.",
+                            "matches_expected": True,
+                            "evidence_sha256": record_sha256,
+                            "evidence_location": "/controls/reference-1",
+                        }
+                    },
+                },
+            ),
+            QualityGateResult(
+                "causal-assumptions-assessed",
+                QualityGateStatus.PASSED,
+                "Synthetic causal assumptions reviewed.",
+                details={
+                    "evidence_sha256": record_sha256,
+                    "causal_assumption_results": causal_results,
+                },
+            ),
+            QualityGateResult(
+                "missingness-assessed",
+                QualityGateStatus.PASSED,
+                "Synthetic missingness fixture passed.",
+                details={
+                    "evidence_sha256": record_sha256,
+                    "missingness_assessment_result": {
+                        "observed_diagnostic": "Synthetic exclusion report reviewed.",
+                        "interpretation": "No fixture contradiction to the assumption was encoded.",
+                        "assessment_status": "consistent_with_assumption",
+                        "assessment_kind": "empirical_diagnostic",
+                        "evidence_sha256": record_sha256,
+                        "evidence_location": "/missingness",
+                    },
+                },
+            ),
+        ],
+        summary="Synthetic causal package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    gate = next(
+        item for item in runs[0]["quality_gates"]
+        if item["gate_id"] == "causal-assumptions-assessed"
+    )
+    results = gate["details"]["causal_assumption_results"]
+    positivity = results["positivity"]
+    if mutation == "missing_results":
+        del gate["details"]["causal_assumption_results"]
+    elif mutation == "missing_category":
+        del results["positivity"]
+    elif mutation == "extra_category":
+        results["invented_assumption"] = dict(positivity)
+    elif mutation == "missing_field":
+        del positivity["interpretation"]
+    elif mutation == "wrong_kind":
+        positivity["assessment_kind"] = "empirical_diagnostic"
+    elif mutation == "padded_status":
+        positivity["assessment_status"] = " consistent_with_assumption"
+    elif mutation == "bad_status":
+        positivity["assessment_status"] = "verified_assumption"
+    elif mutation == "unbound_evidence":
+        positivity["evidence_sha256"] = "f" * 64
+    elif mutation == "blank_location":
+        positivity["evidence_location"] = ""
+    elif mutation == "passed_contradiction":
+        positivity["assessment_status"] = "contradicted_assumption"
+    elif mutation == "warning_without_inconclusive":
+        gate["status"] = "warning"
+    elif mutation == "failed_without_contradiction":
+        gate["status"] = "failed"
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 

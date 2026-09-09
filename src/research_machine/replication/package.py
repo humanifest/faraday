@@ -653,6 +653,100 @@ def _validate_missingness_gate_metadata(
         )
 
 
+def _validate_causal_assumption_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    run_id: str,
+    gate: QualityGateResult,
+    output_artifacts: list[DatasetArtifact],
+) -> None:
+    if not protocol.causal_claim or gate.status is QualityGateStatus.SKIPPED:
+        return
+    assumptions = [
+        assumption
+        for assumption in protocol.causal_identification_audit.get(
+            "assumption_register", []
+        )
+        if assumption["assessment_gate_id"] == gate.gate_id
+    ]
+    if not assumptions:
+        return
+    results = gate.details.get("causal_assumption_results")
+    expected_categories = {assumption["category"] for assumption in assumptions}
+    if not isinstance(results, dict) or set(results) != expected_categories:
+        raise ValidationError(
+            f"package run {run_id} causal assessment gate {gate.gate_id} requires exact results for: "
+            + ", ".join(sorted(expected_categories))
+        )
+    output_hashes = {artifact.sha256 for artifact in output_artifacts}
+    observed_statuses: set[str] = set()
+    for assumption in assumptions:
+        category = assumption["category"]
+        result = results[category]
+        required_fields = {
+            "observed_diagnostic",
+            "interpretation",
+            "assessment_status",
+            "assessment_kind",
+            "evidence_sha256",
+            "evidence_location",
+        }
+        if not isinstance(result, dict) or set(result) != required_fields:
+            raise ValidationError(
+                f"package run {run_id} causal assessment gate {gate.gate_id} requires an exact result for {category}"
+            )
+        prefix = (
+            f"package run {run_id} gate {gate.gate_id} "
+            f"causal_assumption_results {category}"
+        )
+        for field in ("observed_diagnostic", "interpretation", "evidence_location"):
+            if not isinstance(result[field], str) or not result[field].strip():
+                raise ValidationError(f"{prefix}.{field} must be nonempty text")
+        if result["assessment_kind"] != assumption.get(
+            "assessment_kind", "legacy_unclassified"
+        ):
+            raise ValidationError(
+                f"package run {run_id} causal assumption {category} assessment_kind does not match the frozen assumption register"
+            )
+        status = require_canonical_text(
+            result["assessment_status"], f"{prefix}.assessment_status"
+        )
+        if status not in {
+            "consistent_with_assumption",
+            "contradicted_assumption",
+            "inconclusive",
+        }:
+            raise ValidationError(
+                f"package run {run_id} causal assumption {category} has an unsupported assessment_status"
+            )
+        observed_statuses.add(status)
+        digest = require_sha256(result["evidence_sha256"], f"{prefix}.evidence_sha256")
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"package run {run_id} causal assumption assessment evidence must reference a run output artifact"
+            )
+    if gate.status is QualityGateStatus.PASSED and observed_statuses != {
+        "consistent_with_assumption"
+    }:
+        raise ValidationError(
+            f"package run {run_id} passed causal assessment gate {gate.gate_id} requires every result to be consistent_with_assumption"
+        )
+    if gate.status is QualityGateStatus.WARNING and (
+        "contradicted_assumption" in observed_statuses
+        or "inconclusive" not in observed_statuses
+    ):
+        raise ValidationError(
+            f"package run {run_id} warning causal assessment gate {gate.gate_id} requires at least one inconclusive result and no contradicted assumptions"
+        )
+    if (
+        gate.status is QualityGateStatus.FAILED
+        and "contradicted_assumption" not in observed_statuses
+    ):
+        raise ValidationError(
+            f"package run {run_id} failed causal assessment gate {gate.gate_id} requires at least one contradicted_assumption result"
+        )
+
+
 def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any]:
     """Verify packaged bytes against an independently retained export commitment."""
     expected_manifest_sha256 = require_sha256(
@@ -929,6 +1023,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         output_artifacts=run.output_artifacts,
                     )
                     _validate_missingness_gate_metadata(
+                        protocol=protocol,
+                        run_id=run.run_id,
+                        gate=gate,
+                        output_artifacts=run.output_artifacts,
+                    )
+                    _validate_causal_assumption_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
