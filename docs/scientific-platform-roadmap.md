@@ -235,6 +235,15 @@ the complete integrity receipt from present bytes and rejects missing, moved,
 mutated, symlinked, padded, or receipt-inconsistent review material instead of
 trusting a historical `passed` flag.
 
+Human-subject ethics review-event replay now applies the same canonical
+immutable-text boundary to review reasons, creators, retained artifact handles,
+and the event conclusion ceiling. The service rejects padded reasons before
+writing a status event, and both authoritative local reads and metadata-only
+replication package verification reject hash-consistent event records whose
+semantics were changed by surrounding whitespace. Redacted packages still do not
+need local review artifacts, but they cannot pass by recomputing file hashes
+around padded review-event claims.
+
 Priority clarification from the original brief: guided design and the design
 auditor are the next primary development track, not gated on completing this
 statistical-method inventory. Execution edge-case tests alone do not establish

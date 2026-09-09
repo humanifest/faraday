@@ -2509,19 +2509,25 @@ class ResearchService:
         if report.status != "passed":
             raise ValidationError("ethics review event artifact verification failed: "
                                   + ", ".join(item["code"] for item in report.findings))
+        reason = require_canonical_text(
+            command.reason, "ethics review event reason"
+        )
+        created_by = require_canonical_text(
+            self.actor, "ethics review event created_by"
+        )
         event = EthicsReviewEvent(
             event_id=event_id or f"ethics-{self.token()}",
             sequence=len(prior) + 1,
             protocol_id=protocol.protocol_id, protocol_hash=protocol.protocol_hash,
             status=status, effective_at=effective_at, expires_at=expires_at,
-            reason=require_text(command.reason, "ethics review event reason"),
+            reason=reason,
             review_artifact_locator=review_artifact_locator,
             review_artifact_sha256=artifact_hash,
             review_artifact_root=str(
                 Path(review_artifact_root).expanduser().resolve()
             ),
             supersedes_event_id=supersedes_event_id,
-            created_at=created_at, created_by=self.actor,
+            created_at=created_at, created_by=created_by,
             artifact_integrity=report.to_dict(),
             conclusion_ceiling=("Records local review-status evidence and blocks work when non-active; "
                                 "does not authenticate the reviewer or judge substantive adequacy."),

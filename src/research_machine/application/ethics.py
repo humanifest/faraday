@@ -496,22 +496,23 @@ def validate_ethics_review_event_chain(
                 raise ValidationError("active ethics review event expiry must follow its effective time")
         elif event.status != "active" and event.expires_at is not None:
             raise ValidationError("non-active ethics review event cannot expire")
-        _text(event.reason, "review event reason")
+        _canonical_text(event.reason, "review event reason")
         _digest(event.review_artifact_sha256, "review event artifact SHA-256")
+        _canonical_text(event.review_artifact_locator, "review event artifact locator")
+        _canonical_text(event.review_artifact_root, "review event artifact root")
+        _canonical_text(event.created_by, "review event created_by")
+        _canonical_text(event.conclusion_ceiling, "review event conclusion_ceiling")
         if not isinstance(event.artifact_integrity, dict) or event.artifact_integrity.get("status") != "passed":
             raise ValidationError("ethics review event lacks passed artifact integrity")
         if verify_current_artifacts:
-            root = _canonical_text(event.review_artifact_root, "review event artifact root")
+            root = event.review_artifact_root
             current = verify_run_artifacts(
                 [DatasetArtifact(
-                    locator=_canonical_text(
-                        event.review_artifact_locator,
-                        "review event artifact locator",
-                    ),
+                    locator=event.review_artifact_locator,
                     sha256=event.review_artifact_sha256,
                 )],
                 artifact_root=root,
-                actor=_canonical_text(event.created_by, "review event created_by"),
+                actor=event.created_by,
                 analysis_code_hash="",
                 run_metadata={},
                 attestation_schema_path=None,

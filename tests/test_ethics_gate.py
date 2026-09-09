@@ -245,6 +245,7 @@ def test_human_protocol_freeze_verifies_review_artifact_bytes_without_writing_on
         ("event_id", " ethics-manual", "event_id must be canonical"),
         ("effective_at", " 2026-09-02T12:00:00Z", "effective_at must be canonical"),
         ("expires_at", " 2026-12-31T23:59:59Z", "expires_at must be canonical"),
+        ("reason", " Independent review classified this protocol as active. ", "ethics review event reason must be canonical"),
         ("review_artifact_locator", " status.json", "review_artifact_locator must be canonical"),
         ("review_artifact_root", "{root} ", "review_artifact_root must be canonical"),
     ],
@@ -294,9 +295,11 @@ def test_ethics_review_status_supersedes_handle_must_be_canonical(tmp_path) -> N
         ("effective_at", " 2026-09-02T12:00:00Z", "event effective_at must be canonical"),
         ("created_at", " 2026-09-02T12:00:00Z", "event created_at must be canonical"),
         ("supersedes_event_id", "{event_id} ", "supersedes_event_id must be canonical"),
+        ("reason", " Independent review classified this protocol as suspended. ", "review event reason must be canonical"),
         ("review_artifact_locator", " suspension.json", "review event artifact locator must be canonical"),
         ("review_artifact_root", "{root} ", "review event artifact root must be canonical"),
         ("created_by", " test-researcher", "review event created_by must be canonical"),
+        ("conclusion_ceiling", " Records local review-status evidence. ", "review event conclusion_ceiling must be canonical"),
     ],
 )
 def test_ethics_review_status_reads_fail_closed_on_noncanonical_chain_tampering(
@@ -323,6 +326,51 @@ def test_ethics_review_status_reads_fail_closed_on_noncanonical_chain_tampering(
 
     with pytest.raises(ValidationError, match=message):
         service.show_inquiry()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("reason", " Independent review classified this protocol as suspended. ", "review event reason must be canonical"),
+        ("conclusion_ceiling", " Records local review-status evidence. ", "review event conclusion_ceiling must be canonical"),
+        ("created_by", " test-researcher", "review event created_by must be canonical"),
+    ],
+)
+def test_redacted_replication_package_replays_ethics_event_canonical_semantics(
+    tmp_path, field, value, message
+) -> None:
+    from research_machine.replication.package import verify_replication_package
+
+    _, service, frozen = _frozen_reviewed_human_protocol(tmp_path)
+    status_root = tmp_path / "status-evidence"
+    status_root.mkdir()
+    service.record_ethics_review_event(_ethics_status_command(
+        frozen.protocol_id, status_root, "suspension.json", "suspended",
+    ))
+    package = tmp_path / "package"
+    exported = service.export_replication_package(frozen.protocol_id, str(package))
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    events_path = package / "ethics-review-events.json"
+    events = json.loads(events_path.read_text(encoding="utf-8"))
+    events[0][field] = value
+    events_path.write_text(
+        json.dumps(events, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = package / "package-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"]["ethics-review-events.json"] = hashlib.sha256(
+        events_path.read_bytes()
+    ).hexdigest()
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
 
 
 def test_conditional_review_obligations_require_exact_artifact_backed_discharge_at_data_intake(

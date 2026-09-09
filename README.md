@@ -1197,9 +1197,10 @@ Later review changes are append-only rather than edits to the frozen protocol:
 ```
 
 Statuses are `active`, `suspended`, `withdrawn`, or `expired`; an active renewal
-may declare `--expires-at`. Status, protocol, event, predecessor, and review-time
-handles must be canonical without surrounding whitespace. Every event verifies
-its evidence bytes, binds the frozen protocol, receives a monotone sequence, and
+may declare `--expires-at`. Status, protocol, event, predecessor, review-time
+handles, reason, creator, retained locator/root, and bounded conclusion ceiling
+must be canonical without surrounding whitespace. Every event verifies its
+evidence bytes, binds the frozen protocol, receives a monotone sequence, and
 must supersede the exact latest event. Dataset and run intake recompute current
 clearance and reject non-active or expired states. Protocol-bound execution
 performs the same check before invoking an analysis method and embeds the
