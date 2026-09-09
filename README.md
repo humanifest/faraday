@@ -1874,8 +1874,12 @@ those weight and candidate-score inputs, then replay the selected action, lane
 selections, ranked utilities, and signed components from the stored candidates,
 lanes, dependencies, completed actions, weights, and hypothesis-discrimination
 targets, including the requirement that target and alternative expectations
-remain distinct; mismatches fail before list, inquiry display, or synthesis can
-use a stale score record. New recommendations also retain a service-generated
+remain distinct. Portfolio replay also revalidates lane status, blocking
+reasons, candidate lane membership, completed-action IDs, and dependency
+acyclicity, so an edited recommendation cannot hide an unsafe or impossible
+work plan behind stale score arithmetic. Mismatches fail before list, inquiry
+display, or synthesis can use a stale score record. New recommendations also
+retain a service-generated
 `recommendation_payload_sha256` over the complete immutable recommendation
 outside that field itself, so a canonical rewrite of a candidate rationale,
 hypothesis-discrimination target, lane context, completed dependency, weight,

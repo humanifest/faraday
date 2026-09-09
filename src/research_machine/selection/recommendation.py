@@ -44,6 +44,26 @@ def _require_canonical_text(value: object, field: str) -> str:
     return value
 
 
+def _require_text(value: object, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError(f"{field} must be non-empty text")
+    return value
+
+
+def _require_unique_canonical_text_list(value: object, field: str) -> list[str]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, list):
+        raise ValidationError(f"{field} must be a list")
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        text = _require_canonical_text(item, f"{field} item")
+        if text in seen:
+            raise ValidationError(f"{field} must not repeat items")
+        seen.add(text)
+        normalized.append(text)
+    return normalized
+
+
 _CANDIDATE_SCORE_FIELDS = (
     "expected_discrimination",
     "uncertainty_reduction",
@@ -82,6 +102,16 @@ def _validate_candidate_score_inputs_for_replay(candidate: ActionCandidate) -> N
     if not isinstance(candidate, ActionCandidate):
         raise ValidationError("candidates must contain ActionCandidate values")
     _require_canonical_text(candidate.action_id, "action_id")
+    _require_text(candidate.title, "action title")
+    _require_text(candidate.rationale, "action rationale")
+    _require_unique_canonical_text_list(
+        candidate.information_targets, "information_targets"
+    )
+    _require_unique_canonical_text_list(candidate.depends_on, "depends_on")
+    manipulated_factors = _require_unique_canonical_text_list(
+        candidate.manipulated_factors, "manipulated_factors"
+    )
+    _require_canonical_text(candidate.lane_id, "lane_id")
     for field_name in _CANDIDATE_SCORE_FIELDS:
         value = getattr(candidate, field_name)
         if (
@@ -95,6 +125,40 @@ def _validate_candidate_score_inputs_for_replay(candidate: ActionCandidate) -> N
         raise ValidationError("prerequisites_met must be true or false")
     if not isinstance(candidate.safety_approved, bool):
         raise ValidationError("safety_approved must be true or false")
+    if not isinstance(candidate.factorial_or_crossover_design, bool):
+        raise ValidationError("factorial_or_crossover_design must be true or false")
+    if not isinstance(candidate.factor_interpretability_plan, str):
+        raise ValidationError("factor_interpretability_plan must be text")
+    factor_interpretability_plan = ""
+    if candidate.factor_interpretability_plan:
+        factor_interpretability_plan = _require_canonical_text(
+            candidate.factor_interpretability_plan,
+            "factor_interpretability_plan",
+        )
+    if candidate.factorial_or_crossover_design and not manipulated_factors:
+        raise ValidationError(
+            f"action {candidate.action_id} declares a factorial or crossover "
+            "design without manipulated_factors"
+        )
+    if (
+        candidate.factorial_or_crossover_design
+        and not factor_interpretability_plan
+    ):
+        raise ValidationError(
+            f"action {candidate.action_id} declares a factorial or crossover "
+            "design without a factor_interpretability_plan"
+        )
+    if (
+        len(manipulated_factors) > 1
+        and (
+            not candidate.factorial_or_crossover_design
+            or not factor_interpretability_plan
+        )
+    ):
+        raise ValidationError(
+            f"action {candidate.action_id} changes multiple factors without a "
+            "factorial or crossover interpretability design"
+        )
 
 
 def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
@@ -249,9 +313,7 @@ def rank_actions_by_lane(
     """Rank feasible actions separately so one active lane cannot starve another."""
 
     _validate_selection_weights_for_replay(weights)
-    for candidate in candidates:
-        _validate_candidate_score_inputs_for_replay(candidate)
-        _validate_discrimination_target_replay(candidate)
+    _validate_portfolio_replay_inputs(candidates, lanes, completed_action_ids)
     completed = set(completed_action_ids)
     rankings: dict[str, list[ActionScore]] = {}
     for lane in lanes:
@@ -272,6 +334,91 @@ def rank_actions_by_lane(
             )
         rankings[lane.lane_id] = rank_actions(eligible, weights)
     return rankings
+
+
+def _validate_lane_replay(lane: ActionLane) -> None:
+    if not isinstance(lane, ActionLane):
+        raise ValidationError("lanes must contain ActionLane values")
+    lane_id = _require_canonical_text(lane.lane_id, "lane_id")
+    _require_text(lane.title, "lane title")
+    status = _require_canonical_text(lane.status, "lane status")
+    if status not in {"active", "blocked"}:
+        raise ValidationError("lane status must be active or blocked")
+    blocked_on = _require_unique_canonical_text_list(lane.blocked_on, "blocked_on")
+    if status == "active" and blocked_on:
+        raise ValidationError(f"active lane {lane_id} cannot declare blocked_on")
+    if status == "blocked" and not blocked_on:
+        raise ValidationError(f"blocked lane {lane_id} must declare blocked_on")
+
+
+def _validate_portfolio_replay_inputs(
+    candidates: list[ActionCandidate],
+    lanes: list[ActionLane],
+    completed_action_ids: list[str],
+) -> None:
+    if not lanes:
+        raise ValidationError("at least one action lane is required")
+    lane_ids: set[str] = set()
+    active_lane_seen = False
+    for lane in lanes:
+        _validate_lane_replay(lane)
+        if lane.lane_id in lane_ids:
+            raise ValidationError(f"duplicate lane_id: {lane.lane_id}")
+        lane_ids.add(lane.lane_id)
+        active_lane_seen = active_lane_seen or lane.status == "active"
+    if not active_lane_seen:
+        raise ValidationError("at least one action lane must be active")
+    action_ids: set[str] = set()
+    for candidate in candidates:
+        _validate_candidate_score_inputs_for_replay(candidate)
+        _validate_discrimination_target_replay(candidate)
+        if candidate.action_id in action_ids:
+            raise ValidationError(f"duplicate action_id: {candidate.action_id}")
+        action_ids.add(candidate.action_id)
+    completed = _require_unique_canonical_text_list(
+        completed_action_ids, "completed_action_ids"
+    )
+    unknown_completed = sorted(set(completed) - action_ids)
+    if unknown_completed:
+        raise ValidationError(
+            "completed_action_ids reference unknown actions: "
+            + ", ".join(unknown_completed)
+        )
+    dependencies = {}
+    for candidate in candidates:
+        if candidate.lane_id not in lane_ids:
+            raise ValidationError(
+                f"action {candidate.action_id} references unknown lane: "
+                f"{candidate.lane_id}"
+            )
+        unknown_dependencies = sorted(set(candidate.depends_on) - action_ids)
+        if unknown_dependencies:
+            raise ValidationError(
+                f"action {candidate.action_id} has unknown dependencies: "
+                + ", ".join(unknown_dependencies)
+            )
+        if candidate.action_id in candidate.depends_on:
+            raise ValidationError(
+                f"action {candidate.action_id} cannot depend on itself"
+            )
+        dependencies[candidate.action_id] = set(candidate.depends_on)
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(action_id: str) -> None:
+        if action_id in visiting:
+            raise ValidationError("action dependency graph contains a cycle")
+        if action_id in visited:
+            return
+        visiting.add(action_id)
+        for dependency in dependencies[action_id]:
+            visit(dependency)
+        visiting.remove(action_id)
+        visited.add(action_id)
+
+    for action_id in sorted(dependencies):
+        visit(action_id)
 
 
 def _recommendation_payload(

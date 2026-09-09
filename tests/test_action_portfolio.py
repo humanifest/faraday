@@ -541,6 +541,58 @@ def test_recommendation_replay_rejects_legacy_self_confirming_discriminator(
         service.list_recommendations()
 
 
+def test_recommendation_replay_rejects_legacy_invalid_lane_state(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[candidate("machine-next", "machine", 0.8)],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["lanes"][0]["status"] = "active "
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="lane status must be canonical",
+    ):
+        service.list_recommendations()
+
+
+def test_recommendation_replay_rejects_legacy_dependency_drift(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[candidate("machine-next", "machine", 0.8)],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][0]["depends_on"] = ["missing-action"]
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="has unknown dependencies",
+    ):
+        service.list_recommendations()
+
+
 def test_portfolio_recommendation_reads_replay_lane_selections(
     tmp_path: Path,
 ) -> None:
