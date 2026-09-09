@@ -44,6 +44,15 @@ _VALIDITY_EVIDENCE_TYPES = {
     "criterion", "convergent", "discriminant", "known_groups", "test_retest",
     "inter_rater", "content", "calibration", "other",
 }
+_CANARY_TARGET_PLAN_FIELDS = {
+    "plan_id",
+    "candidate_target_ids",
+    "seed_commitment_sha256",
+    "assignment_artifact_sha256",
+    "masking_plan",
+    "ethical_disclosure",
+    "assessment_gate_id",
+}
 _FALSIFYING_CONTROL_FAMILIES = {
     "negative", "sham", "replay", "random_time", "adversarial",
 }
@@ -327,11 +336,11 @@ def validate_brief(brief: dict[str, Any]) -> None:
         "smallest_effect_size_of_interest", "effect_scale",
         "conclusion_time_window", "non_supporting_direction",
         "higher_level_conclusions_unsupported",
-        "causal_identification",
+        "causal_identification", "canary_target_plan",
     }
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -566,6 +575,21 @@ def validate_brief(brief: dict[str, Any]) -> None:
         )
     if "causal_identification" in brief and not isinstance(brief["causal_identification"], dict):
         raise ValueError("causal_identification must be an object")
+    canary_plan = brief.get("canary_target_plan")
+    if canary_plan is not None:
+        if not isinstance(canary_plan, dict):
+            raise ValueError("canary_target_plan must be an object")
+        if set(canary_plan) != _CANARY_TARGET_PLAN_FIELDS:
+            raise ValueError("canary_target_plan must contain exactly the documented fields")
+        for field in _CANARY_TARGET_PLAN_FIELDS - {"candidate_target_ids"}:
+            if not isinstance(canary_plan[field], str) or not canary_plan[field].strip():
+                raise ValueError(f"canary_target_plan.{field} must be non-blank text")
+        targets = canary_plan["candidate_target_ids"]
+        if (
+            not isinstance(targets, list)
+            or any(not isinstance(item, str) or not item.strip() for item in targets)
+        ):
+            raise ValueError("canary_target_plan.candidate_target_ids must be an array of non-blank text")
     if "sample_size_plan" in brief and not isinstance(brief["sample_size_plan"], dict):
         raise ValueError("sample_size_plan must be an object")
     if brief.get("missingness_assessment_kind", "") not in {
@@ -722,6 +746,40 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "The guided design changes multiple factors without a declared factorial or crossover plan.",
             "Change one factor at a time, or declare a factorial/crossover design and explain how the changed factors will be interpreted separately.",
         )
+    canary_plan = brief.get("canary_target_plan")
+    if canary_plan is not None:
+        candidate_targets = canary_plan["candidate_target_ids"]
+        normalized_targets = [item.strip().casefold() for item in candidate_targets]
+        if (
+            len(candidate_targets) < 2
+            or len(set(normalized_targets)) != len(normalized_targets)
+        ):
+            add(
+                "CANARY_TARGET_PLAN_INCOMPLETE",
+                "error",
+                "The canary target plan does not name at least two distinct candidate targets.",
+                "Name the real target plus at least one decoy, replay, sham, or no-target comparator before review.",
+            )
+        if any(
+            isinstance(canary_plan.get(field), str)
+            and canary_plan[field] != canary_plan[field].strip()
+            for field in _CANARY_TARGET_PLAN_FIELDS - {"candidate_target_ids"}
+        ) or any(target != target.strip() for target in candidate_targets):
+            add(
+                "CANARY_TARGET_PLAN_NONCANONICAL",
+                "error",
+                "The canary target plan contains target IDs, hashes, masking text, ethics text, or a gate ID with surrounding whitespace.",
+                "Use exact unpadded canary target handles and commitments so masked assignment cannot be rewritten after review.",
+            )
+        for field in ("seed_commitment_sha256", "assignment_artifact_sha256"):
+            if not _is_canonical_sha256(canary_plan[field]):
+                add(
+                    "CANARY_TARGET_PLAN_HASH_INVALID",
+                    "error",
+                    "The canary target plan uses a noncanonical SHA-256 commitment.",
+                    "Record lowercase 64-character SHA-256 digests for both the committed random seed and hidden assignment artifact.",
+                )
+                break
     normalized_outcomes = [item.strip().casefold() for item in secondary_outcomes]
     if len(set(normalized_outcomes)) != len(normalized_outcomes):
         add("SECONDARY_OUTCOME_DUPLICATE", "error", "Secondary outcomes contain duplicate labels.", "Give each outcome one stable, unique name before review.")
@@ -1505,10 +1563,12 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         )
     if str(brief.get("missingness_assessment_gate_id", "")).strip():
         dedicated_gate_ids.append(brief["missingness_assessment_gate_id"])
+    if isinstance(brief.get("canary_target_plan"), dict):
+        dedicated_gate_ids.append(brief["canary_target_plan"]["assessment_gate_id"])
     if len(set(dedicated_gate_ids)) != len(dedicated_gate_ids):
         add(
             "QUALITY_GATE_PURPOSE_COLLISION", "error",
-            "A quality gate is reused across control, measurement-validity, causal-assumption, or missingness purposes.",
+            "A quality gate is reused across control, measurement-validity, causal-assumption, missingness, or canary-target purposes.",
             "Use dedicated gate IDs so one artifact-bound assessment cannot silently satisfy scientifically different obligations.",
         )
     return findings
@@ -1530,6 +1590,11 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     confounds = _text_list(brief, "confounds")
     manipulated_factors = _text_list(brief, "manipulated_factors")
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
+    canary_target_plan = (
+        dict(brief["canary_target_plan"])
+        if isinstance(brief.get("canary_target_plan"), dict)
+        else None
+    )
     causal_audit = (
         audit_causal_identification(brief["causal_identification"])
         if isinstance(brief.get("causal_identification"), dict) else None
@@ -1693,6 +1758,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         "manipulated_factors": manipulated_factors,
         "factorial_or_crossover_design": brief.get("factorial_or_crossover_design", False),
         "factor_interpretability_plan": brief.get("factor_interpretability_plan", ""),
+        "canary_target_plan": canary_target_plan,
         "group_data_column": brief.get("group_data_column", "[REVIEW REQUIRED] exact comparison or exposure column"),
         "controls": controls or ["[REVIEW REQUIRED] add a control family"],
         "sampling_unit": brief["unit_of_observation"],
@@ -1771,6 +1837,8 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         add_quality_requirements([
             item["evaluation_gate_id"] for item in brief["control_definitions"]
         ])
+    if canary_target_plan is not None:
+        add_quality_requirements([canary_target_plan["assessment_gate_id"]])
     if all(str(brief.get(field, "")).strip() for field in (
         "missingness_assumption", "missingness_assessment_plan",
         "missingness_failure_response", "missingness_assessment_kind",
@@ -1988,6 +2056,41 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "claim_ceiling": "No causal graph was supplied or audited.",
                 "scientific_evidence_eligible": False,
             },
+            "canary-target-plan-draft.json": {
+                "status": "review_required" if canary_target_plan is not None else "unresolved",
+                "canary_target_plan": canary_target_plan or {
+                    "notice": "No masked canary-target plan was supplied.",
+                },
+                "required_run_assessment": {
+                    "gate_id": (
+                        canary_target_plan["assessment_gate_id"]
+                        if canary_target_plan is not None
+                        else "[REVIEW REQUIRED] dedicated canary assessment gate"
+                    ),
+                    "result_shape": {
+                        "plan_id": (
+                            canary_target_plan["plan_id"]
+                            if canary_target_plan is not None
+                            else "[REVIEW REQUIRED] canary plan ID"
+                        ),
+                        "assignment_artifact_sha256": (
+                            canary_target_plan["assignment_artifact_sha256"]
+                            if canary_target_plan is not None
+                            else "[REVIEW REQUIRED] hidden assignment artifact SHA-256"
+                        ),
+                        "revealed_target_id": "[REVIEW REQUIRED] reveal only from the frozen assignment artifact",
+                        "comparator_target_ids": [
+                            "[REVIEW REQUIRED] frozen candidate target used as decoy, replay, sham, or no-target comparator"
+                        ],
+                        "assessment_status": "consistent_with_revealed_target | follows_comparator_or_decoy | follows_no_target | mixed | inconclusive",
+                        "observed_pattern": "[REVIEW REQUIRED] bounded observation",
+                        "interpretation": "[REVIEW REQUIRED] disclose without claiming mechanism, adaptation, attribution, or intent",
+                        "evidence_sha256": "[REVIEW REQUIRED] run output artifact SHA-256",
+                        "evidence_location": "[REVIEW REQUIRED] exact location, absolute JSON Pointer for verified JSON outputs",
+                    },
+                },
+                "notice": "This is a prospective masked-target design aid. It is not evidence of adaptation, mechanism, attribution, or intent, and it does not authenticate the hidden assignment.",
+            },
             "collection-plan.md": (
                 f"# {brief['title']}\n\nQuestion: {brief['question']}\n\nDecision: {brief['decision']}\n\n"
                 "Collect only after blocking findings are resolved and the applicable protocol is reviewed and frozen.\n\n"
@@ -2002,6 +2105,9 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 f"Manipulated factors: {', '.join(manipulated_factors) if manipulated_factors else '[REVIEW REQUIRED: none declared]'}. "
                 f"Factorial or crossover design declared: {brief.get('factorial_or_crossover_design', False)}. "
                 f"Interpretability plan: {brief.get('factor_interpretability_plan') or '[REVIEW REQUIRED if more than one factor changes]'}.\n"
+                "\n"
+                f"Canary target plan: {canary_target_plan['plan_id'] if canary_target_plan else '[not supplied]'}. "
+                "If used, keep the hidden assignment artifact sealed until the protocol-specified reveal point and report comparator, decoy, no-target, mixed, or inconclusive outcomes without upgrading them into source or intent claims.\n"
             ),
     }
     _stamp_scaffold_provenance(artifacts, provenance)

@@ -143,6 +143,29 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             "factor_interpretability_plan",
             "How will the design estimate or separate the effect of each changed factor?",
         )
+    answer(
+        "_enter_canary_plan",
+        "Would you like to add a masked canary-target plan with decoy or replay targets?",
+        choices=("yes", "no"),
+    )
+    if brief.pop("_enter_canary_plan", "no") == "yes":
+        candidate_targets = ask(
+            "List every canary candidate target, including real and decoy or replay targets, separated by semicolons [blank = unresolved]"
+        )
+        plan: dict[str, Any] = {
+            "candidate_target_ids": _split_semicolon_answer(candidate_targets),
+        }
+        for key, prompt in (
+            ("plan_id", "What stable canary target plan ID should be frozen?"),
+            ("seed_commitment_sha256", "What lowercase SHA-256 commits to the hidden random seed?"),
+            ("assignment_artifact_sha256", "What lowercase SHA-256 commits to the hidden assignment artifact?"),
+            ("masking_plan", "How will the canary assignment stay masked until the registered reveal point?"),
+            ("ethical_disclosure", "How does consent or review disclose masked conditions without overclaiming?"),
+            ("assessment_gate_id", "What dedicated required gate ID will record the canary assessment?"),
+        ):
+            answer("_canary_value", prompt)
+            plan[key] = brief.pop("_canary_value", "")
+        brief["canary_target_plan"] = plan
     answer_number("minimum_analyzable_units", "What is the minimum analyzable count required in the smaller comparison arm, or the minimum complete-pair count?", integer=True)
     answer_number("maximum_excluded_fraction", "What maximum fraction of submitted records may be excluded before the analysis must stop for review? Enter a number from 0 up to but not including 1.")
     answer_number(

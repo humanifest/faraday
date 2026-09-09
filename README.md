@@ -492,6 +492,16 @@ remain visible scientific outcomes rather than execution summaries being
 rewritten into support for adaptation, mechanism, attribution, or intent.
 Replication-package verification resolves that location as an absolute JSON
 Pointer when the assessment cites a retained Faraday analysis result.
+The provider-free JSON scaffold and terminal interview can now draft the same
+canary target plan before protocol review. Guided review rejects fewer than two
+candidate targets, duplicate or padded target handles, noncanonical seed or
+assignment SHA-256 commitments, padded masking or ethics text, and reuse of the
+canary assessment gate for controls, causal assumptions, missingness, or
+measurement validity. Scaffold artifacts include `canary-target-plan-draft.json`
+with the required run-assessment shape, keeping real, decoy, replay, sham, and
+no-target comparisons prospective without treating the hidden assignment as
+authenticated or the future canary result as mechanism, adaptation, attribution,
+or intent evidence.
 
 The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,

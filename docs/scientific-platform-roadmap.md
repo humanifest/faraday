@@ -1721,6 +1721,17 @@ outcomes remain visible in rigor and deterministic synthesis instead of being
 rephrased as support. This is an adversarial design commitment for future
 domain add-ons; it does not prove adaptation, mechanism, attribution, intent, or
 ethical adequacy.
+Guided canary-target delivery: the provider-free JSON scaffold and terminal
+interview now collect the same canary plan before protocol review. Scaffold
+audit blocks fewer than two candidate targets, duplicate or padded target IDs,
+noncanonical seed or hidden-assignment SHA-256 commitments, padded masking or
+ethical-disclosure text, and assessment-gate reuse across other quality-gate
+purposes. The protocol draft preserves `canary_target_plan`, the assessment gate
+is added to `quality_requirements`, and `canary-target-plan-draft.json` carries
+the exact run-assessment result shape. This lets decoy, replay, sham, and
+no-target comparisons enter the guided workflow without giving the scaffold
+authority to reveal the assignment, authenticate masking, or promote a future
+canary pattern into adaptation, mechanism, source, or intent.
 Replication-package verification now replays the same canary assessment boundary:
 the packaged gate must be the frozen canary gate, plan and assignment hashes must
 match the protocol, revealed and comparator targets must come from the frozen

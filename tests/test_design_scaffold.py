@@ -1034,6 +1034,100 @@ def test_guided_design_flags_uninterpretable_multi_factor_interventions():
     assert padded["status"] == "blocked"
 
 
+def _canary_plan(**overrides):
+    value = {
+        "plan_id": "masked-target-plan",
+        "candidate_target_ids": ["actual-state", "delayed-replay", "silent-marker"],
+        "seed_commitment_sha256": "1" * 64,
+        "assignment_artifact_sha256": "2" * 64,
+        "masking_plan": "Keep target assignment sealed until the registered reveal point.",
+        "ethical_disclosure": "Consent describes masked target conditions without deception about risk.",
+        "assessment_gate_id": "canary-target-assessed",
+    }
+    return {**value, **overrides}
+
+
+def test_guided_design_scaffolds_canary_target_plan():
+    brief = {
+        "title": "Canary fixture",
+        "question": "Does the pattern follow the masked target?",
+        "decision": "Choose whether to run the next discrimination test.",
+        "outcome": "Detected pattern",
+        "unit_of_observation": "session",
+        "human_participants": False,
+        "canary_target_plan": _canary_plan(),
+    }
+
+    result = scaffold_design(brief)
+
+    codes = {item["code"] for item in result["findings"]}
+    assert "CANARY_TARGET_PLAN_INCOMPLETE" not in codes
+    assert "CANARY_TARGET_PLAN_NONCANONICAL" not in codes
+    assert "CANARY_TARGET_PLAN_HASH_INVALID" not in codes
+    protocol = result["artifacts"]["protocol-draft.json"]
+    assert protocol["canary_target_plan"] == _canary_plan()
+    assert "canary-target-assessed" in protocol["quality_requirements"]
+    draft = result["artifacts"]["canary-target-plan-draft.json"]
+    assert draft["canary_target_plan"]["candidate_target_ids"] == [
+        "actual-state", "delayed-replay", "silent-marker"
+    ]
+    assert draft["required_run_assessment"]["gate_id"] == "canary-target-assessed"
+    assert "follows_comparator_or_decoy" in draft["required_run_assessment"]["result_shape"]["assessment_status"]
+    assert "Canary target plan: masked-target-plan" in result["artifacts"]["collection-plan.md"]
+
+
+@pytest.mark.parametrize(("mutation", "code"), [
+    (
+        {"candidate_target_ids": ["actual-state"]},
+        "CANARY_TARGET_PLAN_INCOMPLETE",
+    ),
+    (
+        {"candidate_target_ids": ["actual-state", " Actual-State "]},
+        "CANARY_TARGET_PLAN_NONCANONICAL",
+    ),
+    (
+        {"seed_commitment_sha256": "A" * 64},
+        "CANARY_TARGET_PLAN_HASH_INVALID",
+    ),
+    (
+        {"masking_plan": " Keep target assignment sealed."},
+        "CANARY_TARGET_PLAN_NONCANONICAL",
+    ),
+])
+def test_guided_design_blocks_invalid_canary_target_plans(mutation, code):
+    result = scaffold_design({
+        "title": "Canary fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "outcome": "Detected pattern",
+        "unit_of_observation": "session",
+        "human_participants": False,
+        "canary_target_plan": _canary_plan(**mutation),
+    })
+    assert code in {item["code"] for item in result["findings"]}
+    assert result["status"] == "blocked"
+
+
+def test_canary_target_gate_must_be_dedicated():
+    result = scaffold_design({
+        "title": "Canary gate fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "outcome": "Detected pattern",
+        "unit_of_observation": "session",
+        "human_participants": False,
+        "measurement_validity": "Check with a registered reference.",
+        "measurement_validity_checks": [
+            _validity_check(gate_id="canary-target-assessed"),
+        ],
+        "canary_target_plan": _canary_plan(),
+    })
+    assert "QUALITY_GATE_PURPOSE_COLLISION" in {
+        item["code"] for item in result["findings"]
+    }
+    assert result["status"] == "blocked"
+
+
 def test_stopping_count_does_not_supply_information_justification(tmp_path, capsys):
     brief = {"title": "Fixture", "question": "Question", "decision": "Decision", "outcome": "Score",
              "unit_of_observation": "unit", "stopping_rule": "Stop after 100 units", "human_participants": False}

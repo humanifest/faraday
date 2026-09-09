@@ -8,7 +8,7 @@ import pytest
 @pytest.mark.parametrize("complete", [True, False])
 def test_interview_emits_reviewable_control_definitions(complete):
     answers = iter(["Fixture", "Question", "Decision", "Height", "pot", "exploratory", "no"]
-        + [""] * 24 + ["Blank sample", ""]
+        + [""] * 25 + ["Blank sample", ""]
         + (["negative", "Detect background signal", "No signal"] if complete else ["", "", ""])
         + [""] * 35)
     result = interview_design(lambda prompt: next(answers))
@@ -27,7 +27,7 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
         + [""] * 14
         + [
             "Target 40 independent pots per group for a two-millimeter interval half-width under the stated variance assumption.",
-            *([""] * 11),
+            *([""] * 12),
             "Higher mean height after 7 days",
             "No difference between conditions",
             "A zero or negative mean difference",
@@ -334,6 +334,44 @@ def test_interview_collects_factor_interpretability_plan() -> None:
     }
 
 
+def test_interview_collects_canary_target_plan() -> None:
+    def ask(prompt: str) -> str:
+        responses = {
+            "What is the study's working title?": "Canary interview",
+            "What question do you want to investigate?": "Does the signal follow the masked target?",
+            "What practical decision would the findings inform?": "Choose the next discrimination test.",
+            "What exactly will you measure as the primary outcome?": "target-following pattern",
+            "What does one data row represent, such as one pot-day?": "session",
+            "What kind of claim are you investigating?": "exploratory",
+            "Does this involve people or data about people?": "no",
+            "Would you like to add a masked canary-target plan with decoy or replay targets?": "yes",
+            "List every canary candidate target": "actual-state; delayed-replay; silent-marker",
+            "What stable canary target plan ID should be frozen?": "masked-target-plan",
+            "What lowercase SHA-256 commits to the hidden random seed?": "1" * 64,
+            "What lowercase SHA-256 commits to the hidden assignment artifact?": "2" * 64,
+            "How will the canary assignment stay masked until the registered reveal point?": "Keep the assignment sealed until analysis lock.",
+            "How does consent or review disclose masked conditions without overclaiming?": "Disclose masked target conditions and their risks.",
+            "What dedicated required gate ID will record the canary assessment?": "canary-target-assessed",
+        }
+        return next((value for key, value in responses.items() if prompt.startswith(key)), "")
+
+    result = interview_design(ask)
+
+    plan = result["brief"]["canary_target_plan"]
+    assert plan["candidate_target_ids"] == [
+        "actual-state", "delayed-replay", "silent-marker"
+    ]
+    assert plan["assessment_gate_id"] == "canary-target-assessed"
+    protocol = result["scaffold"]["artifacts"]["protocol-draft.json"]
+    assert protocol["canary_target_plan"] == plan
+    assert "canary-target-assessed" in protocol["quality_requirements"]
+    canary = result["scaffold"]["artifacts"]["canary-target-plan-draft.json"]
+    assert canary["status"] == "review_required"
+    assert "CANARY_TARGET_PLAN_INCOMPLETE" not in {
+        item["code"] for item in result["scaffold"]["findings"]
+    }
+
+
 def test_interview_collects_scale_and_analysis_family_without_an_llm() -> None:
     def ask(prompt: str) -> str:
         responses = {
@@ -566,7 +604,7 @@ def test_provider_free_interview_collects_auditable_causal_design() -> None:
 
 def test_human_interview_retains_hold_and_retries_invalid_choice():
     answers = iter(["Fixture", "Question", "Decision", "Score", "participant-day",
-                    "invalid choice", "causal", "yes"] + [""] * 35 + ["no"] + [""] * 33)
+                    "invalid choice", "causal", "yes"] + [""] * 36 + ["no"] + [""] * 33)
     result = interview_design(lambda prompt: next(answers))
     assert result["brief"]["study_type"] == "causal"
     assert "BLINDING_UNRESOLVED" in {item["code"] for item in result["scaffold"]["findings"]}
