@@ -2403,6 +2403,37 @@ def test_next_action_selection_handles_must_be_canonical(tmp_path: Path) -> None
         )
 
 
+def test_next_action_selection_rejects_dependent_single_actions(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+
+    with pytest.raises(
+        ValidationError,
+        match="single next-action recommendations cannot rank dependent actions",
+    ):
+        service.recommend_next_action(
+            RecommendNextAction(candidates=[
+                ActionCandidate(
+                    action_id="dependent-action",
+                    title="Dependent action",
+                    distinguishes_hypotheses=[hypothesis_id],
+                    hypothesis_discrimination_targets=[
+                        action_discrimination_target(hypothesis_id)
+                    ],
+                    expected_discrimination=0.8,
+                    uncertainty_reduction=0.7,
+                    cost=0.1,
+                    burden=0.1,
+                    safety_risk=0.0,
+                    ambiguity_risk=0.1,
+                    rationale="This action should wait for a prior step.",
+                    depends_on=["prior-step"],
+                )
+            ])
+        )
+
+
 def test_next_action_selection_rejects_degenerate_utility_weights(
     tmp_path: Path,
 ) -> None:
@@ -2626,6 +2657,45 @@ def test_next_action_replay_rejects_legacy_duplicate_action_ids(
     )
 
     with pytest.raises(ValidationError, match="duplicate action_id"):
+        service.list_recommendations()
+
+
+def test_next_action_replay_rejects_legacy_single_portfolio_fields(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    service.recommend_next_action(
+        RecommendNextAction(candidates=[
+            ActionCandidate(
+                action_id="single-action",
+                title="Single action",
+                distinguishes_hypotheses=[hypothesis_id],
+                hypothesis_discrimination_targets=[
+                    action_discrimination_target(hypothesis_id)
+                ],
+                expected_discrimination=0.8,
+                uncertainty_reduction=0.6,
+                cost=0.1,
+                burden=0.1,
+                safety_risk=0.0,
+                ambiguity_risk=0.1,
+                rationale="A valid single action before legacy mutation.",
+            )
+        ])
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][0]["depends_on"] = ["previous-action"]
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="single-mode action single-action cannot retain depends_on",
+    ):
         service.list_recommendations()
 
 

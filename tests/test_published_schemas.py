@@ -214,6 +214,39 @@ def test_next_action_schema_rejects_service_derived_workflow_states(schema_name)
         jsonschema.validate(command, schema)
 
 
+def test_next_action_schema_rejects_single_action_dependencies():
+    schema = json.loads((SCHEMAS / "next-action.schema.json").read_text())
+    command = {
+        "candidates": [
+            {
+                "action_id": "dependent-action",
+                "title": "Dependent action",
+                "distinguishes_hypotheses": ["hyp-active"],
+                "hypothesis_discrimination_targets": [
+                    {
+                        "hypothesis_id": "hyp-active",
+                        "discriminating_observation": "The next observation separates the target from the alternative.",
+                        "expected_if_hypothesis": "The target pattern appears.",
+                        "expected_if_alternative": "The target pattern follows the alternative.",
+                        "would_weaken_if": "The target pattern disappears.",
+                    }
+                ],
+                "expected_discrimination": 0.8,
+                "uncertainty_reduction": 0.7,
+                "cost": 0.2,
+                "burden": 0.1,
+                "safety_risk": 0.0,
+                "ambiguity_risk": 0.1,
+                "rationale": "This action depends on a previous step.",
+                "depends_on": ["previous-action"],
+            }
+        ]
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
 @pytest.mark.parametrize(
     ("schema_name", "example_name"),
     [

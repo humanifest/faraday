@@ -4314,6 +4314,12 @@ class ResearchService:
         candidates = validate_action_candidates(
             command.candidates, researchable_hypotheses
         )
+        for candidate in candidates:
+            if candidate.depends_on:
+                raise ValidationError(
+                    "single next-action recommendations cannot rank dependent "
+                    "actions; use next-action portfolio with completed_action_ids"
+                )
         weights = validate_selection_weights(command.weights)
         scores = rank_actions(candidates, weights)
         selected = next(

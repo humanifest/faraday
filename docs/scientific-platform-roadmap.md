@@ -35,7 +35,9 @@ methods without changing its epistemic rules or canonical state.
   hypothesis lanes and covered by the recommendation payload commitment.
   The published next-action schemas now expose the caller-supplied discriminator
   target and factor-plan fields while rejecting service-derived workflow-state
-  claims.
+  claims. Single-action recommendation schemas reject nonempty dependency lists,
+  because only portfolio recommendations carry the completed-action context
+  needed to replay dependencies.
   Multi-factor candidates must declare a factorial or crossover design plus a canonical
   factor-interpretability plan before they can be ranked, so action selection
   cannot prefer a simultaneous intervention whose result would not distinguish
@@ -59,7 +61,9 @@ methods without changing its epistemic rules or canonical state.
   completed-action IDs, dependency acyclicity, weight vector, and candidate
   score inputs before recomputing those choices, so a legacy record cannot
   remain trusted merely because invalid work-plan structure, weights, and scores
-  were rewritten consistently.
+  were rewritten consistently. Single-mode replay also rejects portfolio-only
+  lane selection fields and dependent candidates, preventing a stored
+  single-action recommendation from smuggling in unreplayed work-plan state.
   New recommendations also carry
   a service-generated payload commitment over the complete immutable
   recommendation, excluding only that commitment field, so canonical rewrites of

@@ -41,7 +41,7 @@
           "prerequisites_met": {"type": "boolean", "default": true},
           "safety_approved": {"type": "boolean", "default": true},
           "lane_id": {"type": "string", "minLength": 1, "default": "default"},
-          "depends_on": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true, "default": []},
+          "depends_on": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true, "maxItems": 0, "default": []},
           "manipulated_factors": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true, "default": []},
           "factorial_or_crossover_design": {"type": "boolean", "default": false},
           "factor_interpretability_plan": {"type": "string", "default": ""},

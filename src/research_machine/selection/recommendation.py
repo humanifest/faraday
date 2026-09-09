@@ -491,6 +491,7 @@ def verify_recommendation_score_replay(
     """Replay stored recommendation scores from retained candidates and weights."""
 
     if recommendation.selection_mode == "single":
+        _validate_single_replay_inputs(recommendation)
         expected_scores = rank_actions(
             recommendation.candidates, recommendation.weights
         )
@@ -543,3 +544,27 @@ def verify_recommendation_score_replay(
             "do not replay from stored candidates and weights"
         )
     validate_recommendation_payload_commitment(recommendation)
+
+
+def _validate_single_replay_inputs(recommendation: ActionRecommendation) -> None:
+    if recommendation.lanes:
+        raise ValidationError(
+            f"recommendation {recommendation.recommendation_id} single-mode "
+            "record cannot retain portfolio lanes"
+        )
+    if recommendation.completed_action_ids:
+        raise ValidationError(
+            f"recommendation {recommendation.recommendation_id} single-mode "
+            "record cannot retain completed_action_ids"
+        )
+    if recommendation.selected_action_ids_by_lane:
+        raise ValidationError(
+            f"recommendation {recommendation.recommendation_id} single-mode "
+            "record cannot retain selected_action_ids_by_lane"
+        )
+    for candidate in recommendation.candidates:
+        if candidate.depends_on:
+            raise ValidationError(
+                f"recommendation {recommendation.recommendation_id} single-mode "
+                f"action {candidate.action_id} cannot retain depends_on"
+            )

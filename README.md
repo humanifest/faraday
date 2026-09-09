@@ -1830,6 +1830,9 @@ typed `information_targets` instead of pretending to distinguish a scientific
 hypothesis. Action IDs, lane IDs, hypothesis distinctions, information targets,
 dependency handles, completed-action IDs, and blocked-lane reasons must be
 canonical without surrounding whitespace before ranking or lane balancing.
+The single `next-action recommend` path has no completed-action graph, so it
+rejects candidates with `depends_on`; dependent actions must use portfolio
+selection where completed actions and dependency acyclicity can be replayed.
 Action candidates may also name exact `manipulated_factors`; candidates that
 change more than one factor must declare `factorial_or_crossover_design: true`
 and a canonical `factor_interpretability_plan`
@@ -1880,8 +1883,9 @@ including the requirement that target and alternative expectations remain
 distinct. Portfolio replay also revalidates lane status, blocking reasons,
 candidate lane membership, completed-action IDs, and dependency acyclicity, so
 an edited recommendation cannot hide an unsafe or impossible work plan behind
-stale score arithmetic. Mismatches fail before list, inquiry display, or
-synthesis can use a stale score record. New recommendations also
+stale score arithmetic. Single-mode replay rejects portfolio-only lane
+selection fields and dependent candidates for the same reason. Mismatches fail
+before list, inquiry display, or synthesis can use a stale score record. New recommendations also
 retain a service-generated
 `recommendation_payload_sha256` over the complete immutable recommendation
 outside that field itself, so a canonical rewrite of a candidate rationale,
