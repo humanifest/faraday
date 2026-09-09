@@ -680,8 +680,10 @@ version 2 must declare `privacy_mode` as `metadata_only` and
 `ethics-review-events.json`, reports the latest recorded status, and always sets
 `replication_ethics_authorized` false: original approval or renewal never
 authorizes a new site, population, or replication. Protocol and review-event
-locator fields are included in default redaction. Verification does more than
-rehash files: it strictly parses version-2 JSON, validates the linear
+locator fields are included in default redaction, as are generic local
+`artifact_root` and `attestation_schema_path` fields if future nested receipts
+or add-ons expose them. Verification does more than rehash files: it strictly
+parses version-2 JSON, validates the linear
 ethics-event chain against `protocol.json`, derives the latest status, checks the
 manifest's exact event IDs, and rejects any claimed ethics authorization or
 unsupported package policy. The manifest limitations must also match Faraday's

@@ -322,18 +322,28 @@ def _add_packaged_decoy_output(runs: list[dict], sha256: str = "f" * 64) -> None
 
 def test_nested_locator_redaction_does_not_mutate_source():
     from research_machine.replication.package import _redact_artifact_locators
-    source = {"metadata": {"custody": [{"locator": "/private/fixture.csv", "sha256": "a" * 64}]},
-              "custody_artifact_root": "/private/custody",
-              "run_attestation_schema_path": "/private/schema.json",
-              "review_artifact_locator": "/private/review.pdf",
-              "summary": "Free text still requires review"}
+    source = {
+        "metadata": {
+            "custody": [{"locator": "/private/fixture.csv", "sha256": "a" * 64}]
+        },
+        "artifact_root": "/private/artifacts",
+        "attestation_schema_path": "/private/schema-generic.json",
+        "custody_artifact_root": "/private/custody",
+        "run_attestation_schema_path": "/private/schema.json",
+        "review_artifact_locator": "/private/review.pdf",
+        "summary": "Free text still requires review",
+    }
     redacted = _redact_artifact_locators(source)
     assert redacted["metadata"]["custody"][0]["locator"].startswith("[redacted:")
     assert redacted["metadata"]["custody"][0]["sha256"] == "a" * 64
     assert source["metadata"]["custody"][0]["locator"] == "/private/fixture.csv"
+    assert redacted["artifact_root"].startswith("[redacted:")
+    assert redacted["attestation_schema_path"].startswith("[redacted:")
     assert redacted["custody_artifact_root"].startswith("[redacted:")
     assert redacted["run_attestation_schema_path"].startswith("[redacted:")
     assert redacted["review_artifact_locator"].startswith("[redacted:")
+    assert source["artifact_root"] == "/private/artifacts"
+    assert source["attestation_schema_path"] == "/private/schema-generic.json"
     assert source["review_artifact_locator"] == "/private/review.pdf"
     assert redacted["summary"] == source["summary"]
 
@@ -432,9 +442,15 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
             details={"evidence_sha256": output_hash},
         )],
         summary="Synthetic package fixture.",
-        metadata={"protocol_deviation_disclosure": {
-            "status": "no_deviations_declared", "deviations": [],
-        }},
+        metadata={
+            "operator_receipt": {
+                "artifact_root": str(tmp_path / "private-artifacts"),
+                "attestation_schema_path": str(tmp_path / "private-schema.json"),
+            },
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared", "deviations": [],
+            },
+        },
     ))
     exported = service.export_replication_package(frozen.protocol_id, str(tmp_path / "package"))
     assert exported["package_version"] == 2
@@ -449,6 +465,10 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     assert manifest["latest_recorded_ethics_status"] == "not_applicable"
     assert manifest["replication_ethics_authorized"] is False
     assert json.loads((package / "ethics-review-events.json").read_text()) == []
+    packaged_run = json.loads((package / "runs.json").read_text())[0]
+    operator_receipt = packaged_run["metadata"]["operator_receipt"]
+    assert operator_receipt["artifact_root"].startswith("[redacted:")
+    assert operator_receipt["attestation_schema_path"].startswith("[redacted:")
     commitment = exported["package_manifest_sha256"]
     verified = verify_replication_package(package, commitment)
     assert verified["verification_scope"] == "package_file_integrity"

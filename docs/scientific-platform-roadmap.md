@@ -965,7 +965,8 @@ protocol-scoped ethics review-event chain, and latest recorded status while
 explicitly refusing to authorize replication ethics. Its initial mode is metadata-only: raw data files are
 not copied, but free-text metadata must be reviewed for secrets before sharing.
 Default redaction covers protocol and event artifact-locator fields as well as
-nested dataset/run locators. Verification strictly parses version-2 JSON and
+nested dataset/run locators, generic local artifact roots, and attestation
+schema paths. Verification strictly parses version-2 JSON and
 recomputes protocol-summary agreement, the complete linear ethics chain, event
 IDs, latest status, and the non-authorization invariant instead of trusting
 manifest summaries or unsupported package policy. Manifest limitations must

@@ -1767,6 +1767,8 @@ def _redact_artifact_locators(value: dict[str, Any]) -> dict[str, Any]:
             return {
                 key: "[redacted: obtain from authorized source]"
                 if key == "locator"
+                or key == "artifact_root"
+                or key == "attestation_schema_path"
                 or key.endswith("_locator")
                 or key.endswith("_artifact_root")
                 or key == "run_attestation_schema_path"
