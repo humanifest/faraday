@@ -152,6 +152,17 @@ def validate_retained_source_summaries(
     return [by_study[study_id] for study_id in sorted(by_study)]
 
 
+def retained_source_summary_sha256(summary: dict[str, Any]) -> str:
+    encoded = json.dumps(
+        summary,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def create_effect_records(
     plan_path: Path,
     expected_plan_sha256: str,

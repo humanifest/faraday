@@ -9,7 +9,10 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
-from research_machine.literature.effects import validate_retained_source_summaries
+from research_machine.literature.effects import (
+    retained_source_summary_sha256,
+    validate_retained_source_summaries,
+)
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
@@ -88,11 +91,15 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
                 ),
             })
         claim_provenance[study_id] = sorted(retained, key=lambda claim: claim["extraction_id"])
-    validate_retained_source_summaries(
+    retained_source_summaries = validate_retained_source_summaries(
         effects.get("source_summaries"),
         expected_statuses=statuses,
         effect_measure=_canonical_text(effects.get("effect_measure"), "effect_measure"),
     )
+    source_summary_digests = {
+        summary["study_id"]: retained_source_summary_sha256(summary)
+        for summary in retained_source_summaries
+    }
     if not isinstance(review, dict) or set(review) != {"reviewer", "assessments"}:
         raise ValidationError("effect verification requires exactly reviewer and assessments")
     reviewer = _canonical_text(review["reviewer"], "effect verification reviewer")
@@ -117,6 +124,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
             raise ValidationError("unavailable effects require null transcription and calculation checks")
         by_study[study_id] = {"study_id": study_id, "effect_status": statuses[study_id],
             "source_values_match": values_match, "calculation_matches": calculation_matches,
+            "retained_source_summary_sha256": source_summary_digests[study_id],
             "claim_source_provenance": claim_provenance[study_id],
             "checked_location": _canonical_text(item["checked_location"], "effect checked_location"),
             "rationale": _canonical_text(item["rationale"], "effect verification rationale")}
@@ -135,6 +143,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
         "limitations": [
             "The machine records an independent check but does not read the cited source or authenticate reviewers.",
             "A matching calculation verifies arithmetic from retained summaries, not source truth, outcome compatibility, or participant-level analysis.",
+            "Each assessment carries the exact retained source-summary digest that was independently checked, so later pooling can detect substitution of source-reported values.",
             "Retained claim source anchors bind verification to the prepared-effect artifact; they do not prove that the cited source supports the claim.",
             "Mismatches remain visible and prevent quantitative pooling through the verified workflow.",
         ]}

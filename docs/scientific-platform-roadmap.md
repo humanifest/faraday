@@ -1254,10 +1254,12 @@ claim digests and retained source-file hashes. The verifier now also replays the
 retained source-summary contract for reproducibly derived effects: every source
 summary must cover exactly one effect record with matching status, canonical
 reason and evidence location, and measure-compatible experimental/comparator arm
-values. This authenticates neither reviewer nor source content, but closes the
-cleanly-coded/wrongly-copied input path and prevents independent verification
-from shedding source-byte anchors or malformed retained numeric inputs in the
-enforced quantitative workflow.
+values. Each assessment carries the service-derived digest of the exact retained
+source summary it checked, so downstream pooling can detect stale or substituted
+summary values in the verification artifact. This authenticates neither reviewer
+nor source content, but closes the cleanly-coded/wrongly-copied input path and
+prevents independent verification from shedding source-byte anchors or malformed
+retained numeric inputs in the enforced quantitative workflow.
 `research literature pool-effects` performs deterministic inverse-variance
 pooling only after the quantitative plan, prepared-effect, effect-verification,
 and deviation hashes are canonical lowercase digests and agree. It
@@ -1266,25 +1268,28 @@ available independent-study effects and the frozen minimum, reports Cochran's Q,
 I-squared, DerSimonian-Laird tau-squared, a 95% confidence interval, a random-
 effects prediction interval when at least three studies exist, leave-one-study-
 out estimates, and a study-provenance table spanning available and unavailable
-studies. That table retains the mapped claim IDs, study risk of bias, and
-independent effect-verification assessment for each record, including mapped
-claim source provenance. It also replays the verification artifact's retained
-effect status and claim source anchors against the effect records, so available
-studies require clean transcription and arithmetic checks, unavailable studies
-retain not-applicable checks, and source-byte provenance cannot be rewritten
-between verification and pooling. Pooling now also requires reproducibly derived
-effect records and replays the retained source-summary contract, then reports the
-canonical summaries alongside study provenance so malformed arm summaries cannot
-hide behind a clean verification label. Unavailable studies remain disclosed.
+studies. That table retains the mapped claim IDs, study risk of bias, retained
+source-summary digest, and independent effect-verification assessment for each
+record, including mapped claim source provenance. It also replays the
+verification artifact's retained effect status, claim source anchors, and
+source-summary digest against the effect records, so available studies require
+clean transcription and arithmetic checks, unavailable studies retain
+not-applicable checks, and source-byte or source-summary provenance cannot be
+rewritten between verification and pooling. Pooling now also requires
+reproducibly derived effect records and replays the retained source-summary
+contract, then reports the canonical summaries alongside study provenance so
+malformed arm summaries cannot hide behind a clean verification label.
+Unavailable studies remain disclosed.
 The executor does not interpret effect direction, authenticate retained
 summaries, reproduce source calculations from primary data, or authorize causal,
 clinical, practical, or publication conclusions.
 Meta-analysis now requires canonical effect-record study IDs, verification study
 IDs, mapped claim IDs, verification checked locations, and matching retained
 claim source anchors before provenance joins, plus a valid retained source
-summary for every effect record, so padded identifiers, rewritten source hashes,
-or malformed retained inputs cannot be silently accepted while creating duplicate
-pooled records or hiding required verification coverage.
+summary and matching verifier-retained source-summary digest for every effect
+record, so padded identifiers, rewritten source hashes, substituted summary
+values, or malformed retained inputs cannot be silently accepted while creating
+duplicate pooled records or hiding required verification coverage.
 Random-effects confidence and prediction intervals now use a conservative
 modified Hartung-Knapp standard error with tabulated Student-t critical values;
 the conventional standard error remains reported for auditability. Leave-one-out

@@ -36,6 +36,11 @@ def claim_source_provenance(record):
             for claim in record["mapped_claims"]]
 
 
+def source_summary_digest(summary):
+    encoded = json.dumps(summary, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def source_summary(study_id, status="available"):
     if status == "unavailable":
         return {"study_id": study_id, "status": status, "reason": "Not reported",
@@ -79,11 +84,13 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
         "assessments": [
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
+             "retained_source_summary_sha256": source_summary_digest(source_summary(f"s{i}")),
              "claim_source_provenance": claim_source_provenance(records[i - 1]),
              "checked_location": f"table {i}"}
             for i in range(1, count + 1)
         ] + [{"study_id": "missing", "effect_status": "unavailable",
               "source_values_match": None, "calculation_matches": None,
+              "retained_source_summary_sha256": source_summary_digest(source_summary("missing", "unavailable")),
               "claim_source_provenance": claim_source_provenance(records[-1]),
               "checked_location": "results"}]})
     deviations = tmp_path / "deviations.json"
@@ -120,20 +127,29 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     ]
     assert result["study_provenance"] == [
         {"study_id": "s1", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-1"],
+         "retained_source_summary_sha256": source_summary_digest(source_summary("s1")),
          "mapped_claim_source_provenance": [mapped_claim("s1")],
          "effect_verification": {"study_id": "s1", "effect_status": "available", "source_values_match": True,
-                                 "calculation_matches": True, "claim_source_provenance": [mapped_claim("s1")],
+                                 "calculation_matches": True,
+                                 "retained_source_summary_sha256": source_summary_digest(source_summary("s1")),
+                                 "claim_source_provenance": [mapped_claim("s1")],
                                  "checked_location": "table 1"}},
         {"study_id": "s2", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-2"],
+         "retained_source_summary_sha256": source_summary_digest(source_summary("s2")),
          "mapped_claim_source_provenance": [mapped_claim("s2")],
          "effect_verification": {"study_id": "s2", "effect_status": "available", "source_values_match": True,
-                                 "calculation_matches": True, "claim_source_provenance": [mapped_claim("s2")],
+                                 "calculation_matches": True,
+                                 "retained_source_summary_sha256": source_summary_digest(source_summary("s2")),
+                                 "claim_source_provenance": [mapped_claim("s2")],
                                  "checked_location": "table 2"}},
         {"study_id": "missing", "effect_status": "unavailable", "risk_of_bias": "unclear",
          "mapped_claim_ids": ["claim-missing"],
+         "retained_source_summary_sha256": source_summary_digest(source_summary("missing", "unavailable")),
          "mapped_claim_source_provenance": [mapped_claim("missing")],
          "effect_verification": {"study_id": "missing", "effect_status": "unavailable", "source_values_match": None,
-                                 "calculation_matches": None, "claim_source_provenance": [mapped_claim("missing")],
+                                 "calculation_matches": None,
+                                 "retained_source_summary_sha256": source_summary_digest(source_summary("missing", "unavailable")),
+                                 "claim_source_provenance": [mapped_claim("missing")],
                                  "checked_location": "results"}},
     ]
     assert result["conclusion_authorized"] is False
@@ -178,6 +194,7 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
         "assessments": [
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
+             "retained_source_summary_sha256": source_summary_digest(source_summary(f"s{i}")),
              "claim_source_provenance": [mapped_claim(f"s{i}")],
              "checked_location": f"table {i}"} for i in range(10)
         ]})
@@ -204,6 +221,7 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
         "assessments": [
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
+             "retained_source_summary_sha256": source_summary_digest(source_summary(f"s{i}")),
              "claim_source_provenance": [mapped_claim(f"s{i}")],
              "checked_location": f"table {i}"} for i in range(10)
         ]})
@@ -255,7 +273,7 @@ def test_meta_analysis_requires_canonical_effect_and_verification_handles(tmp_pa
         )
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "derivation-scope", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "derivation-scope", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-source-summary-digest", "verification-source-summary-digest-drift", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -294,6 +312,12 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(verification.read_text()); value["assessments"][1]["study_id"] = " s1 "; verification_sha = write_json(verification, value)
     elif failure == "verification-missing-status":
         value = json.loads(verification.read_text()); del value["assessments"][0]["effect_status"]; verification_sha = write_json(verification, value)
+    elif failure == "verification-missing-source-summary-digest":
+        value = json.loads(verification.read_text()); del value["assessments"][0]["retained_source_summary_sha256"]; verification_sha = write_json(verification, value)
+    elif failure == "verification-source-summary-digest-drift":
+        value = json.loads(verification.read_text())
+        value["assessments"][0]["retained_source_summary_sha256"] = "c" * 64
+        verification_sha = write_json(verification, value)
     elif failure == "verification-missing-claim-source":
         value = json.loads(verification.read_text()); del value["assessments"][0]["claim_source_provenance"]; verification_sha = write_json(verification, value)
     elif failure == "verification-source-anchor-drift":

@@ -16,17 +16,27 @@ def mapped_claim(study):
             "citation_checked_location": f"page {suffix}"}
 
 
+def source_summary_digest(summary):
+    encoded = json.dumps(summary, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def source_summary(study_id, status="available"):
+    if status == "unavailable":
+        return {"study_id": study_id, "status": status, "reason": "No compatible outcome",
+                "evidence_location": "results", "experimental": None, "comparator": None}
+    return {"study_id": study_id, "status": status, "reason": "Reported arms",
+            "evidence_location": "table 1",
+            "experimental": {"sample_size": 25, "mean": 4.0, "standard_deviation": 2.0},
+            "comparator": {"sample_size": 25, "mean": 3.0, "standard_deviation": 1.0}}
+
+
 def effects_file(tmp_path):
+    summaries = [source_summary("s1"), source_summary("s2", "unavailable")]
     value = {"effect_records_version": 1, "status": "effects_ready",
         "derivation_scope": "recomputed_from_source_reported_arm_summaries", "reviewer": "Effect reviewer",
         "plan_id": "p1", "snapshot_id": "snap", "effect_measure": "mean_difference",
-        "source_summaries": [
-            {"study_id": "s1", "status": "available", "reason": "Reported arms",
-             "evidence_location": "table 1",
-             "experimental": {"sample_size": 25, "mean": 4.0, "standard_deviation": 2.0},
-             "comparator": {"sample_size": 25, "mean": 3.0, "standard_deviation": 1.0}},
-            {"study_id": "s2", "status": "unavailable", "reason": "No compatible outcome",
-             "evidence_location": "results", "experimental": None, "comparator": None}], "records": [
+        "source_summaries": summaries, "records": [
             {"study_id": "s1", "status": "available", "mapped_claims": [mapped_claim("s1")]},
             {"study_id": "s2", "status": "unavailable", "mapped_claims": [mapped_claim("s2")]}]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode(); path = tmp_path / "effects.json"; path.write_bytes(encoded)
@@ -48,6 +58,8 @@ def test_effect_verification_cli_records_clean_independent_review(tmp_path, caps
         "--expected-effects-sha256", digest, "--review-file", str(review_path), "--output", str(output)]) == 0
     result = json.loads(capsys.readouterr().out)["result"]
     assert result["status"] == "effect_verification_recorded" and result["independent_review"] is True
+    assert result["assessments"][0]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s1"))
+    assert result["assessments"][1]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s2", "unavailable"))
     with pytest.raises(ValidationError, match="already exists"):
         create_effect_verification(effects, digest, review(), output)
 
@@ -64,6 +76,7 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     assert result["assessments"][0]["study_id"] == "s1"
     assert result["assessments"][0]["checked_location"] == "table 1"
     assert result["assessments"][0]["claim_source_provenance"] == [mapped_claim("s1")]
+    assert result["assessments"][0]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s1"))
 
 
 @pytest.mark.parametrize("failure", [

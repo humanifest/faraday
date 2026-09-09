@@ -961,10 +961,12 @@ exactly one effect record with matching status, canonical reason and evidence
 location, and measure-compatible experimental/comparator arm values. Independent
 effect verification also requires canonical effect reviewer, retained study IDs,
 verification reviewer, checked locations, rationales, and service-derived claim
-source anchors before coverage checks. Meta-analysis replays those
-verifier-retained anchors against the prepared effect records before pooling, so
-an independent verification artifact cannot silently drop or rewrite the
-retained source bytes behind a mapped literature claim.
+source anchors before coverage checks. Each verification assessment also carries
+the service-derived digest of the exact retained source summary it checked.
+Meta-analysis replays those verifier-retained anchors and summary digests
+against the prepared effect records before pooling, so an independent
+verification artifact cannot silently drop, substitute, or rewrite the retained
+source bytes and source-reported values behind a mapped literature claim.
 Meta-analysis now requires canonical prepared-effect study IDs, mapped claim
 IDs, verification study IDs, and checked locations before joining prepared
 effects to independent verification. Pooling also requires the reproducible
@@ -973,9 +975,10 @@ reports a compact `retained_source_summaries` list and `study_provenance` table
 for available and unavailable studies, so a pooled estimate cannot shed the
 reviewed claim boundary, rewrite padded provenance handles, launder source-byte
 anchors, hide malformed arm summaries, or hide studies with missing compatible
-statistics. The same table retains the mapped claim source provenance plus the
-independent source-transcription and arithmetic verification status for each
-effect record, and pooling replays the retained effect-status contract:
+statistics. The same table retains the mapped claim source provenance, the
+retained source-summary digest, plus the independent source-transcription and
+arithmetic verification status for each effect record, and pooling replays the
+retained effect-status contract:
 available effects must carry clean source and calculation checks, while
 unavailable effects must remain not-applicable rather than acquiring
 after-the-fact numeric-looking verification.

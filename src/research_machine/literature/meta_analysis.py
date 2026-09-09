@@ -11,7 +11,10 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
-from research_machine.literature.effects import validate_retained_source_summaries
+from research_machine.literature.effects import (
+    retained_source_summary_sha256,
+    validate_retained_source_summaries,
+)
 from research_machine.literature.hashes import require_sha256
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
@@ -195,6 +198,10 @@ def execute_meta_analysis(
         effect_status = assessment.get("effect_status")
         if effect_status not in {"available", "unavailable"}:
             raise ValidationError("effect-verification assessment must retain effect status")
+        retained_source_summary_digest = require_sha256(
+            assessment.get("retained_source_summary_sha256"),
+            "effect-verification retained_source_summary_sha256",
+        )
         checked_location = _canonical_text(
             assessment.get("checked_location"),
             "effect-verification assessment checked_location",
@@ -207,6 +214,7 @@ def execute_meta_analysis(
             "effect_status": effect_status,
             "source_values_match": source_values_match,
             "calculation_matches": calculation_matches,
+            "retained_source_summary_sha256": retained_source_summary_digest,
             "claim_source_provenance": _claim_source_provenance(
                 assessment_claims, "effect-verification claim"
             ),
@@ -300,6 +308,18 @@ def execute_meta_analysis(
         expected_statuses=effect_statuses,
         effect_measure=plan.get("effect_measure"),
     )
+    summary_digests = {
+        summary["study_id"]: retained_source_summary_sha256(summary)
+        for summary in retained_source_summaries
+    }
+    for provenance in study_provenance:
+        study_id = provenance["study_id"]
+        retained_digest = summary_digests[study_id]
+        if provenance["effect_verification"]["retained_source_summary_sha256"] != retained_digest:
+            raise ValidationError(
+                "effect-verification retained source-summary digest does not match effect records"
+            )
+        provenance["retained_source_summary_sha256"] = retained_digest
 
     fixed_estimate, fixed_se = _weighted(available)
     fixed_weights = [1.0 / item["variance"] for item in available]
