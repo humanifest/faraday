@@ -93,6 +93,32 @@ _PROPOSAL_RECORD_FIELDS = {
     "authorized_actions",
     "conclusion_ceiling",
 }
+_REVIEW_RECORD_FIELDS = {
+    "collaborator_proposal_review_record_version",
+    "proposal_record_input",
+    "context_scientific_constraints",
+    "review_input",
+    "review",
+    "reviewed_suggestions",
+    "advanced_suggestions",
+    "status",
+    "reviewer_identity_authenticated",
+    "canonical_writes_performed",
+    "scientific_evidence_eligible",
+    "authorized_actions",
+    "conclusion_ceiling",
+}
+_REVIEWED_SUGGESTION_FIELDS = {
+    "suggestion_id",
+    "suggestion_sha256",
+    "suggestion",
+    "disposition",
+    "rationale",
+    "domain_route",
+    "manual_domain_review_required",
+    "canonical_writes_performed",
+    "scientific_evidence_eligible",
+}
 _INPUT_FIELDS = {"sha256", "size_bytes"}
 _CONTEXT_REFERENCE_PREFIXES = {
     "inquiry": "inquiry:",
@@ -611,6 +637,186 @@ def adjudicate_collaborator_proposal(
         "record_sha256": hashlib.sha256(content).hexdigest(),
         "proposal_record_sha256": record_digest,
         "status": adjudication["status"],
+        "advanced_suggestion_count": len(advanced),
+        "canonical_writes_performed": False,
+        "scientific_evidence_eligible": False,
+    }
+
+
+def _validate_input_receipt(value: Any, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValidationError(f"{label} must be an object")
+    _exact_fields(value, _INPUT_FIELDS, label)
+    if not isinstance(value["sha256"], str) or not _SHA256.fullmatch(value["sha256"]):
+        raise ValidationError(f"{label} SHA-256 is invalid")
+    if (
+        not isinstance(value["size_bytes"], int)
+        or isinstance(value["size_bytes"], bool)
+        or value["size_bytes"] <= 0
+    ):
+        raise ValidationError(f"{label} size is invalid")
+    return value
+
+
+def verify_collaborator_review_record(
+    review_record_file: Path,
+    expected_review_record_sha256: str,
+) -> dict[str, Any]:
+    """Replay a collaborator review record without trusting its summary fields."""
+    if not _SHA256.fullmatch(expected_review_record_sha256):
+        raise ValidationError(
+            "expected review-record SHA-256 must be 64 lowercase hex characters"
+        )
+    record, record_content = _load_object(
+        review_record_file, "collaborator proposal review record"
+    )
+    record_digest = hashlib.sha256(record_content).hexdigest()
+    if record_digest != expected_review_record_sha256:
+        raise ValidationError(
+            "collaborator proposal review record does not match trusted SHA-256"
+        )
+    _exact_fields(record, _REVIEW_RECORD_FIELDS, "collaborator proposal review record")
+    if record.get("collaborator_proposal_review_record_version") != 1:
+        raise ValidationError("collaborator proposal review record version must be 1")
+    if record.get("status") != "reviewed_requires_manual_domain_action":
+        raise ValidationError("collaborator proposal review record status is invalid")
+    for field, expected in (
+        ("reviewer_identity_authenticated", False),
+        ("canonical_writes_performed", False),
+        ("scientific_evidence_eligible", False),
+        ("authorized_actions", []),
+    ):
+        if record.get(field) != expected:
+            raise ValidationError(
+                f"collaborator proposal review record violates its authority boundary: {field}"
+            )
+    _validate_input_receipt(
+        record.get("proposal_record_input"),
+        "collaborator proposal review record proposal_record_input",
+    )
+    _validate_input_receipt(
+        record.get("review_input"),
+        "collaborator proposal review record review_input",
+    )
+    _text(record["conclusion_ceiling"], "review_record.conclusion_ceiling")
+    _context_scientific_constraints(
+        {"scientific_constraints": record["context_scientific_constraints"]}
+    )
+
+    review = record["review"]
+    if not isinstance(review, dict):
+        raise ValidationError("collaborator proposal review record review must be an object")
+    _exact_fields(review, _REVIEW_FIELDS, "collaborator proposal review")
+    if review["proposal_record_sha256"] != record["proposal_record_input"]["sha256"]:
+        raise ValidationError(
+            "collaborator proposal review record review is bound to a different proposal record"
+        )
+    _canonical_text(review["review_id"], "review_id")
+    _rfc3339(review["reviewed_at"], "reviewed_at")
+    reviewer = review["reviewer"]
+    if not isinstance(reviewer, dict):
+        raise ValidationError("collaborator proposal review reviewer must be an object")
+    _exact_fields(reviewer, _REVIEWER_FIELDS, "collaborator proposal review reviewer")
+    _canonical_text(reviewer["reviewer_id"], "reviewer.reviewer_id")
+    _canonical_text(reviewer["role"], "reviewer.role")
+    decisions = review["decisions"]
+    if not isinstance(decisions, list):
+        raise ValidationError("collaborator proposal review decisions must be an array")
+    decisions_by_id: dict[str, dict[str, Any]] = {}
+    for index, decision in enumerate(decisions):
+        label = f"collaborator proposal review decision {index + 1}"
+        if not isinstance(decision, dict):
+            raise ValidationError(f"{label} must be an object")
+        _exact_fields(decision, _DECISION_FIELDS, label)
+        suggestion_id = _canonical_text(decision["suggestion_id"], "decision.suggestion_id")
+        if suggestion_id in decisions_by_id:
+            raise ValidationError(f"duplicate collaborator review suggestion_id: {suggestion_id}")
+        disposition = decision["disposition"]
+        if disposition not in _DISPOSITIONS:
+            raise ValidationError(f"{label} disposition is invalid")
+        _text(decision["rationale"], "decision.rationale")
+        decisions_by_id[suggestion_id] = decision
+
+    reviewed_suggestions = record["reviewed_suggestions"]
+    if not isinstance(reviewed_suggestions, list) or not reviewed_suggestions:
+        raise ValidationError(
+            "collaborator proposal review record reviewed_suggestions must be non-empty"
+        )
+    reviewed_ids: set[str] = set()
+    advanced: list[dict[str, str]] = []
+    for index, item in enumerate(reviewed_suggestions):
+        label = f"collaborator proposal reviewed_suggestion {index + 1}"
+        if not isinstance(item, dict):
+            raise ValidationError(f"{label} must be an object")
+        _exact_fields(item, _REVIEWED_SUGGESTION_FIELDS, label)
+        suggestion_id = _canonical_text(item["suggestion_id"], "reviewed_suggestion.suggestion_id")
+        if suggestion_id in reviewed_ids:
+            raise ValidationError(f"duplicate collaborator reviewed_suggestion: {suggestion_id}")
+        reviewed_ids.add(suggestion_id)
+        if suggestion_id not in decisions_by_id:
+            raise ValidationError(f"{label} has no matching review decision")
+        suggestion = item["suggestion"]
+        if not isinstance(suggestion, dict):
+            raise ValidationError(f"{label} suggestion must be an object")
+        _exact_fields(suggestion, _SUGGESTION_FIELDS, f"{label} suggestion")
+        if suggestion.get("suggestion_id") != suggestion_id:
+            raise ValidationError(f"{label} suggestion_id disagrees with embedded suggestion")
+        if suggestion["kind"] not in _SUGGESTION_KINDS:
+            raise ValidationError(f"{label} suggestion kind is invalid")
+        if suggestion["authority"] != "review_only":
+            raise ValidationError(f"{label} suggestion authority must be review_only")
+        for field in ("statement", "rationale", "uncertainty", "next_test"):
+            _text(suggestion[field], f"{label}.{field}")
+        _string_array(
+            suggestion["evidence_refs"],
+            f"{label}.evidence_refs",
+            nonempty=False,
+        )
+        _string_array(
+            suggestion["falsification_conditions"],
+            f"{label}.falsification_conditions",
+        )
+        suggestion_sha256 = item["suggestion_sha256"]
+        if not isinstance(suggestion_sha256, str) or not _SHA256.fullmatch(suggestion_sha256):
+            raise ValidationError(f"{label} suggestion_sha256 is invalid")
+        if suggestion_sha256 != _sha256_json(suggestion):
+            raise ValidationError(f"{label} suggestion_sha256 does not match the suggestion")
+        decision = decisions_by_id[suggestion_id]
+        for field in ("disposition", "rationale", "domain_route"):
+            if item[field] != decision[field]:
+                raise ValidationError(f"{label} {field} disagrees with the review decision")
+        if item["canonical_writes_performed"] is not False:
+            raise ValidationError(f"{label} violates its canonical write boundary")
+        if item["scientific_evidence_eligible"] is not False:
+            raise ValidationError(f"{label} violates its evidence boundary")
+        if item["manual_domain_review_required"] is not (
+            decision["disposition"] == "advance_to_domain_review"
+        ):
+            raise ValidationError(f"{label} manual review flag disagrees with disposition")
+        route = decision["domain_route"]
+        if decision["disposition"] == "advance_to_domain_review":
+            kind = suggestion["kind"]
+            if route not in _ROUTES_BY_SUGGESTION_KIND.get(kind, set()):
+                raise ValidationError(
+                    f"{label} domain_route is incompatible with suggestion kind {kind}"
+                )
+            advanced.append({"suggestion_id": suggestion_id, "domain_route": route})
+        elif route != "none":
+            raise ValidationError(f"{label} domain_route must be none unless advanced")
+    missing = sorted(set(decisions_by_id) - reviewed_ids)
+    if missing:
+        raise ValidationError(
+            "collaborator proposal review record omits reviewed suggestions: "
+            + ", ".join(missing)
+        )
+    if record["advanced_suggestions"] != advanced:
+        raise ValidationError(
+            "collaborator proposal review record advanced_suggestions disagrees with reviewed suggestions"
+        )
+    return {
+        "record_sha256": record_digest,
+        "status": record["status"],
+        "reviewed_suggestion_count": len(reviewed_suggestions),
         "advanced_suggestion_count": len(advanced),
         "canonical_writes_performed": False,
         "scientific_evidence_eligible": False,

@@ -10,6 +10,7 @@ from research_machine.collaboration.proposal import (
     adjudicate_collaborator_proposal,
     create_context_snapshot,
     validate_collaborator_proposal,
+    verify_collaborator_review_record,
 )
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import (
@@ -601,6 +602,20 @@ def test_cli_exports_context_and_validates_proposal_without_a_provider(
     assert reviewed["status"] == "reviewed_requires_manual_domain_action"
     assert reviewed["advanced_suggestion_count"] == 1
     assert reviewed["canonical_writes_performed"] is False
+    assert main(
+        [
+            *common,
+            "collaborator",
+            "verify-review",
+            "--review-record-file",
+            reviewed["record_file"],
+            "--expected-review-record-sha256",
+            reviewed["record_sha256"],
+        ]
+    ) == 0
+    verified = json.loads(capsys.readouterr().out)["result"]
+    assert verified["reviewed_suggestion_count"] == 1
+    assert verified["canonical_writes_performed"] is False
 
 
 def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
@@ -675,6 +690,83 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     assert record["reviewer_identity_authenticated"] is False
     assert record["authorized_actions"] == []
     assert record["scientific_evidence_eligible"] is False
+    verified = verify_collaborator_review_record(
+        Path(result["record_file"]),
+        result["record_sha256"],
+    )
+    assert verified["reviewed_suggestion_count"] == 2
+    assert verified["advanced_suggestion_count"] == 1
+    assert verified["scientific_evidence_eligible"] is False
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda record: record["reviewed_suggestions"][0]["suggestion"].update(
+                {"statement": "A later rewrite cannot keep the old suggestion digest."}
+            ),
+            "suggestion_sha256 does not match",
+        ),
+        (
+            lambda record: record["reviewed_suggestions"][0].update(
+                {"canonical_writes_performed": True}
+            ),
+            "canonical write boundary",
+        ),
+        (
+            lambda record: record.update({"advanced_suggestions": []}),
+            "advanced_suggestions disagrees",
+        ),
+        (
+            lambda record: record["reviewed_suggestions"][0].update(
+                {"manual_domain_review_required": False}
+            ),
+            "manual review flag",
+        ),
+        (
+            lambda record: record["review"].update({"proposal_record_sha256": "0" * 64}),
+            "different proposal record",
+        ),
+        (
+            lambda record: record["reviewed_suggestions"][0]["suggestion"].update(
+                {"authority": "canonical_write"}
+            ),
+            "authority must be review_only",
+        ),
+    ],
+)
+def test_verify_collaborator_review_record_replays_retained_receipts(
+    tmp_path: Path, mutation, message: str
+) -> None:
+    context = _context()
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(_proposal(snapshot["context_sha256"])), encoding="utf-8"
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(_review(validated["record_sha256"])), encoding="utf-8")
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    mutation(record)
+    record_path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match=message):
+        verify_collaborator_review_record(record_path, trusted_hash)
 
 
 @pytest.mark.parametrize(

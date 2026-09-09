@@ -902,6 +902,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     collaborator_review.add_argument("--review-file", type=Path, required=True)
     collaborator_review.add_argument("--output", type=Path, required=True)
+    collaborator_verify_review = collaborator_commands.add_parser(
+        "verify-review",
+        help="Replay a collaborator review record against a trusted record hash",
+    )
+    collaborator_verify_review.add_argument("--review-record-file", type=Path, required=True)
+    collaborator_verify_review.add_argument("--expected-review-record-sha256", required=True)
 
     literature = groups.add_parser(
         "literature", help="Create reproducible, hash-bound literature snapshots"
@@ -2109,6 +2115,13 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             args.expected_proposal_record_sha256,
             args.review_file,
             args.output,
+        )
+
+    if args.group == "collaborator" and args.action == "verify-review":
+        from research_machine.collaboration.proposal import verify_collaborator_review_record
+        return verify_collaborator_review_record(
+            args.review_record_file,
+            args.expected_review_record_sha256,
         )
 
     if args.group == "literature" and args.action == "screen":

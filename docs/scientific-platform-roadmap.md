@@ -1034,7 +1034,11 @@ review flag, so later domain work can cite the reviewed content rather than only
 a suggestion ID. The reviewer identity is explicitly unauthenticated, and
 advancement neither invokes nor authorizes the route. This prevents omission and
 default acceptance while preserving an auditable path from generated suggestion
-to later manual domain review.
+to later manual domain review. `research collaborator verify-review` independently
+replays a saved review record against a trusted review-record hash, checking the
+authority flags, scientific constraints, reviewed suggestion digests, decision
+coverage, compatible routes, and advanced-suggestion summary without performing
+canonical writes or authenticating the reviewer.
 
 Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally

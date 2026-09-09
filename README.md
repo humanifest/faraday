@@ -849,6 +849,18 @@ retains one decision receipt per proposal suggestion, including the exact
 suggestion snapshot, its SHA-256, disposition, rationale, compatible route, and
 manual-review flag. It authenticates neither reviewer identity nor scientific
 adequacy, authorizes no action, and does not execute the named command.
+Replay a saved review record before relying on it as triage provenance:
+
+```bash
+./research --json collaborator verify-review \
+  --review-record-file reviewed-proposal/collaborator-proposal-review.json \
+  --expected-review-record-sha256 <trusted-review-record-sha256>
+```
+
+Verification checks the trusted record hash, authority flags, scientific
+constraints, review decisions, every retained suggestion digest, and the
+advanced-suggestion summary. It still does not authenticate the reviewer or turn
+the review into a canonical scientific action.
 
 ## Literature snapshots
 
