@@ -384,6 +384,7 @@ def test_replication_verify_rejects_noncanonical_manifest_file_hash(
     "privacy_mode", "locator_policy", "limitations", "ethics_summary",
     "instructions", "dataset_summary", "dataset_cycle", "run_eligibility",
     "blank_prerequisite", "padded_prerequisite", "quality_gate_duplicate_after_trim",
+    "skipped_gate_with_evidence_anchor",
     "dataset_unredacted_locator", "dataset_duplicate_digest",
     "dataset_padded_locator", "dataset_bad_hash", "dataset_negative_size",
     "dataset_bad_metadata", "dataset_padded_media_type",
@@ -669,6 +670,18 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         duplicate = dict(runs[0]["quality_gates"][0])
         duplicate["gate_id"] = f" {duplicate['gate_id']} "
         runs[0]["quality_gates"].append(duplicate)
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "skipped_gate_with_evidence_anchor":
+        runs_path = package / "runs.json"
+        runs = json.loads(runs_path.read_text())
+        runs[0]["quality_gates"][0]["status"] = "skipped"
+        runs[0]["status"] = "invalid"
+        runs[0]["scientific_evidence_eligible"] = False
         runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
         manifest_path = package / "package-manifest.json"
         manifest = json.loads(manifest_path.read_text())

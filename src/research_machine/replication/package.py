@@ -187,6 +187,11 @@ def _reject_skipped_gate_structured_results(
 ) -> None:
     if gate.status is not QualityGateStatus.SKIPPED:
         return
+    if is_canonical_sha256(gate.details.get("evidence_sha256")):
+        raise ValidationError(
+            f"package run {run_id} skipped quality gate {gate.gate_id} "
+            "cannot cite evidence_sha256"
+        )
     retained = sorted(
         key
         for key in _STRUCTURED_RESULT_DETAIL_KEYS.intersection(gate.details)
