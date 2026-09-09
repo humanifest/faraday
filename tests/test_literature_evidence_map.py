@@ -46,6 +46,11 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
     if source_sha != "legacy_missing":
         source_review["source_retained_file_sha256"] = source_sha
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded", "snapshot_id": "snap",
+        "record_count": 1, "scientific_evidence_eligible": False,
+        "limitations": [
+            "Records are reviewer assertions bound to source IDs and locations; the machine has not verified that source text supports them.",
+            "Extraction does not perform risk-of-bias assessment, resolve disagreements, accept claims as facts, or conduct synthesis.",
+        ],
         "source_reviews": [source_review]})
     verification = tmp_path / "verification.json"
     citation = {"extraction_id": "e1", "study_id": "study-1",
@@ -55,7 +60,15 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
     if source_sha != "legacy_missing":
         citation["source_retained_file_sha256"] = source_sha
     verification_sha = write_json(verification, {"citation_verification_version": 1, "status": "citation_review_recorded",
-        "extraction_sha256": extraction_sha, "assessments": [citation]})
+        "extraction_sha256": extraction_sha, "independent_review": True,
+        "verdict_counts": {"partially_supported": 0, "supported": 1, "unclear": 0, "unsupported": 0},
+        "scientific_evidence_eligible": False,
+        "limitations": [
+            "The machine binds an independent review to extraction bytes but does not interpret source text or authenticate either reviewer.",
+            "A supported verdict is a reviewer judgment, not proof that a claim is true, unbiased, reproducible, or applicable.",
+            "Risk-of-bias assessment, study-identity reconciliation, and quantitative synthesis remain separate gates.",
+        ],
+        "assessments": [citation]})
     bias = tmp_path / "bias.json"
     domains = [
         {"domain": name, "judgment": bias_judgment, "evidence_locations": ["table 1"]}
@@ -65,14 +78,31 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
             "selective_reporting",
         )
     ]
+    judgment_counts = {"low": 0, "some_concerns": 0, "high": 0, "unclear": 0}
+    judgment_counts[bias_judgment] += 1
     bias_sha = write_json(bias, {"bias_assessment_version": 1, "status": "bias_assessment_recorded",
-        "citation_verification_sha256": verification_sha,
+        "citation_verification_sha256": verification_sha, "independent_review": True,
+        "overall_judgment_counts": judgment_counts,
+        "scientific_evidence_eligible": False,
+        "limitations": [
+            "Overall judgments are conservative deterministic summaries of reviewer-entered domain judgments, not automated validity findings.",
+            "The generic domains do not replace design-specific validated instruments or authenticate reviewer expertise or independence.",
+            "Risk-of-bias assessment does not make a literature claim true or authorize quantitative synthesis.",
+        ],
         "assessments": [{"study_id": "study-1", "overall_judgment": bias_judgment,
             "domains": domains}]})
     reconciliation = tmp_path / "reconciliation.json"
     reconciliation_sha = write_json(reconciliation, {"study_reconciliation_version": 1,
         "status": "study_identities_reconciled", "bias_assessment_sha256": bias_sha,
-        "studies": [{"study_id": "study-1"}]})
+        "independent_review": True,
+        "relationship_counts": {"duplicate_report": 0, "independent": 0, "overlapping_cohort": 0, "unclear": 0},
+        "scientific_evidence_eligible": False,
+        "limitations": [
+            "Pairwise identity judgments are reviewer assertions; metadata similarity cannot prove cohort independence.",
+            "Overlap, duplicate, and unclear relationships are preserved and block a reconciled status rather than being silently deduplicated.",
+            "Study reconciliation does not validate outcomes, assess applicability, or authorize quantitative synthesis.",
+        ],
+        "studies": [{"study_id": "study-1"}], "relationships": []})
     return extraction, verification, bias, reconciliation, reconciliation_sha
 
 
@@ -125,6 +155,13 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
 
 @pytest.mark.parametrize("failure", [
     "terminal-hash", "extraction-link", "verification-link", "bias-link", "unresolved",
+    "extraction-authority", "extraction-count-drift", "extraction-limitations-missing",
+    "extraction-padded-limitation", "verification-authority", "verification-not-independent",
+    "verification-count-drift", "verification-limitations-missing", "verification-padded-limitation",
+    "bias-authority", "bias-not-independent", "bias-count-drift",
+    "bias-limitations-missing", "bias-padded-limitation", "reconciliation-authority",
+    "reconciliation-not-independent", "reconciliation-count-drift",
+    "reconciliation-limitations-missing", "reconciliation-padded-limitation",
     "coverage", "padded-extraction-duplicate", "padded-citation-duplicate",
     "padded-bias-duplicate", "padded-reconciliation-duplicate",
     "padded-extraction-source", "padded-extraction-study", "padded-extraction-location",
@@ -145,6 +182,77 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = "0" * 64; digest = write_json(reconciliation, value)
     elif failure == "unresolved":
         value = json.loads(reconciliation.read_text()); value["status"] = "review_required"; digest = write_json(reconciliation, value)
+    elif failure in {
+        "extraction-authority", "extraction-count-drift", "extraction-limitations-missing",
+        "extraction-padded-limitation",
+    }:
+        value = json.loads(extraction.read_text())
+        if failure == "extraction-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "extraction-count-drift":
+            value["record_count"] = 2
+        elif failure == "extraction-limitations-missing":
+            value["limitations"] = []
+        elif failure == "extraction-padded-limitation":
+            value["limitations"][0] = " " + value["limitations"][0]
+        extraction_sha = write_json(extraction, value)
+        value = json.loads(verification.read_text()); value["extraction_sha256"] = extraction_sha; verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure in {
+        "verification-authority", "verification-not-independent", "verification-count-drift",
+        "verification-limitations-missing", "verification-padded-limitation",
+    }:
+        value = json.loads(verification.read_text())
+        if failure == "verification-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "verification-not-independent":
+            value["independent_review"] = False
+        elif failure == "verification-count-drift":
+            value["verdict_counts"]["supported"] = 0
+            value["verdict_counts"]["partially_supported"] = 1
+        elif failure == "verification-limitations-missing":
+            value["limitations"] = []
+        elif failure == "verification-padded-limitation":
+            value["limitations"][0] = " " + value["limitations"][0]
+        verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure in {
+        "bias-authority", "bias-not-independent", "bias-count-drift",
+        "bias-limitations-missing", "bias-padded-limitation",
+    }:
+        value = json.loads(bias.read_text())
+        if failure == "bias-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "bias-not-independent":
+            value["independent_review"] = False
+        elif failure == "bias-count-drift":
+            value["overall_judgment_counts"]["low"] = 1
+            value["overall_judgment_counts"]["some_concerns"] = 0
+        elif failure == "bias-limitations-missing":
+            value["limitations"] = []
+        elif failure == "bias-padded-limitation":
+            value["limitations"][0] = " " + value["limitations"][0]
+        bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure in {
+        "reconciliation-authority", "reconciliation-not-independent",
+        "reconciliation-count-drift", "reconciliation-limitations-missing",
+        "reconciliation-padded-limitation",
+    }:
+        value = json.loads(reconciliation.read_text())
+        if failure == "reconciliation-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "reconciliation-not-independent":
+            value["independent_review"] = False
+        elif failure == "reconciliation-count-drift":
+            value["relationship_counts"]["independent"] = 1
+        elif failure == "reconciliation-limitations-missing":
+            value["limitations"] = []
+        elif failure == "reconciliation-padded-limitation":
+            value["limitations"][0] = " " + value["limitations"][0]
+        digest = write_json(reconciliation, value)
     elif failure == "coverage":
         value = json.loads(verification.read_text()); value["assessments"] = []; verification_sha = write_json(verification, value)
         value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)

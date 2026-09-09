@@ -1074,7 +1074,11 @@ coverage checks, preventing reviewer-entered whitespace from splitting or
 merging provenance after citation review. Evidence-map construction also
 requires canonical extraction, study, source, citation-review, and bias-domain
 handles before joining or counting claims, so the final map cannot reintroduce
-hidden duplicate identities. Qualitative synthesis also requires canonical
+hidden duplicate identities. It also replays the non-authority flags, retained
+limitations, and summary counts for extraction, citation verification, bias
+assessment, and study reconciliation before joining the terminal review
+artifact, so a clean hash chain cannot hide rewritten boundary summaries.
+Qualitative synthesis also requires canonical
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims.
 Qualitative synthesis and quantitative effect preparation also replay the

@@ -30,6 +30,9 @@ _INTERPRETIVE_CEILINGS = {
     "source_hypothesis_only",
     "insufficient_for_conclusion",
 }
+_VERDICTS = {"supported", "partially_supported", "unsupported", "unclear"}
+_BIAS_JUDGMENTS = {"low", "some_concerns", "high", "unclear"}
+_RELATIONSHIPS = {"independent", "overlapping_cohort", "duplicate_report", "unclear"}
 
 
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
@@ -64,6 +67,94 @@ def _source_anchor(value: Any, field: str) -> str:
     if value == _LEGACY_SOURCE_ANCHOR:
         return _LEGACY_SOURCE_ANCHOR
     return require_sha256(value, field)
+
+
+def _validate_limitations(record: dict[str, Any], label: str) -> None:
+    limitations = record.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError(f"{label} requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"{label} limitation {index + 1}")
+
+
+def _validate_extraction_boundary(extraction: dict[str, Any]) -> None:
+    if extraction.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("extraction record must remain scientifically ineligible")
+    _validate_limitations(extraction, "extraction record")
+    source_reviews = extraction.get("source_reviews")
+    if not isinstance(source_reviews, list):
+        raise ValidationError("extraction source_reviews must be an array")
+    record_count = 0
+    for source_review in source_reviews:
+        if not isinstance(source_review, dict):
+            raise ValidationError("extraction source review must be an object")
+        records = source_review.get("records")
+        if not isinstance(records, list):
+            raise ValidationError("extraction records must be an array")
+        record_count += len(records)
+    if extraction.get("record_count") != record_count:
+        raise ValidationError("extraction record_count does not replay from extracted claims")
+
+
+def _validate_citation_verification_boundary(
+    verification: dict[str, Any],
+    assessments: list[dict[str, Any]],
+) -> None:
+    if verification.get("independent_review") is not True:
+        raise ValidationError("citation verification must retain independent-review status")
+    if verification.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("citation verification must remain scientifically ineligible")
+    _validate_limitations(verification, "citation verification")
+    counts = {verdict: 0 for verdict in sorted(_VERDICTS)}
+    for item in assessments:
+        verdict = item.get("verdict")
+        if verdict not in _VERDICTS:
+            raise ValidationError("citation assessment verdict is invalid")
+        counts[verdict] += 1
+    if verification.get("verdict_counts") != counts:
+        raise ValidationError("citation verification verdict_counts do not replay from assessments")
+    if counts["unsupported"] or counts["unclear"]:
+        raise ValidationError("evidence map requires citation-reviewed claims without unsupported or unclear verdicts")
+
+
+def _validate_bias_assessment_boundary(
+    bias: dict[str, Any],
+    assessments: list[dict[str, Any]],
+) -> None:
+    if bias.get("independent_review") is not True:
+        raise ValidationError("bias assessment must retain independent-review status")
+    if bias.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("bias assessment must remain scientifically ineligible")
+    _validate_limitations(bias, "bias assessment")
+    counts = {judgment: 0 for judgment in ("low", "some_concerns", "high", "unclear")}
+    for item in assessments:
+        judgment = item.get("overall_judgment")
+        if judgment not in _BIAS_JUDGMENTS:
+            raise ValidationError("bias assessment overall_judgment is invalid")
+        counts[judgment] += 1
+    if bias.get("overall_judgment_counts") != counts:
+        raise ValidationError("bias assessment overall_judgment_counts do not replay from studies")
+
+
+def _validate_study_reconciliation_boundary(
+    reconciliation: dict[str, Any],
+    relationships: list[dict[str, Any]],
+) -> None:
+    if reconciliation.get("independent_review") is not True:
+        raise ValidationError("study reconciliation must retain independent-review status")
+    if reconciliation.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("study reconciliation must remain scientifically ineligible")
+    _validate_limitations(reconciliation, "study reconciliation")
+    counts = {relationship: 0 for relationship in sorted(_RELATIONSHIPS)}
+    for item in relationships:
+        relationship = item.get("relationship")
+        if relationship not in _RELATIONSHIPS:
+            raise ValidationError("study relationship is invalid")
+        counts[relationship] += 1
+    if reconciliation.get("relationship_counts") != counts:
+        raise ValidationError("study reconciliation relationship_counts do not replay from relationships")
+    if counts["overlapping_cohort"] or counts["duplicate_report"] or counts["unclear"]:
+        raise ValidationError("evidence map requires fully reconciled independent study identities")
 
 
 def validate_evidence_map_boundary(
@@ -164,9 +255,14 @@ def create_evidence_map(
             or reconciliation.get("status") != "study_identities_reconciled"
             or reconciliation.get("bias_assessment_sha256") != bias_sha):
         raise ValidationError("study identities are unresolved or do not bind the supplied bias assessment")
+    _validate_extraction_boundary(extraction)
 
     citation_by_id = {}
-    for item in verification.get("assessments", []):
+    verification_assessments = verification.get("assessments", [])
+    if not isinstance(verification_assessments, list):
+        raise ValidationError("citation assessments must be an array")
+    _validate_citation_verification_boundary(verification, verification_assessments)
+    for item in verification_assessments:
         if not isinstance(item, dict):
             raise ValidationError("citation assessments are malformed")
         extraction_id = _canonical_text(item.get("extraction_id"), "citation extraction_id")
@@ -174,7 +270,11 @@ def create_evidence_map(
             raise ValidationError("citation assessments contain duplicate extraction_id")
         citation_by_id[extraction_id] = {**item, "extraction_id": extraction_id}
     bias_by_study = {}
-    for item in bias.get("assessments", []):
+    bias_assessments = bias.get("assessments", [])
+    if not isinstance(bias_assessments, list):
+        raise ValidationError("bias assessments must be an array")
+    _validate_bias_assessment_boundary(bias, bias_assessments)
+    for item in bias_assessments:
         if not isinstance(item, dict):
             raise ValidationError("bias assessments are malformed")
         study_id = _canonical_text(item.get("study_id"), "bias study_id")
@@ -182,6 +282,10 @@ def create_evidence_map(
             raise ValidationError("bias assessments contain duplicate study_id")
         bias_by_study[study_id] = {**item, "study_id": study_id}
     reconciled_studies = set()
+    relationships = reconciliation.get("relationships", [])
+    if not isinstance(relationships, list):
+        raise ValidationError("study relationships must be an array")
+    _validate_study_reconciliation_boundary(reconciliation, relationships)
     for item in reconciliation.get("studies", []):
         if not isinstance(item, dict):
             raise ValidationError("reconciled studies are malformed")

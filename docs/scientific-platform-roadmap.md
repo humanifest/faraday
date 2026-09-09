@@ -1367,7 +1367,10 @@ the inspectable input boundary for later registered synthesis.
 Evidence-map construction requires canonical extraction, study, source,
 citation-review, and bias-domain handles before every provenance join,
 preventing padded upstream artifacts from creating apparent new claims or
-studies.
+studies. It also replays the non-authority flags, retained limitations, and
+summary counts for extraction, citation verification, bias assessment, and
+study reconciliation before joining the terminal review artifact, so a clean
+hash chain cannot hide rewritten boundary summaries.
 `research literature plan-synthesis` freezes the research question, primary
 outcome, qualitative or quantitative mode, effect measure, contrast definition, statistical model,
 minimum independent-study count, eligibility, missing-statistics, heterogeneity,
