@@ -1586,6 +1586,10 @@ researcher's account. Its non-authority flags, `cannot_raise` ceiling effect,
 `plan_amended: false`, retained limitations, timing counts, and status are
 replayed from the retained departure rows before downstream synthesis can trust
 the declaration.
+The artifact now also replays its own retained boundary before it is written:
+version and trusted plan hash, plan and snapshot handles, reviewer text, exact
+frozen-plan commitment fields, canonical included source IDs, timing counts,
+status, and non-authority fields must all remain internally consistent.
 Both qualitative synthesis and quantitative pooling now require this declaration,
 including an immutable `no_deviations_declared` artifact when none are reported.
 The declaration hash and frozen-plan snapshot are embedded in the result and

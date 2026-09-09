@@ -1197,6 +1197,11 @@ publication authority fields, a `cannot_raise` ceiling effect,
 `plan_amended: false`, retained limitations, and service-derived timing
 counts/status; synthesis and pooling replay those values from the canonical
 departure rows before use.
+The deviation artifact now also replays its own retained boundary before it is
+written: version and trusted plan hash, plan and snapshot handles, reviewer
+text, exact frozen-plan commitment fields, canonical included source IDs,
+timing counts, status, and non-authority fields must all remain internally
+consistent.
 Qualitative synthesis artifacts also carry explicit false evidence,
 conclusion-authorization, and publication-authorization flags, keeping organized
 source claims visibly separate from Faraday evidence or conclusions.

@@ -6,7 +6,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.deviations import create_synthesis_deviations
+from research_machine.literature.deviations import (
+    create_synthesis_deviations,
+    validate_synthesis_deviations_boundary,
+)
 
 
 def plan_file(tmp_path):
@@ -69,6 +72,64 @@ def test_explicit_no_deviations_declaration_is_recorded(tmp_path):
     result = create_synthesis_deviations(plan, digest, {"reviewer": "Reviewer", "deviations": []}, tmp_path / "none")
     assert result["status"] == "no_deviations_declared"
     assert result["deviations"] == []
+
+
+@pytest.mark.parametrize("tamper", [
+    "version",
+    "plan-hash",
+    "plan-id",
+    "snapshot-id",
+    "reviewer",
+    "commitments-missing",
+    "commitment-extra",
+    "synthesis-type",
+    "padded-effect-measure",
+    "minimum",
+    "source-ids",
+    "source-duplicate",
+    "authority",
+    "plan-amended",
+    "timing-counts",
+    "status-drift",
+])
+def test_synthesis_deviation_boundary_replays_retained_snapshot(tmp_path, tamper):
+    plan, digest, _ = plan_file(tmp_path)
+    result = create_synthesis_deviations(plan, digest, disclosure(), tmp_path / "deviations")
+    candidate = json.loads(json.dumps(result))
+    if tamper == "version":
+        candidate["synthesis_deviations_version"] = 2
+    elif tamper == "plan-hash":
+        candidate["synthesis_plan_sha256"] = "A" * 64
+    elif tamper == "plan-id":
+        candidate["plan_id"] = " p1 "
+    elif tamper == "snapshot-id":
+        candidate["snapshot_id"] = " snap "
+    elif tamper == "reviewer":
+        candidate["reviewer"] = " Deviation reviewer "
+    elif tamper == "commitments-missing":
+        candidate["frozen_plan_commitments"].pop("deviation_policy")
+    elif tamper == "commitment-extra":
+        candidate["frozen_plan_commitments"]["extra"] = "not frozen"
+    elif tamper == "synthesis-type":
+        candidate["frozen_plan_commitments"]["synthesis_type"] = "narrative"
+    elif tamper == "padded-effect-measure":
+        candidate["frozen_plan_commitments"]["effect_measure"] = " mean_difference "
+    elif tamper == "minimum":
+        candidate["frozen_plan_commitments"]["minimum_independent_studies"] = 0
+    elif tamper == "source-ids":
+        candidate["frozen_plan_commitments"]["included_source_ids_at_freeze"] = [" s1"]
+    elif tamper == "source-duplicate":
+        candidate["frozen_plan_commitments"]["included_source_ids_at_freeze"] = ["s1", "s1"]
+    elif tamper == "authority":
+        candidate["scientific_evidence_eligible"] = True
+    elif tamper == "plan-amended":
+        candidate["plan_amended"] = True
+    elif tamper == "timing-counts":
+        candidate["timing_counts"]["before_synthesis"] = 99
+    elif tamper == "status-drift":
+        candidate["status"] = "no_deviations_declared"
+    with pytest.raises(ValidationError):
+        validate_synthesis_deviations_boundary(candidate, synthesis_type="quantitative")
 
 
 @pytest.mark.parametrize("timing", ["after_results_seen", "unknown"])

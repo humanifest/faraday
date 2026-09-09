@@ -137,7 +137,8 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
               "rationale": "Confirmed no compatible statistics"}]})
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
-        "synthesis_plan_sha256": plan_sha, "status": "no_deviations_declared", "deviations": [],
+        "synthesis_plan_sha256": plan_sha, "plan_id": "p1", "snapshot_id": "snap",
+        "reviewer": "Deviation reviewer", "status": "no_deviations_declared", "deviations": [],
         "timing_counts": {
             "after_results_seen": 0,
             "before_extraction": 0,
@@ -154,9 +155,15 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
         ],
         "frozen_plan_commitments": {
             "synthesis_type": "quantitative",
+            "research_question": None,
+            "primary_outcome": None,
             "effect_measure": "mean_difference",
+            "contrast_definition": None,
             "statistical_model": model,
             "minimum_independent_studies": minimum,
+            "included_source_ids_at_freeze": None,
+            "conclusion_rule": None,
+            "deviation_policy": None,
         }})
     return plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha
 

@@ -26,6 +26,52 @@ def _canonical_text(value: Any, field: str) -> str:
     return text
 
 
+def _optional_canonical_text(value: Any, field: str) -> str | None:
+    if value is None:
+        return None
+    return _canonical_text(value, field)
+
+
+def _validate_frozen_plan_commitments(value: Any) -> None:
+    required = {
+        "synthesis_type",
+        "research_question",
+        "primary_outcome",
+        "effect_measure",
+        "contrast_definition",
+        "statistical_model",
+        "minimum_independent_studies",
+        "included_source_ids_at_freeze",
+        "conclusion_rule",
+        "deviation_policy",
+    }
+    if not isinstance(value, dict) or set(value) != required:
+        raise ValidationError("synthesis deviations require exact frozen plan commitments")
+    synthesis_type = value.get("synthesis_type")
+    if synthesis_type not in {"qualitative", "quantitative"}:
+        raise ValidationError("frozen plan synthesis_type is invalid")
+    for field in (
+        "research_question",
+        "primary_outcome",
+        "effect_measure",
+        "contrast_definition",
+        "statistical_model",
+        "conclusion_rule",
+        "deviation_policy",
+    ):
+        _optional_canonical_text(value.get(field), f"frozen plan {field}")
+    minimum = value.get("minimum_independent_studies")
+    if minimum is not None and (isinstance(minimum, bool) or not isinstance(minimum, int) or minimum <= 0):
+        raise ValidationError("frozen plan minimum_independent_studies must be a positive integer")
+    source_ids = value.get("included_source_ids_at_freeze")
+    if source_ids is not None:
+        if (not isinstance(source_ids, list)
+                or any(not isinstance(item, str) or not item.strip()
+                       or item != item.strip() for item in source_ids)
+                or len(source_ids) != len(set(source_ids))):
+            raise ValidationError("frozen plan included_source_ids_at_freeze must be unique canonical text")
+
+
 def _replay_deviations(value: Any, *, synthesis_type: str | None = None) -> tuple[list[dict[str, str]], dict[str, int], str]:
     if not isinstance(value, list):
         raise ValidationError("retained synthesis deviations must be an array")
@@ -76,6 +122,16 @@ def validate_synthesis_deviations_boundary(
     deviations: dict[str, Any], *, synthesis_type: str | None = None
 ) -> None:
     """Replay deviation-disclosure non-authority and status from retained rows."""
+    if deviations.get("synthesis_deviations_version") != 1:
+        raise ValidationError("synthesis deviations version is invalid")
+    require_sha256(
+        deviations.get("synthesis_plan_sha256"),
+        "synthesis deviations synthesis_plan_sha256",
+    )
+    _canonical_text(deviations.get("plan_id"), "synthesis deviations plan_id")
+    _canonical_text(deviations.get("snapshot_id"), "synthesis deviations snapshot_id")
+    _canonical_text(deviations.get("reviewer"), "synthesis deviations reviewer")
+    _validate_frozen_plan_commitments(deviations.get("frozen_plan_commitments"))
     if deviations.get("scientific_evidence_eligible") is not False:
         raise ValidationError("synthesis deviations must remain scientifically ineligible")
     if deviations.get("conclusion_authorized") is not False:
@@ -158,6 +214,7 @@ def create_synthesis_deviations(
             "Reviewer identity, stated timing, reasons, and impact assessments are not authenticated by the machine.",
             "After-results or unknown-timing deviations require heightened interpretation and cannot raise a conclusion ceiling.",
         ]}
+    validate_synthesis_deviations_boundary(result, synthesis_type=synthesis_type)
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("synthesis-deviation output already exists")

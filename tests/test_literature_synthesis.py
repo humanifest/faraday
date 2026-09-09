@@ -92,7 +92,8 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
         "limitations": limitations})
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
-        "synthesis_plan_sha256": plan_sha, "status": "no_deviations_declared", "deviations": [],
+        "synthesis_plan_sha256": plan_sha, "plan_id": "p1", "snapshot_id": "snap",
+        "reviewer": "Deviation reviewer", "status": "no_deviations_declared", "deviations": [],
         "timing_counts": {
             "after_results_seen": 0,
             "before_extraction": 0,
@@ -109,8 +110,15 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
         ],
         "frozen_plan_commitments": {
             "synthesis_type": synthesis_type,
+            "research_question": "Fixture?",
+            "primary_outcome": "Outcome",
+            "effect_measure": None,
+            "contrast_definition": None,
+            "statistical_model": None,
             "minimum_independent_studies": minimum,
+            "included_source_ids_at_freeze": ["s1"],
             "conclusion_rule": "Bound all wording",
+            "deviation_policy": None,
         }})
     return plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha
 
