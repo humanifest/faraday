@@ -22,6 +22,48 @@ def _canonical_text(value: Any, field: str) -> str:
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
     return text
 
+
+def validate_study_reconciliation_boundary(
+    reconciliation: dict[str, Any],
+    relationships: list[dict[str, Any]],
+    *,
+    require_reconciled: bool = False,
+) -> None:
+    """Replay study-reconciliation non-authority boundaries and pair counts."""
+    if reconciliation.get("independent_review") is not True:
+        raise ValidationError("study reconciliation must retain independent-review status")
+    if reconciliation.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("study reconciliation must remain scientifically ineligible")
+    if reconciliation.get("conclusion_authorized") is not False:
+        raise ValidationError("study reconciliation must not authorize conclusions")
+    if reconciliation.get("publication_authorized") is not False:
+        raise ValidationError("study reconciliation must not authorize publication")
+    limitations = reconciliation.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("study reconciliation requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"study reconciliation limitation {index + 1}")
+    counts = {relationship: 0 for relationship in sorted(_RELATIONSHIPS)}
+    for item in relationships:
+        if not isinstance(item, dict):
+            raise ValidationError("study relationship is invalid")
+        relationship = item.get("relationship")
+        if relationship not in _RELATIONSHIPS:
+            raise ValidationError("study relationship is invalid")
+        counts[relationship] += 1
+    if reconciliation.get("relationship_counts") != counts:
+        raise ValidationError("study reconciliation relationship_counts do not replay from relationships")
+    expected_status = (
+        "review_required"
+        if counts["overlapping_cohort"] or counts["duplicate_report"] or counts["unclear"]
+        else "study_identities_reconciled"
+    )
+    if reconciliation.get("status") != expected_status:
+        raise ValidationError("study reconciliation status does not replay from relationships")
+    if require_reconciled and expected_status != "study_identities_reconciled":
+        raise ValidationError("evidence map requires fully reconciled independent study identities")
+
+
 def create_study_reconciliation(
     bias_path: Path,
     expected_sha256: str,
@@ -158,12 +200,15 @@ def create_study_reconciliation(
         "relationship_counts": counts,
         "status": "review_required" if unresolved else "study_identities_reconciled",
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "Pairwise identity judgments are reviewer assertions; metadata similarity cannot prove cohort independence.",
             "Overlap, duplicate, and unclear relationships are preserved and block a reconciled status rather than being silently deduplicated.",
             "Study reconciliation does not validate outcomes, assess applicability, or authorize quantitative synthesis.",
         ],
     }
+    validate_study_reconciliation_boundary(result, result["relationships"])
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("study reconciliation output already exists")

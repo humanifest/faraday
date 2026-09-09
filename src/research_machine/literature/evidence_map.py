@@ -13,6 +13,7 @@ from research_machine.literature.bias import validate_bias_assessment_boundary
 from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
+from research_machine.literature.studies import validate_study_reconciliation_boundary
 from research_machine.literature.verification import validate_citation_verification_boundary
 
 
@@ -33,7 +34,6 @@ _INTERPRETIVE_CEILINGS = {
     "source_hypothesis_only",
     "insufficient_for_conclusion",
 }
-_RELATIONSHIPS = {"independent", "overlapping_cohort", "duplicate_report", "unclear"}
 
 
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
@@ -102,27 +102,6 @@ def _validate_citation_verification_boundary(
     )
 
 
-def _validate_study_reconciliation_boundary(
-    reconciliation: dict[str, Any],
-    relationships: list[dict[str, Any]],
-) -> None:
-    if reconciliation.get("independent_review") is not True:
-        raise ValidationError("study reconciliation must retain independent-review status")
-    if reconciliation.get("scientific_evidence_eligible") is not False:
-        raise ValidationError("study reconciliation must remain scientifically ineligible")
-    _validate_limitations(reconciliation, "study reconciliation")
-    counts = {relationship: 0 for relationship in sorted(_RELATIONSHIPS)}
-    for item in relationships:
-        relationship = item.get("relationship")
-        if relationship not in _RELATIONSHIPS:
-            raise ValidationError("study relationship is invalid")
-        counts[relationship] += 1
-    if reconciliation.get("relationship_counts") != counts:
-        raise ValidationError("study reconciliation relationship_counts do not replay from relationships")
-    if counts["overlapping_cohort"] or counts["duplicate_report"] or counts["unclear"]:
-        raise ValidationError("evidence map requires fully reconciled independent study identities")
-
-
 def validate_evidence_map_boundary(
     evidence_map: dict[str, Any],
     claims: list[dict[str, Any]],
@@ -132,6 +111,8 @@ def validate_evidence_map_boundary(
         raise ValidationError("evidence map must remain scientifically ineligible")
     if evidence_map.get("conclusion_authorized") is not False:
         raise ValidationError("evidence map must not authorize conclusions")
+    if evidence_map.get("publication_authorized") is not False:
+        raise ValidationError("evidence map must not authorize publication")
     limitations = evidence_map.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("evidence map requires retained boundary limitations")
@@ -251,7 +232,9 @@ def create_evidence_map(
     relationships = reconciliation.get("relationships", [])
     if not isinstance(relationships, list):
         raise ValidationError("study relationships must be an array")
-    _validate_study_reconciliation_boundary(reconciliation, relationships)
+    validate_study_reconciliation_boundary(
+        reconciliation, relationships, require_reconciled=True
+    )
     for item in reconciliation.get("studies", []):
         if not isinstance(item, dict):
             raise ValidationError("reconciled studies are malformed")
@@ -379,6 +362,7 @@ def create_evidence_map(
         "status": "evidence_map_recorded",
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "This deterministic map joins reviewed assertions; it does not estimate an effect or establish that any claim is true.",
             "Interpretive ceilings can only restrict claims and do not replace subject-matter judgment, applicability review, or replication.",

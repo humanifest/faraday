@@ -84,6 +84,7 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
         "claim_count": 1, "study_count": 1,
         "interpretive_ceiling_counts": {"insufficient_for_conclusion": 1},
         "scientific_evidence_eligible": False, "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": limitations})
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
@@ -231,6 +232,7 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
     "deviation-timing-counts",
     "deviation-status-rewrite",
     "deviation-padded-row",
+    "map-publication-authority",
 ])
 def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(tmp_path, synthesis_type="quantitative" if failure == "quantitative" else "qualitative")
@@ -301,6 +303,8 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
         value = json.loads(evidence_map.read_text()); value["inputs"]["extraction_sha256"] = "0" * 64; map_sha = write_json(evidence_map, value)
     elif failure == "map-authority":
         value = json.loads(evidence_map.read_text()); value["conclusion_authorized"] = True; map_sha = write_json(evidence_map, value)
+    elif failure == "map-publication-authority":
+        value = json.loads(evidence_map.read_text()); value["publication_authorized"] = True; map_sha = write_json(evidence_map, value)
     elif failure == "map-claim-count":
         value = json.loads(evidence_map.read_text()); value["claim_count"] = 2; map_sha = write_json(evidence_map, value)
     elif failure == "map-ceiling-count":

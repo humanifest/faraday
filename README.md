@@ -1060,6 +1060,10 @@ non-conclusion, non-publication boundary, retained limitations, and
 `overall_judgment_counts` against the bias-assessed study records before
 accepting identity metadata, so a study-identity review cannot launder a
 rewritten bias summary into the terminal review chain.
+Study-reconciliation artifacts themselves also carry explicit false
+scientific-evidence, conclusion-authorization, and publication-authorization
+boundaries with retained limitations, and evidence-map construction replays
+those boundaries before any claim join.
 Qualitative synthesis now requires the extraction source set to match the
 synthesis plan's frozen included sources, and preserves those provenance anchors
 instead of carrying only a ceiling label.
@@ -1093,10 +1097,10 @@ and every mapped claim's compact extraction-payload digest against the supplied
 extraction bytes before trusting an evidence-map claim, so a rewritten
 extraction cannot be laundered by updating only the evidence-map input hash.
 Qualitative synthesis and quantitative effect preparation also replay the
-evidence map's non-authority flags, retained limitations, claim count, and
-interpretive-ceiling counts before using it as an input. This makes the review trail
-inspectable while still refusing to turn retrieved or reviewer-entered source
-claims into Faraday scientific evidence.
+evidence map's non-evidence, non-conclusion, non-publication flags, retained
+limitations, claim count, and interpretive-ceiling counts before using it as an
+input. This makes the review trail inspectable while still refusing to turn
+retrieved or reviewer-entered source claims into Faraday scientific evidence.
 Synthesis-plan freezing likewise rejects padded plan IDs, reviewer text,
 research questions, primary outcomes, effect measures, contrast definitions,
 subgroup and sensitivity entries, policy prose, conclusion rules, deviation
@@ -1116,7 +1120,7 @@ and replaying extraction non-authority flags, including the explicit
 non-conclusion and non-publication boundaries, retained limitations,
 `record_count`, and every mapped claim's compact extraction-payload digest
 against the supplied extraction bytes. It also replays the evidence map's
-non-authority boundary and summary counts.
+non-evidence, non-conclusion, non-publication boundary and summary counts.
 Trusted plan, evidence-map,
 effect-record, effect-verification, and deviation hashes must be canonical
 lowercase SHA-256 digests before later synthesis commands can bind those

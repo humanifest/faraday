@@ -89,6 +89,7 @@ def artifacts(tmp_path, minimum=1):
         "claim_count": 2, "study_count": 2,
         "interpretive_ceiling_counts": {"reviewed_source_claim": 2},
         "scientific_evidence_eligible": False, "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "This deterministic map joins reviewed assertions without authorizing conclusions."
         ]})
@@ -156,7 +157,8 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     "plan-source-missing", "plan-source-drift", "padded-plan-source",
     "padded-extraction-source", "padded-map-study", "padded-map-source",
     "padded-map-extraction", "padded-map-citation-location", "map-provenance",
-    "map-claim-digest", "map-authority", "map-claim-count", "map-ceiling-count",
+    "map-claim-digest", "map-authority", "map-publication-authority",
+    "map-claim-count", "map-ceiling-count",
     "map-boundary-limitations",
     "padded-reviewer", "padded-reason", "padded-location", "padded-derivation",
     "padded-derivation-scope",
@@ -265,6 +267,10 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     elif failure == "map-authority":
         value = json.loads(evidence_map.read_text())
         value["scientific_evidence_eligible"] = True
+        map_sha = write_json(evidence_map, value)
+    elif failure == "map-publication-authority":
+        value = json.loads(evidence_map.read_text())
+        value["publication_authorized"] = True
         map_sha = write_json(evidence_map, value)
     elif failure == "map-claim-count":
         value = json.loads(evidence_map.read_text())

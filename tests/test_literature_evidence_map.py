@@ -102,6 +102,8 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
         "independent_review": True,
         "relationship_counts": {"duplicate_report": 0, "independent": 0, "overlapping_cohort": 0, "unclear": 0},
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "Pairwise identity judgments are reviewer assertions; metadata similarity cannot prove cohort independence.",
             "Overlap, duplicate, and unclear relationships are preserved and block a reconciled status rather than being silently deduplicated.",
@@ -127,6 +129,7 @@ def test_evidence_map_cli_verifies_chain_and_bounds_claim(tmp_path, capsys):
     assert result["claims"][0]["citation_checked_location"] == "page 4"
     assert result["claims"][0]["bias_domain_judgments"][0]["evidence_locations"] == ["table 1"]
     assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
     assert result["scientific_evidence_eligible"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_evidence_map(extraction, verification, bias, reconciliation, digest, output)
@@ -170,6 +173,7 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
     "bias-authority", "bias-conclusion-authority", "bias-publication-authority",
     "bias-not-independent", "bias-count-drift", "bias-limitations-missing",
     "bias-padded-limitation", "reconciliation-authority",
+    "reconciliation-conclusion-authority", "reconciliation-publication-authority",
     "reconciliation-not-independent", "reconciliation-count-drift",
     "reconciliation-limitations-missing", "reconciliation-padded-limitation",
     "coverage", "padded-extraction-duplicate", "padded-citation-duplicate",
@@ -263,12 +267,17 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
     elif failure in {
         "reconciliation-authority", "reconciliation-not-independent",
+        "reconciliation-conclusion-authority", "reconciliation-publication-authority",
         "reconciliation-count-drift", "reconciliation-limitations-missing",
         "reconciliation-padded-limitation",
     }:
         value = json.loads(reconciliation.read_text())
         if failure == "reconciliation-authority":
             value["scientific_evidence_eligible"] = True
+        elif failure == "reconciliation-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "reconciliation-publication-authority":
+            value["publication_authorized"] = True
         elif failure == "reconciliation-not-independent":
             value["independent_review"] = False
         elif failure == "reconciliation-count-drift":

@@ -1362,6 +1362,10 @@ all preserved. Any non-independent or unclear pair forces `review_required`,
 preventing silent double counting. Registration IDs, populations, settings,
 recruitment periods, sample sizes, and cited locations support review but do not
 prove cohort independence or authorize synthesis.
+Study-reconciliation artifacts carry explicit false scientific-evidence,
+conclusion-authorization, and publication-authorization boundaries with retained
+limitations, and evidence-map construction replays those boundaries before
+joining claims.
 Bias assessment and study reconciliation require canonical prior reviewer,
 study/source, reviewer, registration, metadata, relationship-pair, rationale,
 and evidence-location text before coverage and duplicate checks, so
@@ -1416,9 +1420,10 @@ frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims or
 publishing the qualitative artifact, so padded map artifacts cannot be silently
 rewritten into a synthesis. It also replays the evidence map's non-authority
-flags, retained limitations, claim count, and interpretive-ceiling counts before
-using the map, so an internally rewritten map cannot authorize or sanitize later
-synthesis. It never treats claim counts as effect
+flags, including the explicit non-evidence, non-conclusion, and non-publication
+boundary, retained limitations, claim count, and interpretive-ceiling counts
+before using the map, so an internally rewritten map cannot authorize or
+sanitize later synthesis. It never treats claim counts as effect
 sizes or authors a substantive conclusion; the artifact now carries explicit
 false scientific-evidence, conclusion-authorization, and
 publication-authorization flags. Quantitative plans fail closed until effect-size
@@ -1436,7 +1441,8 @@ sources. It replays extraction non-authority flags, including the explicit
 non-conclusion and non-publication boundaries, retained limitations,
 `record_count`, and every mapped claim's compact extraction-payload digest
 against the supplied extraction bytes before trusting evidence-map claims. It
-also replays the same evidence-map non-authority boundary and summary
+also replays the same evidence-map non-evidence, non-conclusion,
+non-publication boundary and summary
 counts before preserving study-level effects. Unavailable statistics must remain explicit null records and count
 against the frozen minimum-study requirement. This validates finite values,
 positive variance, coverage, review provenance, source-byte continuity, and plan

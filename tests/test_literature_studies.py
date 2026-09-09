@@ -55,6 +55,8 @@ def test_reconciliation_cli_covers_pairs_and_is_write_once(tmp_path, capsys):
     assert result["status"] == "study_identities_reconciled"
     assert result["relationships"][0]["study_ids"] == ["study-1", "study-2"]
     assert result["scientific_evidence_eligible"] is False
+    assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_study_reconciliation(bias, digest, review(), output)
 
