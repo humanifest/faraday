@@ -945,9 +945,11 @@ canonical without surrounding whitespace before coverage checks, closing package
 only ambiguity before a package can be trusted independently. Packaged run
 output artifact declarations are now replayed before downstream gate,
 deviation, and planning checks can cite them: locators, digests, media types,
-sizes, and metadata shape must be canonical, nonnegative where applicable, and
-duplicate-free. This prevents package-local rewrites from creating ambiguous
-output anchors while keeping the manifest internally consistent. Protocol-deviation
+sizes, and metadata shape must be canonical, and sizes must be nonnegative where
+applicable. Digest anchors must be duplicate-free; included locators must be
+duplicate-free, while redacted locators must use the explicit package redaction
+placeholder. This prevents package-local rewrites from creating ambiguous output
+hash anchors while keeping the manifest internally consistent. Protocol-deviation
 disclosure metadata is also replayed before eligibility is trusted: legacy
 silence remains ineligible, explicit no-deviation declarations must retain the
 unauthenticated-assertion boundary, declared departures must preserve exact typed

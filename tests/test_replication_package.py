@@ -364,7 +364,7 @@ def test_replication_verify_rejects_noncanonical_manifest_file_hash(
     "privacy_mode", "locator_policy", "limitations", "ethics_summary",
     "instructions", "dataset_summary", "dataset_cycle", "run_eligibility",
     "blank_prerequisite", "padded_prerequisite", "quality_gate_duplicate_after_trim",
-    "protocol_gate_duplicate", "protocol_gate_padded", "output_duplicate_locator",
+    "protocol_gate_duplicate", "protocol_gate_padded", "output_unredacted_locator",
     "output_duplicate_digest", "output_padded_locator", "output_bad_hash",
     "output_negative_size", "output_bad_metadata", "output_padded_media_type",
 ])
@@ -572,7 +572,7 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         manifest_path.write_text(json.dumps(manifest))
         commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     elif mutation in {
-        "output_duplicate_locator",
+        "output_unredacted_locator",
         "output_duplicate_digest",
         "output_padded_locator",
         "output_bad_hash",
@@ -583,10 +583,8 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         runs_path = package / "runs.json"
         runs = json.loads(runs_path.read_text())
         artifact = runs[0]["output_artifacts"][0]
-        if mutation == "output_duplicate_locator":
-            duplicate = dict(artifact)
-            duplicate["sha256"] = "f" * 64
-            runs[0]["output_artifacts"].append(duplicate)
+        if mutation == "output_unredacted_locator":
+            artifact["locator"] = "result.json"
         elif mutation == "output_duplicate_digest":
             duplicate = dict(artifact)
             duplicate["locator"] = "duplicate-digest.json"
@@ -630,6 +628,105 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     with pytest.raises(ValidationError):
         verify_replication_package(package, commitment)
     assert service.verify_ledger()["valid"] is True
+
+
+def test_redacted_replication_package_allows_multiple_output_artifacts(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement",
+        observable_prediction="Prediction",
+        null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test",
+        title="Test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id],
+        primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL,
+        methodology="Method",
+        quality_requirements=["gate"],
+        controls=["control"],
+        expected_outputs=["primary result", "diagnostic result"],
+        success_conditions=["success"],
+        environment_requirements=["environment"],
+        sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"],
+        safety_constraints=["safe"],
+        analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    dataset = service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    primary_output = tmp_path / "primary-result.json"
+    diagnostic_output = tmp_path / "diagnostic-result.json"
+    primary_output.write_text('{"primary":"passed"}\n', encoding="utf-8")
+    diagnostic_output.write_text('{"diagnostic":"retained"}\n', encoding="utf-8")
+    primary_hash = hashlib.sha256(primary_output.read_bytes()).hexdigest()
+    diagnostic_hash = hashlib.sha256(diagnostic_output.read_bytes()).hexdigest()
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        dataset_ids=[dataset.dataset_id],
+        output_artifacts=[
+            DatasetArtifact(
+                primary_output.name,
+                primary_hash,
+                primary_output.stat().st_size,
+                "application/json",
+            ),
+            DatasetArtifact(
+                diagnostic_output.name,
+                diagnostic_hash,
+                diagnostic_output.stat().st_size,
+                "application/json",
+            ),
+        ],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "gate",
+            QualityGateStatus.PASSED,
+            "Synthetic package fixture passed.",
+            details={"evidence_sha256": primary_hash},
+        )],
+        summary="Synthetic package fixture with multiple outputs.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared",
+            "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verified = verify_replication_package(package, exported["package_manifest_sha256"])
+    packaged_runs = json.loads((package / "runs.json").read_text())
+    artifacts = packaged_runs[0]["output_artifacts"]
+    assert verified["status"] == "passed"
+    assert [item["locator"] for item in artifacts] == [
+        "[redacted: obtain from authorized source]",
+        "[redacted: obtain from authorized source]",
+    ]
+    assert {item["sha256"] for item in artifacts} == {primary_hash, diagnostic_hash}
 
 
 @pytest.mark.parametrize(
@@ -1099,6 +1196,11 @@ def test_replication_package_verifies_canary_target_gate_metadata(
             }
         },
     )
+    alternate_path = tmp_path / "alternate-canary-output.json"
+    alternate_sha256 = _write_json(
+        alternate_path,
+        {"canary": {"comparison": {"status": "alternate-fixture"}}},
+    )
     started_at, completed_at = _after_registration_times(
         frozen.registration_timestamp
     )
@@ -1108,12 +1210,20 @@ def test_replication_package_verifies_canary_target_gate_metadata(
         completed_at=completed_at,
         analysis_code_hash="a" * 64,
         environment_hash="e" * 64,
-        output_artifacts=[DatasetArtifact(
-            record_path.name,
-            record_sha256,
-            record_path.stat().st_size,
-            "application/json",
-        )],
+        output_artifacts=[
+            DatasetArtifact(
+                record_path.name,
+                record_sha256,
+                record_path.stat().st_size,
+                "application/json",
+            ),
+            DatasetArtifact(
+                alternate_path.name,
+                alternate_sha256,
+                alternate_path.stat().st_size,
+                "application/json",
+            ),
+        ],
         artifact_root=str(tmp_path),
         quality_gates=[QualityGateResult(
             "canary-target-assessed",
@@ -1165,14 +1275,7 @@ def test_replication_package_verifies_canary_target_gate_metadata(
     elif mutation == "wrong_evidence":
         assessment["evidence_sha256"] = "f" * 64
     elif mutation == "gate_evidence_mismatch":
-        gate["details"]["evidence_sha256"] = "f" * 64
-        runs[0]["output_artifacts"].append({
-            "locator": "alternate-canary-output.json",
-            "sha256": "f" * 64,
-            "size_bytes": None,
-            "media_type": "application/json",
-            "metadata": {},
-        })
+        gate["details"]["evidence_sha256"] = runs[0]["output_artifacts"][1]["sha256"]
     elif mutation == "wrong_gate":
         gate["gate_id"] = "other-gate"
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")

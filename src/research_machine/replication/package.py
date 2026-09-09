@@ -29,7 +29,6 @@ from research_machine.application.policies import (
     require_sha256,
     require_canonical_text,
     require_unique_canonical_text_list,
-    validate_dataset_artifacts,
     validate_quality_gates,
 )
 from research_machine.application.protocol_integrity import protocol_commitment
@@ -49,6 +48,7 @@ _V2_LIMITATIONS = [
 
 _V1_VERIFICATION_CONTRACT = "replication_package_v1_file_integrity"
 _V2_VERIFICATION_CONTRACT = "replication_package_v2_guardrails"
+_REDACTED_ARTIFACT_LOCATOR = "[redacted: obtain from authorized source]"
 
 
 _V2_INSTRUCTIONS = (
@@ -88,6 +88,56 @@ def _strict_json_bytes(content: bytes, label: str) -> Any:
         )
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise ValidationError(f"invalid strict JSON in {label}: {exc}") from exc
+
+
+def _validate_packaged_artifacts(
+    *,
+    artifacts: list[DatasetArtifact],
+    label: str,
+    locator_policy: str,
+) -> list[DatasetArtifact]:
+    if not artifacts:
+        raise ValidationError(f"{label} must contain at least one output artifact")
+    normalized: list[DatasetArtifact] = []
+    locators: set[str] = set()
+    digests: set[str] = set()
+    for artifact in artifacts:
+        if not isinstance(artifact, DatasetArtifact):
+            raise ValidationError(f"{label} artifacts must be DatasetArtifact values")
+        locator = require_canonical_text(artifact.locator, f"{label} artifact locator")
+        if locator_policy == "redacted":
+            if locator != _REDACTED_ARTIFACT_LOCATOR:
+                raise ValidationError(
+                    f"{label} redacted artifact locator must use the package redaction placeholder"
+                )
+        elif locator in locators:
+            raise ValidationError(f"{label} repeats an artifact locator")
+        digest = require_sha256(artifact.sha256, f"{label} artifact sha256")
+        if digest in digests:
+            raise ValidationError(f"{label} repeats an artifact digest")
+        if artifact.size_bytes is not None and (
+            isinstance(artifact.size_bytes, bool)
+            or not isinstance(artifact.size_bytes, int)
+            or artifact.size_bytes < 0
+        ):
+            raise ValidationError(f"{label} artifact size_bytes must be non-negative or null")
+        media_type = require_canonical_text(
+            artifact.media_type, f"{label} artifact media_type"
+        )
+        if not isinstance(artifact.metadata, dict):
+            raise ValidationError(f"{label} artifact metadata must be an object")
+        locators.add(locator)
+        digests.add(digest)
+        normalized.append(
+            DatasetArtifact(
+                locator=locator,
+                sha256=digest,
+                size_bytes=artifact.size_bytes,
+                media_type=media_type,
+                metadata=dict(artifact.metadata),
+            )
+        )
+    return normalized
 
 
 def _validate_preprocessing_conformance_gate_metadata(
@@ -1351,7 +1401,11 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     raise ValidationError(
                         f"package run {run.run_id} drops synthetic status from an input"
                     )
-                output_artifacts = validate_dataset_artifacts(run.output_artifacts)
+                output_artifacts = _validate_packaged_artifacts(
+                    artifacts=run.output_artifacts,
+                    label=f"package run {run.run_id}",
+                    locator_policy=manifest["artifact_locator_policy"],
+                )
                 quality_gates = validate_quality_gates(run.quality_gates)
                 gate_by_id = {item.gate_id: item for item in quality_gates}
                 if len(gate_by_id) != len(quality_gates):
