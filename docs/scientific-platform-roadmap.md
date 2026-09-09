@@ -23,8 +23,11 @@ methods without changing its epistemic rules or canonical state.
   `hypothesis_discrimination_targets`: one canonical target for every named
   hypothesis, including the discriminating observation, the expected result
   under the target hypothesis, the expected result under the alternative, and
-  the observation that would weaken it. Infrastructure work may name
-  information targets instead, without pretending to test a hypothesis.
+  the observation that would weaken it. The target-favorable expectation must
+  differ from the alternative expectation, and the weakening condition cannot be
+  the target-favorable expectation, so a recommendation cannot preserve a
+  self-confirming discriminator. Infrastructure work may name information
+  targets instead, without pretending to test a hypothesis.
   Hypothesis-discriminating candidates also retain service-derived workflow
   states for every cited target, so `pending_review` proposals remain visibly
   unapproved in recommendations and synthesis. Callers cannot supply that
@@ -51,9 +54,10 @@ methods without changing its epistemic rules or canonical state.
   utilities, and signed components from the stored candidates, lanes,
   dependencies, completed actions, weights, and hypothesis-discrimination
   targets before list, inquiry display, or synthesis can trust them. Replay now
-  revalidates the weight vector and candidate score inputs before recomputing
-  those choices, so a legacy record cannot remain trusted merely because invalid
-  weights and scores were rewritten consistently. New recommendations also carry
+  revalidates the discriminator contrast, weight vector, and candidate score
+  inputs before recomputing those choices, so a legacy record cannot remain
+  trusted merely because invalid weights and scores were rewritten consistently.
+  New recommendations also carry
   a service-generated payload commitment over the complete immutable
   recommendation, excluding only that commitment field, so canonical rewrites of
   rationales, discriminator targets, lane context, dependencies, weights,

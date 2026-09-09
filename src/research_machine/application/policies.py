@@ -2601,6 +2601,7 @@ def _validate_hypothesis_discrimination_targets(
                 ),
             )
         )
+        _validate_discriminating_observation_shape(normalized[-1], action_id)
     if set(hypotheses) != seen:
         missing = sorted(set(hypotheses) - seen)
         extra = sorted(seen - set(hypotheses))
@@ -2614,6 +2615,25 @@ def _validate_hypothesis_discrimination_targets(
             "cover distinguishes_hypotheses: " + "; ".join(details)
         )
     return sorted(normalized, key=lambda target: target.hypothesis_id)
+
+
+def _validate_discriminating_observation_shape(
+    target: HypothesisDiscriminationTarget,
+    action_id: str,
+) -> None:
+    expected = target.expected_if_hypothesis.casefold()
+    alternative = target.expected_if_alternative.casefold()
+    weakening = target.would_weaken_if.casefold()
+    if expected == alternative:
+        raise ValidationError(
+            f"action {action_id} discrimination target {target.hypothesis_id} "
+            "must state different expected observations for the hypothesis and alternative"
+        )
+    if expected == weakening:
+        raise ValidationError(
+            f"action {action_id} discrimination target {target.hypothesis_id} "
+            "cannot use the hypothesis-favorable expectation as its weakening condition"
+        )
 
 
 def validate_action_lanes(lanes: Sequence[ActionLane]) -> list[ActionLane]:

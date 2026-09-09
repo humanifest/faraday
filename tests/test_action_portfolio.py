@@ -501,6 +501,46 @@ def test_recommendation_replay_rejects_legacy_invalid_candidate_score(
         service.list_recommendations()
 
 
+def test_recommendation_replay_rejects_legacy_self_confirming_discriminator(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    hypothesis_id = reviewed_hypothesis(
+        service, "The target explanation must remain distinguishable."
+    )
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[
+                candidate(
+                    "self-confirming-target",
+                    "machine",
+                    0.8,
+                    distinguishes_hypotheses=[hypothesis_id],
+                    hypothesis_discrimination_targets=[
+                        discrimination_target(hypothesis_id, "Target channel")
+                    ],
+                )
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    target = payload["candidates"][0]["hypothesis_discrimination_targets"][0]
+    target["expected_if_alternative"] = target["expected_if_hypothesis"]
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="must retain different expected observations",
+    ):
+        service.list_recommendations()
+
+
 def test_portfolio_recommendation_reads_replay_lane_selections(
     tmp_path: Path,
 ) -> None:
@@ -737,6 +777,30 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                 )
             ],
             "hypothesis_discrimination_target discriminating_observation",
+        ),
+        (
+            [
+                HypothesisDiscriminationTarget(
+                    "hyp-placeholder",
+                    "Observation",
+                    "Target and alternative both produce the same pattern.",
+                    "Target and alternative both produce the same pattern.",
+                    "Weakening condition",
+                )
+            ],
+            "must state different expected observations",
+        ),
+        (
+            [
+                HypothesisDiscriminationTarget(
+                    "hyp-placeholder",
+                    "Observation",
+                    "Target-favorable pattern appears.",
+                    "Competing model pattern appears.",
+                    "Target-favorable pattern appears.",
+                )
+            ],
+            "cannot use the hypothesis-favorable expectation",
         ),
     ],
 )

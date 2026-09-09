@@ -172,10 +172,30 @@ def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
             target.would_weaken_if,
             "hypothesis_discrimination_target would_weaken_if",
         )
+        _validate_discrimination_text_contrast(target, candidate.action_id)
     if seen != set(hypotheses):
         raise ValidationError(
             f"action {candidate.action_id} hypothesis discrimination targets "
             "do not replay from distinguishes_hypotheses"
+        )
+
+
+def _validate_discrimination_text_contrast(
+    target: HypothesisDiscriminationTarget,
+    action_id: str,
+) -> None:
+    expected = target.expected_if_hypothesis.casefold()
+    alternative = target.expected_if_alternative.casefold()
+    weakening = target.would_weaken_if.casefold()
+    if expected == alternative:
+        raise ValidationError(
+            f"action {action_id} discrimination target {target.hypothesis_id} "
+            "must retain different expected observations for the hypothesis and alternative"
+        )
+    if expected == weakening:
+        raise ValidationError(
+            f"action {action_id} discrimination target {target.hypothesis_id} "
+            "cannot retain the hypothesis-favorable expectation as its weakening condition"
         )
 
 

@@ -1839,8 +1839,11 @@ When a candidate claims to distinguish specific hypotheses, it must also provide
 exact `hypothesis_discrimination_targets`: one canonical target per named
 hypothesis with the discriminating observation, expected result if the hypothesis
 is right, expected result under the alternative, and the observation that would
-weaken it. Infrastructure actions may instead name typed `information_targets`
-without pretending to discriminate a hypothesis.
+weaken it. The target-favorable expectation must differ from the alternative
+expectation, and the weakening condition cannot be the target-favorable
+expectation, so action selection cannot record a self-confirming discriminator.
+Infrastructure actions may instead name typed `information_targets` without
+pretending to discriminate a hypothesis.
 For every hypothesis-discriminating action, Faraday derives and retains the
 target hypothesis workflow state (`active` or `pending_review`) from canonical
 records at recommendation time. That status is not accepted through action-spec
@@ -1870,8 +1873,9 @@ the tradeoff remains inspectable. Authoritative recommendation reads revalidate
 those weight and candidate-score inputs, then replay the selected action, lane
 selections, ranked utilities, and signed components from the stored candidates,
 lanes, dependencies, completed actions, weights, and hypothesis-discrimination
-targets; mismatches fail before list, inquiry display, or synthesis can use a
-stale score record. New recommendations also retain a service-generated
+targets, including the requirement that target and alternative expectations
+remain distinct; mismatches fail before list, inquiry display, or synthesis can
+use a stale score record. New recommendations also retain a service-generated
 `recommendation_payload_sha256` over the complete immutable recommendation
 outside that field itself, so a canonical rewrite of a candidate rationale,
 hypothesis-discrimination target, lane context, completed dependency, weight,
