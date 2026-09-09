@@ -696,11 +696,13 @@ numeric-domain restrictions to the primary outcome that it already applies to
 secondary and causal measurement definitions. Ratio, count, and time-to-event
 lower bounds cannot be negative, and count bounds must be integer-valued before
 the measurement draft can be treated as design-ready.
-Execution-domain delivery: protocol-bound execution now rejects numeric source
-values with surrounding whitespace before parsing them. This keeps the frozen
-measurement-value check from silently normalizing observation encodings that
-were not declared in the protocol, while preserving the existing distinction
-between exact registered missing codes and observed numeric values.
+Execution-domain delivery: protocol-bound execution now rejects noncanonical or
+duplicate measurement IDs in retained measurement contracts and rejects numeric
+source values with surrounding whitespace before parsing them. This keeps the
+frozen measurement-value check from silently normalizing measurement handles or
+observation encodings that were not declared in the protocol, while preserving
+the existing distinction between exact registered missing codes and observed
+numeric values.
 Independent-unit schema delivery: whenever a guided design names an independent
 unit, it must also name the exact stable identifier column. That name now agrees
 across protocol, data dictionary, collection plan, and measurement-collision

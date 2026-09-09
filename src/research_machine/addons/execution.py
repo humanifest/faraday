@@ -377,15 +377,30 @@ def validate_measurement_values(
     if not isinstance(definitions, list) or not definitions:
         raise ValidationError("protocol design receipt lacks executable measurement contracts")
     checks: list[dict[str, Any]] = []
+    measurement_ids: set[str] = set()
     columns: list[str] = []
     for definition in definitions:
         if not isinstance(definition, dict):
             raise ValidationError("executable measurement contracts must be objects")
+        measurement_id = definition.get("measurement_id")
         column = definition.get("data_column")
         scale = definition.get("scale_type")
         unit = definition.get("unit")
         admissible = definition.get("admissible_values")
         missing_codes = definition.get("missing_value_codes")
+        if not isinstance(measurement_id, str) or not measurement_id.strip():
+            raise ValidationError(
+                "executable measurement measurement_id must be canonical non-empty text"
+            )
+        if measurement_id != measurement_id.strip():
+            raise ValidationError(
+                "executable measurement measurement_id must be canonical without surrounding whitespace"
+            )
+        if measurement_id in measurement_ids:
+            raise ValidationError(
+                f"executable measurement measurement_id values must be unique: {measurement_id}"
+            )
+        measurement_ids.add(measurement_id)
         if (
             not isinstance(column, str)
             or not column
@@ -487,7 +502,7 @@ def validate_measurement_values(
                     )
             observed += 1
         checks.append({
-            "measurement_id": definition.get("measurement_id"),
+            "measurement_id": measurement_id,
             "data_column": column,
             "scale_type": scale,
             "unit": unit,

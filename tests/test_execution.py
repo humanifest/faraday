@@ -93,6 +93,9 @@ def _measurement_contract(**overrides):
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
+        ({"measurement_id": " m1 "}, "measurement_id must be canonical"),
+        ({"measurement_id": ""}, "measurement_id must be canonical"),
+        ({"measurement_id": None}, "measurement_id must be canonical"),
         ({"data_column": " outcome "}, "data_column must be canonical"),
         ({"admissible_values": ["yes", "Yes"]}, "admissible_values must be case-insensitively unique"),
         ({"missing_value_codes": ["NA", "na"]}, "missing_value_codes must be case-insensitively unique"),
@@ -123,6 +126,26 @@ def test_measurement_value_validation_rejects_duplicate_normalized_columns():
         valid_max=10.0,
     )
     with pytest.raises(ValidationError, match="data_column values must be case-insensitively unique"):
+        validate_measurement_values(rows, [first, second])
+
+
+def test_measurement_value_validation_rejects_duplicate_measurement_ids():
+    rows = [{"outcome": "1", "other": "2"}]
+    first = _measurement_contract(
+        scale_type="ratio",
+        admissible_values=[],
+        valid_min=0.0,
+        valid_max=10.0,
+    )
+    second = _measurement_contract(
+        data_column="other",
+        scale_type="ratio",
+        admissible_values=[],
+        valid_min=0.0,
+        valid_max=10.0,
+    )
+
+    with pytest.raises(ValidationError, match="measurement_id values must be unique"):
         validate_measurement_values(rows, [first, second])
 
 

@@ -76,10 +76,10 @@ group column handles used to derive execution receipts must also be canonical,
 and the grouping handle cannot reuse the unit or pair identifier column. Row
 unit identifiers, pair identifiers, and group assignments must be nonblank and
 canonical before they enter row-to-unit or allocation digests. The execution gate
-independently rejects noncanonical measurement column
-names, unsupported or noncanonical scale types, noncanonical units,
-case-insensitive duplicate value-domain entries, overlapping observed/missing
-codes, and invalid bounds. These checks prevent silent recoding, accidental
+independently rejects noncanonical or duplicate measurement IDs, noncanonical
+measurement column names, unsupported or noncanonical scale types, noncanonical
+units, case-insensitive duplicate value-domain entries, overlapping
+observed/missing codes, and invalid bounds. These checks prevent silent recoding, accidental
 numeric treatment of unknown scales, unit/group allocation hash corruption,
 out-of-domain categories, padded numeric source encodings, out-of-range values,
 fractional counts, and
