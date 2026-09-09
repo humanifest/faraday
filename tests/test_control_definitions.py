@@ -131,6 +131,24 @@ def test_control_definition_identity_rejects_duplicate_entries(field):
         ))
 
 
+def test_control_definitions_must_follow_registered_control_order_at_freeze():
+    negative = ControlDefinition(
+        "negative-1", "Blank sample", "negative", "Detect contamination",
+        "No signal should appear", "integrity",
+    )
+    reference = ControlDefinition(
+        "reference-1", "Reference sample", "reference", "Bound sensitivity",
+        "Known reference signal should appear", "integrity",
+    )
+    protocol = _human_protocol(
+        human_subjects=False,
+        controls=["Blank sample", "Reference sample"],
+        control_definitions=[reference, negative],
+    )
+    with pytest.raises(ValidationError, match="registered controls in order"):
+        validate_protocol_freeze(protocol)
+
+
 @pytest.mark.parametrize(
     "field",
     ["control_id", "registered_control", "evaluation_gate_id"],

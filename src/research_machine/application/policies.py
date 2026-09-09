@@ -1952,12 +1952,17 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
     if protocol.control_definitions:
         control_ids: set[str] = set()
         targets: set[str] = set()
+        ordered_targets: list[str] = []
         registered_controls = []
         for control_name in protocol.controls:
             registered_control = require_text(control_name, "protocol controls item")
             if registered_control != control_name:
                 raise ValidationError(
                     "protocol controls must be canonical without surrounding whitespace"
+                )
+            if registered_control in registered_controls:
+                raise ValidationError(
+                    "protocol controls must be unique when control_definitions are supplied"
                 )
             registered_controls.append(registered_control)
         for control in protocol.control_definitions:
@@ -1973,10 +1978,15 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 raise ValidationError("duplicate control definition ID or registered control")
             control_ids.add(control_id)
             targets.add(registered_control)
+            ordered_targets.append(registered_control)
             if control.evaluation_gate_id not in quality_requirement_set:
-                raise ValidationError("control evaluation gate must be a required protocol quality gate")
-        if targets != set(registered_controls):
-            raise ValidationError("control definitions must cover exactly the registered controls")
+                raise ValidationError(
+                    "control evaluation gate must be a required protocol quality gate"
+                )
+        if ordered_targets != registered_controls:
+            raise ValidationError(
+                "control definitions must cover exactly the registered controls in order"
+            )
     custody_requirement_ids = []
     for gate_id in protocol.measurement_custody_requirements:
         canonical_gate_id = require_text(

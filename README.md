@@ -168,11 +168,12 @@ keeps unexpected control behavior visible. A passed gate means the control was
 evaluated as required; it does not mean the scientific outcome was favorable.
 Protocol freeze rejects noncanonical registered control names and
 control-definition IDs, targets, families, purposes, expected behaviors, and
-gate handles before checking coverage, so a padded control cannot become a
-different evidence-partition target. The guided scaffold now also blocks a
-brief that names controls without defining their structured family, purpose,
-expected behavior, and dedicated gate, and emits the same canonicality signal
-before those structured controls can populate a review draft.
+gate handles before checking exact ordered coverage, so a padded or reordered
+control cannot become a different evidence-partition target. The guided
+scaffold now also blocks a brief that names controls without defining their
+structured family, purpose, expected behavior, and dedicated gate, and emits
+the same canonicality and ordered-coverage signals before those structured
+controls can populate a review draft.
 Evidence derived from that run must then account for the complete frozen control
 set: each registered control appears exactly once in `controls_passed` or
 `controls_failed`, as determined by its structured result. Omissions, duplicates,
@@ -572,7 +573,8 @@ Secondary, confirmatory, exploratory, control, confound, and contrast-group
 role labels must be canonical without surrounding whitespace before normalized
 duplicate or coverage checks can pass, so draft artifacts cannot preserve a
 padded handle that the audit only matched after trimming.
-Registered controls now require the same exact ordered measurement coverage.
+Registered controls now require the same exact ordered definition and
+measurement coverage.
 Each control measurement preserves its observable, input condition, parameters,
 evaluation point, convention, aggregation, tolerance, expected behavior, and
 timing. Controls stored in dataset columns must carry a complete typed value

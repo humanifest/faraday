@@ -785,8 +785,17 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                 "Structured controls contain text, IDs, targets, families, expectations, or gate handles with surrounding whitespace.",
                 "Use exact unpadded control definition fields before review so protocol gates and evidence partitions bind the same controls.",
             )
-        if set(targets) != set(brief.get("controls", [])) or len(set(targets)) != len(targets) or len(set(ids)) != len(ids):
-            add("CONTROL_COVERAGE_INVALID", "error", "Structured controls do not uniquely cover the named controls.", "Provide one uniquely identified definition for each named control.")
+        if (
+            targets != controls
+            or len(set(targets)) != len(targets)
+            or len(set(ids)) != len(ids)
+        ):
+            add(
+                "CONTROL_COVERAGE_INVALID",
+                "error",
+                "Structured controls do not uniquely cover the named controls in order.",
+                "Provide one uniquely identified definition for each named control in the exact registered order.",
+            )
         for item in definitions:
             if any(not value.strip() for value in item.values()) or item["family"] not in CONTROL_FAMILIES:
                 add("CONTROL_DEFINITION_INCOMPLETE", "error", "A control has unresolved family, purpose, expectation, or evaluation linkage.", "Complete the control definition before protocol review.")

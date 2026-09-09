@@ -829,6 +829,32 @@ def test_controls_and_confounds_must_have_unique_scientific_labels():
         item["code"] for item in padded_definition["findings"]
     }
     assert padded_definition["status"] == "blocked"
+    reordered_definitions = scaffold_design({
+        **base,
+        "controls": ["Blank sample", "Reference sample"],
+        "control_definitions": [
+            {
+                "control_id": "reference-1",
+                "registered_control": "Reference sample",
+                "family": "reference",
+                "purpose": "Bound sensitivity",
+                "expected_behavior": "Known reference signal appears",
+                "evaluation_gate_id": "reference-evaluated",
+            },
+            {
+                "control_id": "negative-1",
+                "registered_control": "Blank sample",
+                "family": "negative",
+                "purpose": "Detect contamination",
+                "expected_behavior": "No signal appears",
+                "evaluation_gate_id": "blank-evaluated",
+            },
+        ],
+    })
+    assert "CONTROL_COVERAGE_INVALID" in {
+        item["code"] for item in reordered_definitions["findings"]
+    }
+    assert reordered_definitions["status"] == "blocked"
 
 
 def test_guided_design_flags_uninterpretable_multi_factor_interventions():
