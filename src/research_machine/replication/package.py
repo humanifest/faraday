@@ -700,12 +700,59 @@ def _validate_execution_handoff_measurement_value_check(run: ResearchRun) -> Non
             )
 
 
+def _execution_handoff_results_by_output_sha(run: ResearchRun) -> dict[str, Any]:
+    handoff = run.metadata.get("execution_handoff")
+    if handoff is None:
+        return {}
+    if not isinstance(handoff, dict):
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff must be an object"
+        )
+    receipt = handoff.get("receipt")
+    result = handoff.get("result")
+    if not isinstance(receipt, dict) or not isinstance(result, dict):
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff receipt and result must be objects"
+        )
+    output = receipt.get("output")
+    if not isinstance(output, dict):
+        return {}
+    digest = require_sha256(
+        output.get("sha256"),
+        f"package run {run.run_id} execution_handoff output.sha256",
+    )
+    return {digest: result}
+
+
+def _validate_analysis_result_location(
+    *,
+    run_id: str,
+    digest: str,
+    location: str,
+    field_name: str,
+    execution_results_by_sha: dict[str, Any],
+) -> None:
+    result = execution_results_by_sha.get(digest)
+    if result is None:
+        return
+    if not location.startswith("/"):
+        raise ValidationError(
+            f"package run {run_id} {field_name} in the verified analysis output requires an absolute JSON Pointer"
+        )
+    _resolve_json_pointer(
+        result,
+        location,
+        f"package run {run_id} {field_name}",
+    )
+
+
 def _validate_control_gate_metadata(
     *,
     protocol: ExperimentProtocol,
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
+    execution_results_by_sha: dict[str, Any],
 ) -> None:
     controls = [
         control
@@ -758,6 +805,13 @@ def _validate_control_gate_metadata(
             "evidence_location"
         ].strip():
             raise ValidationError(f"{prefix}.evidence_location must be nonempty text")
+        _validate_analysis_result_location(
+            run_id=run_id,
+            digest=digest,
+            location=result["evidence_location"],
+            field_name=f"control {control.control_id} evidence_location",
+            execution_results_by_sha=execution_results_by_sha,
+        )
 
 
 def _validate_measurement_validity_gate_metadata(
@@ -766,6 +820,7 @@ def _validate_measurement_validity_gate_metadata(
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
+    execution_results_by_sha: dict[str, Any],
 ) -> None:
     checks = [
         check
@@ -836,6 +891,13 @@ def _validate_measurement_validity_gate_metadata(
             raise ValidationError(
                 f"package run {run_id} measurement validity evidence must reference a run output artifact"
             )
+        _validate_analysis_result_location(
+            run_id=run_id,
+            digest=digest,
+            location=result["evidence_location"],
+            field_name=f"measurement validity {check.check_id} evidence_location",
+            execution_results_by_sha=execution_results_by_sha,
+        )
 
 
 def _validate_missingness_gate_metadata(
@@ -844,6 +906,7 @@ def _validate_missingness_gate_metadata(
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
+    execution_results_by_sha: dict[str, Any],
 ) -> None:
     contract = protocol.analysis_contract
     if (
@@ -905,6 +968,13 @@ def _validate_missingness_gate_metadata(
         raise ValidationError(
             f"package run {run_id} missingness assessment evidence must reference a run output artifact"
         )
+    _validate_analysis_result_location(
+        run_id=run_id,
+        digest=digest,
+        location=result["evidence_location"],
+        field_name="missingness assessment evidence_location",
+        execution_results_by_sha=execution_results_by_sha,
+    )
 
 
 def _validate_causal_assumption_gate_metadata(
@@ -913,6 +983,7 @@ def _validate_causal_assumption_gate_metadata(
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
+    execution_results_by_sha: dict[str, Any],
 ) -> None:
     if not protocol.causal_claim or gate.status is QualityGateStatus.SKIPPED:
         return
@@ -979,6 +1050,13 @@ def _validate_causal_assumption_gate_metadata(
             raise ValidationError(
                 f"package run {run_id} causal assumption assessment evidence must reference a run output artifact"
             )
+        _validate_analysis_result_location(
+            run_id=run_id,
+            digest=digest,
+            location=result["evidence_location"],
+            field_name=f"causal assumption {category} evidence_location",
+            execution_results_by_sha=execution_results_by_sha,
+        )
     if gate.status is QualityGateStatus.PASSED and observed_statuses != {
         "consistent_with_assumption"
     }:
@@ -1688,6 +1766,9 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     label=f"package run {run.run_id}",
                     locator_policy=manifest["artifact_locator_policy"],
                 )
+                execution_results_by_sha = _execution_handoff_results_by_output_sha(
+                    run
+                )
                 quality_gates = validate_quality_gates(run.quality_gates)
                 gate_by_id = {item.gate_id: item for item in quality_gates}
                 if len(gate_by_id) != len(quality_gates):
@@ -1745,24 +1826,28 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=output_artifacts,
+                        execution_results_by_sha=execution_results_by_sha,
                     )
                     _validate_measurement_validity_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=output_artifacts,
+                        execution_results_by_sha=execution_results_by_sha,
                     )
                     _validate_missingness_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=output_artifacts,
+                        execution_results_by_sha=execution_results_by_sha,
                     )
                     _validate_causal_assumption_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=output_artifacts,
+                        execution_results_by_sha=execution_results_by_sha,
                     )
                     prerequisites = gate.details.get("prerequisite_gate_ids", [])
                     if not isinstance(prerequisites, list) or any(

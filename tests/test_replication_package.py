@@ -1926,6 +1926,8 @@ def test_replication_package_verifies_sample_size_plan_check_metadata(
         ("non_boolean_match", "matches_expected must be a boolean"),
         ("unbound_evidence", "must reference a run output artifact"),
         ("blank_location", "evidence_location must be nonempty text"),
+        ("relative_analysis_location", "requires an absolute JSON Pointer"),
+        ("missing_analysis_location", "does not resolve"),
     ],
 )
 def test_replication_package_verifies_control_gate_metadata(
@@ -2021,6 +2023,13 @@ def test_replication_package_verifies_control_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
+    runs[0]["metadata"]["execution_handoff"] = {
+        "receipt": {"output": {"sha256": record_sha256}},
+        "result": {"controls": {"negative-1": {"matches_expected": True}}},
+    }
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+    verify_replication_package(package, commitment)
     gate = runs[0]["quality_gates"][0]
     results = gate["details"]["control_results"]
     if mutation == "missing_results":
@@ -2037,6 +2046,10 @@ def test_replication_package_verifies_control_gate_metadata(
         results["negative-1"]["evidence_sha256"] = "f" * 64
     elif mutation == "blank_location":
         results["negative-1"]["evidence_location"] = ""
+    elif mutation == "relative_analysis_location":
+        results["negative-1"]["evidence_location"] = "controls/negative-1"
+    elif mutation == "missing_analysis_location":
+        results["negative-1"]["evidence_location"] = "/controls/missing-control"
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 
@@ -2056,6 +2069,8 @@ def test_replication_package_verifies_control_gate_metadata(
         ("padded_status", "assessment_status must be canonical"),
         ("unbound_evidence", "must reference a run output artifact"),
         ("blank_diagnostic", "observed_diagnostic must be nonempty text"),
+        ("relative_analysis_location", "requires an absolute JSON Pointer"),
+        ("missing_analysis_location", "does not resolve"),
         ("skipped_gate_with_results", "skipped quality gate"),
         ("skipped_gate_with_partial_hash", "skipped quality gate"),
     ],
@@ -2197,6 +2212,17 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
+    runs[0]["metadata"]["execution_handoff"] = {
+        "receipt": {"output": {"sha256": record_sha256}},
+        "result": {
+            "validity": {
+                "checker-reference-agreement": {"acceptance": 1}
+            }
+        },
+    }
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+    verify_replication_package(package, commitment)
     gate = next(
         item for item in runs[0]["quality_gates"]
         if item["gate_id"] == "measurement-validity-assessed"
@@ -2221,6 +2247,10 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
         result["evidence_sha256"] = "f" * 64
     elif mutation == "blank_diagnostic":
         result["observed_diagnostic"] = ""
+    elif mutation == "relative_analysis_location":
+        result["evidence_location"] = "validity/checker-reference-agreement"
+    elif mutation == "missing_analysis_location":
+        result["evidence_location"] = "/validity/missing-check"
     elif mutation == "skipped_gate_with_results":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"
@@ -2248,6 +2278,8 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
         ("bad_status", "unsupported assessment_status"),
         ("unbound_evidence", "must reference a run output artifact"),
         ("blank_interpretation", "interpretation must be nonempty text"),
+        ("relative_analysis_location", "requires an absolute JSON Pointer"),
+        ("missing_analysis_location", "does not resolve"),
         ("skipped_gate_with_result", "skipped quality gate"),
     ],
 )
@@ -2459,6 +2491,16 @@ def test_replication_package_verifies_missingness_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
+    runs[0]["metadata"]["execution_handoff"] = {
+        "receipt": {"output": {"sha256": record_sha256}},
+        "result": {
+            "controls": {"reference-1": {"matches_expected": True}},
+            "missingness": {"exclusion_report": {"excluded_fraction": 0.0}},
+        },
+    }
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+    verify_replication_package(package, commitment)
     gate = next(
         item for item in runs[0]["quality_gates"]
         if item["gate_id"] == "missingness-assessed"
@@ -2480,6 +2522,10 @@ def test_replication_package_verifies_missingness_gate_metadata(
         result["evidence_sha256"] = "f" * 64
     elif mutation == "blank_interpretation":
         result["interpretation"] = ""
+    elif mutation == "relative_analysis_location":
+        result["evidence_location"] = "missingness/exclusion_report"
+    elif mutation == "missing_analysis_location":
+        result["evidence_location"] = "/missingness/missing-report"
     elif mutation == "skipped_gate_with_result":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"
@@ -2506,6 +2552,8 @@ def test_replication_package_verifies_missingness_gate_metadata(
         ("passed_contradiction", "passed causal assessment gate"),
         ("warning_without_inconclusive", "warning causal assessment gate"),
         ("failed_without_contradiction", "failed causal assessment gate"),
+        ("relative_analysis_location", "requires an absolute JSON Pointer"),
+        ("missing_analysis_location", "does not resolve"),
         ("skipped_gate_with_results", "skipped quality gate"),
     ],
 )
@@ -2857,6 +2905,28 @@ def test_replication_package_verifies_causal_assumption_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
+    runs[0]["metadata"]["execution_handoff"] = {
+        "receipt": {"output": {"sha256": record_sha256}},
+        "result": {
+            "controls": {"reference-1": {"matches_expected": True}},
+            "diagnostics": {
+                category: {"status": "consistent_with_assumption"}
+                for category in (
+                    "positivity",
+                    "consistency",
+                    "interference",
+                    "temporal_order",
+                    "measurement_validity",
+                    "selection_bias",
+                    "exchangeability",
+                )
+            },
+            "missingness": {"excluded_fraction": 0.0},
+        },
+    }
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+    verify_replication_package(package, commitment)
     gate = next(
         item for item in runs[0]["quality_gates"]
         if item["gate_id"] == "causal-assumptions-assessed"
@@ -2887,6 +2957,10 @@ def test_replication_package_verifies_causal_assumption_gate_metadata(
         gate["status"] = "warning"
     elif mutation == "failed_without_contradiction":
         gate["status"] = "failed"
+    elif mutation == "relative_analysis_location":
+        positivity["evidence_location"] = "diagnostics/positivity"
+    elif mutation == "missing_analysis_location":
+        positivity["evidence_location"] = "/diagnostics/missing-assumption"
     elif mutation == "skipped_gate_with_results":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"

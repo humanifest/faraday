@@ -863,7 +863,10 @@ retained execution handoff's measurement-value check against the frozen
 measurement contracts, including exact ordered coverage, value-domain digest
 recalculation, per-measurement status, and recorded row-count conservation, so a
 redacted package cannot launder a post-run edit to source-domain conformance
-metadata.
+metadata. When packaged structured gate metadata cites the retained Faraday
+analysis result, verification requires the evidence location to be an absolute
+JSON Pointer that resolves in that retained result body, preserving the
+inspectability boundary even when artifact locators are redacted.
 Canonical run intake now independently repeats this verification whenever
 `execution_handoff` metadata is present: it requires the artifact root, reloads
 the exact receipt and result from the trusted receipt hash, and revalidates the

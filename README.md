@@ -786,7 +786,10 @@ run output. Consistency remains a bounded diagnostic, not proof of construct
 validity. Retained execution handoffs also replay the measurement-value check
 against the frozen measurement contracts: the package verifier recomputes the
 value-domain digest, checks exact ordered coverage, and conserves the recorded
-input row count before trusting the redacted receipt metadata. Structured
+input row count before trusting the redacted receipt metadata. When a structured
+gate cites that retained Faraday analysis result, the package verifier also
+requires an absolute JSON Pointer that resolves in the retained result body; a
+matching output hash cannot excuse a fabricated internal location. Structured
 missingness-assessment metadata is replayed for the frozen
 complete-case gate: the retained assessment kind must match the analysis
 contract, passed/warning/failed gates must retain
