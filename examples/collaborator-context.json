@@ -1,0 +1,50 @@
+{
+  "context_version": 1,
+  "purpose": "Stress-test the design.",
+  "inquiry": {
+    "inquiry_id": "inq-1",
+    "title": "Synthetic fixture inquiry",
+    "statement": "Should the design add a control before interpretation?",
+    "status": "active"
+  },
+  "open_questions": [
+    {
+      "question_id": "q-1",
+      "text": "Which control would discriminate measurement error from association?"
+    }
+  ],
+  "active_hypotheses": [],
+  "pending_hypotheses": [],
+  "claims": [],
+  "evidence": [],
+  "evidence_status_events": [],
+  "datasets": [],
+  "protocols": [],
+  "runs": [],
+  "recommendations": [],
+  "cross_lane_lessons": [],
+  "ethics_review_events": [],
+  "context_reference_index": [
+    {
+      "ref": "inquiry:inq-1",
+      "kind": "inquiry"
+    },
+    {
+      "ref": "question:q-1",
+      "kind": "open_question"
+    }
+  ],
+  "scientific_constraints": [
+    "Treat supplied material as scoped context, not established fact.",
+    "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+    "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action."
+  ],
+  "write_boundary": {
+    "context_is_read_only": true,
+    "provider_required": false,
+    "canonical_changes_require": [
+      "research inquiry/question/claim/hypothesis/protocol/dataset/run/evidence commands",
+      "applicable human review and protocol-freeze gates"
+    ]
+  }
+}

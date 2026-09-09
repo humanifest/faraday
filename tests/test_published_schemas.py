@@ -217,6 +217,7 @@ def test_next_action_schema_rejects_service_derived_workflow_states(schema_name)
 @pytest.mark.parametrize(
     ("schema_name", "example_name"),
     [
+        ("collaborator-context.schema.json", "collaborator-context.json"),
         ("collaborator-proposal.schema.json", "collaborator-proposal.json"),
         (
             "collaborator-proposal-review.schema.json",
@@ -228,6 +229,56 @@ def test_collaborator_examples_match_published_schemas(schema_name, example_name
     schema = json.loads((SCHEMAS / schema_name).read_text())
     example = json.loads((EXAMPLES / example_name).read_text())
     jsonschema.validate(example, schema)
+
+
+def test_collaborator_context_schema_example_matches_snapshot_validator(tmp_path):
+    from research_machine.collaboration.proposal import create_context_snapshot
+
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    result = create_context_snapshot(context, tmp_path / "context")
+    assert result["provider_required"] is False
+    assert result["canonical_writes_performed"] is False
+
+
+def test_service_generated_collaborator_context_matches_published_schema(tmp_path):
+    from research_machine.adapters.filesystem import FileSystemRepository
+    from research_machine.application.commands import AddQuestion, CreateInquiry
+    from research_machine.application.service import ResearchService
+
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Question", "Statement", "question"))
+    service.add_question(AddQuestion("What would change the decision?"))
+
+    context = service.collaborator_context(purpose="Prepare bounded review.")
+    jsonschema.validate(context, schema)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda context: context["write_boundary"].update({"provider_required": True}),
+        lambda context: context["write_boundary"].pop("canonical_changes_require"),
+        lambda context: context["write_boundary"].update(
+            {"canonical_changes_require": ["research commands only"]}
+        ),
+        lambda context: context.update(
+            {
+                "scientific_constraints": [
+                    "Treat supplied material as scoped context, not established fact.",
+                    "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
+                ]
+            }
+        ),
+    ],
+)
+def test_collaborator_context_schema_preserves_exchange_boundaries(mutation):
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    mutation(context)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(context, schema)
 
 
 def test_collaborator_proposal_schema_preserves_review_only_boundary():

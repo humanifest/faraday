@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/collaborator-context.schema.json",
+  "title": "Provider-neutral collaborator context",
+  "type": "object",
+  "required": [
+    "context_version",
+    "purpose",
+    "inquiry",
+    "open_questions",
+    "active_hypotheses",
+    "pending_hypotheses",
+    "claims",
+    "evidence",
+    "evidence_status_events",
+    "datasets",
+    "protocols",
+    "runs",
+    "recommendations",
+    "cross_lane_lessons",
+    "ethics_review_events",
+    "context_reference_index",
+    "scientific_constraints",
+    "write_boundary"
+  ],
+  "properties": {
+    "context_version": {"const": 1},
+    "purpose": {"$ref": "#/$defs/canonicalNonEmptyText"},
+    "inquiry": {
+      "type": "object",
+      "required": ["inquiry_id"],
+      "properties": {
+        "inquiry_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/openQuestion"}
+    },
+    "active_hypotheses": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/hypothesis"}
+    },
+    "pending_hypotheses": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/hypothesis"}
+    },
+    "claims": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/claim"}
+    },
+    "evidence": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/evidence"}
+    },
+    "evidence_status_events": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/evidenceStatusEvent"}
+    },
+    "datasets": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/dataset"}
+    },
+    "protocols": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/protocol"}
+    },
+    "runs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/run"}
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "cross_lane_lessons": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "ethics_review_events": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/ethicsReviewEvent"}
+    },
+    "context_reference_index": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/contextReference"},
+      "uniqueItems": true
+    },
+    "scientific_constraints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/canonicalNonEmptyText"},
+      "uniqueItems": true,
+      "allOf": [
+        {
+          "contains": {
+            "type": "string",
+            "pattern": ".*Do not claim.*causality.*mechanism.*replication.*"
+          }
+        },
+        {
+          "contains": {
+            "type": "string",
+            "pattern": ".*Do not authorize.*"
+          }
+        }
+      ]
+    },
+    "write_boundary": {
+      "type": "object",
+      "required": [
+        "context_is_read_only",
+        "provider_required",
+        "canonical_changes_require"
+      ],
+      "properties": {
+        "context_is_read_only": {"const": true},
+        "provider_required": {"const": false},
+        "canonical_changes_require": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "uniqueItems": true,
+          "allOf": [
+            {
+              "contains": {
+                "type": "string",
+                "pattern": ".*research.*command.*"
+              }
+            },
+            {
+              "contains": {
+                "type": "string",
+                "pattern": ".*review.*gate.*"
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "canonicalNonEmptyText": {
+      "type": "string",
+      "pattern": "^(?:\\S|\\S.*\\S)$"
+    },
+    "contextRef": {
+      "type": "string",
+      "pattern": "^(inquiry|question|claim|hypothesis|evidence|dataset|protocol|run|evidence_status_event|ethics_review_event):(?:\\S|\\S.*\\S)$"
+    },
+    "contextKind": {
+      "enum": [
+        "inquiry",
+        "open_question",
+        "claim",
+        "active_hypothesis",
+        "pending_hypothesis",
+        "evidence",
+        "evidence_status_event",
+        "dataset",
+        "protocol",
+        "run",
+        "ethics_review_event"
+      ]
+    },
+    "contextReference": {
+      "type": "object",
+      "required": ["ref", "kind"],
+      "properties": {
+        "ref": {"$ref": "#/$defs/contextRef"},
+        "kind": {"$ref": "#/$defs/contextKind"}
+      },
+      "additionalProperties": false
+    },
+    "openQuestion": {
+      "type": "object",
+      "required": ["question_id"],
+      "properties": {
+        "question_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    },
+    "claim": {
+      "type": "object",
+      "required": ["claim_id"],
+      "properties": {
+        "claim_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    },
+    "hypothesis": {
+      "type": "object",
+      "required": ["hypothesis_id"],
+      "properties": {
+        "hypothesis_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["evidence_id"],
+      "properties": {
+        "evidence_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    },
+    "evidenceStatusEvent": {
+      "type": "object",
+      "required": ["event_id"],
+      "properties": {
+        "event_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    },
+    "dataset": {
+      "type": "object",
+      "required": ["dataset_id"],
+      "properties": {
+        "dataset_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    },
+    "protocol": {
+      "type": "object",
+      "required": ["protocol_id"],
+      "properties": {
+        "protocol_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    },
+    "run": {
+      "type": "object",
+      "required": ["run_id"],
+      "properties": {
+        "run_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    },
+    "ethicsReviewEvent": {
+      "type": "object",
+      "required": ["event_id"],
+      "properties": {
+        "event_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    }
+  }
+}
