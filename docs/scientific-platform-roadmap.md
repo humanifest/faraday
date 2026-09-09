@@ -71,7 +71,11 @@ methods without changing its epistemic rules or canonical state.
   checks and result construction, and CSV headers are canonical and
   case-insensitively unique before any method runs. The execution gate also
   revalidates measurement scale, unit, and value-domain contracts before applying
-  them to rows.
+  them to rows. Analysis methods now expose `randomness_control` as
+  `deterministic` or `seeded`; seeded methods must require the executable `seed`
+  field, and execution binds that declaration into the result and receipt. This
+  makes stochastic reproducibility a provider-neutral add-on contract without
+  treating the random procedure as scientifically adequate.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit

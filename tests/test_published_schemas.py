@@ -146,6 +146,15 @@ def test_general_addon_manifest_matches_published_schema():
     unsafe["methods"][0]["maximum_claim_ceiling"] = " "
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(unsafe, schema)
+    unsafe = MANIFEST.describe()
+    unsafe["methods"][0]["randomness_control"] = "ambient_rng"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(unsafe, schema)
+    unsafe = MANIFEST.describe()
+    unsafe["methods"][0]["randomness_control"] = "seeded"
+    unsafe["methods"][0]["required_spec_fields"] = ["columns"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(unsafe, schema)
     instrument_manifest = AddonManifest(
         "instrument_fixture", "Instrument fixture", "1", "test", "Fixture",
         instrument_adapters=(InstrumentAdapter(

@@ -13,14 +13,21 @@
     "description": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
     "methods": {"type": "array", "items": {
       "type": "object", "additionalProperties": false,
-      "required": ["method_id", "title", "description", "required_spec_fields", "maximum_claim_ceiling", "maximum_inference_level"],
+      "required": ["method_id", "title", "description", "required_spec_fields", "maximum_claim_ceiling", "maximum_inference_level", "randomness_control"],
+      "allOf": [
+        {
+          "if": {"properties": {"randomness_control": {"const": "seeded"}}},
+          "then": {"properties": {"required_spec_fields": {"contains": {"const": "seed"}}}}
+        }
+      ],
       "properties": {
         "method_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
         "title": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
         "description": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
         "required_spec_fields": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
         "maximum_claim_ceiling": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
-        "maximum_inference_level": {"enum": ["computation_only", "descriptive", "association", "design_conditional_effect"]}
+        "maximum_inference_level": {"enum": ["computation_only", "descriptive", "association", "design_conditional_effect"]},
+        "randomness_control": {"enum": ["deterministic", "seeded"]}
       }
     }},
     "instrument_adapters": {"type": "array", "items": {

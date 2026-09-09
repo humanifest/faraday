@@ -200,6 +200,9 @@ def test_default_registry_exposes_general_and_domain_addons() -> None:
     assert addon.addon_id == "general_science"
     assert "seed" in method.required_spec_fields
     assert method.maximum_inference_level == "design_conditional_effect"
+    assert method.randomness_control == "seeded"
+    _, deterministic = registry.resolve_method("descriptive_summary")
+    assert deterministic.randomness_control == "deterministic"
 
 
 def test_descriptive_summary_requires_canonical_requested_columns() -> None:
@@ -320,6 +323,50 @@ def test_registry_rejects_unknown_machine_readable_inference_ceiling() -> None:
     with pytest.raises(ValidationError, match="maximum_inference_level"):
         registry.register(
             AddonManifest("unsafe", "Unsafe", "1", "test", "Fixture", methods=(method,))
+        )
+
+
+def test_registry_rejects_unknown_or_unseeded_randomness_control() -> None:
+    registry = AddonRegistry()
+    with pytest.raises(ValidationError, match="randomness_control"):
+        registry.register(
+            AddonManifest(
+                "unsafe_randomness",
+                "Unsafe randomness",
+                "1",
+                "test",
+                "Fixture",
+                methods=(
+                    AnalysisMethod(
+                        "random_walk",
+                        "Random walk",
+                        "Fixture",
+                        (),
+                        lambda spec, rows: {},
+                        randomness_control="ambient_rng",
+                    ),
+                ),
+            )
+        )
+    with pytest.raises(ValidationError, match="committed seed"):
+        registry.register(
+            AddonManifest(
+                "unseeded_randomness",
+                "Unseeded randomness",
+                "1",
+                "test",
+                "Fixture",
+                methods=(
+                    AnalysisMethod(
+                        "bootstrap_without_seed",
+                        "Bootstrap without seed",
+                        "Fixture",
+                        ("outcome_column",),
+                        lambda spec, rows: {},
+                        randomness_control="seeded",
+                    ),
+                ),
+            )
         )
 
 
@@ -585,6 +632,8 @@ def test_general_analysis_is_deterministic_and_non_evidentiary(
     second_result = _result(capsys)
     assert first_result["result"] == second_result["result"]
     assert first_result["result"]["missing_data_policy"] == "complete_case"
+    assert first_result["result"]["randomness_control"] == "seeded"
+    assert first_result["receipt"]["randomness_control"] == "seeded"
     assert first_result["receipt"]["scientific_evidence_eligible"] is False
     receipt = json.loads((first / "execution-receipt.json").read_text())
     result_bytes = (first / "analysis-result.json").read_bytes()
@@ -652,6 +701,8 @@ MANIFEST = AddonManifest(
     result = _result(capsys)
     assert result["result"]["result"] == {"n": 2}
     assert result["receipt"]["addon"]["addon_id"] == "example_domain"
+    assert result["result"]["randomness_control"] == "deterministic"
+    assert result["receipt"]["randomness_control"] == "deterministic"
 
 
 def test_local_instrument_adapter_proposes_only_core_hashed_acquisition_metadata(

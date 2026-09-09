@@ -13,6 +13,7 @@ from research_machine.addons.models import (
     AnalysisMethod,
     InstrumentAdapter,
     INFERENCE_LEVELS,
+    RANDOMNESS_CONTROLS,
 )
 from research_machine.domain.errors import NotFoundError, ValidationError
 
@@ -163,6 +164,17 @@ class AddonRegistry:
             if method.maximum_inference_level not in INFERENCE_LEVELS:
                 raise ValidationError(
                     f"method maximum_inference_level is unsupported: {method.method_id}"
+                )
+            if method.randomness_control not in RANDOMNESS_CONTROLS:
+                raise ValidationError(
+                    f"method randomness_control is unsupported: {method.method_id}"
+                )
+            if (
+                method.randomness_control == "seeded"
+                and "seed" not in method.required_spec_fields
+            ):
+                raise ValidationError(
+                    f"seeded method must require a committed seed: {method.method_id}"
                 )
             seen.add(method.method_id)
         adapter_ids: set[str] = set()

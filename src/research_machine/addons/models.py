@@ -9,6 +9,7 @@ InstrumentInspector = Callable[[bytes, dict[str, Any]], dict[str, Any]]
 INFERENCE_LEVELS = frozenset({
     "computation_only", "descriptive", "association", "design_conditional_effect",
 })
+RANDOMNESS_CONTROLS = frozenset({"deterministic", "seeded"})
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class AnalysisMethod:
     runner: AnalysisRunner = field(repr=False, compare=False)
     maximum_claim_ceiling: str = "Execution establishes only the returned calculation on the hashed input under the declared method; it does not validate a scientific claim."
     maximum_inference_level: str = "computation_only"
+    randomness_control: str = "deterministic"
 
     def describe(self) -> dict[str, Any]:
         value = asdict(self)

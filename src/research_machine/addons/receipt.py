@@ -108,6 +108,7 @@ def verify_execution_output(directory: Path, expected_receipt_sha256: str) -> di
     if (not isinstance(addon, dict) or not isinstance(receipt.get("method"), str)
             or receipt["method"] != result.get("method")
             or receipt.get("maximum_inference_level") != result.get("maximum_inference_level")
+            or receipt.get("randomness_control") != result.get("randomness_control")
             or addon.get("addon_id") != result.get("addon_id")
             or addon.get("version") != result.get("addon_version")):
         raise ValidationError("execution receipt/result method identities disagree")

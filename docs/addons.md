@@ -44,6 +44,13 @@ analyses require `design_conditional_effect`. The resulting
 `method_inference_check` is recomputed at handoff and run intake. This is a
 machine-enforced capability boundary, not proof that a third-party declaration
 is scientifically correct or that a compatible estimator establishes causality.
+Methods also expose a machine-readable `randomness_control`:
+`deterministic` or `seeded`. A seeded method must list `seed` in
+`required_spec_fields`, and execution carries the declared control into both the
+analysis result and receipt. This makes stochastic reproducibility an explicit
+add-on contract rather than prose. It still does not prove that the pseudo-random
+procedure is statistically appropriate or that a submitted seed was chosen
+prospectively.
 
 Toolkit 6.0.0 adds `adjusted_linear_effect`, a dependency-free ordinary least
 squares estimator for an exact, ordered, non-empty covariate set. It codes the

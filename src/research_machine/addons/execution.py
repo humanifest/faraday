@@ -556,6 +556,7 @@ def execute_analysis(
         "contrast_groups": list(spec.get("groups", [])),
         "claim_ceiling": method.maximum_claim_ceiling,
         "maximum_inference_level": method.maximum_inference_level,
+        "randomness_control": method.randomness_control,
         "declared_claim_ceiling": spec["claim_ceiling"],
         "claim_ceiling_status": "method_enforced_maximum; the researcher declaration is retained but cannot widen it",
         "missing_data_policy": spec.get("missing_data_policy"),
@@ -613,6 +614,7 @@ def execute_analysis(
         "addon": {"addon_id": addon.addon_id, "version": addon.version},
         "method": method.method_id,
         "maximum_inference_level": method.maximum_inference_level,
+        "randomness_control": method.randomness_control,
         "specification": {"locator": str(spec_path.resolve()), "sha256": spec_sha256},
         "input": {
             "locator": str(data_path.resolve()),
