@@ -4,6 +4,7 @@ from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     ActionCandidate,
     ActionLane,
+    ActionRecommendation,
     ActionScore,
     SelectionWeights,
 )
@@ -95,3 +96,62 @@ def rank_actions_by_lane(
             )
         rankings[lane.lane_id] = rank_actions(eligible, weights)
     return rankings
+
+
+def verify_recommendation_score_replay(
+    recommendation: ActionRecommendation,
+) -> None:
+    """Replay stored recommendation scores from retained candidates and weights."""
+
+    if recommendation.selection_mode == "single":
+        expected_scores = rank_actions(
+            recommendation.candidates, recommendation.weights
+        )
+        expected_selected_action_id = expected_scores[0].action_id
+        expected_selected_by_lane: dict[str, str] = {}
+    elif recommendation.selection_mode == "portfolio":
+        rankings = rank_actions_by_lane(
+            recommendation.candidates,
+            recommendation.lanes,
+            recommendation.completed_action_ids,
+            recommendation.weights,
+        )
+        expected_selected_by_lane = {
+            lane.lane_id: rankings[lane.lane_id][0].action_id
+            for lane in recommendation.lanes
+            if lane.status == "active"
+        }
+        selected_ids = list(expected_selected_by_lane.values())
+        expected_selected_action_id = selected_ids[0] if selected_ids else ""
+        expected_scores = [
+            score
+            for lane in recommendation.lanes
+            if lane.status == "active"
+            for score in rankings[lane.lane_id]
+        ]
+    else:
+        raise ValidationError(
+            f"recommendation {recommendation.recommendation_id} has unsupported "
+            f"selection_mode {recommendation.selection_mode!r}"
+        )
+
+    if recommendation.selected_action_id != expected_selected_action_id:
+        raise ValidationError(
+            f"recommendation {recommendation.recommendation_id} selected action "
+            "does not replay from stored candidates and weights"
+        )
+    if (
+        recommendation.selection_mode == "portfolio"
+        and recommendation.selected_action_ids_by_lane != expected_selected_by_lane
+    ):
+        raise ValidationError(
+            f"recommendation {recommendation.recommendation_id} lane selections "
+            "do not replay from stored candidates, lanes, dependencies, and weights"
+        )
+    if [score.to_dict() for score in recommendation.ranked_scores] != [
+        score.to_dict() for score in expected_scores
+    ]:
+        raise ValidationError(
+            f"recommendation {recommendation.recommendation_id} ranked scores "
+            "do not replay from stored candidates and weights"
+        )

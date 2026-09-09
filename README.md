@@ -1412,7 +1412,9 @@ generated or replayed.
   hash-verified external protocol, analysis source, and zero-execution freeze
   manifest establish an explicitly attested external-freeze accession.
 - Prevent failed or synthetic runs from becoming confirmatory evidence.
-- Rank feasible, safety-approved next actions with an explicit utility function.
+- Rank feasible, safety-approved next actions with an explicit utility function,
+  retained signed score components, and authoritative read-time replay from the
+  stored candidates and weights.
 - Attach evidence only after a hypothesis has been reviewed and activated;
   confirmatory evidence must trace to an eligible recorded run.
 - Bind admitted scientific evidence to the referenced claim’s immutable
@@ -1632,7 +1634,11 @@ identifiers cannot silently decide a supposedly information-driven
 recommendation. Each ranked score preserves the signed weighted contribution of
 expected discrimination, uncertainty reduction, cost, burden, safety risk, and
 ambiguity risk, and deterministic synthesis reports the selected actions'
-components so the tradeoff remains inspectable. If the top utility is tied,
+components so the tradeoff remains inspectable. Authoritative recommendation
+reads replay the selected action, lane selections, ranked utilities, and signed
+components from the stored candidates, lanes, dependencies, completed actions,
+and weights; mismatches fail before list, inquiry display, or synthesis can use
+a stale score record. If the top utility is tied,
 Faraday rejects the selection until the utility model or candidate estimates
 distinguish the actions. The resulting recommendation remains an immutable,
 ledgered record; it does not establish scientific independence or satisfy a

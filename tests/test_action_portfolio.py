@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -111,6 +112,62 @@ def test_portfolio_selects_one_action_per_active_lane_without_starvation(
     )
     assert "machine: utility 1.365" in synthesis
     assert "expected_discrimination 1" in synthesis
+
+
+def test_recommendation_reads_replay_ranked_score_components(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate("machine-high", "machine", 1.0),
+                candidate("theory-best", "theory", 0.6),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["ranked_scores"][0]["weighted_components"][
+        "expected_discrimination"
+    ] = 0.0
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="ranked scores do not replay"):
+        service.list_recommendations()
+    with pytest.raises(ValidationError, match="ranked scores do not replay"):
+        service.show_inquiry()
+    with pytest.raises(ValidationError, match="ranked scores do not replay"):
+        service.build_synthesis()
+
+
+def test_portfolio_recommendation_reads_replay_lane_selections(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate("machine-high", "machine", 1.0),
+                candidate("theory-best", "theory", 0.6),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["selected_action_ids_by_lane"]["theory"] = "machine-high"
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="lane selections do not replay"):
+        service.list_recommendations()
 
 
 def test_blocked_lane_is_visible_but_not_selected(tmp_path: Path) -> None:

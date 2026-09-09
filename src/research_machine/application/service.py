@@ -108,7 +108,11 @@ from research_machine.domain.models import (
 from research_machine.ports.repository import WorkspaceRepository
 from research_machine.reporting.synthesis import build_synthesis
 from research_machine.replication.package import export_replication_package
-from research_machine.selection import rank_actions, rank_actions_by_lane
+from research_machine.selection import (
+    rank_actions,
+    rank_actions_by_lane,
+    verify_recommendation_score_replay,
+)
 
 
 def utc_now() -> str:
@@ -1112,7 +1116,7 @@ class ResearchService:
             "runs": [item.to_dict() for item in runs],
             "recommendations": [
                 item.to_dict()
-                for item in self.repository.list_recommendations(resolved)
+                for item in self._verified_recommendations(resolved)
             ],
             "cross_lane_lessons": [
                 item.to_dict()
@@ -4300,7 +4304,15 @@ class ResearchService:
         self, inquiry_id: str | None = None
     ) -> list[ActionRecommendation]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        return self.repository.list_recommendations(resolved)
+        return self._verified_recommendations(resolved)
+
+    def _verified_recommendations(
+        self, inquiry_id: str
+    ) -> list[ActionRecommendation]:
+        recommendations = self.repository.list_recommendations(inquiry_id)
+        for recommendation in recommendations:
+            verify_recommendation_score_replay(recommendation)
+        return recommendations
 
     def record_evidence(
         self, command: RecordEvidence, inquiry_id: str | None = None
@@ -5003,7 +5015,7 @@ class ResearchService:
             datasets,
             protocols,
             runs,
-            self.repository.list_recommendations(resolved),
+            self._verified_recommendations(resolved),
             self.repository.list_cross_lane_lessons(resolved),
             rigor_audit,
             evidence_status_events,

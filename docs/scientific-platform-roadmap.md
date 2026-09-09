@@ -31,9 +31,13 @@ methods without changing its epistemic rules or canonical state.
   arithmetic, or lexicographic action identifiers. Ranked scores now retain the
   signed weighted contribution of expected discrimination, uncertainty
   reduction, cost, burden, safety risk, and ambiguity risk, and deterministic
-  synthesis reports those components for selected actions. The selected action
-  must have a unique highest utility; tied top candidates require a refined
-  utility model or candidate estimates before any recommendation is recorded.
+  synthesis reports those components for selected actions. Authoritative
+  recommendation reads now replay the selected action, lane selections, ranked
+  utilities, and signed components from the stored candidates, lanes,
+  dependencies, completed actions, and weights before list, inquiry display, or
+  synthesis can trust them. The selected action must have a unique highest
+  utility; tied top candidates require a refined utility model or candidate
+  estimates before any recommendation is recorded.
 - Cross-lane process lessons preserve observed failures without rewriting prior
   conclusions. Lane IDs, artifact locators, integrity status, failure class,
   future-version handles, and prohibited-target handles must be canonical before
