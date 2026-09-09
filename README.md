@@ -1866,19 +1866,22 @@ Selection weights must be finite, non-negative, and include at least one
 positive utility term; Faraday rejects non-finite or all-zero weights so action
 identifiers cannot silently decide a supposedly information-driven
 recommendation. Candidate score inputs must remain finite numbers from zero to
-one. Each ranked score preserves the signed weighted contribution of expected
+one, candidate action IDs must remain unique, and every candidate must still
+distinguish at least one hypothesis or name at least one information target.
+Each ranked score preserves the signed weighted contribution of expected
 discrimination, uncertainty reduction, cost, burden, safety risk, and ambiguity
 risk, and deterministic synthesis reports the selected actions' components so
 the tradeoff remains inspectable. Authoritative recommendation reads revalidate
-those weight and candidate-score inputs, then replay the selected action, lane
-selections, ranked utilities, and signed components from the stored candidates,
-lanes, dependencies, completed actions, weights, and hypothesis-discrimination
-targets, including the requirement that target and alternative expectations
-remain distinct. Portfolio replay also revalidates lane status, blocking
-reasons, candidate lane membership, completed-action IDs, and dependency
-acyclicity, so an edited recommendation cannot hide an unsafe or impossible
-work plan behind stale score arithmetic. Mismatches fail before list, inquiry
-display, or synthesis can use a stale score record. New recommendations also
+those candidate identities, target declarations, weight inputs, and
+candidate-score inputs, then replay the selected action, lane selections, ranked
+utilities, and signed components from the stored candidates, lanes,
+dependencies, completed actions, weights, and hypothesis-discrimination targets,
+including the requirement that target and alternative expectations remain
+distinct. Portfolio replay also revalidates lane status, blocking reasons,
+candidate lane membership, completed-action IDs, and dependency acyclicity, so
+an edited recommendation cannot hide an unsafe or impossible work plan behind
+stale score arithmetic. Mismatches fail before list, inquiry display, or
+synthesis can use a stale score record. New recommendations also
 retain a service-generated
 `recommendation_payload_sha256` over the complete immutable recommendation
 outside that field itself, so a canonical rewrite of a candidate rationale,

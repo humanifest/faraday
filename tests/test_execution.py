@@ -2536,6 +2536,99 @@ def test_next_action_selection_rejects_tied_top_utility(tmp_path: Path) -> None:
         )
 
 
+def test_next_action_replay_rejects_legacy_candidate_without_target(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    service.recommend_next_action(
+        RecommendNextAction(candidates=[
+            ActionCandidate(
+                action_id="targeted-action",
+                title="Targeted action",
+                distinguishes_hypotheses=[hypothesis_id],
+                hypothesis_discrimination_targets=[
+                    action_discrimination_target(hypothesis_id)
+                ],
+                expected_discrimination=0.8,
+                uncertainty_reduction=0.6,
+                cost=0.1,
+                burden=0.1,
+                safety_risk=0.0,
+                ambiguity_risk=0.1,
+                rationale="A valid targeted action before legacy mutation.",
+            )
+        ])
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][0]["distinguishes_hypotheses"] = []
+    payload["candidates"][0]["hypothesis_discrimination_targets"] = []
+    payload["candidates"][0]["hypothesis_workflow_states"] = {}
+    payload["candidates"][0]["information_targets"] = []
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="must distinguish at least one hypothesis or name at least one information target",
+    ):
+        service.list_recommendations()
+
+
+def test_next_action_replay_rejects_legacy_duplicate_action_ids(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    service.recommend_next_action(
+        RecommendNextAction(candidates=[
+            ActionCandidate(
+                action_id="first-action",
+                title="First action",
+                distinguishes_hypotheses=[hypothesis_id],
+                hypothesis_discrimination_targets=[
+                    action_discrimination_target(hypothesis_id)
+                ],
+                expected_discrimination=0.9,
+                uncertainty_reduction=0.7,
+                cost=0.1,
+                burden=0.1,
+                safety_risk=0.0,
+                ambiguity_risk=0.1,
+                rationale="The original selected action.",
+            ),
+            ActionCandidate(
+                action_id="second-action",
+                title="Second action",
+                distinguishes_hypotheses=[hypothesis_id],
+                hypothesis_discrimination_targets=[
+                    action_discrimination_target(hypothesis_id)
+                ],
+                expected_discrimination=0.6,
+                uncertainty_reduction=0.5,
+                cost=0.1,
+                burden=0.1,
+                safety_risk=0.0,
+                ambiguity_risk=0.1,
+                rationale="A lower-ranked valid action.",
+            ),
+        ])
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][1]["action_id"] = "first-action"
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="duplicate action_id"):
+        service.list_recommendations()
+
+
 def test_synthetic_status_propagates_through_derived_datasets(tmp_path: Path) -> None:
     service, _ = prepared_service(tmp_path)
     source = service.register_dataset(

@@ -54,11 +54,12 @@ methods without changing its epistemic rules or canonical state.
   utilities, and signed components from the stored candidates, lanes,
   dependencies, completed actions, weights, and hypothesis-discrimination
   targets before list, inquiry display, or synthesis can trust them. Replay now
-  revalidates the discriminator contrast, lane status, blocking reasons,
-  candidate lane membership, completed-action IDs, dependency acyclicity, weight
-  vector, and candidate score inputs before recomputing those choices, so a
-  legacy record cannot remain trusted merely because invalid work-plan structure,
-  weights, and scores were rewritten consistently.
+  revalidates unique candidate identities, target declarations, discriminator
+  contrast, lane status, blocking reasons, candidate lane membership,
+  completed-action IDs, dependency acyclicity, weight vector, and candidate
+  score inputs before recomputing those choices, so a legacy record cannot
+  remain trusted merely because invalid work-plan structure, weights, and scores
+  were rewritten consistently.
   New recommendations also carry
   a service-generated payload commitment over the complete immutable
   recommendation, excluding only that commitment field, so canonical rewrites of

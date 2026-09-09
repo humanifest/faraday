@@ -162,8 +162,9 @@ def _validate_candidate_score_inputs_for_replay(candidate: ActionCandidate) -> N
 
 
 def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
-    hypotheses = [_require_canonical_text(item, "distinguishes_hypotheses item")
-                  for item in candidate.distinguishes_hypotheses]
+    hypotheses = _require_unique_canonical_text_list(
+        candidate.distinguishes_hypotheses, "distinguishes_hypotheses"
+    )
     workflow_states = candidate.hypothesis_workflow_states
     if not isinstance(workflow_states, dict):
         raise ValidationError("hypothesis_workflow_states must be an object")
@@ -187,10 +188,6 @@ def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
                 f"action {candidate.action_id} hypothesis_workflow_states do "
                 "not replay from distinguishes_hypotheses"
             )
-    if len(set(hypotheses)) != len(hypotheses):
-        raise ValidationError(
-            f"action {candidate.action_id} repeats a hypothesis distinction"
-        )
     targets = candidate.hypothesis_discrimination_targets
     if not isinstance(targets, list):
         raise ValidationError("hypothesis_discrimination_targets must be a list")
@@ -269,9 +266,21 @@ def rank_actions(
     """Rank safe, currently feasible actions using an auditable utility function."""
 
     _validate_selection_weights_for_replay(weights)
+    seen_action_ids: set[str] = set()
     for candidate in candidates:
         _validate_candidate_score_inputs_for_replay(candidate)
         _validate_discrimination_target_replay(candidate)
+        if (
+            not candidate.distinguishes_hypotheses
+            and not candidate.information_targets
+        ):
+            raise ValidationError(
+                f"action {candidate.action_id} must distinguish at least one "
+                "hypothesis or name at least one information target"
+            )
+        if candidate.action_id in seen_action_ids:
+            raise ValidationError(f"duplicate action_id: {candidate.action_id}")
+        seen_action_ids.add(candidate.action_id)
     eligible = [
         candidate
         for candidate in candidates
