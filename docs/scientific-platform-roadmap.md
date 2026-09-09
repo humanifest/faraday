@@ -1250,10 +1250,14 @@ every available study under a canonical lowercase effect-record hash;
 unavailable studies receive explicit not-applicable checks. Any mismatch remains
 visible and blocks `pool-effects`. The verifier also retains the exact mapped
 claim source provenance derived from the effect records, including extraction
-claim digests and retained source-file hashes. This authenticates neither
-reviewer nor source content, but closes the cleanly-coded/wrongly-copied input
-path and prevents independent verification from shedding source-byte anchors in
-the enforced quantitative workflow.
+claim digests and retained source-file hashes. The verifier now also replays the
+retained source-summary contract for reproducibly derived effects: every source
+summary must cover exactly one effect record with matching status, canonical
+reason and evidence location, and measure-compatible experimental/comparator arm
+values. This authenticates neither reviewer nor source content, but closes the
+cleanly-coded/wrongly-copied input path and prevents independent verification
+from shedding source-byte anchors or malformed retained numeric inputs in the
+enforced quantitative workflow.
 `research literature pool-effects` performs deterministic inverse-variance
 pooling only after the quantitative plan, prepared-effect, effect-verification,
 and deviation hashes are canonical lowercase digests and agree. It

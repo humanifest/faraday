@@ -19,8 +19,14 @@ def mapped_claim(study):
 def effects_file(tmp_path):
     value = {"effect_records_version": 1, "status": "effects_ready",
         "derivation_scope": "recomputed_from_source_reported_arm_summaries", "reviewer": "Effect reviewer",
-        "plan_id": "p1", "snapshot_id": "snap", "source_summaries": [
-            {"study_id": "s1", "status": "available"}, {"study_id": "s2", "status": "unavailable"}], "records": [
+        "plan_id": "p1", "snapshot_id": "snap", "effect_measure": "mean_difference",
+        "source_summaries": [
+            {"study_id": "s1", "status": "available", "reason": "Reported arms",
+             "evidence_location": "table 1",
+             "experimental": {"sample_size": 25, "mean": 4.0, "standard_deviation": 2.0},
+             "comparator": {"sample_size": 25, "mean": 3.0, "standard_deviation": 1.0}},
+            {"study_id": "s2", "status": "unavailable", "reason": "No compatible outcome",
+             "evidence_location": "results", "experimental": None, "comparator": None}], "records": [
             {"study_id": "s1", "status": "available", "mapped_claims": [mapped_claim("s1")]},
             {"study_id": "s2", "status": "unavailable", "mapped_claims": [mapped_claim("s2")]}]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode(); path = tmp_path / "effects.json"; path.write_bytes(encoded)
@@ -71,6 +77,14 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     "duplicate",
     "padded-duplicate",
     "summary-duplicate",
+    "summary-status-drift",
+    "summary-padded-reason",
+    "summary-padded-location",
+    "summary-arm-shape",
+    "summary-arm-bool",
+    "summary-events-over-n",
+    "summary-unavailable-arm",
+    "summary-measure",
     "missing-claim-provenance",
     "duplicate-claim-provenance",
     "padded-claim-source",
@@ -103,6 +117,42 @@ def test_invalid_effect_verification_never_publishes(tmp_path, failure):
     elif failure == "summary-duplicate":
         value = json.loads(effects.read_text())
         value["source_summaries"][1]["study_id"] = " s1 "
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+        effects.write_bytes(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
+    elif failure in {
+        "summary-status-drift",
+        "summary-padded-reason",
+        "summary-padded-location",
+        "summary-arm-shape",
+        "summary-arm-bool",
+        "summary-events-over-n",
+        "summary-unavailable-arm",
+        "summary-measure",
+    }:
+        value = json.loads(effects.read_text())
+        if failure == "summary-status-drift":
+            value["source_summaries"][0]["status"] = "unavailable"
+        elif failure == "summary-padded-reason":
+            value["source_summaries"][0]["reason"] = " Reported arms "
+        elif failure == "summary-padded-location":
+            value["source_summaries"][0]["evidence_location"] = " table 1 "
+        elif failure == "summary-arm-shape":
+            value["source_summaries"][0]["experimental"]["extra"] = 1
+        elif failure == "summary-arm-bool":
+            value["source_summaries"][0]["experimental"]["sample_size"] = True
+        elif failure == "summary-events-over-n":
+            value["effect_measure"] = "log_risk_ratio"
+            value["source_summaries"][0]["experimental"] = {"sample_size": 10, "events": 11}
+            value["source_summaries"][0]["comparator"] = {"sample_size": 10, "events": 5}
+        elif failure == "summary-unavailable-arm":
+            value["source_summaries"][1]["experimental"] = {
+                "sample_size": 10,
+                "mean": 1.0,
+                "standard_deviation": 1.0,
+            }
+        elif failure == "summary-measure":
+            value["effect_measure"] = "odds_ratio"
         encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
         effects.write_bytes(encoded)
         digest = hashlib.sha256(encoded).hexdigest()

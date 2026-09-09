@@ -955,13 +955,16 @@ extraction source IDs, mapped study/source/claim IDs, citation anchors, reviewer
 text, derivation scope, reasons, evidence locations, and derivation prose before
 coverage and duplicate checks; reproducible effect derivation also rejects a
 padded frozen contrast definition before preserving it in the effect-record
-artifact. Independent effect verification also requires canonical effect
-reviewer, retained study IDs, source-summary study IDs, verification reviewer,
-checked locations, rationales, and service-derived claim source anchors before
-coverage checks. Meta-analysis replays those verifier-retained anchors against
-the prepared effect records before pooling, so an independent verification
-artifact cannot silently drop or rewrite the retained source bytes behind a
-mapped literature claim.
+artifact. Reproducible derivation and independent effect verification also
+validate the retained source-summary contract: every source summary must cover
+exactly one effect record with matching status, canonical reason and evidence
+location, and measure-compatible experimental/comparator arm values. Independent
+effect verification also requires canonical effect reviewer, retained study IDs,
+verification reviewer, checked locations, rationales, and service-derived claim
+source anchors before coverage checks. Meta-analysis replays those
+verifier-retained anchors against the prepared effect records before pooling, so
+an independent verification artifact cannot silently drop or rewrite the
+retained source bytes behind a mapped literature claim.
 Meta-analysis now requires canonical prepared-effect study IDs, mapped claim
 IDs, verification study IDs, and checked locations before joining prepared
 effects to independent verification, then reports a compact `study_provenance`

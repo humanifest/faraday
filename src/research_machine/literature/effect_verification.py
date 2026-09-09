@@ -9,6 +9,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.effects import validate_retained_source_summaries
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
@@ -87,22 +88,11 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
                 ),
             })
         claim_provenance[study_id] = sorted(retained, key=lambda claim: claim["extraction_id"])
-    summaries = effects.get("source_summaries")
-    if not isinstance(summaries, list) or len(summaries) != len(records):
-        raise ValidationError("effect artifact does not retain complete source summaries")
-    summary_statuses = {}
-    for item in summaries:
-        if (not isinstance(item, dict) or not isinstance(item.get("study_id"), str)
-                or not item["study_id"].strip()
-                or item["study_id"] != item["study_id"].strip()
-                or item.get("status") not in {"available", "unavailable"}):
-            raise ValidationError("retained source summaries contain invalid or duplicate study IDs")
-        study_id = item["study_id"]
-        if study_id in summary_statuses:
-            raise ValidationError("retained source summaries contain invalid or duplicate study IDs")
-        summary_statuses[study_id] = item["status"]
-    if summary_statuses != statuses:
-        raise ValidationError("retained source summaries must exactly match effect studies and statuses")
+    validate_retained_source_summaries(
+        effects.get("source_summaries"),
+        expected_statuses=statuses,
+        effect_measure=_canonical_text(effects.get("effect_measure"), "effect_measure"),
+    )
     if not isinstance(review, dict) or set(review) != {"reviewer", "assessments"}:
         raise ValidationError("effect verification requires exactly reviewer and assessments")
     reviewer = _canonical_text(review["reviewer"], "effect verification reviewer")

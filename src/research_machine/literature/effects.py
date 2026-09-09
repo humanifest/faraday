@@ -40,6 +40,118 @@ def _source_anchor(value: object, field: str) -> str:
     return require_sha256(value, field)
 
 
+def _positive_integer(value: Any, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValidationError(f"{field} must be a positive integer")
+    return value
+
+
+def _finite(value: Any, field: str, *, positive: bool = False) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValidationError(f"{field} must be finite numeric data")
+    result = float(value)
+    if positive and result <= 0:
+        raise ValidationError(f"{field} must be positive")
+    return result
+
+
+def _validate_source_summary_arm(
+    arm: Any, *, effect_measure: str, label: str
+) -> dict[str, int | float]:
+    if not isinstance(arm, dict):
+        raise ValidationError(f"{label} must be an object")
+    if effect_measure == "mean_difference":
+        expected = {"sample_size", "mean", "standard_deviation"}
+        if set(arm) != expected:
+            raise ValidationError(
+                f"{label} requires sample_size, mean, and standard_deviation"
+            )
+        return {
+            "sample_size": _positive_integer(arm["sample_size"], f"{label} sample_size"),
+            "mean": _finite(arm["mean"], f"{label} mean"),
+            "standard_deviation": _finite(
+                arm["standard_deviation"],
+                f"{label} standard_deviation",
+                positive=True,
+            ),
+        }
+    if effect_measure == "log_risk_ratio":
+        expected = {"sample_size", "events"}
+        if set(arm) != expected:
+            raise ValidationError(f"{label} requires sample_size and events")
+        sample_size = _positive_integer(arm["sample_size"], f"{label} sample_size")
+        events = _positive_integer(arm["events"], f"{label} events")
+        if events > sample_size:
+            raise ValidationError(f"{label} events cannot exceed sample_size")
+        return {"sample_size": sample_size, "events": events}
+    raise ValidationError(
+        "retained source summaries require mean_difference or log_risk_ratio"
+    )
+
+
+def validate_retained_source_summaries(
+    value: Any, *, expected_statuses: dict[str, str], effect_measure: str
+) -> list[dict[str, Any]]:
+    if effect_measure not in {"mean_difference", "log_risk_ratio"}:
+        raise ValidationError(
+            "retained source summaries require mean_difference or log_risk_ratio"
+        )
+    if not isinstance(value, list):
+        raise ValidationError("retained source summaries must be an array")
+    required = {
+        "study_id",
+        "status",
+        "reason",
+        "evidence_location",
+        "experimental",
+        "comparator",
+    }
+    by_study: dict[str, dict[str, Any]] = {}
+    for item in value:
+        if not isinstance(item, dict) or set(item) != required:
+            raise ValidationError(
+                "retained source summary fields do not match the documented contract"
+            )
+        study_id = _canonical_text(item["study_id"], "retained source summary study_id")
+        if study_id not in expected_statuses or study_id in by_study:
+            raise ValidationError("retained source summary study_id is unknown or duplicated")
+        status = item["status"]
+        if status != expected_statuses[study_id]:
+            raise ValidationError("retained source summary status disagrees with effect record")
+        if status not in {"available", "unavailable"}:
+            raise ValidationError("retained source summary status is invalid")
+        reason = _canonical_text(item["reason"], "retained source summary reason")
+        location = _canonical_text(
+            item["evidence_location"], "retained source summary evidence_location"
+        )
+        if status == "unavailable":
+            if item["experimental"] is not None or item["comparator"] is not None:
+                raise ValidationError("unavailable retained source summaries require null arms")
+            experimental = comparator = None
+        else:
+            experimental = _validate_source_summary_arm(
+                item["experimental"],
+                effect_measure=effect_measure,
+                label="retained source summary experimental arm",
+            )
+            comparator = _validate_source_summary_arm(
+                item["comparator"],
+                effect_measure=effect_measure,
+                label="retained source summary comparator arm",
+            )
+        by_study[study_id] = {
+            "study_id": study_id,
+            "status": status,
+            "reason": reason,
+            "evidence_location": location,
+            "experimental": experimental,
+            "comparator": comparator,
+        }
+    if set(by_study) != set(expected_statuses):
+        raise ValidationError("retained source summaries must cover exactly all effect records")
+    return [by_study[study_id] for study_id in sorted(by_study)]
+
+
 def create_effect_records(
     plan_path: Path,
     expected_plan_sha256: str,
@@ -177,13 +289,24 @@ def create_effect_records(
     minimum = plan.get("minimum_independent_studies")
     if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
         raise ValidationError("frozen minimum_independent_studies is invalid")
+    retained_source_summaries = (
+        validate_retained_source_summaries(
+            source_summaries,
+            expected_statuses={
+                study_id: record["status"] for study_id, record in by_study.items()
+            },
+            effect_measure=expected_measure,
+        )
+        if source_summaries is not None
+        else None
+    )
     result = {"effect_records_version": 1, "inputs": {"synthesis_plan_sha256": plan_sha,
         "extraction_sha256": extraction_sha, "evidence_map_sha256": map_sha},
         "plan_id": plan.get("plan_id"), "snapshot_id": plan.get("snapshot_id"),
         "reviewer": reviewer, "effect_measure": expected_measure,
         "derivation_scope": _canonical_text(derivation_scope, "effect derivation_scope"),
         "contrast_definition": contrast_definition,
-        "source_summaries": source_summaries,
+        "source_summaries": retained_source_summaries,
         "records": [by_study[item] for item in sorted(by_study)], "study_count": len(studies),
         "available_effect_count": available, "unavailable_effect_count": len(studies) - available,
         "minimum_independent_studies": minimum,
