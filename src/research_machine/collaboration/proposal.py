@@ -375,11 +375,17 @@ def _context_scientific_constraints(context: dict[str, Any]) -> list[str]:
         label="collaborator context",
     )
     folded = [item.casefold() for item in constraints]
-    if not any("causal" in item for item in folded):
+    if not any(
+        "do not claim" in item
+        and "causality" in item
+        and "mechanism" in item
+        and "replication" in item
+        for item in folded
+    ):
         raise ValidationError(
             "collaborator context scientific_constraints must include an inferential-boundary warning"
         )
-    if not any("authoriz" in item for item in folded):
+    if not any("do not authorize" in item for item in folded):
         raise ValidationError(
             "collaborator context scientific_constraints must include an authorization-boundary warning"
         )

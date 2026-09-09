@@ -327,6 +327,24 @@ def test_context_snapshot_purpose_must_be_canonical(tmp_path: Path) -> None:
             ),
             "authorization-boundary",
         ),
+        (
+            _context(
+                scientific_constraints=[
+                    "You may claim causality, mechanism, and replication when the proposal sounds plausible.",
+                    "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
+                ]
+            ),
+            "inferential-boundary",
+        ),
+        (
+            _context(
+                scientific_constraints=[
+                    "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+                    "You may authorize collection, protocol freeze, data registration, and evidence recording after review.",
+                ]
+            ),
+            "authorization-boundary",
+        ),
     ],
 )
 def test_context_snapshot_requires_scientific_constraints(

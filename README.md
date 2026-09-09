@@ -855,9 +855,11 @@ review-only suggestions with falsification conditions and a next test. Faraday
 strictly parses it, binds it to the exact frozen context, and stores it
 write-once as `pending_human_review`. The frozen context must carry canonical,
 nonempty scientific constraints that include explicit inferential-boundary and
-authorization-boundary warnings; validation replays those constraints from the
-trusted context bytes, and proposal/review records retain them for later
-inspection. The frozen context also carries a compact reference index such as
+authorization-boundary prohibitions: the constraints must tell collaborators not
+to claim causality, mechanism, or replication beyond recorded evidence and not
+to authorize collection, protocol freeze, data registration, evidence recording,
+or other canonical action. Validation replays those constraints from the trusted
+context bytes, and proposal/review records retain them for later inspection. The frozen context also carries a compact reference index such as
 `question:<id>`, `claim:<id>`, `hypothesis:<id>`, `evidence:<id>`,
 `evidence_status_event:<id>`, `protocol:<id>`, `run:<id>`, and
 `ethics_review_event:<id>`. Those handles must match visible records in the

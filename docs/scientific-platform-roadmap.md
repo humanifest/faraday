@@ -1104,12 +1104,13 @@ against the retained context index. The trusted
 context body is now duplicate-free for citable records, so a retained handle
 cannot ambiguously point at two visible claims, hypotheses, evidence records,
 datasets, protocols, runs, or review events. The trusted context must also include canonical, nonempty
-scientific constraints with explicit inferential-boundary and
-authorization-boundary warnings; proposal validation replays them from the
-hash-checked context file, and both proposal and adjudication records retain the
-exact constraint text for later inspection. Active and `pending_review`
-hypotheses are exposed in separate context lanes, and pending hypotheses retain
-their unapproved workflow state when cited for review. Context and proposal
+scientific constraints with explicit prohibitions against claiming causality,
+mechanism, or replication beyond recorded evidence or authorizing collection,
+protocol freeze, data registration, evidence recording, or other canonical
+action; proposal validation replays them from the hash-checked context file, and
+both proposal and adjudication records retain the exact constraint text for later
+inspection. Active and `pending_review` hypotheses are exposed in separate context
+lanes, and pending hypotheses retain their unapproved workflow state when cited for review. Context and proposal
 purpose bindings, context handles, proposal IDs, generator provider/model
 handles, suggestion IDs, evidence references, review IDs, reviewer handles,
 review-decision suggestion IDs, proposal summaries, uncertainty statements,
