@@ -319,6 +319,7 @@ def execute_qualitative_synthesis(
             "No conclusion: the frozen minimum independent-study requirement was not met."
         ),
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
         "publication_authorized": False,
         "limitations": [
             "This executor reports complete directional and ceiling counts; counts of claims are not effect sizes and multiple claims from one study are not independent evidence.",

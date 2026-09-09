@@ -1160,6 +1160,9 @@ publication authority fields, a `cannot_raise` ceiling effect,
 `plan_amended: false`, retained limitations, and service-derived timing
 counts/status; synthesis and pooling replay those values from the canonical
 departure rows before use.
+Qualitative synthesis artifacts also carry explicit false evidence,
+conclusion-authorization, and publication-authorization flags, keeping organized
+source claims visibly separate from Faraday evidence or conclusions.
 
 ## Precision, difference-power, practical-power, and equivalence-power planning
 

@@ -124,6 +124,8 @@ def test_qualitative_synthesis_cli_preserves_null_high_bias_claim_and_is_write_o
     assert result["claims"][0]["extraction_claim_sha256"] == claim_digest("s1", extraction_record)
     assert result["claims"][0]["bias_domain_judgments"][0]["judgment"] == "high"
     assert result["deviation_plan_commitments"]["synthesis_type"] == "qualitative"
+    assert result["scientific_evidence_eligible"] is False
+    assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
     assert "No automated substantive conclusion" in result["bounded_conclusion"]
     with pytest.raises(ValidationError, match="already exists"):

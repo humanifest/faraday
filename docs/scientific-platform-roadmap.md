@@ -1402,9 +1402,11 @@ rewritten into a synthesis. It also replays the evidence map's non-authority
 flags, retained limitations, claim count, and interpretive-ceiling counts before
 using the map, so an internally rewritten map cannot authorize or sanitize later
 synthesis. It never treats claim counts as effect
-sizes or authors a substantive conclusion. Quantitative plans fail closed until
-effect-size extraction, variance checks, heterogeneity diagnostics, and validated
-pooling are available.
+sizes or authors a substantive conclusion; the artifact now carries explicit
+false scientific-evidence, conclusion-authorization, and
+publication-authorization flags. Quantitative plans fail closed until effect-size
+extraction, variance checks, heterogeneity diagnostics, and validated pooling are
+available.
 The quantitative branch begins with `research literature prepare-effects`. It
 requires canonical lowercase trusted hashes for the frozen quantitative plan and
 exact evidence-map lineage, then records exactly one effect measure, standard
