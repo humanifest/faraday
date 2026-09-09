@@ -109,6 +109,7 @@ _REVIEW_RECORD_FIELDS = {
     "authorized_actions",
     "conclusion_ceiling",
 }
+_LEGACY_REVIEW_RECORD_FIELDS = _REVIEW_RECORD_FIELDS - {"context_reference_index"}
 _REVIEWED_SUGGESTION_FIELDS = {
     "suggestion_id",
     "suggestion_sha256",
@@ -683,7 +684,18 @@ def verify_collaborator_review_record(
         raise ValidationError(
             "collaborator proposal review record does not match trusted SHA-256"
         )
-    _exact_fields(record, _REVIEW_RECORD_FIELDS, "collaborator proposal review record")
+    context_reference_status = "verified"
+    if "context_reference_index" in record:
+        _exact_fields(
+            record, _REVIEW_RECORD_FIELDS, "collaborator proposal review record"
+        )
+    else:
+        _exact_fields(
+            record,
+            _LEGACY_REVIEW_RECORD_FIELDS,
+            "collaborator proposal review record",
+        )
+        context_reference_status = "legacy_missing"
     if record.get("collaborator_proposal_review_record_version") != 1:
         raise ValidationError("collaborator proposal review record version must be 1")
     if record.get("status") != "reviewed_requires_manual_domain_action":
@@ -710,8 +722,12 @@ def verify_collaborator_review_record(
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
-    allowed_evidence_refs = _context_reference_ids(
-        {"context_reference_index": record["context_reference_index"]}
+    allowed_evidence_refs = (
+        _context_reference_ids(
+            {"context_reference_index": record["context_reference_index"]}
+        )
+        if context_reference_status == "verified"
+        else None
     )
 
     review = record["review"]
@@ -783,12 +799,13 @@ def verify_collaborator_review_record(
             f"{label}.evidence_refs",
             nonempty=False,
         )
-        unknown_refs = sorted(set(evidence_refs) - allowed_evidence_refs)
-        if unknown_refs:
-            raise ValidationError(
-                f"{label} evidence_refs are not present in the retained context: "
-                + ", ".join(unknown_refs)
-            )
+        if allowed_evidence_refs is not None:
+            unknown_refs = sorted(set(evidence_refs) - allowed_evidence_refs)
+            if unknown_refs:
+                raise ValidationError(
+                    f"{label} evidence_refs are not present in the retained context: "
+                    + ", ".join(unknown_refs)
+                )
         _string_array(
             suggestion["falsification_conditions"],
             f"{label}.falsification_conditions",
@@ -835,6 +852,7 @@ def verify_collaborator_review_record(
         "status": record["status"],
         "reviewed_suggestion_count": len(reviewed_suggestions),
         "advanced_suggestion_count": len(advanced),
+        "context_reference_replay": context_reference_status,
         "canonical_writes_performed": False,
         "scientific_evidence_eligible": False,
     }

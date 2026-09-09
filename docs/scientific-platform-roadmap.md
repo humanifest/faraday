@@ -1066,7 +1066,9 @@ replays a saved review record against a trusted review-record hash, checking the
 authority flags, scientific constraints, retained context reference index,
 reviewed suggestion digests, reviewed-suggestion evidence references, decision
 coverage, compatible routes, and advanced-suggestion summary without performing
-canonical writes or authenticating the reviewer.
+canonical writes or authenticating the reviewer. Legacy review records without a
+retained context index remain visible with `legacy_missing` reference replay
+rather than being silently upgraded.
 
 Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally

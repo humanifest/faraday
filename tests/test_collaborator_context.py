@@ -619,6 +619,7 @@ def test_cli_exports_context_and_validates_proposal_without_a_provider(
     ) == 0
     verified = json.loads(capsys.readouterr().out)["result"]
     assert verified["reviewed_suggestion_count"] == 1
+    assert verified["context_reference_replay"] == "verified"
     assert verified["canonical_writes_performed"] is False
 
 
@@ -701,6 +702,56 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     )
     assert verified["reviewed_suggestion_count"] == 2
     assert verified["advanced_suggestion_count"] == 1
+    assert verified["context_reference_replay"] == "verified"
+    assert verified["scientific_evidence_eligible"] is False
+
+
+def test_verify_legacy_collaborator_review_discloses_missing_context_index(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(
+            _proposal(
+                snapshot["context_sha256"],
+                evidence_refs=["claim:claim-1"],
+            )
+        ),
+        encoding="utf-8",
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(
+        json.dumps(_review(validated["record_sha256"])), encoding="utf-8"
+    )
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record.pop("context_reference_index")
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    verified = verify_collaborator_review_record(record_path, trusted_hash)
+
+    assert verified["context_reference_replay"] == "legacy_missing"
+    assert verified["reviewed_suggestion_count"] == 1
     assert verified["scientific_evidence_eligible"] is False
 
 
