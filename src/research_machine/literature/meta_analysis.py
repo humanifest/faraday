@@ -22,6 +22,11 @@ from research_machine.literature.hashes import require_sha256
 from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
+_DEVIATION_STATUSES = {
+    "no_deviations_declared",
+    "prospective_deviations_recorded",
+    "retrospective_or_uncertain_deviation_review_required",
+}
 
 
 _T_CRITICAL_975 = {
@@ -136,6 +141,165 @@ def _egger_diagnostic(records: list[dict[str, Any]]) -> dict[str, Any]:
             "degrees_of_freedom": degrees_of_freedom, "critical_value_95": critical,
             "publication_bias_conclusion": False,
             "interpretation_boundary": "Funnel asymmetry can reflect heterogeneity, selection, measurement, or chance; this diagnostic does not establish publication bias."}
+
+
+def validate_meta_analysis_boundary(
+    meta_analysis: dict[str, Any],
+    *,
+    planned_sensitivity_analyses: list[str] | None = None,
+) -> None:
+    """Replay meta-analysis non-authority, study-count, and sensitivity boundaries."""
+    if meta_analysis.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("meta-analysis must remain scientifically ineligible")
+    if meta_analysis.get("conclusion_authorized") is not False:
+        raise ValidationError("meta-analysis must not authorize conclusions")
+    if meta_analysis.get("publication_authorized") is not False:
+        raise ValidationError("meta-analysis must not authorize publication claims")
+    limitations = meta_analysis.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("meta-analysis requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"meta-analysis limitation {index + 1}")
+
+    deviation_status = meta_analysis.get("deviation_status")
+    if deviation_status not in _DEVIATION_STATUSES:
+        raise ValidationError("meta-analysis deviation_status is invalid")
+    expected_status = (
+        "meta_analysis_deviation_review_required"
+        if deviation_status == "retrospective_or_uncertain_deviation_review_required"
+        else "meta_analysis_recorded"
+    )
+    if meta_analysis.get("status") != expected_status:
+        raise ValidationError("meta-analysis status does not replay from deviation status")
+
+    study_provenance = meta_analysis.get("study_provenance")
+    if not isinstance(study_provenance, list) or not study_provenance:
+        raise ValidationError("meta-analysis requires retained study provenance")
+    effect_statuses: dict[str, str] = {}
+    available_ids: set[str] = set()
+    unavailable_ids: set[str] = set()
+    for item in study_provenance:
+        if not isinstance(item, dict):
+            raise ValidationError("meta-analysis study provenance is malformed")
+        study_id = _canonical_text(item.get("study_id"), "meta-analysis study_id")
+        if study_id in effect_statuses:
+            raise ValidationError("meta-analysis study provenance requires unique study IDs")
+        effect_status = item.get("effect_status")
+        if effect_status not in {"available", "unavailable"}:
+            raise ValidationError("meta-analysis effect_status is invalid")
+        effect_statuses[study_id] = effect_status
+        if effect_status == "available":
+            available_ids.add(study_id)
+        else:
+            unavailable_ids.add(study_id)
+        if item.get("risk_of_bias") not in {"low", "some_concerns", "high", "unclear"}:
+            raise ValidationError("meta-analysis study provenance requires retained risk_of_bias")
+        mapped_claim_ids = item.get("mapped_claim_ids")
+        if (not isinstance(mapped_claim_ids, list) or not mapped_claim_ids
+                or any(not isinstance(claim_id, str) or not claim_id.strip()
+                       or claim_id != claim_id.strip() for claim_id in mapped_claim_ids)
+                or len(mapped_claim_ids) != len(set(mapped_claim_ids))):
+            raise ValidationError("meta-analysis mapped_claim_ids must be unique canonical text")
+        retained_digest = require_sha256(
+            item.get("retained_source_summary_sha256"),
+            "meta-analysis retained_source_summary_sha256",
+        )
+        mapped_claim_source_provenance = item.get("mapped_claim_source_provenance")
+        if not isinstance(mapped_claim_source_provenance, list) or not mapped_claim_source_provenance:
+            raise ValidationError("meta-analysis mapped claim source provenance is missing")
+        mapped_claims = _claim_source_provenance(
+            mapped_claim_source_provenance, "meta-analysis mapped claim"
+        )
+        if [claim["extraction_id"] for claim in mapped_claims] != mapped_claim_ids:
+            raise ValidationError("meta-analysis mapped_claim_ids do not replay from claim provenance")
+        verification = item.get("effect_verification")
+        if not isinstance(verification, dict):
+            raise ValidationError("meta-analysis effect verification provenance is malformed")
+        if (_canonical_text(verification.get("study_id"), "meta-analysis verification study_id") != study_id
+                or verification.get("effect_status") != effect_status):
+            raise ValidationError("meta-analysis verification provenance does not match study status")
+        if require_sha256(
+            verification.get("retained_source_summary_sha256"),
+            "meta-analysis verification retained_source_summary_sha256",
+        ) != retained_digest:
+            raise ValidationError("meta-analysis verification source-summary digest does not match study provenance")
+        verification_claims = verification.get("claim_source_provenance")
+        if not isinstance(verification_claims, list) or not verification_claims:
+            raise ValidationError("meta-analysis verification claim source provenance is missing")
+        if _claim_source_provenance(verification_claims, "meta-analysis verification claim") != mapped_claims:
+            raise ValidationError("meta-analysis verification claim provenance does not match study provenance")
+        _canonical_text(
+            verification.get("checked_location"),
+            "meta-analysis verification checked_location",
+        )
+        source_values_match = verification.get("source_values_match")
+        calculation_matches = verification.get("calculation_matches")
+        if effect_status == "available":
+            if source_values_match is not True or calculation_matches is not True:
+                raise ValidationError("meta-analysis available effects require clean verification checks")
+        elif source_values_match is not None or calculation_matches is not None:
+            raise ValidationError("meta-analysis unavailable effects require not-applicable verification checks")
+
+    available_count = meta_analysis.get("available_study_count")
+    if isinstance(available_count, bool) or available_count != len(available_ids):
+        raise ValidationError("meta-analysis available_study_count does not replay from provenance")
+    unavailable = meta_analysis.get("unavailable_studies")
+    if not isinstance(unavailable, list):
+        raise ValidationError("meta-analysis unavailable_studies must be an array")
+    unavailable_seen = set()
+    for item in unavailable:
+        if not isinstance(item, dict) or set(item) != {"study_id", "reason"}:
+            raise ValidationError("meta-analysis unavailable study fields do not match the documented contract")
+        study_id = _canonical_text(item.get("study_id"), "meta-analysis unavailable study_id")
+        if study_id in unavailable_seen:
+            raise ValidationError("meta-analysis unavailable_studies requires unique study IDs")
+        unavailable_seen.add(study_id)
+        _canonical_text(item.get("reason"), "meta-analysis unavailable reason")
+    if unavailable_seen != unavailable_ids:
+        raise ValidationError("meta-analysis unavailable_studies do not replay from provenance")
+
+    retained_source_summaries = validate_retained_source_summaries(
+        meta_analysis.get("retained_source_summaries"),
+        expected_statuses=effect_statuses,
+        effect_measure=_canonical_text(meta_analysis.get("effect_measure"), "meta-analysis effect_measure"),
+    )
+    summary_digests = {
+        summary["study_id"]: retained_source_summary_sha256(summary)
+        for summary in retained_source_summaries
+    }
+    for item in study_provenance:
+        study_id = item["study_id"]
+        if item["retained_source_summary_sha256"] != summary_digests[study_id]:
+            raise ValidationError("meta-analysis retained source summaries do not match study provenance")
+
+    sensitivity_results = meta_analysis.get("planned_sensitivity_results")
+    if not isinstance(sensitivity_results, list) or not sensitivity_results:
+        raise ValidationError("meta-analysis requires retained planned sensitivity results")
+    sensitivity_names = []
+    for item in sensitivity_results:
+        if not isinstance(item, dict):
+            raise ValidationError("meta-analysis sensitivity result is malformed")
+        name = _canonical_text(item.get("analysis"), "meta-analysis sensitivity analysis")
+        if name in sensitivity_names:
+            raise ValidationError("meta-analysis sensitivity results require unique analysis names")
+        sensitivity_names.append(name)
+        if item.get("status") not in {"completed", "not_estimable"}:
+            raise ValidationError("meta-analysis sensitivity status is invalid")
+    if planned_sensitivity_analyses is not None and sensitivity_names != planned_sensitivity_analyses:
+        raise ValidationError("meta-analysis sensitivity results do not cover the frozen plan exactly")
+
+    small_study_effects = meta_analysis.get("small_study_effects")
+    if not isinstance(small_study_effects, dict):
+        raise ValidationError("meta-analysis small-study diagnostic is missing")
+    if small_study_effects.get("status") not in {"estimated", "not_estimable"}:
+        raise ValidationError("meta-analysis small-study diagnostic status is invalid")
+    if small_study_effects.get("publication_bias_conclusion") is not False:
+        raise ValidationError("meta-analysis small-study diagnostic must not authorize publication-bias conclusions")
+    if small_study_effects.get("status") == "estimated":
+        _canonical_text(
+            small_study_effects.get("interpretation_boundary"),
+            "meta-analysis small-study interpretation boundary",
+        )
 
 
 def execute_meta_analysis(
@@ -428,6 +592,7 @@ def execute_meta_analysis(
             "Unavailable studies remain disclosed. The pooled sign is not interpreted, and no causal, clinical, practical, or publication conclusion is authorized.",
         ],
     }
+    validate_meta_analysis_boundary(result, planned_sensitivity_analyses=planned)
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("meta-analysis output already exists")

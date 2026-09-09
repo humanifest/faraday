@@ -1,4 +1,5 @@
 """Synthetic meta-analysis validates deterministic mechanics, not conclusions."""
+import copy
 import hashlib
 import json
 
@@ -6,7 +7,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.meta_analysis import execute_meta_analysis
+from research_machine.literature.meta_analysis import (
+    execute_meta_analysis,
+    validate_meta_analysis_boundary,
+)
 
 
 def write_json(path, value):
@@ -189,6 +193,7 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
                                  "checked_location": "results"}},
     ]
     assert result["conclusion_authorized"] is False
+    assert result["scientific_evidence_eligible"] is False
     assert result["publication_authorized"] is False
     assert result["small_study_effects"]["status"] == "not_estimable"
     assert result["small_study_effects"]["publication_bias_conclusion"] is False
@@ -314,6 +319,57 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     )
     assert result["status"] == "meta_analysis_deviation_review_required"
     assert result["deviations"] == value["deviations"]
+
+
+@pytest.mark.parametrize("tamper", [
+    "scientific-authority",
+    "conclusion-authority",
+    "publication-authority",
+    "limitations-missing",
+    "deviation-status",
+    "status-drift",
+    "available-count",
+    "unavailable-studies",
+    "retained-summary-digest",
+    "sensitivity-missing",
+    "small-study-conclusion",
+])
+def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
+    plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
+    result = execute_meta_analysis(
+        plan, plan_sha, effects, effects_sha, verification, verification_sha,
+        deviations, deviations_sha, tmp_path / "meta"
+    )
+    candidate = copy.deepcopy(result)
+    planned = json.loads(plan.read_text())["sensitivity_analyses"]
+    if tamper == "scientific-authority":
+        candidate["scientific_evidence_eligible"] = True
+    elif tamper == "conclusion-authority":
+        candidate["conclusion_authorized"] = True
+    elif tamper == "publication-authority":
+        candidate["publication_authorized"] = True
+    elif tamper == "limitations-missing":
+        candidate["limitations"] = []
+    elif tamper == "deviation-status":
+        candidate["deviation_status"] = "review_complete"
+    elif tamper == "status-drift":
+        candidate["status"] = "meta_analysis_recorded"
+        candidate["deviation_status"] = "retrospective_or_uncertain_deviation_review_required"
+    elif tamper == "available-count":
+        candidate["available_study_count"] = 99
+    elif tamper == "unavailable-studies":
+        candidate["unavailable_studies"] = []
+    elif tamper == "retained-summary-digest":
+        candidate["study_provenance"][0]["retained_source_summary_sha256"] = "c" * 64
+    elif tamper == "sensitivity-missing":
+        candidate["planned_sensitivity_results"].pop()
+    elif tamper == "small-study-conclusion":
+        candidate["small_study_effects"]["publication_bias_conclusion"] = True
+    with pytest.raises(ValidationError):
+        validate_meta_analysis_boundary(
+            candidate,
+            planned_sensitivity_analyses=planned,
+        )
 
 
 @pytest.mark.parametrize(("artifact", "field"), [

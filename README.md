@@ -1163,6 +1163,12 @@ and pooling replay those boundaries, study counts, readiness status, independent
 review status, and mismatch summaries before creating downstream artifacts, so a
 hash-consistent rewrite cannot turn source-summary arithmetic into evidence,
 conclusion authorization, or publication clearance.
+The meta-analysis artifact now replays its own boundary before publication to
+disk: scientific-evidence, conclusion, and publication authority must remain
+false; deviation status must derive the meta-analysis review status; available
+study counts, unavailable-study disclosures, retained source-summary digests,
+planned sensitivity coverage, and small-study diagnostic non-conclusion status
+must all replay from the artifact's retained provenance.
 Literature deviation declarations retain a compact snapshot of the frozen
 synthesis-plan commitments, and qualitative synthesis or quantitative pooling
 must match that snapshot before recording a result. Each declared departure

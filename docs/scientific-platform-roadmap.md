@@ -1538,6 +1538,14 @@ the consistent study-level bias judgment from the evidence map. Pooling must
 account for every frozen sensitivity, preserving `not_estimable` results rather
 than omitting them; alternate-model and bias-exclusion uncertainties are labeled
 normal approximations.
+The meta-analysis artifact now replays its own non-authority and summary
+boundary before it is written: false scientific-evidence, conclusion, and
+publication authorization; deviation-derived review status; available-study
+counts; unavailable-study disclosure; retained source-summary digest coverage;
+exact frozen sensitivity-result coverage; and the small-study diagnostic's
+explicit refusal to conclude publication bias. This keeps the pooled arithmetic
+inspectable without turning the result into evidence, a conclusion, or
+publication clearance.
 Small-study-effect diagnostics are now thresholded: Egger regression is attempted
 only with at least ten available effects and varying precision. It reports the
 intercept, standard error, Student-t interval, and degrees of freedom without a
