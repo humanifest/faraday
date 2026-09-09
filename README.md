@@ -827,7 +827,8 @@ gate's evidence hash must match the declared conformance record, that record
 must be a packaged run output, upstream pipeline hashes must be canonical, and
 the gate disposition must agree with the conformance status. Redacted packages
 cannot re-open local conformance bytes, but they can still reject a reassuring
-metadata rewrite. Packages exported with
+metadata rewrite; self-contained comparison replay remains a retained
+conformance-record check when the artifact bytes are present. Packages exported with
 `--include-locators` also
 replay the packaged protocol, dataset, and run frozen hash commitments from the
 unredacted bytes; redacted packages preserve the original commitments but cannot
@@ -1402,16 +1403,22 @@ purpose, and ordered `steps`; every step names a stable step ID, operation,
 JSON-compatible parameters, implementation SHA-256, and explicit input and
 output artifact IDs, media types, roles, and hashes. Faraday verifies both files
 against their independent hashes, then writes non-evidentiary
-`preprocessing-conformance.json`. Pipeline ID mismatch, missing, extra,
-reordered, or changed steps, altered parameters, artifact changes, and
-implementation-hash changes fail closed. A passed conformance check only says the
-observed declaration matches the trusted registered declaration; it does not
-authenticate acquisition, prove implementation correctness, clear a protocol
-gate, register a dataset, or authorize evidence. When a run quality gate declares
+`preprocessing-conformance.json` with retained normalized snapshots of both
+pipeline declarations. Pipeline ID mismatch, missing, extra, reordered, or
+changed steps, altered parameters, artifact changes, and implementation-hash
+changes fail closed. Verification of current conformance records recomputes the
+comparison from the retained snapshots, so a trusted outer record hash cannot
+hide rewritten step results, findings, or status. Legacy records without those
+snapshots remain visible as missing self-contained comparison replay. A passed
+conformance check only says the observed declaration matches the trusted
+registered declaration; it does not authenticate acquisition, prove
+implementation correctness, clear a protocol gate, register a dataset, or
+authorize evidence. When a run quality gate declares
 `details.preprocessing_conformance`, canonical run intake now requires the same
 record as a byte-verified output artifact under `artifact_root`, replays its
-retained record hash, registered-pipeline hash, observed-pipeline hash, and
-status, and rejects a passed gate unless the verified record itself passed. If
+retained record hash, registered-pipeline hash, observed-pipeline hash,
+self-contained comparison status, and declared gate status, and rejects a passed
+gate unless the verified record itself passed. If
 the frozen protocol records `preprocessing_pipeline` as a canonical SHA-256
 digest, the conformance record's registered-pipeline hash must match that exact
 protocol commitment at run intake and package verification. Prose preprocessing

@@ -20,13 +20,19 @@ _CONFORMANCE_RECORD_FIELDS = {
     "preprocessing_conformance_version",
     "pipeline_id",
     "registered_pipeline",
+    "registered_pipeline_snapshot",
     "observed_pipeline",
+    "observed_pipeline_snapshot",
     "step_results",
     "findings",
     "status",
     "scientific_evidence_eligible",
     "authorized_actions",
     "conclusion_ceiling",
+}
+_LEGACY_CONFORMANCE_RECORD_FIELDS = _CONFORMANCE_RECORD_FIELDS - {
+    "registered_pipeline_snapshot",
+    "observed_pipeline_snapshot",
 }
 _REGISTERED_SNAPSHOT_FIELDS = {"sha256", "size_bytes", "step_ids"}
 _OBSERVED_SNAPSHOT_FIELDS = {"sha256", "size_bytes", "pipeline_id", "step_ids"}
@@ -217,6 +223,10 @@ def _verify_findings(value: Any) -> list[dict[str, str]]:
     return findings
 
 
+def _pipeline_step_ids(pipeline: dict[str, Any]) -> list[str]:
+    return [step["step_id"] for step in pipeline["steps"]]
+
+
 def _json_safe(value: Any, field: str) -> Any:
     if isinstance(value, float) and not math.isfinite(value):
         raise ValidationError(f"preprocessing {field} must contain only finite numbers")
@@ -379,6 +389,70 @@ def _compare_pipelines(
     return findings, step_results
 
 
+def _verify_retained_pipeline_comparison(
+    record: dict[str, Any],
+    *,
+    pipeline_id: str,
+    registered: dict[str, Any],
+    observed: dict[str, Any],
+    step_results: list[dict[str, Any]],
+    findings: list[dict[str, str]],
+    status: str,
+) -> str:
+    has_registered_snapshot = "registered_pipeline_snapshot" in record
+    has_observed_snapshot = "observed_pipeline_snapshot" in record
+    if has_registered_snapshot != has_observed_snapshot:
+        raise ValidationError(
+            "preprocessing conformance record must retain both pipeline snapshots"
+        )
+    if not has_registered_snapshot:
+        return "legacy_missing"
+
+    retained_registered = _normalize_pipeline(
+        record["registered_pipeline_snapshot"],
+        "registered_pipeline_snapshot",
+    )
+    retained_observed = _normalize_pipeline(
+        record["observed_pipeline_snapshot"],
+        "observed_pipeline_snapshot",
+    )
+    if retained_registered["pipeline_id"] != pipeline_id:
+        raise ValidationError(
+            "preprocessing conformance record retained registered pipeline ID mismatch"
+        )
+    if _pipeline_step_ids(retained_registered) != registered["step_ids"]:
+        raise ValidationError(
+            "preprocessing conformance record retained registered step IDs mismatch"
+        )
+    if retained_observed["pipeline_id"] != observed["pipeline_id"]:
+        raise ValidationError(
+            "preprocessing conformance record retained observed pipeline ID mismatch"
+        )
+    if _pipeline_step_ids(retained_observed) != observed["step_ids"]:
+        raise ValidationError(
+            "preprocessing conformance record retained observed step IDs mismatch"
+        )
+
+    replayed_findings, replayed_step_results = _compare_pipelines(
+        retained_registered,
+        retained_observed,
+    )
+    if step_results != replayed_step_results or findings != replayed_findings:
+        raise ValidationError(
+            "preprocessing conformance record disagrees with retained pipeline comparison"
+        )
+    replayed_status = (
+        "preprocessing_conformance_failed"
+        if replayed_findings
+        else "preprocessing_conformance_passed"
+    )
+    if status != replayed_status:
+        raise ValidationError(
+            "preprocessing conformance record status disagrees with retained pipeline comparison"
+        )
+    return "verified"
+
+
 def assess_preprocessing_conformance(
     registered_pipeline_file: Path,
     expected_registered_pipeline_sha256: str,
@@ -417,14 +491,16 @@ def assess_preprocessing_conformance(
         "registered_pipeline": {
             "sha256": registered_sha256,
             "size_bytes": len(registered_bytes),
-            "step_ids": [step["step_id"] for step in registered["steps"]],
+            "step_ids": _pipeline_step_ids(registered),
         },
+        "registered_pipeline_snapshot": registered,
         "observed_pipeline": {
             "sha256": observed_sha256,
             "size_bytes": len(observed_bytes),
             "pipeline_id": observed["pipeline_id"],
-            "step_ids": [step["step_id"] for step in observed["steps"]],
+            "step_ids": _pipeline_step_ids(observed),
         },
+        "observed_pipeline_snapshot": observed,
         "step_results": step_results,
         "findings": findings,
         "status": status,
@@ -480,7 +556,17 @@ def verify_preprocessing_conformance_record(
         raise ValidationError(
             "preprocessing conformance record does not match expected_record_sha256"
         )
-    _exact_fields(record, _CONFORMANCE_RECORD_FIELDS, "conformance record")
+    has_snapshots = (
+        "registered_pipeline_snapshot" in record
+        or "observed_pipeline_snapshot" in record
+    )
+    _exact_fields(
+        record,
+        _CONFORMANCE_RECORD_FIELDS
+        if has_snapshots
+        else _LEGACY_CONFORMANCE_RECORD_FIELDS,
+        "conformance record",
+    )
     if record["preprocessing_conformance_version"] != 1:
         raise ValidationError("preprocessing conformance record version is unsupported")
     pipeline_id = _stable_identifier(record["pipeline_id"], "record.pipeline_id")
@@ -534,6 +620,15 @@ def verify_preprocessing_conformance_record(
         raise ValidationError(
             "failed preprocessing conformance record lacks documented discrepancies"
         )
+    comparison_replay = _verify_retained_pipeline_comparison(
+        record,
+        pipeline_id=pipeline_id,
+        registered=registered,
+        observed=observed,
+        step_results=step_results,
+        findings=findings,
+        status=status,
+    )
     return {
         "status": "preprocessing_conformance_record_verified",
         "record_sha256": record_sha256,
@@ -545,5 +640,6 @@ def verify_preprocessing_conformance_record(
         "observed_pipeline_id": observed["pipeline_id"],
         "step_ids": registered["step_ids"],
         "finding_count": len(findings),
+        "comparison_replay": comparison_replay,
         "scientific_evidence_eligible": False,
     }

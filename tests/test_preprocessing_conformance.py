@@ -110,6 +110,8 @@ def test_preprocessing_conformance_passes_for_exact_registered_pipeline(
     record = json.loads(Path(result["path"], "preprocessing-conformance.json").read_text())
     assert record["registered_pipeline"]["sha256"] == registered_sha
     assert record["observed_pipeline"]["sha256"] == observed_sha
+    assert record["registered_pipeline_snapshot"] == _pipeline()
+    assert record["observed_pipeline_snapshot"] == _pipeline()
     assert record["step_results"] == [
         {"step_id": "load-raw", "status": "passed", "differences": []},
         {"step_id": "smooth-signal", "status": "passed", "differences": []},
@@ -217,7 +219,56 @@ def test_preprocessing_conformance_record_verifier_replays_current_bytes(
     assert verified["record_status"] == "preprocessing_conformance_passed"
     assert verified["registered_pipeline_sha256"] == registered_sha
     assert verified["observed_pipeline_sha256"] == observed_sha
+    assert verified["comparison_replay"] == "verified"
     assert verified["scientific_evidence_eligible"] is False
+
+
+def test_preprocessing_conformance_record_replays_retained_comparison(
+    tmp_path: Path,
+) -> None:
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha = _write_json(registered, _pipeline())
+    observed_sha = _write_json(observed, _pipeline(smoothing_window=9))
+    result = assess_preprocessing_conformance(
+        registered,
+        registered_sha,
+        observed,
+        observed_sha,
+        tmp_path / "preprocessing-conformance",
+    )
+    record = Path(result["path"]) / "preprocessing-conformance.json"
+    retained = json.loads(record.read_text())
+    retained["step_results"][1]["differences"] = ["implementation_sha256"]
+    tampered_sha = _write_json(record, retained)
+
+    with pytest.raises(ValidationError, match="retained pipeline comparison"):
+        verify_preprocessing_conformance_record(record, tampered_sha)
+
+
+def test_preprocessing_conformance_record_labels_legacy_missing_snapshots(
+    tmp_path: Path,
+) -> None:
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha = _write_json(registered, _pipeline())
+    observed_sha = _write_json(observed, _pipeline())
+    result = assess_preprocessing_conformance(
+        registered,
+        registered_sha,
+        observed,
+        observed_sha,
+        tmp_path / "preprocessing-conformance",
+    )
+    record = Path(result["path"]) / "preprocessing-conformance.json"
+    retained = json.loads(record.read_text())
+    del retained["registered_pipeline_snapshot"]
+    del retained["observed_pipeline_snapshot"]
+    legacy_sha = _write_json(record, retained)
+
+    verified = verify_preprocessing_conformance_record(record, legacy_sha)
+
+    assert verified["comparison_replay"] == "legacy_missing"
 
 
 def test_preprocessing_conformance_record_verifier_rejects_evidence_upgrade(

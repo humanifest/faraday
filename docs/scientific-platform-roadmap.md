@@ -1102,7 +1102,8 @@ output, registered and observed pipeline hashes must be canonical, and passed or
 failed gate status must agree with the retained conformance status. Redacted
 packages cannot independently reopen local conformance artifacts, but they can
 still reject internally consistent metadata rewrites that make failed
-preprocessing look passed. Missingness-assessment gate
+preprocessing look passed; self-contained comparison replay remains a retained
+conformance-record check when the artifact bytes are present. Missingness-assessment gate
 metadata is now also replayed against the frozen complete-case analysis
 contract: retained assessment kind and status must match the registered gate
 semantics, and the assessment evidence must cite a packaged run output. This
@@ -1723,15 +1724,19 @@ implementation hashes, and explicit input/output artifact hashes. Mismatched
 pipeline identity, missing, extra, reordered, or changed steps, altered
 parameters, artifact drift, and implementation drift produce a failed
 non-evidentiary `preprocessing-conformance.json` instead of letting an analysis
-claim silent adherence to the registered pipeline. A pass only means the observed
-declaration matches the trusted registered declaration; it does not authenticate
-acquisition, prove implementation correctness, clear a gate, register a dataset,
-or authorize evidence. Canonical run intake now treats
+claim silent adherence to the registered pipeline. Current conformance records
+retain normalized snapshots of both pipeline declarations and verification
+recomputes the step results, findings, and status from those snapshots; legacy
+records without retained snapshots remain visible as missing self-contained
+comparison replay rather than being silently upgraded. A pass only means the
+observed declaration matches the trusted registered declaration; it does not
+authenticate acquisition, prove implementation correctness, clear a gate,
+register a dataset, or authorize evidence. Canonical run intake now treats
 `details.preprocessing_conformance` as a structured, artifact-bound gate claim:
 the gate must cite the conformance record as a declared output artifact under a
-passed artifact-integrity receipt, the retained record hash and both upstream
-pipeline hashes are replayed from current bytes, and the gate disposition must
-match the verified record status. When `preprocessing_pipeline` is frozen as a
+passed artifact-integrity receipt, the retained record hash, both upstream
+pipeline hashes, self-contained comparison replay, and gate disposition must
+match the verified record. When `preprocessing_pipeline` is frozen as a
 canonical SHA-256 digest, run intake and replication-package verification also
 require the conformance record's registered-pipeline hash to equal that frozen
 protocol commitment; prose commitments remain disclosed as unbound text rather
