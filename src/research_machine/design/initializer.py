@@ -103,6 +103,8 @@ def initialize_experiment_repository(
                 "inquiry_id": inquiry.inquiry_id,
                 "hypothesis_id": hypothesis.hypothesis_id,
                 "hypothesis_state": hypothesis.workflow_state.value,
+                "scaffold_provenance": scaffold["provenance"],
+                "scaffold_provenance_artifact": "drafts/design-scaffold-provenance.json",
                 "notice": "The hypothesis remains unreviewed. No protocol is frozen and no data are registered.",
             },
         )
@@ -134,6 +136,7 @@ def initialize_experiment_repository(
         "inquiry_id": inquiry.inquiry_id,
         "hypothesis_id": hypothesis.hypothesis_id,
         "hypothesis_state": hypothesis.workflow_state.value,
+        "scaffold_provenance": scaffold["provenance"],
         "git_initialized": initialize_git,
         "notice": "Created locally without a network service or LLM. Review drafts before activation, protocol freeze, or collection.",
     }

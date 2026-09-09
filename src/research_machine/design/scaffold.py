@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 import math
 import re
 from typing import Any
@@ -70,6 +72,76 @@ def _text_list(brief: dict[str, Any], key: str) -> list[str]:
 
 def _is_canonical_sha256(value: str) -> bool:
     return bool(_SHA256.fullmatch(value))
+
+
+def _canonical_json_bytes(value: Any) -> bytes:
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+
+
+def _content_sha256(value: Any) -> str:
+    if isinstance(value, str):
+        payload = value.encode("utf-8")
+    else:
+        payload = _canonical_json_bytes(value)
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _rendered_artifact_sha256(value: Any) -> str:
+    if isinstance(value, str):
+        payload = value.encode("utf-8")
+    else:
+        payload = (
+            json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+        ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _scaffold_provenance(brief: dict[str, Any], findings: list[DesignFinding]) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "source": "guided_experiment_scaffold",
+        "authority": "review_only",
+        "brief_content_sha256": _content_sha256(brief),
+        "design_findings_sha256": _content_sha256(
+            [item.to_dict() for item in findings]
+        ),
+        "scientific_evidence_eligible": False,
+    }
+
+
+def _stamp_scaffold_provenance(
+    artifacts: dict[str, Any], provenance: dict[str, Any]
+) -> None:
+    for value in artifacts.values():
+        if isinstance(value, dict):
+            value["scaffold_provenance"] = dict(provenance)
+
+
+def _scaffold_manifest(
+    status: str, artifacts: dict[str, Any], provenance: dict[str, Any]
+) -> dict[str, Any]:
+    entries = [
+        {
+            "name": name,
+            "media_type": "text/markdown" if isinstance(content, str) else "application/json",
+            "content_sha256": _rendered_artifact_sha256(content),
+        }
+        for name, content in sorted(artifacts.items())
+    ]
+    return {
+        **provenance,
+        "status": status,
+        "artifact_manifest": entries,
+        "artifact_manifest_sha256": _content_sha256(entries),
+        "notice": (
+            "This manifest binds review-only scaffold artifacts to the exact "
+            "canonical design brief content and deterministic findings that "
+            "produced them. It is not approval, protocol freeze, evidence, or "
+            "authentication of reviewer identity."
+        ),
+    }
 
 
 def validate_brief(brief: dict[str, Any]) -> None:
@@ -1533,11 +1605,9 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             )
         }
         add_quality_requirements([brief["missingness_assessment_gate_id"]])
-    return {
-        "status": "blocked" if blockers else "review_required",
-        "plain_language_summary": "This scaffold is a draft. It does not register, approve, or freeze a study.",
-        "findings": [item.to_dict() for item in findings],
-        "artifacts": {
+    status = "blocked" if blockers else "review_required"
+    provenance = _scaffold_provenance(brief, findings)
+    artifacts = {
             "hypothesis-proposal.json": hypothesis,
             "protocol-draft.json": protocol,
             "analysis-workflow-draft.json": {
@@ -1750,5 +1820,17 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 f"Factorial or crossover design declared: {brief.get('factorial_or_crossover_design', False)}. "
                 f"Interpretability plan: {brief.get('factor_interpretability_plan') or '[REVIEW REQUIRED if more than one factor changes]'}.\n"
             ),
+    }
+    _stamp_scaffold_provenance(artifacts, provenance)
+    manifest = _scaffold_manifest(status, artifacts, provenance)
+    artifacts["design-scaffold-provenance.json"] = manifest
+    return {
+        "status": status,
+        "plain_language_summary": "This scaffold is a draft. It does not register, approve, or freeze a study.",
+        "findings": [item.to_dict() for item in findings],
+        "provenance": {
+            **provenance,
+            "artifact_manifest_sha256": manifest["artifact_manifest_sha256"],
         },
+        "artifacts": artifacts,
     }

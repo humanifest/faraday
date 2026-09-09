@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -58,6 +59,65 @@ def _validity_check(check_id: str = "primary-validity", gate_id: str = "primary-
         "failure_response": "Stop primary interpretation and investigate the measurement process.",
         "assessment_gate_id": gate_id,
     }
+
+
+def _digest(value):
+    if isinstance(value, str):
+        return hashlib.sha256(value.encode("utf-8")).hexdigest()
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _rendered_digest(value):
+    if isinstance(value, str):
+        return hashlib.sha256(value.encode("utf-8")).hexdigest()
+    encoded = (
+        json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def test_scaffold_binds_review_artifacts_to_brief_and_findings():
+    brief = {
+        "title": "Provenance fixture",
+        "question": "Does the fixture preserve its design audit?",
+        "decision": "Decide whether the scaffold is reviewable.",
+        "outcome": "review trace",
+        "unit_of_observation": "draft artifact",
+        "human_participants": False,
+    }
+
+    result = scaffold_design(brief)
+
+    provenance = result["provenance"]
+    draft_anchor = {
+        key: value
+        for key, value in provenance.items()
+        if key != "artifact_manifest_sha256"
+    }
+    assert provenance["brief_content_sha256"] == _digest(brief)
+    assert provenance["design_findings_sha256"] == _digest(result["findings"])
+    assert provenance["authority"] == "review_only"
+    assert provenance["scientific_evidence_eligible"] is False
+
+    protocol = result["artifacts"]["protocol-draft.json"]
+    assert protocol["scaffold_provenance"] == draft_anchor
+
+    manifest = result["artifacts"]["design-scaffold-provenance.json"]
+    assert manifest["brief_content_sha256"] == provenance["brief_content_sha256"]
+    assert manifest["design_findings_sha256"] == provenance["design_findings_sha256"]
+    assert manifest["artifact_manifest_sha256"] == provenance["artifact_manifest_sha256"]
+    assert manifest["scientific_evidence_eligible"] is False
+    manifest_entries = {
+        entry["name"]: entry for entry in manifest["artifact_manifest"]
+    }
+    assert "design-scaffold-provenance.json" not in manifest_entries
+    assert manifest_entries["protocol-draft.json"]["content_sha256"] == _rendered_digest(protocol)
+    assert manifest_entries["collection-plan.md"]["content_sha256"] == _rendered_digest(
+        result["artifacts"]["collection-plan.md"]
+    )
 
 
 def test_measurement_columns_are_explicit_unique_and_not_reserved():

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -32,7 +33,20 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
     assert (destination / ".research" / "workspace.json").is_file()
     state = json.loads((destination / "experiment-machine.json").read_text())
     assert state["hypothesis_state"] == "unreviewed"
+    assert state["scaffold_provenance"] == result["scaffold_provenance"]
+    assert state["scaffold_provenance_artifact"] == "drafts/design-scaffold-provenance.json"
     assert (destination / "drafts" / "protocol-draft.json").is_file()
+    manifest = json.loads((destination / "drafts" / "design-scaffold-provenance.json").read_text())
+    assert manifest["artifact_manifest_sha256"] == result["scaffold_provenance"]["artifact_manifest_sha256"]
+    protocol = json.loads((destination / "drafts" / "protocol-draft.json").read_text())
+    assert protocol["scaffold_provenance"]["brief_content_sha256"] == result["scaffold_provenance"]["brief_content_sha256"]
+    manifest_entries = {
+        entry["name"]: entry["content_sha256"]
+        for entry in manifest["artifact_manifest"]
+    }
+    assert manifest_entries["protocol-draft.json"] == hashlib.sha256(
+        (destination / "drafts" / "protocol-draft.json").read_bytes()
+    ).hexdigest()
     service = ResearchService(FileSystemRepository(destination / ".research"), actor="test")
     hypothesis = service.get_hypothesis(result["hypothesis_id"])
     assert hypothesis.primary_estimand == "Mean height difference, blue minus white."

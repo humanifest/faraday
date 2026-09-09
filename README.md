@@ -419,6 +419,12 @@ rewriting history.
 `research design scaffold` turns a small, plain-language JSON brief into
 review-only hypothesis, protocol, typed primary-measurement, data-dictionary,
 and collection-plan drafts.
+Every JSON draft carries a `scaffold_provenance` anchor with deterministic
+hashes of the canonical brief content and design-audit findings, and the
+scaffold also emits `design-scaffold-provenance.json` with per-artifact content
+hashes. This binds review material to the exact prompt and audit that produced
+it without making the scaffold an approval, protocol freeze, evidence record,
+or reviewer-authentication layer.
 It also gives plain-language structural findings for causal identification,
 measurement units and calibration, controls, confounds, stopping rules, and
 human-participant safeguards. Required brief fields for title, question,
@@ -634,8 +640,11 @@ an LLM, activating a hypothesis, freezing a protocol, or registering data:
 The created repository is a local Git repository with no configured remote. It
 includes the original brief, review-only drafts, and a private local `.research`
 workspace. Its generated hypothesis is explicitly `unreviewed`; design-audit
-findings become canonical open questions. Pass `--no-git` only when Git is not
-desired for that experiment.
+findings become canonical open questions. The local `experiment-machine.json`
+retains the scaffold provenance receipt and points to the draft manifest so a
+future reviewer can tie the workspace back to the exact brief, findings, and
+draft artifact hashes. Pass `--no-git` only when Git is not desired for that
+experiment.
 
 ## Replication packages
 
