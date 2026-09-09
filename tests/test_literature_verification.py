@@ -13,6 +13,12 @@ def extraction_file(tmp_path):
     value = {
         "extraction_version": 1, "status": "extraction_recorded",
         "snapshot_id": "snapshot-fixture", "reviewer": "Extractor One",
+        "record_count": 2,
+        "scientific_evidence_eligible": False,
+        "limitations": [
+            "Records are reviewer assertions bound to source IDs and locations; the machine has not verified that source text supports them.",
+            "Extraction does not perform risk-of-bias assessment, resolve disagreements, accept claims as facts, or conduct synthesis.",
+        ],
         "source_reviews": [{"source_id": "source-1", "status": "extracted", "reason": "fixture",
             "records": [
                 {"extraction_id": "claim-1", "study_id": "study-1", "claim_text": "Synthetic claim one",
@@ -125,6 +131,10 @@ def test_citation_verification_binds_retained_source_bytes_when_available(tmp_pa
     "padded-study",
     "padded-claim-text",
     "padded-evidence-location",
+    "extraction-authority",
+    "extraction-count-drift",
+    "extraction-limitations-missing",
+    "extraction-padded-limitation",
     "unknown",
     "location",
     "padded-location",
@@ -148,6 +158,10 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
         "padded-study",
         "padded-claim-text",
         "padded-evidence-location",
+        "extraction-authority",
+        "extraction-count-drift",
+        "extraction-limitations-missing",
+        "extraction-padded-limitation",
         "missing-claim-field",
     }:
         value = json.loads(extraction.read_text())
@@ -167,6 +181,14 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
             value["source_reviews"][0]["records"][0]["evidence_location"] = " page 1 "
         elif failure == "missing-claim-field":
             del value["source_reviews"][0]["records"][0]["notes"]
+        elif failure == "extraction-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "extraction-count-drift":
+            value["record_count"] = 1
+        elif failure == "extraction-limitations-missing":
+            value["limitations"] = []
+        elif failure == "extraction-padded-limitation":
+            value["limitations"][0] = " " + value["limitations"][0]
         encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
         extraction.write_bytes(encoded)
         digest = hashlib.sha256(encoded).hexdigest()

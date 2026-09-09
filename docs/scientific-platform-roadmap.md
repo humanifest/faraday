@@ -1306,7 +1306,11 @@ rationale, and a supported, partially-supported, unsupported, or unclear
 verdict. Each assessment also binds a compact SHA-256 over the exact extracted
 claim payload: source, retained source-file hash when available, extraction ID,
 study ID, claim text, evidence location, epistemic layer, result direction,
-uncertainty, and notes. Unsupported and
+uncertainty, and notes. Citation verification also replays the extraction
+artifact's non-authority boundary, retained limitations, and `record_count`
+against the extracted claim records before creating the review artifact, so a
+rewritten extraction summary cannot imply evidence eligibility or a different
+claim set. Unsupported and
 unclear claims remain in the artifact and force `review_required`; they are
 never silently dropped. This records independent human citation checking but
 does not make a claim true, authenticate reviewer identities, assess study bias,
