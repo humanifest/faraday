@@ -31,6 +31,10 @@ _SCIENTIFIC_CONSTRAINTS = [
     "Do not claim causality, mechanism, or replication beyond recorded evidence.",
     "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
 ]
+_CANONICAL_CHANGES_REQUIRE = [
+    "research inquiry/question/claim/hypothesis/protocol/dataset/run/evidence commands",
+    "applicable human review and protocol-freeze gates",
+]
 
 
 def _context(
@@ -50,6 +54,7 @@ def _context(
         "write_boundary": {
             "context_is_read_only": True,
             "provider_required": False,
+            "canonical_changes_require": list(_CANONICAL_CHANGES_REQUIRE),
         },
     }
     if context_reference_index is not None:
@@ -307,6 +312,52 @@ def test_context_snapshot_purpose_must_be_non_empty(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda context: context["write_boundary"].pop(
+                "canonical_changes_require"
+            ),
+            "missing fields: canonical_changes_require",
+        ),
+        (
+            lambda context: context["write_boundary"].update(
+                {"model_provider": "hosted"}
+            ),
+            "unknown fields: model_provider",
+        ),
+        (
+            lambda context: context["write_boundary"].update(
+                {"canonical_changes_require": [" research commands "]}
+            ),
+            "canonical_changes_require must be canonical",
+        ),
+        (
+            lambda context: context["write_boundary"].update(
+                {"canonical_changes_require": ["Use the app to edit directly."]}
+            ),
+            "canonical research commands",
+        ),
+        (
+            lambda context: context["write_boundary"].update(
+                {"canonical_changes_require": ["Use research commands."]}
+            ),
+            "review gates",
+        ),
+    ],
+)
+def test_context_snapshot_write_boundary_must_be_exact(
+    tmp_path: Path, mutation, message: str
+) -> None:
+    context = _context()
+    mutation(context)
+
+    with pytest.raises(ValidationError, match=message):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
+
+
+@pytest.mark.parametrize(
     ("context", "message"),
     [
         (
@@ -545,6 +596,7 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
     assert record["status"] == "pending_human_review"
     assert record["context_reference_index"] == context["context_reference_index"]
     assert record["context_scientific_constraints"] == context["scientific_constraints"]
+    assert record["context_write_boundary"] == context["write_boundary"]
     assert record["proposal_body_grounding"] == _proposal_body_grounding(
         record["proposal"]
     )
@@ -566,6 +618,7 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
         "suggestion_count": 1,
         "body_grounding_count": 4,
         "context_reference_replay": "retained_index_verified",
+        "context_write_boundary_replay": "verified",
         "canonical_writes_performed": False,
         "model_invoked_by_faraday": False,
         "scientific_evidence_eligible": False,
@@ -693,6 +746,18 @@ def test_proposal_fails_closed_on_missing_scientific_boundaries(
                 }
             ),
             "inferential-boundary",
+        ),
+        (
+            lambda record: record["context_write_boundary"].update(
+                {"canonical_changes_require": []}
+            ),
+            "canonical_changes_require must be a non-empty",
+        ),
+        (
+            lambda record: record["context_write_boundary"].update(
+                {"provider_required": True}
+            ),
+            "must not require a provider",
         ),
     ],
 )
@@ -1214,10 +1279,18 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     ]
     assert record["proposal_suggestion_ids"] == ["suggestion-1", "suggestion-2"]
     assert record["context_reference_index"] == []
+    assert record["context_write_boundary"] == {
+        "context_is_read_only": True,
+        "provider_required": False,
+        "canonical_changes_require": _CANONICAL_CHANGES_REQUIRE,
+    }
     assert record["proposal_record_replay"] == {
         "context_reference_index_sha256": _canonical_json_sha256([]),
         "context_scientific_constraints_sha256": _canonical_json_sha256(
             _SCIENTIFIC_CONSTRAINTS
+        ),
+        "context_write_boundary_sha256": _canonical_json_sha256(
+            record["context_write_boundary"]
         ),
         "proposal_body_grounding_sha256": _canonical_json_sha256(
             _proposal_body_grounding(proposal)
@@ -1261,6 +1334,7 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     assert verified["reviewed_suggestion_count"] == 2
     assert verified["advanced_suggestion_count"] == 1
     assert verified["context_reference_replay"] == "verified"
+    assert verified["context_write_boundary_replay"] == "verified"
     assert verified["proposal_record_replay"] == "verified"
     assert verified["proposal_suggestion_replay"] == "verified"
     assert verified["scientific_evidence_eligible"] is False

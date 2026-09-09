@@ -65,6 +65,11 @@ _REVIEW_FIELDS = {
 }
 _REVIEWER_FIELDS = {"reviewer_id", "role"}
 _DECISION_FIELDS = {"suggestion_id", "disposition", "rationale", "domain_route"}
+_WRITE_BOUNDARY_FIELDS = {
+    "context_is_read_only",
+    "provider_required",
+    "canonical_changes_require",
+}
 _DISPOSITIONS = {"advance_to_domain_review", "reject", "defer"}
 _DOMAIN_ROUTES = {
     "question.add",
@@ -85,6 +90,7 @@ _PROPOSAL_RECORD_FIELDS = {
     "context_input",
     "context_reference_index",
     "context_scientific_constraints",
+    "context_write_boundary",
     "proposal_input",
     "proposal_body_grounding",
     "proposal",
@@ -95,6 +101,7 @@ _PROPOSAL_RECORD_FIELDS = {
     "authorized_actions",
     "conclusion_ceiling",
 }
+_LEGACY_PROPOSAL_RECORD_FIELDS = _PROPOSAL_RECORD_FIELDS - {"context_write_boundary"}
 _REVIEW_RECORD_FIELDS = {
     "collaborator_proposal_review_record_version",
     "proposal_record_input",
@@ -102,6 +109,7 @@ _REVIEW_RECORD_FIELDS = {
     "proposal_suggestion_ids",
     "context_reference_index",
     "context_scientific_constraints",
+    "context_write_boundary",
     "proposal_body_grounding",
     "review_input",
     "review",
@@ -117,8 +125,12 @@ _REVIEW_RECORD_FIELDS = {
 _PROPOSAL_RECORD_REPLAY_FIELDS = {
     "context_reference_index_sha256",
     "context_scientific_constraints_sha256",
+    "context_write_boundary_sha256",
     "proposal_body_grounding_sha256",
 }
+_LEGACY_PROPOSAL_RECORD_REPLAY_FIELDS = (
+    _PROPOSAL_RECORD_REPLAY_FIELDS - {"context_write_boundary_sha256"}
+)
 _LEGACY_REVIEW_RECORD_FIELDS = _REVIEW_RECORD_FIELDS - {
     "context_reference_index",
     "proposal_record_replay",
@@ -403,6 +415,36 @@ def _context_scientific_constraints(context: dict[str, Any]) -> list[str]:
     return constraints
 
 
+def _context_write_boundary(context: dict[str, Any]) -> dict[str, Any]:
+    boundary = context.get("write_boundary")
+    if not isinstance(boundary, dict):
+        raise ValidationError("collaborator context write_boundary must be an object")
+    _exact_fields(boundary, _WRITE_BOUNDARY_FIELDS, "collaborator context write_boundary")
+    if boundary.get("context_is_read_only") is not True:
+        raise ValidationError("collaborator context must be read-only")
+    if boundary.get("provider_required") is not False:
+        raise ValidationError("collaborator context must not require a provider")
+    canonical_changes_require = _canonical_string_array(
+        boundary.get("canonical_changes_require"),
+        "write_boundary.canonical_changes_require",
+        label="collaborator context",
+    )
+    folded = [item.casefold() for item in canonical_changes_require]
+    if not any("research" in item and "command" in item for item in folded):
+        raise ValidationError(
+            "collaborator context write_boundary.canonical_changes_require must identify canonical research commands"
+        )
+    if not any("review" in item and "gate" in item for item in folded):
+        raise ValidationError(
+            "collaborator context write_boundary.canonical_changes_require must identify review gates"
+        )
+    return {
+        "context_is_read_only": True,
+        "provider_required": False,
+        "canonical_changes_require": canonical_changes_require,
+    }
+
+
 def _context_reference_ids(context: dict[str, Any]) -> set[str]:
     raw_index = context.get("context_reference_index")
     if raw_index is None:
@@ -526,13 +568,7 @@ def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
 def _validate_context_snapshot(context: dict[str, Any]) -> list[str]:
     if context.get("context_version") != 1:
         raise ValidationError("collaborator context_version must be 1")
-    boundary = context.get("write_boundary")
-    if not isinstance(boundary, dict):
-        raise ValidationError("collaborator context write_boundary must be an object")
-    if boundary.get("context_is_read_only") is not True:
-        raise ValidationError("collaborator context must be read-only")
-    if boundary.get("provider_required") is not False:
-        raise ValidationError("collaborator context must not require a provider")
+    _context_write_boundary(context)
     _canonical_text(context.get("purpose", ""), "context purpose")
     indexed_refs = _context_reference_ids(context)
     body_refs = _context_body_reference_ids(context)
@@ -582,7 +618,7 @@ def _sha256_json(value: Any) -> str:
 
 
 def _proposal_record_replay(record: dict[str, Any]) -> dict[str, str]:
-    return {
+    replay = {
         "context_reference_index_sha256": _sha256_json(
             record.get("context_reference_index", [])
         ),
@@ -593,6 +629,11 @@ def _proposal_record_replay(record: dict[str, Any]) -> dict[str, str]:
             record["proposal_body_grounding"]
         ),
     }
+    if "context_write_boundary" in record:
+        replay["context_write_boundary_sha256"] = _sha256_json(
+            record["context_write_boundary"]
+        )
+    return replay
 
 
 def _validate_proposal_record_replay(
@@ -602,13 +643,18 @@ def _validate_proposal_record_replay(
         raise ValidationError(
             "collaborator proposal review record proposal_record_replay must be an object"
         )
+    expected_fields = (
+        _PROPOSAL_RECORD_REPLAY_FIELDS
+        if "context_write_boundary" in record
+        else _LEGACY_PROPOSAL_RECORD_REPLAY_FIELDS
+    )
     _exact_fields(
         value,
-        _PROPOSAL_RECORD_REPLAY_FIELDS,
+        expected_fields,
         "collaborator proposal review record proposal_record_replay",
     )
     replay: dict[str, str] = {}
-    for field in _PROPOSAL_RECORD_REPLAY_FIELDS:
+    for field in expected_fields:
         digest = value[field]
         if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
             raise ValidationError(
@@ -721,6 +767,7 @@ def validate_collaborator_proposal(
     if context_digest != expected_context_sha256:
         raise ValidationError("collaborator context does not match trusted SHA-256")
     context_scientific_constraints = _validate_context_snapshot(context)
+    context_write_boundary = _context_write_boundary(context)
 
     proposal, proposal_content = _load_object(proposal_file, "collaborator proposal")
     proposal_body_grounding = _validate_proposal(proposal, context, context_digest)
@@ -733,6 +780,7 @@ def validate_collaborator_proposal(
         },
         "context_reference_index": context_reference_index,
         "context_scientific_constraints": context_scientific_constraints,
+        "context_write_boundary": context_write_boundary,
         "proposal_input": {
             "sha256": hashlib.sha256(proposal_content).hexdigest(),
             "size_bytes": len(proposal_content),
@@ -780,7 +828,14 @@ def verify_collaborator_proposal_record(
         raise ValidationError(
             "collaborator proposal record does not match trusted SHA-256"
         )
-    _exact_fields(record, _PROPOSAL_RECORD_FIELDS, "collaborator proposal record")
+    has_context_write_boundary = "context_write_boundary" in record
+    _exact_fields(
+        record,
+        _PROPOSAL_RECORD_FIELDS
+        if has_context_write_boundary
+        else _LEGACY_PROPOSAL_RECORD_FIELDS,
+        "collaborator proposal record",
+    )
     if record.get("collaborator_proposal_record_version") != 1:
         raise ValidationError("collaborator proposal record version must be 1")
     if record.get("status") != "pending_human_review":
@@ -807,6 +862,10 @@ def verify_collaborator_proposal_record(
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
+    context_write_boundary_status = "legacy_missing"
+    if has_context_write_boundary:
+        _context_write_boundary({"write_boundary": record["context_write_boundary"]})
+        context_write_boundary_status = "verified"
     proposal = record.get("proposal")
     if not isinstance(proposal, dict):
         raise ValidationError("collaborator proposal record has no proposal object")
@@ -832,6 +891,7 @@ def verify_collaborator_proposal_record(
         "suggestion_count": len(proposal["suggestions"]),
         "body_grounding_count": len(proposal_body_grounding),
         "context_reference_replay": "retained_index_verified",
+        "context_write_boundary_replay": context_write_boundary_status,
         "canonical_writes_performed": False,
         "model_invoked_by_faraday": False,
         "scientific_evidence_eligible": False,
@@ -869,7 +929,14 @@ def adjudicate_collaborator_proposal(
         raise ValidationError(
             "collaborator proposal record does not match trusted SHA-256"
         )
-    _exact_fields(record, _PROPOSAL_RECORD_FIELDS, "collaborator proposal record")
+    has_context_write_boundary = "context_write_boundary" in record
+    _exact_fields(
+        record,
+        _PROPOSAL_RECORD_FIELDS
+        if has_context_write_boundary
+        else _LEGACY_PROPOSAL_RECORD_FIELDS,
+        "collaborator proposal record",
+    )
     if record.get("collaborator_proposal_record_version") != 1:
         raise ValidationError("collaborator proposal record version must be 1")
     if record.get("status") != "pending_human_review":
@@ -907,6 +974,8 @@ def adjudicate_collaborator_proposal(
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
+    if has_context_write_boundary:
+        _context_write_boundary({"write_boundary": record["context_write_boundary"]})
     replay_context = {
         "purpose": proposal.get("purpose"),
         "context_reference_index": record.get("context_reference_index", []),
@@ -1026,6 +1095,8 @@ def adjudicate_collaborator_proposal(
             "it does not accept a claim, amend a protocol, create evidence, or authorize action."
         ),
     }
+    if has_context_write_boundary:
+        adjudication["context_write_boundary"] = record["context_write_boundary"]
     content = _publish_json(output, "collaborator-proposal-review.json", adjudication)
     return {
         "path": str(output.expanduser().resolve()),
@@ -1077,32 +1148,41 @@ def verify_collaborator_review_record(
     has_context_reference_index = "context_reference_index" in record
     has_proposal_record_replay = "proposal_record_replay" in record
     has_proposal_suggestion_ids = "proposal_suggestion_ids" in record
+    has_context_write_boundary = "context_write_boundary" in record
+
+    def fields_for_boundary(expected: set[str]) -> set[str]:
+        return expected if has_context_write_boundary else expected - {"context_write_boundary"}
+
     if (
         has_context_reference_index
         and has_proposal_record_replay
         and has_proposal_suggestion_ids
     ):
         _exact_fields(
-            record, _REVIEW_RECORD_FIELDS, "collaborator proposal review record"
+            record,
+            fields_for_boundary(_REVIEW_RECORD_FIELDS),
+            "collaborator proposal review record",
         )
     elif has_context_reference_index and has_proposal_record_replay:
         _exact_fields(
             record,
-            _LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_SUGGESTION_IDS,
+            fields_for_boundary(_LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_SUGGESTION_IDS),
             "collaborator proposal review record",
         )
         proposal_suggestion_replay_status = "legacy_missing"
     elif has_context_reference_index and has_proposal_suggestion_ids:
         _exact_fields(
             record,
-            _LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_REPLAY,
+            fields_for_boundary(_LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_REPLAY),
             "collaborator proposal review record",
         )
         proposal_record_replay_status = "legacy_missing"
     elif has_context_reference_index:
         _exact_fields(
             record,
-            _LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_REPLAY_OR_SUGGESTION_IDS,
+            fields_for_boundary(
+                _LEGACY_REVIEW_RECORD_FIELDS_WITHOUT_REPLAY_OR_SUGGESTION_IDS
+            ),
             "collaborator proposal review record",
         )
         proposal_record_replay_status = "legacy_missing"
@@ -1114,7 +1194,7 @@ def verify_collaborator_review_record(
         )
         _exact_fields(
             record,
-            expected,
+            fields_for_boundary(expected),
             "collaborator proposal review record",
         )
         context_reference_status = "legacy_missing"
@@ -1151,6 +1231,10 @@ def verify_collaborator_review_record(
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
+    context_write_boundary_status = "legacy_missing"
+    if has_context_write_boundary:
+        _context_write_boundary({"write_boundary": record["context_write_boundary"]})
+        context_write_boundary_status = "verified"
     if has_proposal_record_replay:
         _validate_proposal_record_replay(
             record["proposal_record_replay"],
@@ -1333,6 +1417,7 @@ def verify_collaborator_review_record(
         "reviewed_suggestion_count": len(reviewed_suggestions),
         "advanced_suggestion_count": len(advanced),
         "context_reference_replay": context_reference_status,
+        "context_write_boundary_replay": context_write_boundary_status,
         "proposal_record_replay": proposal_record_replay_status,
         "proposal_suggestion_replay": proposal_suggestion_replay_status,
         "canonical_writes_performed": False,

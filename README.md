@@ -894,8 +894,11 @@ nonempty scientific constraints that include explicit inferential-boundary and
 authorization-boundary prohibitions: the constraints must tell collaborators not
 to claim causality, mechanism, or replication beyond recorded evidence and not
 to authorize collection, protocol freeze, data registration, evidence recording,
-or other canonical action. Validation replays those constraints from the trusted
-context bytes, and proposal/review records retain them for later inspection. The frozen context also carries a compact reference index such as
+or other canonical action. The frozen write boundary must also be exact:
+read-only, provider-free, and explicit about the canonical commands and review
+gates required for real changes. Validation replays those constraints and the
+write boundary from the trusted context bytes, and proposal/review records retain
+them for later inspection. The frozen context also carries a compact reference index such as
 `question:<id>`, `claim:<id>`, `hypothesis:<id>`, `evidence:<id>`,
 `evidence_status_event:<id>`, `protocol:<id>`, `run:<id>`, and
 `ethics_review_event:<id>`. Those handles must match visible records in the
@@ -940,7 +943,7 @@ Replay a saved proposal record before using it as review input:
 
 Verification checks the trusted proposal-record hash, retained context and
 proposal input receipts, authority flags, retained scientific constraints,
-retained context reference index, proposal body grounding, suggestion
+retained context write boundary, retained context reference index, proposal body grounding, suggestion
 references, and the `pending_human_review` boundary. It uses only the retained
 index and guardrails; it does not reopen the original context bytes, authenticate
 the generator, call a model, or authorize the proposal.
@@ -971,13 +974,13 @@ Replay a saved review record before relying on it as triage provenance:
 ```
 
 Verification checks the trusted record hash, authority flags, retained
-scientific constraints, retained context reference index, proposal-record
-guardrail replay digests, review payload version, review decisions, every
+scientific constraints, retained context write boundary, retained context
+reference index, proposal-record guardrail replay digests, review payload version, review decisions, every
 retained suggestion digest, reviewed-suggestion evidence references, exact
 coverage of the proposal's ordered suggestion IDs, and the advanced-suggestion
 summary. It still does not authenticate the reviewer or turn the review into a
 canonical scientific action. Older review records that lack the retained context
-index, proposal-record replay digest, or ordered suggestion-ID anchor remain
+index, write boundary, proposal-record replay digest, or ordered suggestion-ID anchor remain
 verifiable as `legacy_missing`, but their copied guardrails or
 reviewed-suggestion citations cannot be treated as upgraded provenance.
 

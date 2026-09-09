@@ -291,6 +291,10 @@ def test_collaborator_schema_examples_match_service_validator(tmp_path):
         "write_boundary": {
             "context_is_read_only": True,
             "provider_required": False,
+            "canonical_changes_require": [
+                "research inquiry/question/claim/hypothesis/protocol/dataset/run/evidence commands",
+                "applicable human review and protocol-freeze gates",
+            ],
         },
         "context_reference_index": [],
     }
