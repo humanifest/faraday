@@ -1187,6 +1187,53 @@ def test_verify_instrument_inspection_requires_temporal_limitations(
         verify_instrument_inspection_record(record_path, trusted_hash)
 
 
+def test_verify_instrument_inspection_replays_conclusion_ceiling(
+    tmp_path: Path,
+) -> None:
+    from research_machine.measurement.instrument import (
+        inspect_instrument_source,
+        verify_instrument_inspection_record,
+    )
+
+    source = tmp_path / "capture.bin"
+    source.write_bytes(b"fixture")
+
+    def inspect(source_bytes, config):
+        return {
+            "captured_at": "2026-09-06T12:00:00Z",
+            "captured_at_basis": "user_supplied",
+            "acquisition_method": "fixture",
+            "instrument_identifier": "fixture-01",
+            "instrument_model": "FixtureScope",
+            "native_metadata": {},
+            "warnings": [],
+        }
+
+    adapter = InstrumentAdapter(
+        "ceiling_adapter", "Ceiling adapter", "Synthetic ceiling fixture.",
+        ("application/octet-stream",), ("captured_at",), inspect,
+    )
+    manifest = AddonManifest(
+        "ceiling_instrument", "Ceiling instrument", "1", "test", "Fixture",
+        instrument_adapters=(adapter,),
+    )
+    result = inspect_instrument_source(
+        manifest, adapter, source, "application/octet-stream",
+        {"captured_at": "2026-09-06T12:00:00Z"}, tmp_path / "inspection",
+    )
+    record_path = Path(result["path"], "instrument-inspection.json")
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["conclusion_ceiling"] = "This inspection authorizes dataset custody."
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="conclusion ceiling has changed"):
+        verify_instrument_inspection_record(record_path, trusted_hash)
+
+
 def _write_stream_timing_fixture(
     tmp_path: Path,
     *,
@@ -1570,6 +1617,12 @@ def test_stream_timing_verifier_replays_hidden_failure_conditions(
             ),
             "has unknown fields",
         ),
+        (
+            lambda record: record.update({
+                "conclusion_ceiling": "This timing record clears protocol gates."
+            }),
+            "conclusion ceiling has changed",
+        ),
     ],
 )
 def test_stream_timing_verifier_rejects_retained_shape_drift(
@@ -1910,6 +1963,12 @@ def test_temporal_order_verifier_replays_retained_order_status(
                 }
             ),
             "has unknown fields",
+        ),
+        (
+            lambda record: record.update({
+                "conclusion_ceiling": "This temporal order record establishes causality."
+            }),
+            "conclusion ceiling has changed",
         ),
     ],
 )

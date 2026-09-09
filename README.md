@@ -1430,7 +1430,9 @@ Adapters cannot pass calibration, clear gates, register a dataset, or authorize
 evidence; their proposed raw-source entry must still enter the custody workflow
 below. `measurement verify-source-inspection` takes an independently trusted
 record hash and exactly reproduces the record from current source, config, and
-adapter-code bytes. No model or network service is involved.
+adapter-code bytes. The retained non-evidentiary conclusion ceiling is replayed
+exactly, so a hash-trusted inspection record cannot preserve stronger
+authorization prose. No model or network service is involved.
 When a run quality gate declares `details.instrument_inspection`, canonical run
 intake requires that same inspection record as a byte-verified output artifact
 under `artifact_root`, replays the retained record hash, source hash, committed
@@ -1471,7 +1473,10 @@ arithmetic, copied findings, or a status label. Any retained record whose
 structured contents imply a failure must also preserve the exact machine finding
 code that explains it. It also rejects status-incompatible, missing, or hidden
 extra fields in retained stream, event, overlap, and finding entries, so
-canonical run replay receives one exact machine-readable timing shape.
+canonical run replay receives one exact machine-readable timing shape. The
+retained non-evidentiary conclusion ceiling must also match exactly, preventing
+a trusted timing record from upgrading feasibility into gate clearance,
+registration, or evidence authorization.
 Failed stream-timing assessments may only be retained as failed gates, preserving
 missing stream metadata, channel mismatches, unusable uncertainty units, and
 missing-interval overlaps while blocking required-gate evidence eligibility.
@@ -1511,7 +1516,9 @@ that the event was absent, not assessed upstream, or overlapped missing data; an
 unrelated error label cannot stand in for the missing order-classification
 reason. Faraday also rejects missing or hidden extra fields in retained
 order-check and finding entries rather than allowing unreviewed annotations to
-ride along with a trusted assessment.
+ride along with a trusted assessment. The retained non-evidentiary conclusion
+ceiling must match exactly, so a trusted temporal-order record cannot rewrite
+classification into causality, mechanism, or evidence authorization.
 Failed temporal-order assessments may only be retained as failed gates, keeping
 reversals, unresolved timing, and registered-window misses visible while
 blocking required-gate evidence eligibility. Canonical run intake also stores

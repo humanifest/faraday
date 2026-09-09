@@ -1744,6 +1744,9 @@ an independently trusted record hash and exactly re-executes all three inputs.
 The trusted record hash must now be a canonical lowercase digest without
 surrounding whitespace, so verification cannot silently normalize the external
 trust anchor.
+Replay also requires Faraday's exact non-evidentiary conclusion ceiling, so a
+trusted inspection record cannot retain stronger authorization language while
+otherwise satisfying the byte and shape checks.
 The proposal
 cannot assert calibration, pass gates, register data, or become evidence.
 Instrument-inspection gate delivery: canonical run intake now treats
@@ -1788,7 +1791,10 @@ copied findings list cannot hide timing infeasibility. Retained records whose
 structured contents imply a failure must also preserve the exact machine finding
 code that explains it. Retained stream, event, overlap, and finding entries must
 now match one exact status-dependent shape, preventing hidden annotations or
-omitted machine-checkable fields from flowing into canonical run replay. Failed
+omitted machine-checkable fields from flowing into canonical run replay. Replay
+also requires the exact non-evidentiary conclusion ceiling, so timing
+feasibility cannot be rewritten into gate clearance, dataset registration, or
+evidence authorization inside a trusted record. Failed
 stream-timing assessments remain recordable only as failed gates, preserving
 missing stream metadata, channel mismatches, unusable uncertainty units, and
 missing-interval overlaps without allowing a favorable summary to overwrite
@@ -1822,7 +1828,9 @@ failure or warning must retain its exact visible finding code. Failed
 absent, not assessed upstream, or overlapped missing data; an unrelated error
 label cannot stand in for the missing order-classification reason. Unreviewed
 extra fields or missing replay inputs therefore cannot travel with a trusted
-assessment.
+assessment. Replay also requires the exact non-evidentiary conclusion ceiling,
+so temporal classification cannot be rewritten into causality, mechanism, or
+evidence authorization inside a trusted record.
 Failed temporal-order assessments remain recordable only as failed gates, so
 reversals, unresolved timing, upstream timing failure, and registered-window
 misses stay visible without being rewritten into favorable summaries. Rigor,

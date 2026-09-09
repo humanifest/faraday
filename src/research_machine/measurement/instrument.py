@@ -185,6 +185,21 @@ _MAX_ADAPTER_OUTPUT_BYTES = 1_000_000
 _MAX_JSON_DEPTH = 32
 _MAX_JSON_NODES = 50_000
 _MAX_JSON_STRING_BYTES = 262_144
+_INSTRUMENT_INSPECTION_CONCLUSION_CEILING = (
+    "Adapter-proposed acquisition metadata bound to core-hashed source bytes. "
+    "No calibration, quality gate, custody chain, dataset, or evidence is approved."
+)
+_STREAM_TIMING_CONCLUSION_CEILING = (
+    "Provider-free timing feasibility review from a trusted inspection record only. "
+    "It does not authenticate acquisition, verify calibration or drift correction, "
+    "clear a protocol gate, register a dataset, or authorize scientific evidence."
+)
+_TEMPORAL_ORDER_CONCLUSION_CEILING = (
+    "Provider-free temporal-order classification from a trusted timing assessment only. "
+    "It may distinguish clear order, reversal, registered-window misses, or timing "
+    "indeterminacy within measurement uncertainty, but it does not establish causality, "
+    "mechanism, intent, calibration truth, dataset registration, or scientific evidence."
+)
 
 
 def _text(value: Any, field: str, *, optional: bool = False) -> str:
@@ -665,10 +680,7 @@ def inspect_instrument_source(
         "status": "inspection_recorded",
         "scientific_evidence_eligible": False,
         "authorized_actions": [],
-        "conclusion_ceiling": (
-            "Adapter-proposed acquisition metadata bound to core-hashed source bytes. "
-            "No calibration, quality gate, custody chain, dataset, or evidence is approved."
-        ),
+        "conclusion_ceiling": _INSTRUMENT_INSPECTION_CONCLUSION_CEILING,
     }
     _json_safe(record)
     encoded = (json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n").encode()
@@ -1087,12 +1099,7 @@ def assess_temporal_order(
         "status": status,
         "scientific_evidence_eligible": False,
         "authorized_actions": [],
-        "conclusion_ceiling": (
-            "Provider-free temporal-order classification from a trusted timing assessment only. "
-            "It may distinguish clear order, reversal, registered-window misses, or timing "
-            "indeterminacy within measurement uncertainty, but it does not establish causality, "
-            "mechanism, intent, calibration truth, dataset registration, or scientific evidence."
-        ),
+        "conclusion_ceiling": _TEMPORAL_ORDER_CONCLUSION_CEILING,
     }
     _json_safe(record)
     encoded = (json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n").encode()
@@ -1303,7 +1310,10 @@ def verify_temporal_order_assessment_record(
         raise ValidationError("temporal order assessment must remain non-evidentiary")
     if record["authorized_actions"] != []:
         raise ValidationError("temporal order assessment must not authorize actions")
-    _text(record["conclusion_ceiling"], "temporal_order conclusion_ceiling")
+    if record["conclusion_ceiling"] != _TEMPORAL_ORDER_CONCLUSION_CEILING:
+        raise ValidationError(
+            "temporal order assessment conclusion ceiling has changed"
+        )
     if status == "temporal_order_passed" and (
         error_findings or derived_failed_checks
     ):
@@ -1549,11 +1559,7 @@ def assess_stream_timing(
         "status": status,
         "scientific_evidence_eligible": False,
         "authorized_actions": [],
-        "conclusion_ceiling": (
-            "Provider-free timing feasibility review from a trusted inspection record only. "
-            "It does not authenticate acquisition, verify calibration or drift correction, "
-            "clear a protocol gate, register a dataset, or authorize scientific evidence."
-        ),
+        "conclusion_ceiling": _STREAM_TIMING_CONCLUSION_CEILING,
     }
     _json_safe(record)
     encoded = (json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n").encode()
@@ -1830,7 +1836,10 @@ def verify_stream_timing_assessment_record(
         raise ValidationError("stream timing assessment must remain non-evidentiary")
     if record["authorized_actions"] != []:
         raise ValidationError("stream timing assessment must not authorize actions")
-    _text(record["conclusion_ceiling"], "stream_timing conclusion_ceiling")
+    if record["conclusion_ceiling"] != _STREAM_TIMING_CONCLUSION_CEILING:
+        raise ValidationError(
+            "stream timing assessment conclusion ceiling has changed"
+        )
     failed_event = any(
         value in {"stream_absent", "unsupported_uncertainty_unit"}
         for value in event_statuses
@@ -2082,7 +2091,8 @@ def verify_instrument_inspection_record(
         raise ValidationError("instrument inspection must remain non-evidentiary")
     if record["authorized_actions"] != []:
         raise ValidationError("instrument inspection must not authorize actions")
-    _text(record["conclusion_ceiling"], "conclusion_ceiling")
+    if record["conclusion_ceiling"] != _INSTRUMENT_INSPECTION_CONCLUSION_CEILING:
+        raise ValidationError("instrument inspection conclusion ceiling has changed")
     return {
         "status": "instrument_inspection_record_verified",
         "record_sha256": retained_sha256,

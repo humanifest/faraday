@@ -174,7 +174,9 @@ def _stream_timing_assessment_record() -> dict:
         "scientific_evidence_eligible": False,
         "authorized_actions": [],
         "conclusion_ceiling": (
-            "Provider-free timing feasibility review from a trusted inspection record only."
+            "Provider-free timing feasibility review from a trusted inspection record only. "
+            "It does not authenticate acquisition, verify calibration or drift correction, "
+            "clear a protocol gate, register a dataset, or authorize scientific evidence."
         ),
     }
 
