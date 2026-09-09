@@ -1336,7 +1336,11 @@ instrument, proof of reviewer expertise, or permission to synthesize effects.
 `research literature reconcile-studies` then requires identity metadata for every
 bias-assessed study and an explicit judgment for every unordered pair of studies.
 The expected bias-assessment hash must be canonical lowercase SHA-256 before it
-can pin the study-level bias artifact.
+can pin the study-level bias artifact. Study reconciliation also replays the
+bias-assessment artifact's independent-review flag, non-authority boundary,
+retained limitations, and `overall_judgment_counts` from the bias-assessed
+study records before accepting identity metadata, so a stale or authority-
+strengthened bias summary cannot be laundered into the terminal review chain.
 Independent, overlapping-cohort, duplicate-report, and unclear relationships are
 all preserved. Any non-independent or unclear pair forces `review_required`,
 preventing silent double counting. Registration IDs, populations, settings,

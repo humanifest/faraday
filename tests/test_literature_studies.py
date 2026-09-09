@@ -11,9 +11,18 @@ from research_machine.literature.studies import create_study_reconciliation
 
 def bias_file(tmp_path):
     value = {"bias_assessment_version": 1, "status": "bias_assessment_recorded",
-        "snapshot_id": "snap", "reviewer": "Bias reviewer", "assessments": [
-            {"study_id": "study-1", "source_ids": ["s1", "s1-followup"]},
-            {"study_id": "study-2", "source_ids": ["s2"]},
+        "snapshot_id": "snap", "reviewer": "Bias reviewer",
+        "independent_review": True,
+        "overall_judgment_counts": {"low": 1, "some_concerns": 1, "high": 0, "unclear": 0},
+        "scientific_evidence_eligible": False,
+        "limitations": [
+            "Overall judgments are conservative deterministic summaries of reviewer-entered domain judgments, not automated validity findings.",
+            "The generic domains do not replace design-specific validated instruments or authenticate reviewer expertise or independence.",
+            "Risk-of-bias assessment does not make a literature claim true or authorize quantitative synthesis.",
+        ],
+        "assessments": [
+            {"study_id": "study-1", "source_ids": ["s1", "s1-followup"], "overall_judgment": "some_concerns"},
+            {"study_id": "study-2", "source_ids": ["s2"], "overall_judgment": "low"},
         ]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
     path = tmp_path / "bias.json"
@@ -70,6 +79,12 @@ def test_reconciliation_preserves_canonical_study_source_and_registration_handle
     "same-reviewer",
     "padded-reviewer",
     "padded-bias-reviewer",
+    "bias-authority",
+    "bias-not-independent",
+    "bias-count-drift",
+    "bias-limitations-missing",
+    "bias-padded-limitation",
+    "bias-bad-judgment",
     "padded-bias-study",
     "padded-bias-source",
     "missing-study",
@@ -99,10 +114,33 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
     if failure == "hash": digest = "0" * 64
     elif failure == "same-reviewer": candidate["reviewer"] = "Bias reviewer"
     elif failure == "padded-reviewer": candidate["reviewer"] = " Identity reviewer "
-    elif failure in {"padded-bias-reviewer", "padded-bias-study", "padded-bias-source"}:
+    elif failure in {
+        "padded-bias-reviewer",
+        "bias-authority",
+        "bias-not-independent",
+        "bias-count-drift",
+        "bias-limitations-missing",
+        "bias-padded-limitation",
+        "bias-bad-judgment",
+        "padded-bias-study",
+        "padded-bias-source",
+    }:
         value = json.loads(bias.read_text())
         if failure == "padded-bias-reviewer":
             value["reviewer"] = " Bias reviewer "
+        elif failure == "bias-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "bias-not-independent":
+            value["independent_review"] = False
+        elif failure == "bias-count-drift":
+            value["overall_judgment_counts"]["low"] = 2
+            value["overall_judgment_counts"]["some_concerns"] = 0
+        elif failure == "bias-limitations-missing":
+            value["limitations"] = []
+        elif failure == "bias-padded-limitation":
+            value["limitations"][0] = " " + value["limitations"][0]
+        elif failure == "bias-bad-judgment":
+            value["assessments"][0]["overall_judgment"] = "safe"
         elif failure == "padded-bias-study":
             value["assessments"][0]["study_id"] = " study-1 "
         elif failure == "padded-bias-source":
