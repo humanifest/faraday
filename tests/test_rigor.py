@@ -26,14 +26,17 @@ from research_machine.domain.models import (
     AnalysisMode,
     Claim,
     ClaimLevel,
+    ControlDefinition,
     DatasetArtifact,
     DatasetManifest,
     DatasetRole,
     EvidenceDirection,
+    Inquiry,
     EvidenceRecord,
     MeasurementDefinition,
     MeasurementRole,
     ProtocolKind,
+    ProtocolStatus,
     QualityGateResult,
     QualityGateStatus,
     ResearchRun,
@@ -763,6 +766,62 @@ def test_protocol_freeze_requires_controls_quality_gates_and_stop_rule(
     assert "quality_requirements" in message
     assert "controls" in message
     assert "sample_size_or_stopping_rule" in message
+
+
+def test_rigor_warns_when_protected_protocol_lacks_discriminating_control_families():
+    from test_ethics_gate import _human_protocol
+
+    reference_only = replace(
+        _human_protocol(human_subjects=False),
+        status=ProtocolStatus.FROZEN,
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Control family audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[reference_only],
+        runs=[],
+    )
+    codes = {finding.code for finding in audit.findings}
+    assert "PROTECTED_PROTOCOL_WITHOUT_POSITIVE_CONTROL" in codes
+    assert "PROTECTED_PROTOCOL_WITHOUT_FALSIFYING_CONTROL" in codes
+
+    balanced = replace(
+        reference_only,
+        controls=["Known-effect sample", "Blank sample"],
+        control_definitions=[
+            ControlDefinition(
+                "positive-1", "Known-effect sample", "positive",
+                "Show the pipeline detects a known effect.",
+                "Known effect is detected.", "integrity",
+            ),
+            ControlDefinition(
+                "negative-1", "Blank sample", "negative",
+                "Reveal contamination or false detection.",
+                "No target signal is detected.", "integrity",
+            ),
+        ],
+    )
+    balanced_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[balanced],
+        runs=[],
+    )
+    balanced_codes = {finding.code for finding in balanced_audit.findings}
+    assert "PROTECTED_PROTOCOL_WITHOUT_POSITIVE_CONTROL" not in balanced_codes
+    assert "PROTECTED_PROTOCOL_WITHOUT_FALSIFYING_CONTROL" not in balanced_codes
 
 
 def test_typed_measurement_contract_rejects_omitted_control_time(

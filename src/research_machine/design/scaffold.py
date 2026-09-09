@@ -44,6 +44,9 @@ _VALIDITY_EVIDENCE_TYPES = {
     "criterion", "convergent", "discriminant", "known_groups", "test_retest",
     "inter_rater", "content", "calibration", "other",
 }
+_FALSIFYING_CONTROL_FAMILIES = {
+    "negative", "sham", "replay", "random_time", "adversarial",
+}
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -799,6 +802,24 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         for item in definitions:
             if any(not value.strip() for value in item.values()) or item["family"] not in CONTROL_FAMILIES:
                 add("CONTROL_DEFINITION_INCOMPLETE", "error", "A control has unresolved family, purpose, expectation, or evaluation linkage.", "Complete the control definition before protocol review.")
+        supported_families = {
+            item["family"] for item in definitions
+            if item["family"] in CONTROL_FAMILIES
+        }
+        if "positive" not in supported_families:
+            add(
+                "CONTROL_POSITIVE_FAMILY_MISSING",
+                "warning",
+                "Structured controls include no positive-control family.",
+                "Add a positive control or document why this design cannot demonstrate that the measurement pipeline detects a known effect.",
+            )
+        if not supported_families.intersection(_FALSIFYING_CONTROL_FAMILIES):
+            add(
+                "CONTROL_FALSIFYING_FAMILY_MISSING",
+                "warning",
+                "Structured controls include no negative, sham, replay, random-time, or adversarial family.",
+                "Add a falsifying control family that can reveal contamination, leakage, timing artifacts, or misleading procedure success.",
+            )
     control_measurements = brief.get("control_measurements", [])
     control_targets = [item["control"] for item in control_measurements]
     if control_targets != brief.get("controls", []) or len({item.casefold() for item in control_targets}) != len(control_targets):

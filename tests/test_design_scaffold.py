@@ -857,6 +857,58 @@ def test_controls_and_confounds_must_have_unique_scientific_labels():
     assert reordered_definitions["status"] == "blocked"
 
 
+def test_structured_controls_warn_without_positive_and_falsifying_families():
+    base = {
+        "title": "Control family fixture",
+        "question": "Can the measurement pipeline distinguish artifacts?",
+        "decision": "Whether to freeze the pipeline.",
+        "outcome": "score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+    }
+    reference_only = scaffold_design({
+        **base,
+        "controls": ["Reference sample"],
+        "control_definitions": [{
+            "control_id": "reference-1",
+            "registered_control": "Reference sample",
+            "family": "reference",
+            "purpose": "Compare against an ordinary reference sample.",
+            "expected_behavior": "Reference response remains measurable.",
+            "evaluation_gate_id": "reference-evaluated",
+        }],
+    })
+    codes = {item["code"] for item in reference_only["findings"]}
+    assert "CONTROL_POSITIVE_FAMILY_MISSING" in codes
+    assert "CONTROL_FALSIFYING_FAMILY_MISSING" in codes
+
+    balanced = scaffold_design({
+        **base,
+        "controls": ["Known-effect sample", "Blank sample"],
+        "control_definitions": [
+            {
+                "control_id": "positive-1",
+                "registered_control": "Known-effect sample",
+                "family": "positive",
+                "purpose": "Show the pipeline detects a known effect.",
+                "expected_behavior": "Known effect is detected.",
+                "evaluation_gate_id": "positive-evaluated",
+            },
+            {
+                "control_id": "negative-1",
+                "registered_control": "Blank sample",
+                "family": "negative",
+                "purpose": "Reveal contamination or false detection.",
+                "expected_behavior": "No target signal is detected.",
+                "evaluation_gate_id": "negative-evaluated",
+            },
+        ],
+    })
+    balanced_codes = {item["code"] for item in balanced["findings"]}
+    assert "CONTROL_POSITIVE_FAMILY_MISSING" not in balanced_codes
+    assert "CONTROL_FALSIFYING_FAMILY_MISSING" not in balanced_codes
+
+
 def test_guided_design_flags_uninterpretable_multi_factor_interventions():
     base = {
         "title": "Factor fixture", "question": "Question",

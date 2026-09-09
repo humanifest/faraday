@@ -174,6 +174,11 @@ scaffold now also blocks a brief that names controls without defining their
 structured family, purpose, expected behavior, and dedicated gate, and emits
 the same canonicality and ordered-coverage signals before those structured
 controls can populate a review draft.
+Guided review also distinguishes reference-only plans from discriminating
+control sets: it warns when structured controls lack a positive family that can
+show the pipeline detects a known effect, or lack a falsifying family such as
+negative, sham, replay, random-time, or adversarial control that could expose
+contamination, leakage, timing artifacts, or misleading procedure success.
 Evidence derived from that run must then account for the complete frozen control
 set: each registered control appears exactly once in `controls_passed` or
 `controls_failed`, as determined by its structured result. Omissions, duplicates,
@@ -585,6 +590,11 @@ label or expected behavior as proof that the control was reproducibly measured.
 The design auditor also rejects duplicate control and confound labels after
 case/whitespace normalization, so a repeated scientific role cannot receive
 multiple definitions, measurements, gates, or causal-graph meanings.
+For protected empirical work, rigor now warns when frozen structured controls do
+not include both a positive family and at least one falsifying family
+(`negative`, `sham`, `replay`, `random_time`, or `adversarial`); this keeps
+measurement sensitivity and disconfirmation limits visible without treating a
+control label as proof of validity.
 
 Guided JSON briefs may also carry a supported `sample_size_plan`. Faraday
 recomputes the deterministic receipt and embeds the review copy in the protocol

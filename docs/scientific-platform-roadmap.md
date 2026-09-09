@@ -99,6 +99,13 @@ itself a quality-gate pass condition. Definitions are hash-bound; absent
 definitions preserve legacy commitments without retroactively claiming a control
 audit. The provider-free interview collects family, purpose, and expected
 behavior for each named control and emits review-only definitions.
+Guided and rigor reporting now distinguish reference-only plans from
+discriminating control sets: structured controls warn when they lack a positive
+family that can demonstrate known-effect sensitivity, or lack a falsifying
+family (`negative`, `sham`, `replay`, `random_time`, or `adversarial`) capable
+of exposing contamination, leakage, timing artifacts, or misleading procedure
+success. These remain maturity warnings rather than proof that any particular
+control passed.
 For a passed evaluation gate, run intake
 requires exact `details.control_results` coverage for every control mapped to the
 gate. Each result contains `observed_behavior`, `interpretation`, boolean
