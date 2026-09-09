@@ -11,6 +11,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.effects import validate_retained_source_summaries
 from research_machine.literature.hashes import require_sha256
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
@@ -166,6 +167,10 @@ def execute_meta_analysis(
         raise ValidationError("meta-analysis requires ready effect records bound to the supplied plan")
     if effects.get("effect_measure") != plan.get("effect_measure"):
         raise ValidationError("effect records do not match the frozen effect measure")
+    if effects.get("derivation_scope") != "recomputed_from_source_reported_arm_summaries":
+        raise ValidationError(
+            "meta-analysis requires reproducibly derived effect records with retained source summaries"
+        )
     if (effect_verification.get("effect_verification_version") != 1
             or effect_verification.get("status") != "effect_verification_recorded"
             or effect_verification.get("effect_records_sha256") != effects_sha):
@@ -230,6 +235,7 @@ def execute_meta_analysis(
     available, unavailable = [], []
     study_provenance = []
     seen = set()
+    effect_statuses: dict[str, str] = {}
     for item in raw_records:
         if not isinstance(item, dict):
             raise ValidationError("effect records contain invalid or duplicate study IDs")
@@ -237,10 +243,14 @@ def execute_meta_analysis(
         if study_id in seen:
             raise ValidationError("effect records contain invalid or duplicate study IDs")
         seen.add(study_id)
+        status = item.get("status")
+        if status not in {"available", "unavailable"}:
+            raise ValidationError("effect record status is invalid")
+        effect_statuses[study_id] = status
         verification = verification_by_study.get(study_id)
         if verification is None:
             raise ValidationError("effect verification must cover every pooled effect record")
-        if verification["effect_status"] != item.get("status"):
+        if verification["effect_status"] != status:
             raise ValidationError("effect-verification status does not match the effect record")
         mapped_claims = item.get("mapped_claims")
         if not isinstance(mapped_claims, list) or not mapped_claims:
@@ -256,19 +266,17 @@ def execute_meta_analysis(
             raise ValidationError("effect records require a valid risk_of_bias")
         study_provenance.append({
             "study_id": study_id,
-            "effect_status": item.get("status"),
+            "effect_status": status,
             "risk_of_bias": risk,
             "mapped_claim_ids": claim_ids,
             "mapped_claim_source_provenance": claim_source_provenance,
             "effect_verification": verification,
         })
-        if item.get("status") == "unavailable":
+        if status == "unavailable":
             if verification["source_values_match"] is not None or verification["calculation_matches"] is not None:
                 raise ValidationError("unavailable effects require not-applicable verification checks")
             unavailable.append({"study_id": study_id, "reason": item.get("reason")})
             continue
-        if item.get("status") != "available":
-            raise ValidationError("effect record status is invalid")
         if verification["source_values_match"] is not True or verification["calculation_matches"] is not True:
             raise ValidationError("available effects require clean source and calculation verification")
         estimate, variance = item.get("estimate"), item.get("variance")
@@ -287,6 +295,11 @@ def execute_meta_analysis(
         raise ValidationError("meta-analysis requires at least two available effects and the frozen minimum study count")
     if set(verification_by_study) != seen:
         raise ValidationError("effect verification must cover exactly the effect records")
+    retained_source_summaries = validate_retained_source_summaries(
+        effects.get("source_summaries"),
+        expected_statuses=effect_statuses,
+        effect_measure=plan.get("effect_measure"),
+    )
 
     fixed_estimate, fixed_se = _weighted(available)
     fixed_weights = [1.0 / item["variance"] for item in available]
@@ -359,6 +372,7 @@ def execute_meta_analysis(
         "plan_id": plan.get("plan_id"), "snapshot_id": plan.get("snapshot_id"),
         "effect_measure": plan.get("effect_measure"), "statistical_model": model,
         "available_study_count": len(available), "unavailable_studies": unavailable,
+        "retained_source_summaries": retained_source_summaries,
         "study_provenance": study_provenance,
         "pooled_estimate": estimate, "standard_error": standard_error,
         "conventional_standard_error": conventional_se,

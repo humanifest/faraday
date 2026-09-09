@@ -36,6 +36,20 @@ def claim_source_provenance(record):
             for claim in record["mapped_claims"]]
 
 
+def source_summary(study_id, status="available"):
+    if status == "unavailable":
+        return {"study_id": study_id, "status": status, "reason": "Not reported",
+                "evidence_location": "results", "experimental": None,
+                "comparator": None}
+    suffix = int(study_id.removeprefix("s")) if study_id.startswith("s") else 1
+    return {"study_id": study_id, "status": status, "reason": "Reported arms",
+            "evidence_location": f"table {suffix}",
+            "experimental": {"sample_size": 25, "mean": 2.0 + suffix,
+                             "standard_deviation": 1.0},
+            "comparator": {"sample_size": 25, "mean": 1.0 + suffix,
+                           "standard_deviation": 1.0}}
+
+
 def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
               sensitivities=None):
     if sensitivities is None:
@@ -52,9 +66,13 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
                for i, value in enumerate([1.0, 2.0, 6.0][:count], start=1)]
     records.append({"study_id": "missing", "status": "unavailable", "reason": "Not reported",
                     "risk_of_bias": "unclear", "mapped_claims": [mapped_claim("missing")]})
+    source_summaries = [source_summary(f"s{i}") for i in range(1, count + 1)]
+    source_summaries.append(source_summary("missing", "unavailable"))
     effects = tmp_path / "effects.json"
     effects_sha = write_json(effects, {"effect_records_version": 1, "status": "effects_ready",
-        "inputs": {"synthesis_plan_sha256": plan_sha}, "effect_measure": "mean_difference", "records": records})
+        "inputs": {"synthesis_plan_sha256": plan_sha}, "effect_measure": "mean_difference",
+        "derivation_scope": "recomputed_from_source_reported_arm_summaries",
+        "source_summaries": source_summaries, "records": records})
     verification = tmp_path / "effect-verification.json"
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
@@ -95,6 +113,11 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     assert result["prediction_interval_95"] is None
     assert result["unavailable_studies"] == [{"reason": "Not reported", "study_id": "missing"}]
     assert result["deviation_plan_commitments"]["statistical_model"] == "fixed_effect"
+    assert result["retained_source_summaries"] == [
+        source_summary("missing", "unavailable"),
+        source_summary("s1"),
+        source_summary("s2"),
+    ]
     assert result["study_provenance"] == [
         {"study_id": "s1", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-1"],
          "mapped_claim_source_provenance": [mapped_claim("s1")],
@@ -148,6 +171,7 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
          "mapped_claims": [mapped_claim(f"s{i}")]}
         for i in range(10)
     ]
+    value["source_summaries"] = [source_summary(f"s{i}") for i in range(10)]
     effects_sha = write_json(effects, value)
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
@@ -173,6 +197,7 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
          "variance": 1.0, "risk_of_bias": "low",
          "mapped_claims": [mapped_claim(f"s{i}")]} for i in range(10)
     ]
+    value["source_summaries"] = [source_summary(f"s{i}") for i in range(10)]
     effects_sha = write_json(effects, value)
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
@@ -230,7 +255,7 @@ def test_meta_analysis_requires_canonical_effect_and_verification_handles(tmp_pa
         )
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "derivation-scope", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -241,6 +266,14 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(effects.read_text()); value["inputs"]["synthesis_plan_sha256"] = "0" * 64; effects_sha = write_json(effects, value)
     elif failure == "measure":
         value = json.loads(effects.read_text()); value["effect_measure"] = "other"; effects_sha = write_json(effects, value)
+    elif failure == "derivation-scope":
+        value = json.loads(effects.read_text()); value["derivation_scope"] = "reviewer_reported_effect_and_standard_error"; effects_sha = write_json(effects, value)
+    elif failure == "source-summary-missing":
+        value = json.loads(effects.read_text()); del value["source_summaries"]; effects_sha = write_json(effects, value)
+    elif failure == "source-summary-status":
+        value = json.loads(effects.read_text()); value["source_summaries"][0]["status"] = "unavailable"; effects_sha = write_json(effects, value)
+    elif failure == "source-summary-arm":
+        value = json.loads(effects.read_text()); value["source_summaries"][0]["experimental"]["standard_deviation"] = 0; effects_sha = write_json(effects, value)
     elif failure == "one-study":
         value = json.loads(effects.read_text()); value["records"] = value["records"][:1]; effects_sha = write_json(effects, value)
     elif failure == "variance":

@@ -1272,14 +1272,19 @@ claim source provenance. It also replays the verification artifact's retained
 effect status and claim source anchors against the effect records, so available
 studies require clean transcription and arithmetic checks, unavailable studies
 retain not-applicable checks, and source-byte provenance cannot be rewritten
-between verification and pooling. Unavailable studies remain disclosed. The
-executor does not interpret effect direction, reproduce source calculations, or
-authorize causal, clinical, practical, or publication conclusions.
+between verification and pooling. Pooling now also requires reproducibly derived
+effect records and replays the retained source-summary contract, then reports the
+canonical summaries alongside study provenance so malformed arm summaries cannot
+hide behind a clean verification label. Unavailable studies remain disclosed.
+The executor does not interpret effect direction, authenticate retained
+summaries, reproduce source calculations from primary data, or authorize causal,
+clinical, practical, or publication conclusions.
 Meta-analysis now requires canonical effect-record study IDs, verification study
 IDs, mapped claim IDs, verification checked locations, and matching retained
-claim source anchors before provenance joins, so padded identifiers or rewritten
-source hashes cannot be silently accepted while creating duplicate pooled records
-or hiding required verification coverage.
+claim source anchors before provenance joins, plus a valid retained source
+summary for every effect record, so padded identifiers, rewritten source hashes,
+or malformed retained inputs cannot be silently accepted while creating duplicate
+pooled records or hiding required verification coverage.
 Random-effects confidence and prediction intervals now use a conservative
 modified Hartung-Knapp standard error with tabulated Student-t critical values;
 the conventional standard error remains reported for auditability. Leave-one-out
