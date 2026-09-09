@@ -2000,6 +2000,55 @@ def test_temporal_order_verifier_requires_visible_failure_findings(
         verify_temporal_order_assessment_record(order_record, trusted_hash)
 
 
+def test_temporal_order_verifier_requires_not_assessed_failure_reason(
+    tmp_path: Path,
+) -> None:
+    from research_machine.measurement.instrument import (
+        assess_temporal_order,
+        verify_temporal_order_assessment_record,
+    )
+
+    events = [
+        {
+            "event_id": "state-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.000000Z",
+        }
+    ]
+    timing_result, timing_record = _write_timing_assessment_with_events(
+        tmp_path, events, name="order-not-assessed"
+    )
+    order_spec = _write_temporal_order_spec(
+        tmp_path, output_name="order-not-assessed-spec.json"
+    )
+    result = assess_temporal_order(
+        timing_record,
+        timing_result["assessment_sha256"],
+        order_spec,
+        tmp_path / "order-not-assessed",
+    )
+    assert result["status"] == "temporal_order_failed"
+    order_record = Path(result["path"], "temporal-order-assessment.json")
+    record = json.loads(order_record.read_text(encoding="utf-8"))
+    assert record["order_checks"][0]["observed_relation"] == "not_assessed"
+    assert record["findings"][0]["code"] == "ORDER_EVENT_ABSENT"
+    record["findings"] = [
+        {
+            "severity": "error",
+            "code": "ORDER_CONTRADICTS_EXPECTATION",
+            "message": "Unrelated failure summary fixture.",
+        }
+    ]
+    order_record.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(order_record.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="not-assessed failure findings"):
+        verify_temporal_order_assessment_record(order_record, trusted_hash)
+
+
 def test_temporal_order_verifier_requires_visible_warning_findings(
     tmp_path: Path,
 ) -> None:

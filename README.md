@@ -1503,7 +1503,10 @@ independent verifier also recomputes retained separation-window seconds and
 derives each check's pass, warning, or failure status from the recorded expected
 relation, observed relation, point delta, conservative gap, and registered
 window. Any replay-derived failure or warning must retain its exact visible
-finding code, and Faraday rejects missing or hidden extra fields in retained
+finding code. Failed `not_assessed` checks must retain a machine finding showing
+that the event was absent, not assessed upstream, or overlapped missing data; an
+unrelated error label cannot stand in for the missing order-classification
+reason. Faraday also rejects missing or hidden extra fields in retained
 order-check and finding entries rather than allowing unreviewed annotations to
 ride along with a trusted assessment.
 Failed temporal-order assessments may only be retained as failed gates, keeping

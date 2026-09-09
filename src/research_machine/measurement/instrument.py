@@ -170,6 +170,11 @@ _EXPECTED_TEMPORAL_RELATIONS = {
     "second_precedes_first",
     "indeterminate_within_uncertainty",
 }
+_TEMPORAL_ORDER_NOT_ASSESSED_FAILURE_CODES = {
+    "ORDER_EVENT_ABSENT",
+    "ORDER_EVENT_NOT_ASSESSED",
+    "ORDER_EVENT_OVERLAPS_MISSING_INTERVAL",
+}
 _ABSOLUTE_TIME_UNITS_TO_SECONDS = {
     "s": 1.0,
     "ms": 0.001,
@@ -1172,6 +1177,7 @@ def verify_temporal_order_assessment_record(
     check_statuses: list[str] = []
     derived_failed_checks = 0
     derived_warning_checks = 0
+    not_assessed_failed_checks = 0
     required_error_codes: set[str] = set()
     required_warning_codes: set[str] = set()
     if timing_status != "timing_feasibility_passed":
@@ -1253,6 +1259,7 @@ def verify_temporal_order_assessment_record(
                     required_code = "ORDER_INDETERMINATE_WITHIN_UNCERTAINTY"
         elif observed_relation == "not_assessed":
             required_code = ""
+            not_assessed_failed_checks += 1
         elif observed_relation == "indeterminate_within_uncertainty":
             required_code = "ORDER_INDETERMINATE_WITHIN_UNCERTAINTY"
         else:
@@ -1308,6 +1315,15 @@ def verify_temporal_order_assessment_record(
     if derived_failed_checks and not error_findings:
         raise ValidationError(
             "temporal order assessment record omits required failure findings"
+        )
+    if (
+        not_assessed_failed_checks
+        and not (
+            retained_error_codes & _TEMPORAL_ORDER_NOT_ASSESSED_FAILURE_CODES
+        )
+    ):
+        raise ValidationError(
+            "temporal order assessment record omits required not-assessed failure findings"
         )
     missing_error_codes = sorted(required_error_codes - retained_error_codes)
     if missing_error_codes:

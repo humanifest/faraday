@@ -1817,8 +1817,12 @@ Replay now recomputes retained separation-window seconds and derives each
 check's status from the expected relation, observed relation, point delta,
 conservative gap, and registered window. Retained order-check and finding
 entries must match exact status-dependent shapes, and every replay-derived
-failure or warning must retain its exact visible finding code, so unreviewed
-extra fields or missing replay inputs cannot travel with a trusted assessment.
+failure or warning must retain its exact visible finding code. Failed
+`not_assessed` checks must retain a machine finding showing that the event was
+absent, not assessed upstream, or overlapped missing data; an unrelated error
+label cannot stand in for the missing order-classification reason. Unreviewed
+extra fields or missing replay inputs therefore cannot travel with a trusted
+assessment.
 Failed temporal-order assessments remain recordable only as failed gates, so
 reversals, unresolved timing, upstream timing failure, and registered-window
 misses stay visible without being rewritten into favorable summaries. Rigor,
