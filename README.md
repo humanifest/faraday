@@ -1243,7 +1243,8 @@ When a run quality gate declares `details.instrument_inspection`, canonical run
 intake requires that same inspection record as a byte-verified output artifact
 under `artifact_root`, replays the retained record hash, source hash, committed
 config hash, adapter implementation hash, and `inspection_recorded` status from
-current bytes, and accepts it only as a passed retention gate. Rigor, synthesis,
+current bytes, requires the gate's `evidence_sha256` to match the retained
+record hash, and accepts it only as a passed retention gate. Rigor, synthesis,
 and replication-package verification expose the record locator and hashes while
 preserving the boundary: this proves local retention of low-authority
 acquisition metadata, not calibration, custody, dataset registration, or
@@ -1266,7 +1267,8 @@ register a dataset, or authorize evidence. When a run quality gate declares
 `details.stream_timing_assessment`, canonical run intake requires the same
 record as a byte-verified output artifact under `artifact_root`, replays its
 retained record hash, source inspection hash, timing specification hash, and
-status, and rejects a passed gate unless the verified record itself passed. The
+status, requires the gate's `evidence_sha256` to match the retained record hash,
+and rejects a passed gate unless the verified record itself passed. The
 independent verifier now recomputes retained lag-window seconds and event
 uncertainty fractions, and derives retained channel mismatches, absent streams,
 unsupported uncertainty units, excessive uncertainty fractions, and
@@ -1301,7 +1303,8 @@ scientific evidence. When a run quality gate declares
 `details.temporal_order_assessment`, canonical run intake requires the same
 record as a byte-verified output artifact under `artifact_root`, replays its
 retained record hash, upstream timing-assessment hash, specification hash, and
-status, and rejects a passed gate unless the verified record itself passed. The
+status, requires the gate's `evidence_sha256` to match the retained record hash,
+and rejects a passed gate unless the verified record itself passed. The
 independent verifier also recomputes retained separation-window seconds and
 derives each check's pass, warning, or failure status from the recorded expected
 relation, observed relation, point delta, conservative gap, and registered

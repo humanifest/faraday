@@ -269,6 +269,14 @@ def _validate_temporal_order_assessment_gate_metadata(
         assessment["specification_sha256"],
         f"{prefix}.specification_sha256",
     )
+    evidence_sha256 = require_sha256(
+        gate.details.get("evidence_sha256"),
+        f"package run {run_id} gate {gate.gate_id} evidence_sha256",
+    )
+    if evidence_sha256 != record_sha256:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} evidence does not match temporal-order assessment record"
+        )
     if not any(
         artifact.locator == locator and artifact.sha256 == record_sha256
         for artifact in output_artifacts
@@ -329,6 +337,14 @@ def _validate_instrument_inspection_gate_metadata(
         inspection["implementation_sha256"],
         f"{prefix}.implementation_sha256",
     )
+    evidence_sha256 = require_sha256(
+        gate.details.get("evidence_sha256"),
+        f"package run {run_id} gate {gate.gate_id} evidence_sha256",
+    )
+    if evidence_sha256 != record_sha256:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} evidence does not match instrument inspection record"
+        )
     if not any(
         artifact.locator == locator and artifact.sha256 == record_sha256
         for artifact in output_artifacts
@@ -383,6 +399,14 @@ def _validate_stream_timing_assessment_gate_metadata(
         assessment["specification_sha256"],
         f"{prefix}.specification_sha256",
     )
+    evidence_sha256 = require_sha256(
+        gate.details.get("evidence_sha256"),
+        f"package run {run_id} gate {gate.gate_id} evidence_sha256",
+    )
+    if evidence_sha256 != record_sha256:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} evidence does not match stream-timing assessment record"
+        )
     if not any(
         artifact.locator == locator and artifact.sha256 == record_sha256
         for artifact in output_artifacts

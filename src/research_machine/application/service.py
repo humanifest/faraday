@@ -528,6 +528,14 @@ def _validate_temporal_order_assessment_gate(
     allowed_statuses = {"temporal_order_passed", "temporal_order_failed"}
     if declared_status not in allowed_statuses:
         raise ValidationError(f"{prefix}.status is unsupported")
+    evidence_sha256 = require_sha256(
+        gate.details.get("evidence_sha256"),
+        f"quality gate {gate.gate_id} evidence_sha256",
+    )
+    if evidence_sha256 != record_sha256:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} evidence_sha256 must match temporal_order_assessment.sha256"
+        )
     if not any(
         artifact.locator == locator
         and artifact.sha256 == record_sha256
@@ -613,6 +621,14 @@ def _validate_instrument_inspection_gate(
     declared_status = require_canonical_text(inspection["status"], f"{prefix}.status")
     if declared_status != "inspection_recorded":
         raise ValidationError(f"{prefix}.status is unsupported")
+    evidence_sha256 = require_sha256(
+        gate.details.get("evidence_sha256"),
+        f"quality gate {gate.gate_id} evidence_sha256",
+    )
+    if evidence_sha256 != record_sha256:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} evidence_sha256 must match instrument_inspection.sha256"
+        )
     if not any(
         artifact.locator == locator
         and artifact.sha256 == record_sha256
@@ -692,6 +708,14 @@ def _validate_stream_timing_assessment_gate(
     allowed_statuses = {"timing_feasibility_passed", "timing_feasibility_failed"}
     if declared_status not in allowed_statuses:
         raise ValidationError(f"{prefix}.status is unsupported")
+    evidence_sha256 = require_sha256(
+        gate.details.get("evidence_sha256"),
+        f"quality gate {gate.gate_id} evidence_sha256",
+    )
+    if evidence_sha256 != record_sha256:
+        raise ValidationError(
+            f"quality gate {gate.gate_id} evidence_sha256 must match stream_timing_assessment.sha256"
+        )
     if not any(
         artifact.locator == locator
         and artifact.sha256 == record_sha256

@@ -1510,12 +1510,15 @@ Instrument-inspection gate delivery: canonical run intake now treats
 The gate must cite the inspection record as a declared output artifact under a
 passed artifact-integrity receipt, and the retained record hash, inspected source
 hash, committed config hash, adapter implementation hash, and
-`inspection_recorded` status are replayed from current bytes. Because published
-inspection records have no failed-record status, this metadata may only support
-a passed retention gate; it does not clear calibration, custody, dataset intake,
-timing feasibility, or scientific evidence. Rigor, deterministic synthesis, and
-replication-package verification now carry the locator, record hash, source
-hash, config hash, implementation hash, and bounded non-evidentiary status.
+`inspection_recorded` status are replayed from current bytes. The gate's
+`evidence_sha256` must match that retained record hash, so a valid but unrelated
+output artifact cannot stand in for the structured inspection record. Because
+published inspection records have no failed-record status, this metadata may
+only support a passed retention gate; it does not clear calibration, custody,
+dataset intake, timing feasibility, or scientific evidence. Rigor, deterministic
+synthesis, and replication-package verification now carry the locator, record
+hash, source hash, config hash, implementation hash, and bounded
+non-evidentiary status.
 Stream-timing feasibility delivery: `measurement assess-timing` now accepts an
 independently trusted instrument-inspection hash plus a machine-readable timing
 specification. It publishes a deterministic, non-evidentiary
@@ -1531,7 +1534,9 @@ authorize evidence. Canonical run intake now treats
 the gate must cite the assessment record as a declared output artifact under a
 passed artifact-integrity receipt, the retained record hash, source inspection
 hash, timing specification hash, and status are replayed from current bytes, and
-a passed gate requires a verified `timing_feasibility_passed` record. Replay now
+a passed gate requires a verified `timing_feasibility_passed` record. The gate's
+`evidence_sha256` must match the retained record hash, preventing a valid but
+unrelated output artifact from anchoring the timing gate. Replay now
 recomputes retained lag-window seconds and event uncertainty fractions, and
 derives retained channel mismatches, missing streams, unsupported uncertainty
 units, excessive uncertainty fractions, and missing-interval overlaps from the
@@ -1562,7 +1567,8 @@ treats `details.temporal_order_assessment` as a structured, artifact-bound gate
 claim: the gate must cite the assessment record as a declared output artifact
 under a passed artifact-integrity receipt, the retained record hash, upstream
 timing-assessment hash, specification hash, and status are replayed from current
-bytes, and a passed gate requires a verified `temporal_order_passed` record.
+bytes, the gate's `evidence_sha256` must match the retained record hash, and a
+passed gate requires a verified `temporal_order_passed` record.
 Replay now recomputes retained separation-window seconds and derives each
 check's status from the expected relation, observed relation, point delta,
 conservative gap, and registered window. Retained order-check and finding

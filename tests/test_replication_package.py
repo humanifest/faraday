@@ -310,6 +310,16 @@ def _refresh_packaged_file(package: Path, name: str) -> str:
     return hashlib.sha256(manifest_path.read_bytes()).hexdigest()
 
 
+def _add_packaged_decoy_output(runs: list[dict], sha256: str = "f" * 64) -> None:
+    runs[0]["output_artifacts"].append({
+        "locator": "[redacted: obtain from authorized source]",
+        "sha256": sha256,
+        "size_bytes": 2,
+        "media_type": "application/json",
+        "metadata": {},
+    })
+
+
 def test_nested_locator_redaction_does_not_mutate_source():
     from research_machine.replication.package import _redact_artifact_locators
     source = {"metadata": {"custody": [{"locator": "/private/fixture.csv", "sha256": "a" * 64}]},
@@ -1174,6 +1184,21 @@ def test_replication_package_verifies_stream_timing_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
+    _add_packaged_decoy_output(runs)
+    runs[0]["quality_gates"][0]["details"]["evidence_sha256"] = "f" * 64
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence does not match stream-timing assessment record",
+    ):
+        verify_replication_package(package, commitment)
+
+    runs = json.loads(runs_path.read_text())
+    runs[0]["quality_gates"][0]["details"]["evidence_sha256"] = (
+        runs[0]["quality_gates"][0]["details"]["stream_timing_assessment"]["sha256"]
+    )
     runs[0]["quality_gates"][0]["details"]["stream_timing_assessment"][
         "status"
     ] = "timing_feasibility_failed"
@@ -1262,6 +1287,21 @@ def test_replication_package_verifies_instrument_inspection_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
+    _add_packaged_decoy_output(runs)
+    runs[0]["quality_gates"][0]["details"]["evidence_sha256"] = "f" * 64
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence does not match instrument inspection record",
+    ):
+        verify_replication_package(package, commitment)
+
+    runs = json.loads(runs_path.read_text())
+    runs[0]["quality_gates"][0]["details"]["evidence_sha256"] = (
+        runs[0]["quality_gates"][0]["details"]["instrument_inspection"]["sha256"]
+    )
     runs[0]["quality_gates"][0]["details"]["instrument_inspection"][
         "status"
     ] = "inspection_failed"
@@ -1358,6 +1398,21 @@ def test_replication_package_verifies_temporal_order_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
+    _add_packaged_decoy_output(runs)
+    runs[0]["quality_gates"][0]["details"]["evidence_sha256"] = "f" * 64
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence does not match temporal-order assessment record",
+    ):
+        verify_replication_package(package, commitment)
+
+    runs = json.loads(runs_path.read_text())
+    runs[0]["quality_gates"][0]["details"]["evidence_sha256"] = (
+        runs[0]["quality_gates"][0]["details"]["temporal_order_assessment"]["sha256"]
+    )
     runs[0]["quality_gates"][0]["details"]["temporal_order_assessment"][
         "status"
     ] = "temporal_order_failed"

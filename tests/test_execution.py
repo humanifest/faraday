@@ -927,6 +927,37 @@ def test_run_replays_passed_instrument_inspection_gate(tmp_path: Path) -> None:
     )
 
 
+def test_run_rejects_instrument_inspection_gate_evidence_split(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _instrument_inspection_gate_fixture(
+        tmp_path
+    )
+    decoy = tmp_path / "instrument-decoy.json"
+    decoy_sha256 = _write_json_artifact(decoy, {"fixture": "decoy"})
+    output_artifacts.append(DatasetArtifact(
+        decoy.name,
+        decoy_sha256,
+        size_bytes=decoy.stat().st_size,
+        media_type="application/json",
+    ))
+    quality_gates[0].details["evidence_sha256"] = decoy_sha256
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence_sha256 must match instrument_inspection.sha256",
+    ):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
+
+
 def test_run_rejects_instrument_inspection_implementation_hash_drift(
     tmp_path: Path,
 ) -> None:
@@ -1091,6 +1122,37 @@ def test_run_replays_passed_stream_timing_assessment_gate(tmp_path: Path) -> Non
     )
 
 
+def test_run_rejects_stream_timing_gate_evidence_split(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _stream_timing_assessment_gate_fixture(
+        tmp_path
+    )
+    decoy = tmp_path / "stream-timing-decoy.json"
+    decoy_sha256 = _write_json_artifact(decoy, {"fixture": "decoy"})
+    output_artifacts.append(DatasetArtifact(
+        decoy.name,
+        decoy_sha256,
+        size_bytes=decoy.stat().st_size,
+        media_type="application/json",
+    ))
+    quality_gates[0].details["evidence_sha256"] = decoy_sha256
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence_sha256 must match stream_timing_assessment.sha256",
+    ):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
+
+
 def test_run_rejects_passed_stream_timing_gate_with_failed_record(
     tmp_path: Path,
 ) -> None:
@@ -1232,6 +1294,37 @@ def test_run_replays_passed_temporal_order_assessment_gate(tmp_path: Path) -> No
         finding.code == "RUN_TEMPORAL_ORDER_ASSESSMENT_REPLAYED"
         for finding in service.audit_rigor().findings
     )
+
+
+def test_run_rejects_temporal_order_gate_evidence_split(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _temporal_order_assessment_gate_fixture(
+        tmp_path
+    )
+    decoy = tmp_path / "temporal-order-decoy.json"
+    decoy_sha256 = _write_json_artifact(decoy, {"fixture": "decoy"})
+    output_artifacts.append(DatasetArtifact(
+        decoy.name,
+        decoy_sha256,
+        size_bytes=decoy.stat().st_size,
+        media_type="application/json",
+    ))
+    quality_gates[0].details["evidence_sha256"] = decoy_sha256
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence_sha256 must match temporal_order_assessment.sha256",
+    ):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
 
 
 def test_run_rejects_passed_temporal_order_gate_with_failed_record(
