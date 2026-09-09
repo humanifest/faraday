@@ -13,7 +13,22 @@ def mapped_claim(study):
     suffix = "1" if study == "s1" else "2"
     return {"extraction_id": f"claim-{suffix}", "extraction_claim_sha256": "a" * 64,
             "source_id": f"source-{suffix}", "source_retained_file_sha256": "b" * 64,
-            "citation_checked_location": f"page {suffix}"}
+            "result_direction": "mixed", "interpretive_ceiling": "reviewed_source_claim",
+            "citation_verdict": "supported", "citation_checked_location": f"page {suffix}"}
+
+
+def verification_claim_source(study):
+    claim = mapped_claim(study)
+    return {
+        key: claim[key]
+        for key in (
+            "extraction_id",
+            "extraction_claim_sha256",
+            "source_id",
+            "source_retained_file_sha256",
+            "citation_checked_location",
+        )
+    }
 
 
 def source_summary_digest(summary):
@@ -37,8 +52,17 @@ def effects_file(tmp_path):
         "derivation_scope": "recomputed_from_source_reported_arm_summaries", "reviewer": "Effect reviewer",
         "plan_id": "p1", "snapshot_id": "snap", "effect_measure": "mean_difference",
         "source_summaries": summaries, "records": [
-            {"study_id": "s1", "status": "available", "mapped_claims": [mapped_claim("s1")]},
-            {"study_id": "s2", "status": "unavailable", "mapped_claims": [mapped_claim("s2")]}],
+            {"study_id": "s1", "status": "available", "reason": "Reported arms",
+             "risk_of_bias": "low", "mapped_claims": [mapped_claim("s1")],
+             "effect_measure": "mean_difference", "estimate": 1.0,
+             "standard_error": 0.4472135954999579, "variance": 0.2,
+             "sample_size": 50, "evidence_location": "table 1",
+             "derivation": "Recomputed from retained arm summaries"},
+            {"study_id": "s2", "status": "unavailable", "reason": "No compatible outcome",
+             "risk_of_bias": "unclear", "mapped_claims": [mapped_claim("s2")],
+             "effect_measure": "mean_difference", "estimate": None,
+             "standard_error": None, "variance": None, "sample_size": None,
+             "evidence_location": "results", "derivation": "No compatible outcome"}],
         "study_count": 2, "available_effect_count": 1, "unavailable_effect_count": 1,
         "minimum_independent_studies": 1, "scientific_evidence_eligible": False,
         "conclusion_authorized": False, "publication_authorized": False,
@@ -85,7 +109,7 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     result = create_effect_verification(effects, digest, review(), tmp_path / "verification")
     assert result["assessments"][0]["study_id"] == "s1"
     assert result["assessments"][0]["checked_location"] == "table 1"
-    assert result["assessments"][0]["claim_source_provenance"] == [mapped_claim("s1")]
+    assert result["assessments"][0]["claim_source_provenance"] == [verification_claim_source("s1")]
     assert result["assessments"][0]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s1"))
 
 

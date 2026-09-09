@@ -1455,6 +1455,12 @@ against the frozen minimum-study requirement. This validates finite values,
 positive variance, coverage, review provenance, source-byte continuity, and plan
 consistency, but does not reproduce source calculations, prove outcome
 compatibility, impute missing values, or authorize pooling.
+The effect-record artifact now replays its own non-authority and retained
+provenance boundary before it is written: false evidence, conclusion, and
+publication authorization; study, availability, and readiness counts; mapped
+claim source anchors; available-effect variance as `standard_error ** 2`;
+unavailable numeric fields as null; and retained source-summary coverage for
+reproducibly derived effects.
 Effect preparation requires canonical frozen plan source IDs, extraction source
 IDs, mapped study/source/claim IDs, citation anchors, reviewer text, derivation
 scope, reasons, evidence locations, and derivation prose before coverage and

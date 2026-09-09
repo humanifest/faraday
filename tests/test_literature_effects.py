@@ -1,4 +1,5 @@
 """Synthetic effect records validate provenance and variance, not scientific truth."""
+import copy
 import hashlib
 import json
 
@@ -6,7 +7,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.effects import create_effect_records
+from research_machine.literature.effects import (
+    create_effect_records,
+    validate_effect_records_boundary,
+)
 
 
 def write_json(path, value):
@@ -143,6 +147,52 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     assert result["records"][0]["study_id"] == "study-1"
     assert result["records"][0]["mapped_claims"][0]["source_id"] == "source-fixture"
     assert result["records"][0]["evidence_location"] == "table 2"
+
+
+@pytest.mark.parametrize("tamper", [
+    "scientific-authority",
+    "conclusion-authority",
+    "publication-authority",
+    "claim-count",
+    "availability-count",
+    "status-drift",
+    "variance-drift",
+    "unavailable-numeric",
+    "mapped-claim-digest",
+    "padded-mapped-claim",
+    "recomputed-without-summaries",
+])
+def test_effect_records_boundary_replays_output_summaries(tmp_path, tamper):
+    plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
+    result = create_effect_records(
+        plan, plan_sha, extraction, evidence_map, map_sha, review(), tmp_path / "effects"
+    )
+    candidate = copy.deepcopy(result)
+    if tamper == "scientific-authority":
+        candidate["scientific_evidence_eligible"] = True
+    elif tamper == "conclusion-authority":
+        candidate["conclusion_authorized"] = True
+    elif tamper == "publication-authority":
+        candidate["publication_authorized"] = True
+    elif tamper == "claim-count":
+        candidate["study_count"] = 99
+    elif tamper == "availability-count":
+        candidate["available_effect_count"] = 99
+    elif tamper == "status-drift":
+        candidate["status"] = "effects_ready"
+        candidate["available_effect_count"] = 0
+    elif tamper == "variance-drift":
+        candidate["records"][0]["variance"] = 2.0
+    elif tamper == "unavailable-numeric":
+        candidate["records"][1]["estimate"] = 0.0
+    elif tamper == "mapped-claim-digest":
+        candidate["records"][0]["mapped_claims"][0]["extraction_claim_sha256"] = "A" * 64
+    elif tamper == "padded-mapped-claim":
+        candidate["records"][0]["mapped_claims"][0]["citation_checked_location"] = " page fixture "
+    elif tamper == "recomputed-without-summaries":
+        candidate["derivation_scope"] = "recomputed_from_source_reported_arm_summaries"
+    with pytest.raises(ValidationError):
+        validate_effect_records_boundary(candidate)
 
 
 @pytest.mark.parametrize("failure", [

@@ -24,12 +24,18 @@ def mapped_claim(study_id):
                 "extraction_claim_sha256": "a" * 64,
                 "source_id": "source-missing",
                 "source_retained_file_sha256": "legacy_missing",
+                "result_direction": "mixed",
+                "interpretive_ceiling": "reviewed_source_claim",
+                "citation_verdict": "supported",
                 "citation_checked_location": "not reported"}
     suffix = study_id.removeprefix("s")
     return {"extraction_id": f"claim-{suffix}",
             "extraction_claim_sha256": "a" * 64,
             "source_id": f"source-{suffix}",
             "source_retained_file_sha256": "b" * 64,
+            "result_direction": "mixed",
+            "interpretive_ceiling": "reviewed_source_claim",
+            "citation_verdict": "supported",
             "citation_checked_location": f"page {suffix}"}
 
 
@@ -75,11 +81,17 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
         "limitations": [
             "A frozen synthesis plan is a prospective commitment, not evidence.",
         ]})
-    records = [{"study_id": f"s{i}", "status": "available", "estimate": value, "variance": 1.0,
+    records = [{"study_id": f"s{i}", "status": "available", "reason": "Reported arms",
+                "effect_measure": "mean_difference", "estimate": value,
+                "standard_error": 1.0, "variance": 1.0, "sample_size": 50,
+                "evidence_location": f"table {i}", "derivation": "Recomputed from retained arm summaries",
                 "risk_of_bias": "high" if i == 3 else "low",
                 "mapped_claims": [mapped_claim(f"s{i}")]}
                for i, value in enumerate([1.0, 2.0, 6.0][:count], start=1)]
     records.append({"study_id": "missing", "status": "unavailable", "reason": "Not reported",
+                    "effect_measure": "mean_difference", "estimate": None,
+                    "standard_error": None, "variance": None, "sample_size": None,
+                    "evidence_location": "results", "derivation": "Not reported",
                     "risk_of_bias": "unclear", "mapped_claims": [mapped_claim("missing")]})
     source_summaries = [source_summary(f"s{i}") for i in range(1, count + 1)]
     source_summaries.append(source_summary("missing", "unavailable"))
@@ -168,28 +180,28 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     assert result["study_provenance"] == [
         {"study_id": "s1", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-1"],
          "retained_source_summary_sha256": source_summary_digest(source_summary("s1")),
-         "mapped_claim_source_provenance": [mapped_claim("s1")],
+         "mapped_claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim("s1")]}),
          "effect_verification": {"study_id": "s1", "effect_status": "available", "source_values_match": True,
                                  "calculation_matches": True,
                                  "retained_source_summary_sha256": source_summary_digest(source_summary("s1")),
-                                 "claim_source_provenance": [mapped_claim("s1")],
+                                 "claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim("s1")]}),
                                  "checked_location": "table 1"}},
         {"study_id": "s2", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-2"],
          "retained_source_summary_sha256": source_summary_digest(source_summary("s2")),
-         "mapped_claim_source_provenance": [mapped_claim("s2")],
+         "mapped_claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim("s2")]}),
          "effect_verification": {"study_id": "s2", "effect_status": "available", "source_values_match": True,
                                  "calculation_matches": True,
                                  "retained_source_summary_sha256": source_summary_digest(source_summary("s2")),
-                                 "claim_source_provenance": [mapped_claim("s2")],
+                                 "claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim("s2")]}),
                                  "checked_location": "table 2"}},
         {"study_id": "missing", "effect_status": "unavailable", "risk_of_bias": "unclear",
          "mapped_claim_ids": ["claim-missing"],
          "retained_source_summary_sha256": source_summary_digest(source_summary("missing", "unavailable")),
-         "mapped_claim_source_provenance": [mapped_claim("missing")],
+         "mapped_claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim("missing")]}),
          "effect_verification": {"study_id": "missing", "effect_status": "unavailable", "source_values_match": None,
                                  "calculation_matches": None,
                                  "retained_source_summary_sha256": source_summary_digest(source_summary("missing", "unavailable")),
-                                 "claim_source_provenance": [mapped_claim("missing")],
+                                 "claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim("missing")]}),
                                  "checked_location": "results"}},
     ]
     assert result["conclusion_authorized"] is False
@@ -224,8 +236,11 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
     plan, plan_sha, effects, _, verification, _, deviations, deviations_sha = artifacts(tmp_path, sensitivities=["leave_one_study_out"])
     value = json.loads(effects.read_text())
     value["records"] = [
-        {"study_id": f"s{i}", "status": "available", "estimate": 0.1 + i * 0.02,
-         "variance": 0.05 + i * 0.01, "risk_of_bias": "low",
+        {"study_id": f"s{i}", "status": "available", "reason": "Reported arms",
+         "effect_measure": "mean_difference", "estimate": 0.1 + i * 0.02,
+         "standard_error": (0.05 + i * 0.01) ** 0.5, "variance": 0.05 + i * 0.01,
+         "sample_size": 50, "evidence_location": f"table {i}",
+         "derivation": "Recomputed from retained arm summaries", "risk_of_bias": "low",
          "mapped_claims": [mapped_claim(f"s{i}")]}
         for i in range(10)
     ]
@@ -263,8 +278,11 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
     plan, plan_sha, effects, _, verification, _, deviations, deviations_sha = artifacts(tmp_path, sensitivities=["leave_one_study_out"])
     value = json.loads(effects.read_text())
     value["records"] = [
-        {"study_id": f"s{i}", "status": "available", "estimate": float(i),
-         "variance": 1.0, "risk_of_bias": "low",
+        {"study_id": f"s{i}", "status": "available", "reason": "Reported arms",
+         "effect_measure": "mean_difference", "estimate": float(i),
+         "standard_error": 1.0, "variance": 1.0, "sample_size": 50,
+         "evidence_location": f"table {i}",
+         "derivation": "Recomputed from retained arm summaries", "risk_of_bias": "low",
          "mapped_claims": [mapped_claim(f"s{i}")]} for i in range(10)
     ]
     value["source_summaries"] = [source_summary(f"s{i}") for i in range(10)]

@@ -1128,6 +1128,12 @@ non-conclusion and non-publication boundaries, retained limitations,
 `record_count`, and every mapped claim's compact extraction-payload digest
 against the supplied extraction bytes. It also replays the evidence map's
 non-evidence, non-conclusion, non-publication boundary and summary counts.
+The effect-record artifact now replays its own retained boundary before it is
+written: false scientific-evidence, conclusion, and publication authorization;
+study, availability, and readiness counts; mapped claim provenance; finite
+available-effect variance as the square of the standard error; unavailable
+numeric fields as null; and retained source-summary coverage whenever effects
+are reproducibly derived from source-reported arm summaries.
 Trusted plan, evidence-map,
 effect-record, effect-verification, and deviation hashes must be canonical
 lowercase SHA-256 digests before later synthesis commands can bind those

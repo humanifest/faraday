@@ -246,7 +246,7 @@ def retained_source_summary_sha256(summary: dict[str, Any]) -> str:
 
 
 def validate_effect_records_boundary(effects: dict[str, Any]) -> None:
-    """Replay effect-record non-authority, study counts, and readiness status."""
+    """Replay effect-record non-authority, provenance, counts, and readiness status."""
     if effects.get("scientific_evidence_eligible") is not False:
         raise ValidationError("effect records must remain scientifically ineligible")
     if effects.get("conclusion_authorized") is not False:
@@ -262,23 +262,98 @@ def validate_effect_records_boundary(effects: dict[str, Any]) -> None:
     records = effects.get("records")
     if not isinstance(records, list) or not records:
         raise ValidationError("effect records require retained study records")
+    effect_measure = _canonical_text(effects.get("effect_measure"), "effect-record effect_measure")
     available = 0
     unavailable = 0
     seen = set()
+    expected_statuses: dict[str, str] = {}
+    required_record = {
+        "study_id", "status", "reason", "risk_of_bias", "mapped_claims",
+        "effect_measure", "estimate", "standard_error", "variance",
+        "sample_size", "evidence_location", "derivation",
+    }
+    required_claim = {
+        "extraction_id", "extraction_claim_sha256", "source_id",
+        "source_retained_file_sha256", "result_direction", "interpretive_ceiling",
+        "citation_verdict", "citation_checked_location",
+    }
     for item in records:
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or set(item) != required_record:
             raise ValidationError("effect records contain malformed study records")
         study_id = _canonical_text(item.get("study_id"), "effect record study_id")
         if study_id in seen:
             raise ValidationError("effect records contain duplicate study IDs")
         seen.add(study_id)
+        if item.get("effect_measure") != effect_measure:
+            raise ValidationError("effect record measure does not match artifact measure")
+        _canonical_text(item.get("reason"), "effect record reason")
+        _canonical_text(item.get("evidence_location"), "effect record evidence_location")
+        _canonical_text(item.get("derivation"), "effect record derivation")
+        if item.get("risk_of_bias") not in {"low", "some_concerns", "high", "unclear"}:
+            raise ValidationError("effect record risk_of_bias is invalid")
+        mapped_claims = item.get("mapped_claims")
+        if not isinstance(mapped_claims, list) or not mapped_claims:
+            raise ValidationError("effect record requires retained mapped claims")
+        seen_claims = set()
+        for claim in mapped_claims:
+            if not isinstance(claim, dict) or set(claim) != required_claim:
+                raise ValidationError("effect mapped-claim provenance is malformed")
+            extraction_id = _canonical_text(
+                claim.get("extraction_id"), "effect mapped claim extraction_id"
+            )
+            if extraction_id in seen_claims:
+                raise ValidationError("effect mapped-claim provenance requires unique extraction IDs")
+            seen_claims.add(extraction_id)
+            require_sha256(
+                claim.get("extraction_claim_sha256"),
+                "effect mapped claim extraction_claim_sha256",
+            )
+            _canonical_text(claim.get("source_id"), "effect mapped claim source_id")
+            _source_anchor(
+                claim.get("source_retained_file_sha256", _LEGACY_SOURCE_ANCHOR),
+                "effect mapped claim source_retained_file_sha256",
+            )
+            if claim.get("result_direction") not in {
+                "supports", "weakens", "mixed", "null", "not_applicable",
+            }:
+                raise ValidationError("effect mapped-claim result direction is invalid")
+            if claim.get("interpretive_ceiling") not in {
+                "reviewed_source_claim", "qualified_source_claim",
+                "source_hypothesis_only", "insufficient_for_conclusion",
+            }:
+                raise ValidationError("effect mapped-claim interpretive ceiling is invalid")
+            if claim.get("citation_verdict") not in {"supported", "partially_supported"}:
+                raise ValidationError("effect mapped-claim citation verdict is invalid")
+            _canonical_text(
+                claim.get("citation_checked_location"),
+                "effect mapped claim citation_checked_location",
+            )
         status = item.get("status")
         if status == "available":
+            estimate = item.get("estimate")
+            standard_error = item.get("standard_error")
+            variance = item.get("variance")
+            sample_size = item.get("sample_size")
+            if (isinstance(estimate, bool) or not isinstance(estimate, (int, float))
+                    or not math.isfinite(estimate)):
+                raise ValidationError("available effect estimate must be finite numeric data")
+            if (isinstance(standard_error, bool) or not isinstance(standard_error, (int, float))
+                    or not math.isfinite(standard_error) or standard_error <= 0):
+                raise ValidationError("available effect standard_error must be finite and positive")
+            if (isinstance(variance, bool) or not isinstance(variance, (int, float))
+                    or not math.isfinite(variance) or variance <= 0
+                    or not math.isclose(float(variance), float(standard_error) ** 2)):
+                raise ValidationError("available effect variance must replay from standard_error")
+            if isinstance(sample_size, bool) or not isinstance(sample_size, int) or sample_size <= 0:
+                raise ValidationError("available effect sample_size must be a positive integer")
             available += 1
         elif status == "unavailable":
+            if any(item.get(field) is not None for field in ("estimate", "standard_error", "variance", "sample_size")):
+                raise ValidationError("unavailable effects require null numeric fields")
             unavailable += 1
         else:
             raise ValidationError("effect record status is invalid")
+        expected_statuses[study_id] = status
 
     study_count = effects.get("study_count")
     available_count = effects.get("available_effect_count")
@@ -295,6 +370,16 @@ def validate_effect_records_boundary(effects: dict[str, Any]) -> None:
     expected_status = "effects_ready" if available >= minimum else "insufficient_effects"
     if effects.get("status") != expected_status:
         raise ValidationError("effect-record status does not replay from retained counts")
+    source_summaries = effects.get("source_summaries")
+    if source_summaries is not None:
+        validate_retained_source_summaries(
+            source_summaries,
+            expected_statuses=expected_statuses,
+            effect_measure=effect_measure,
+        )
+    if (effects.get("derivation_scope") == "recomputed_from_source_reported_arm_summaries"
+            and source_summaries is None):
+        raise ValidationError("reproducibly derived effect records require retained source summaries")
 
 
 def create_effect_records(
@@ -473,6 +558,7 @@ def create_effect_records(
             "Unavailable statistics remain explicit and are not imputed or silently excluded.",
             "One planned effect per study avoids within-study double counting but does not establish outcome compatibility or authorize pooling.",
         ]}
+    validate_effect_records_boundary(result)
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("effect-record output already exists")
