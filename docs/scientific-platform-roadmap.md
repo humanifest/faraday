@@ -1221,9 +1221,12 @@ collaborator verify-review` independently replays a saved review record against
 a trusted review-record hash, checking the authority flags, retained scientific
 constraints, retained context reference index, proposal-record replay digests,
 review payload version, reviewed suggestion digests, reviewed-suggestion
-evidence references, exact coverage of the retained ordered proposal suggestion
-IDs, compatible routes, and advanced-suggestion summary without performing
-canonical writes or authenticating the reviewer. Legacy review records without a
+evidence-reference coverage, exact coverage of the retained ordered proposal
+suggestion IDs, compatible routes, and advanced-suggestion summary without
+performing canonical writes or authenticating the reviewer. When the retained
+context index is nonempty, reviewed suggestions must retain at least one
+context-backed citation during replay, so a copied review record cannot become
+self-consistent by dropping the proposal's grounding. Legacy review records without a
 retained context index, proposal-record replay digest, or ordered suggestion-ID
 anchor remain visible with `legacy_missing` replay rather than being silently
 upgraded. The collaborator context, proposal, and review input contracts are now

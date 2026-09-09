@@ -1343,7 +1343,7 @@ def verify_collaborator_review_record(
         evidence_refs = _string_array(
             suggestion["evidence_refs"],
             f"{label}.evidence_refs",
-            nonempty=False,
+            nonempty=bool(allowed_evidence_refs),
         )
         if allowed_evidence_refs is not None:
             unknown_refs = sorted(set(evidence_refs) - allowed_evidence_refs)

@@ -991,7 +991,7 @@ Replay a saved review record before relying on it as triage provenance:
 Verification checks the trusted record hash, authority flags, retained
 scientific constraints, retained context write boundary, retained context
 reference index, proposal-record guardrail replay digests, review payload version, review decisions, every
-retained suggestion digest, reviewed-suggestion evidence references, exact
+retained suggestion digest, reviewed-suggestion evidence-reference coverage, exact
 coverage of the proposal's ordered suggestion IDs, and the advanced-suggestion
 summary. It still does not authenticate the reviewer or turn the review into a
 canonical scientific action. Older review records that lack the retained context
