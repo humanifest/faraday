@@ -86,6 +86,20 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
         "synthesis_plan_sha256": plan_sha, "status": "no_deviations_declared", "deviations": [],
+        "timing_counts": {
+            "after_results_seen": 0,
+            "before_extraction": 0,
+            "before_synthesis": 0,
+            "unknown": 0,
+        },
+        "claim_ceiling_effect": "cannot_raise",
+        "scientific_evidence_eligible": False,
+        "plan_amended": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
+        "limitations": [
+            "Deviation declarations disclose departures but do not amend the frozen plan.",
+        ],
         "frozen_plan_commitments": {
             "synthesis_type": synthesis_type,
             "minimum_independent_studies": minimum,
@@ -128,8 +142,20 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     plan, plan_sha, extraction, evidence_map, map_sha, deviations, _ = artifacts(tmp_path)
     value = json.loads(deviations.read_text())
     value["status"] = "retrospective_or_uncertain_deviation_review_required"
-    value["deviations"] = [{"deviation_id": "d1", "timing": "after_results_seen",
+    value["deviations"] = [{"deviation_id": "d1", "stage": "synthesis",
+                            "frozen_commitment": "Use the frozen qualitative rule",
+                            "actual_method": "Added a reviewer sensitivity note",
+                            "reason": "Reviewer requested disclosure",
+                            "timing": "after_results_seen",
+                            "impact_assessment": "May affect interpretation",
+                            "corrective_action": "Force deviation review",
                             "evidence_location": "review log section 3"}]
+    value["timing_counts"] = {
+        "after_results_seen": 1,
+        "before_extraction": 0,
+        "before_synthesis": 0,
+        "unknown": 0,
+    }
     deviations_sha = write_json(deviations, value)
     result = execute_qualitative_synthesis(
         plan, plan_sha, extraction, evidence_map, map_sha,
@@ -190,6 +216,15 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
     "padded-domain",
     "padded-domain-location",
     "deviation-plan",
+    "deviation-authority",
+    "deviation-conclusion-authority",
+    "deviation-publication-authority",
+    "deviation-plan-amended",
+    "deviation-ceiling",
+    "deviation-limitations-missing",
+    "deviation-timing-counts",
+    "deviation-status-rewrite",
+    "deviation-padded-row",
 ])
 def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(tmp_path, synthesis_type="quantitative" if failure == "quantitative" else "qualitative")
@@ -306,6 +341,43 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
         map_sha = write_json(evidence_map, value)
     elif failure == "deviation-plan":
         value = json.loads(deviations.read_text()); value["frozen_plan_commitments"]["minimum_independent_studies"] = 99; deviations_sha = write_json(deviations, value)
+    elif failure in {"deviation-authority", "deviation-conclusion-authority",
+                     "deviation-publication-authority", "deviation-plan-amended",
+                     "deviation-ceiling", "deviation-limitations-missing",
+                     "deviation-timing-counts", "deviation-status-rewrite",
+                     "deviation-padded-row"}:
+        value = json.loads(deviations.read_text())
+        if failure == "deviation-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "deviation-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "deviation-publication-authority":
+            value["publication_authorized"] = True
+        elif failure == "deviation-plan-amended":
+            value["plan_amended"] = True
+        elif failure == "deviation-ceiling":
+            value["claim_ceiling_effect"] = "can_raise"
+        elif failure == "deviation-limitations-missing":
+            value["limitations"] = []
+        elif failure == "deviation-timing-counts":
+            value["timing_counts"]["unknown"] = 1
+        elif failure == "deviation-status-rewrite":
+            value["status"] = "prospective_deviations_recorded"
+        else:
+            value["deviations"] = [{
+                "deviation_id": " d1",
+                "stage": "synthesis",
+                "frozen_commitment": "Use the frozen qualitative rule",
+                "actual_method": "Added a reviewer sensitivity note",
+                "reason": "Reviewer requested disclosure",
+                "timing": "before_synthesis",
+                "impact_assessment": "May affect interpretation",
+                "corrective_action": "Force review",
+                "evidence_location": "review log section 4",
+            }]
+            value["timing_counts"]["before_synthesis"] = 1
+            value["status"] = "prospective_deviations_recorded"
+        deviations_sha = write_json(deviations, value)
     output = tmp_path / "synthesis"
     with pytest.raises(ValidationError):
         execute_qualitative_synthesis(plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha, output)

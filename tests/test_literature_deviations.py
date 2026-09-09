@@ -52,8 +52,12 @@ def test_prospective_deviation_cli_is_write_once_and_does_not_amend_plan(tmp_pat
     result = json.loads(capsys.readouterr().out)["result"]
     assert result["status"] == "prospective_deviations_recorded"
     assert result["plan_amended"] is False and result["claim_ceiling_effect"] == "cannot_raise"
+    assert result["scientific_evidence_eligible"] is False
+    assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
     assert result["frozen_plan_commitments"]["synthesis_type"] == "quantitative"
     assert result["frozen_plan_commitments"]["included_source_ids_at_freeze"] == ["s1", "s2"]
+    assert result["timing_counts"]["before_synthesis"] == 1
     assert result["deviations"][0]["evidence_location"] == "review log section 2"
     assert plan.read_bytes() == original
     with pytest.raises(ValidationError, match="already exists"):

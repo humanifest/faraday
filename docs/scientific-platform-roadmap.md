@@ -1528,13 +1528,17 @@ rewriting them. Changes after results were seen—or with unknown timing—force
 heightened review. The artifact also retains a compact frozen-plan commitment
 snapshot, and rejects synthesis-type-incompatible stages such as qualitative
 effect preparation. It cannot amend the plan, retroactively preregister a choice,
-raise a claim ceiling, or authenticate the researcher's account.
+raise a claim ceiling, authorize conclusions or publication, or authenticate the
+researcher's account. Its non-authority flags, `cannot_raise` ceiling effect,
+`plan_amended: false`, retained limitations, timing counts, and status are
+replayed from the retained departure rows before downstream synthesis can trust
+the declaration.
 Both qualitative synthesis and quantitative pooling now require this declaration,
 including an immutable `no_deviations_declared` artifact when none are reported.
 The declaration hash and frozen-plan snapshot are embedded in the result and
 checked against the supplied plan. Retrospective or unknown-timing departures do
 not suppress computation, but force a deviation-review status and remain visible
-in the synthesis output.
+in the synthesis output; a rewritten timing summary or status fails closed.
 
 Precision-planning delivery: `research design precision` requires a declared
 independent-groups design, a target interval half-width, an assumed standard

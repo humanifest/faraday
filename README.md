@@ -1155,6 +1155,11 @@ Literature deviation declarations retain a compact snapshot of the frozen
 synthesis-plan commitments, and qualitative synthesis or quantitative pooling
 must match that snapshot before recording a result. Each declared departure
 also names an inspectable evidence location for the review of that deviation.
+The declaration itself now carries explicit false evidence, conclusion, and
+publication authority fields, a `cannot_raise` ceiling effect,
+`plan_amended: false`, retained limitations, and service-derived timing
+counts/status; synthesis and pooling replay those values from the canonical
+departure rows before use.
 
 ## Precision, difference-power, practical-power, and equivalence-power planning
 

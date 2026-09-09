@@ -118,6 +118,20 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
         "synthesis_plan_sha256": plan_sha, "status": "no_deviations_declared", "deviations": [],
+        "timing_counts": {
+            "after_results_seen": 0,
+            "before_extraction": 0,
+            "before_synthesis": 0,
+            "unknown": 0,
+        },
+        "claim_ceiling_effect": "cannot_raise",
+        "scientific_evidence_eligible": False,
+        "plan_amended": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
+        "limitations": [
+            "Deviation declarations disclose departures but do not amend the frozen plan.",
+        ],
         "frozen_plan_commitments": {
             "synthesis_type": "quantitative",
             "effect_measure": "mean_difference",
@@ -279,8 +293,20 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, _ = artifacts(tmp_path)
     value = json.loads(deviations.read_text())
     value["status"] = "retrospective_or_uncertain_deviation_review_required"
-    value["deviations"] = [{"deviation_id": "d1", "timing": "unknown",
+    value["deviations"] = [{"deviation_id": "d1", "stage": "synthesis",
+                            "frozen_commitment": "Use the frozen pooling rule",
+                            "actual_method": "Added an exploratory influence note",
+                            "reason": "Reviewer requested disclosure",
+                            "timing": "unknown",
+                            "impact_assessment": "May affect interpretation",
+                            "corrective_action": "Force deviation review",
                             "evidence_location": "review log section 4"}]
+    value["timing_counts"] = {
+        "after_results_seen": 0,
+        "before_extraction": 0,
+        "before_synthesis": 0,
+        "unknown": 1,
+    }
     deviations_sha = write_json(deviations, value)
     result = execute_meta_analysis(
         plan, plan_sha, effects, effects_sha, verification, verification_sha,
@@ -318,7 +344,7 @@ def test_meta_analysis_requires_canonical_effect_and_verification_handles(tmp_pa
         )
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "plan-authority", "plan-conclusion-authority", "plan-publication-authority", "plan-limitations-missing", "effects-hash", "model", "link", "measure", "derivation-scope", "effects-authority", "effects-conclusion-authority", "effects-publication-authority", "effects-limitations-missing", "effects-count-drift", "effects-availability-count-drift", "effects-readiness-drift", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-authority", "verification-conclusion-authority", "verification-publication-authority", "verification-limitations-missing", "verification-independent-drift", "verification-reviewer-drift", "verification-mismatch-drift", "verification-status-rewrite", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-source-summary-digest", "verification-source-summary-digest-drift", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "plan-authority", "plan-conclusion-authority", "plan-publication-authority", "plan-limitations-missing", "effects-hash", "model", "link", "measure", "derivation-scope", "effects-authority", "effects-conclusion-authority", "effects-publication-authority", "effects-limitations-missing", "effects-count-drift", "effects-availability-count-drift", "effects-readiness-drift", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-authority", "verification-conclusion-authority", "verification-publication-authority", "verification-limitations-missing", "verification-independent-drift", "verification-reviewer-drift", "verification-mismatch-drift", "verification-status-rewrite", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-source-summary-digest", "verification-source-summary-digest-drift", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "deviation-authority", "deviation-conclusion-authority", "deviation-publication-authority", "deviation-plan-amended", "deviation-ceiling", "deviation-limitations-missing", "deviation-timing-counts", "deviation-status-rewrite", "deviation-padded-row", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -428,6 +454,43 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(verification.read_text()); value["assessments"][-1]["source_values_match"] = True; verification_sha = write_json(verification, value)
     elif failure == "deviation-plan":
         value = json.loads(deviations.read_text()); value["frozen_plan_commitments"]["statistical_model"] = "random_effects"; deviations_sha = write_json(deviations, value)
+    elif failure in {"deviation-authority", "deviation-conclusion-authority",
+                     "deviation-publication-authority", "deviation-plan-amended",
+                     "deviation-ceiling", "deviation-limitations-missing",
+                     "deviation-timing-counts", "deviation-status-rewrite",
+                     "deviation-padded-row"}:
+        value = json.loads(deviations.read_text())
+        if failure == "deviation-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "deviation-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "deviation-publication-authority":
+            value["publication_authorized"] = True
+        elif failure == "deviation-plan-amended":
+            value["plan_amended"] = True
+        elif failure == "deviation-ceiling":
+            value["claim_ceiling_effect"] = "can_raise"
+        elif failure == "deviation-limitations-missing":
+            value["limitations"] = []
+        elif failure == "deviation-timing-counts":
+            value["timing_counts"]["unknown"] = 1
+        elif failure == "deviation-status-rewrite":
+            value["status"] = "prospective_deviations_recorded"
+        else:
+            value["deviations"] = [{
+                "deviation_id": " d1",
+                "stage": "synthesis",
+                "frozen_commitment": "Use the frozen pooling rule",
+                "actual_method": "Added an exploratory influence note",
+                "reason": "Reviewer requested disclosure",
+                "timing": "before_synthesis",
+                "impact_assessment": "May affect interpretation",
+                "corrective_action": "Force review",
+                "evidence_location": "review log section 4",
+            }]
+            value["timing_counts"]["before_synthesis"] = 1
+            value["status"] = "prospective_deviations_recorded"
+        deviations_sha = write_json(deviations, value)
     elif failure == "unknown-sensitivity":
         value = json.loads(plan.read_text()); value["sensitivity_analyses"] = ["unknown"]; plan_sha = write_json(plan, value)
         value = json.loads(effects.read_text()); value["inputs"]["synthesis_plan_sha256"] = plan_sha; effects_sha = write_json(effects, value)

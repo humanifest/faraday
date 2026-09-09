@@ -9,6 +9,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.deviations import validate_synthesis_deviations_boundary
 from research_machine.literature.evidence_map import validate_evidence_map_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
@@ -166,6 +167,7 @@ def execute_qualitative_synthesis(
             or deviation_status not in {"no_deviations_declared", "prospective_deviations_recorded",
                                         "retrospective_or_uncertain_deviation_review_required"}):
         raise ValidationError("qualitative synthesis requires a valid deviation declaration bound to the plan")
+    validate_synthesis_deviations_boundary(deviations, synthesis_type="qualitative")
     frozen_deviation_plan = deviations.get("frozen_plan_commitments")
     if not isinstance(frozen_deviation_plan, dict):
         raise ValidationError("qualitative synthesis requires deviation-bound frozen plan commitments")

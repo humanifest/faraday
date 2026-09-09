@@ -26,6 +26,82 @@ def _canonical_text(value: Any, field: str) -> str:
     return text
 
 
+def _replay_deviations(value: Any, *, synthesis_type: str | None = None) -> tuple[list[dict[str, str]], dict[str, int], str]:
+    if not isinstance(value, list):
+        raise ValidationError("retained synthesis deviations must be an array")
+    required = {"deviation_id", "stage", "frozen_commitment", "actual_method", "reason",
+                "timing", "impact_assessment", "corrective_action", "evidence_location"}
+    by_id: dict[str, dict[str, str]] = {}
+    for item in value:
+        if not isinstance(item, dict) or set(item) != required:
+            raise ValidationError("retained synthesis deviation fields do not match the documented contract")
+        deviation_id = _canonical_text(item["deviation_id"], "retained deviation_id")
+        if deviation_id in by_id:
+            raise ValidationError("retained synthesis deviations contain duplicate deviation_id")
+        stage = item["stage"]
+        timing = item["timing"]
+        if stage not in _STAGES or timing not in _TIMINGS:
+            raise ValidationError("retained synthesis deviation stage or timing is invalid")
+        if synthesis_type == "qualitative" and stage == "effect_preparation":
+            raise ValidationError("qualitative synthesis deviations cannot use the effect_preparation stage")
+        by_id[deviation_id] = {
+            "deviation_id": deviation_id,
+            "stage": stage,
+            "frozen_commitment": _canonical_text(
+                item["frozen_commitment"], "retained frozen_commitment"
+            ),
+            "actual_method": _canonical_text(item["actual_method"], "retained actual_method"),
+            "reason": _canonical_text(item["reason"], "retained deviation reason"),
+            "timing": timing,
+            "impact_assessment": _canonical_text(
+                item["impact_assessment"], "retained impact_assessment"
+            ),
+            "corrective_action": _canonical_text(
+                item["corrective_action"], "retained corrective_action"
+            ),
+            "evidence_location": _canonical_text(
+                item["evidence_location"], "retained deviation evidence_location"
+            ),
+        }
+    timing_counts = {timing: sum(item["timing"] == timing for item in by_id.values())
+                     for timing in sorted(_TIMINGS)}
+    elevated = bool(timing_counts["after_results_seen"] or timing_counts["unknown"])
+    status = ("no_deviations_declared" if not by_id else
+              "retrospective_or_uncertain_deviation_review_required" if elevated else
+              "prospective_deviations_recorded")
+    return [by_id[item] for item in sorted(by_id)], timing_counts, status
+
+
+def validate_synthesis_deviations_boundary(
+    deviations: dict[str, Any], *, synthesis_type: str | None = None
+) -> None:
+    """Replay deviation-disclosure non-authority and status from retained rows."""
+    if deviations.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("synthesis deviations must remain scientifically ineligible")
+    if deviations.get("conclusion_authorized") is not False:
+        raise ValidationError("synthesis deviations must not authorize conclusions")
+    if deviations.get("publication_authorized") is not False:
+        raise ValidationError("synthesis deviations must not authorize publication claims")
+    if deviations.get("plan_amended") is not False:
+        raise ValidationError("synthesis deviations must not amend the frozen plan")
+    if deviations.get("claim_ceiling_effect") != "cannot_raise":
+        raise ValidationError("synthesis deviations must retain cannot_raise claim ceiling effect")
+    limitations = deviations.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("synthesis deviations require retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"synthesis-deviation limitation {index + 1}")
+    retained, timing_counts, status = _replay_deviations(
+        deviations.get("deviations"), synthesis_type=synthesis_type
+    )
+    if deviations.get("deviations") != retained:
+        raise ValidationError("synthesis deviations must retain canonical deviation rows")
+    if deviations.get("timing_counts") != timing_counts:
+        raise ValidationError("synthesis-deviation timing_counts do not replay from deviations")
+    if deviations.get("status") != status:
+        raise ValidationError("synthesis-deviation status does not replay from deviations")
+
+
 def create_synthesis_deviations(
     plan_path: Path,
     expected_sha256: str,
@@ -53,29 +129,9 @@ def create_synthesis_deviations(
     deviations = disclosure["deviations"]
     if not isinstance(deviations, list):
         raise ValidationError("deviations must be an array")
-    required = {"deviation_id", "stage", "frozen_commitment", "actual_method", "reason",
-                "timing", "impact_assessment", "corrective_action", "evidence_location"}
-    by_id: dict[str, dict[str, str]] = {}
-    for item in deviations:
-        if not isinstance(item, dict) or set(item) != required:
-            raise ValidationError("synthesis deviation fields do not match the documented contract")
-        deviation_id = _canonical_text(item["deviation_id"], "deviation_id")
-        if deviation_id in by_id:
-            raise ValidationError("duplicate synthesis deviation_id")
-        if item["stage"] not in _STAGES or item["timing"] not in _TIMINGS:
-            raise ValidationError("invalid synthesis deviation stage or timing")
-        if synthesis_type == "qualitative" and item["stage"] == "effect_preparation":
-            raise ValidationError("qualitative synthesis deviations cannot use the effect_preparation stage")
-        by_id[deviation_id] = {"deviation_id": deviation_id, "stage": item["stage"],
-            "frozen_commitment": _canonical_text(item["frozen_commitment"], "frozen_commitment"),
-            "actual_method": _canonical_text(item["actual_method"], "actual_method"),
-            "reason": _canonical_text(item["reason"], "deviation reason"), "timing": item["timing"],
-            "impact_assessment": _canonical_text(item["impact_assessment"], "impact_assessment"),
-            "corrective_action": _canonical_text(item["corrective_action"], "corrective_action"),
-            "evidence_location": _canonical_text(item["evidence_location"], "deviation evidence_location")}
-    timing_counts = {timing: sum(item["timing"] == timing for item in by_id.values())
-                     for timing in sorted(_TIMINGS)}
-    elevated = bool(timing_counts["after_results_seen"] or timing_counts["unknown"])
+    retained_deviations, timing_counts, status = _replay_deviations(
+        deviations, synthesis_type=synthesis_type
+    )
     result = {"synthesis_deviations_version": 1, "synthesis_plan_sha256": digest,
         "plan_id": plan.get("plan_id"), "snapshot_id": plan.get("snapshot_id"),
         "frozen_plan_commitments": {
@@ -90,13 +146,13 @@ def create_synthesis_deviations(
             "conclusion_rule": plan.get("conclusion_rule"),
             "deviation_policy": plan.get("deviation_policy"),
         },
-        "reviewer": reviewer, "deviations": [by_id[item] for item in sorted(by_id)],
+        "reviewer": reviewer, "deviations": retained_deviations,
         "timing_counts": timing_counts,
-        "status": ("no_deviations_declared" if not by_id else
-                   "retrospective_or_uncertain_deviation_review_required" if elevated else
-                   "prospective_deviations_recorded"),
+        "status": status,
         "claim_ceiling_effect": "cannot_raise",
         "scientific_evidence_eligible": False, "plan_amended": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "This artifact discloses departures but never edits, supersedes, or retroactively preregisters the frozen plan.",
             "Reviewer identity, stated timing, reasons, and impact assessments are not authenticated by the machine.",

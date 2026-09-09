@@ -11,6 +11,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.deviations import validate_synthesis_deviations_boundary
 from research_machine.literature.effect_verification import validate_effect_verification_boundary
 from research_machine.literature.effects import (
     retained_source_summary_sha256,
@@ -232,6 +233,7 @@ def execute_meta_analysis(
             or deviation_status not in {"no_deviations_declared", "prospective_deviations_recorded",
                                         "retrospective_or_uncertain_deviation_review_required"}):
         raise ValidationError("meta-analysis requires a valid deviation declaration bound to the plan")
+    validate_synthesis_deviations_boundary(deviations, synthesis_type="quantitative")
     frozen_deviation_plan = deviations.get("frozen_plan_commitments")
     if not isinstance(frozen_deviation_plan, dict):
         raise ValidationError("meta-analysis requires deviation-bound frozen plan commitments")
