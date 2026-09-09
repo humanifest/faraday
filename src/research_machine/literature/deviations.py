@@ -11,6 +11,7 @@ from typing import Any
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
+from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
 
 
 _STAGES = {"extraction", "citation_verification", "bias_assessment", "study_reconciliation",
@@ -42,6 +43,7 @@ def create_synthesis_deviations(
     if (not isinstance(plan, dict) or plan.get("synthesis_plan_version") != 1
             or plan.get("status") != "synthesis_plan_frozen"):
         raise ValidationError("synthesis deviations require a frozen version 1 plan")
+    validate_synthesis_plan_boundary(plan)
     synthesis_type = plan.get("synthesis_type")
     if synthesis_type not in {"qualitative", "quantitative"}:
         raise ValidationError("synthesis deviations require a plan with a supported synthesis_type")

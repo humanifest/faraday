@@ -54,6 +54,8 @@ def test_synthesis_plan_cli_freezes_complete_commitments_and_is_write_once(tmp_p
     assert result["status"] == "synthesis_plan_frozen"
     assert result["included_source_ids_at_freeze"] == ["s1"]
     assert result["scientific_evidence_eligible"] is False
+    assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_synthesis_plan(screening, digest, spec(), output)
 

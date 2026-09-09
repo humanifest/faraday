@@ -40,6 +40,21 @@ def _canonical_text(value: Any, field: str) -> str:
     return text
 
 
+def validate_synthesis_plan_boundary(plan: dict[str, Any]) -> None:
+    """Replay synthesis-plan non-authority and retained limitation boundaries."""
+    if plan.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("synthesis plan must remain scientifically ineligible")
+    if plan.get("conclusion_authorized") is not False:
+        raise ValidationError("synthesis plan must not authorize conclusions")
+    if plan.get("publication_authorized") is not False:
+        raise ValidationError("synthesis plan must not authorize publication claims")
+    limitations = plan.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("synthesis plan requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"limitation {index + 1}")
+
+
 def create_synthesis_plan(
     screening_path: Path,
     expected_sha256: str,
@@ -125,6 +140,8 @@ def create_synthesis_plan(
         "deviation_policy": _canonical_text(specification["deviation_policy"], "deviation_policy"),
         "status": "synthesis_plan_frozen",
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "The plan is hash-bound to screening but the machine does not authenticate the reviewer or prove that freezing preceded extraction outside this workflow.",
             "A frozen plan does not establish that its effect measure, statistical model, thresholds, or decision rules are scientifically appropriate.",

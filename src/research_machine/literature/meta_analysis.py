@@ -18,6 +18,7 @@ from research_machine.literature.effects import (
     validate_retained_source_summaries,
 )
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
 
@@ -166,6 +167,7 @@ def execute_meta_analysis(
     if (plan.get("synthesis_plan_version") != 1 or plan.get("status") != "synthesis_plan_frozen"
             or plan.get("synthesis_type") != "quantitative"):
         raise ValidationError("meta-analysis requires a frozen quantitative synthesis plan")
+    validate_synthesis_plan_boundary(plan)
     if (effects.get("effect_records_version") != 1 or effects.get("status") != "effects_ready"
             or not isinstance(effects.get("inputs"), dict)
             or effects["inputs"].get("synthesis_plan_sha256") != plan_sha):

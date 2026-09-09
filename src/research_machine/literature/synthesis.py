@@ -12,6 +12,7 @@ from research_machine.domain.errors import ValidationError
 from research_machine.literature.evidence_map import validate_evidence_map_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
+from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
 _EXTRACTION_RECORD_FIELDS = {
@@ -156,6 +157,7 @@ def execute_qualitative_synthesis(
         raise ValidationError("synthesis deviations do not match the expected SHA-256")
     if plan.get("synthesis_plan_version") != 1 or plan.get("status") != "synthesis_plan_frozen":
         raise ValidationError("qualitative synthesis requires a frozen version 1 synthesis plan")
+    validate_synthesis_plan_boundary(plan)
     if plan.get("synthesis_type") != "qualitative":
         raise ValidationError("this executor supports qualitative synthesis only; quantitative plans require a validated effect-size executor")
     deviation_status = deviations.get("status")

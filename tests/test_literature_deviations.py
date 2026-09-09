@@ -21,7 +21,13 @@ def plan_file(tmp_path):
              "minimum_independent_studies": 2,
              "included_source_ids_at_freeze": ["s1", "s2"],
              "conclusion_rule": "Bound conclusions",
-             "deviation_policy": "Disclose all departures"}
+             "deviation_policy": "Disclose all departures",
+             "scientific_evidence_eligible": False,
+             "conclusion_authorized": False,
+             "publication_authorized": False,
+             "limitations": [
+                 "A frozen synthesis plan is a prospective commitment, not evidence.",
+             ]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
     path = tmp_path / "plan.json"; path.write_bytes(encoded)
     return path, hashlib.sha256(encoded).hexdigest(), encoded
@@ -68,10 +74,37 @@ def test_retrospective_or_uncertain_timing_requires_review(tmp_path, timing):
     assert result["status"] == "retrospective_or_uncertain_deviation_review_required"
 
 
-@pytest.mark.parametrize("failure", ["hash", "not-array", "duplicate", "stage", "timing", "reason", "location", "qualitative-effect-stage"])
+@pytest.mark.parametrize("failure", [
+    "hash",
+    "plan-authority",
+    "plan-conclusion-authority",
+    "plan-publication-authority",
+    "plan-limitations-missing",
+    "not-array",
+    "duplicate",
+    "stage",
+    "timing",
+    "reason",
+    "location",
+    "qualitative-effect-stage",
+])
 def test_invalid_deviation_disclosure_never_publishes(tmp_path, failure):
     plan, digest, _ = plan_file(tmp_path); candidate = disclosure()
     if failure == "hash": digest = "0" * 64
+    elif failure in {"plan-authority", "plan-conclusion-authority",
+                     "plan-publication-authority", "plan-limitations-missing"}:
+        value = json.loads(plan.read_text())
+        if failure == "plan-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "plan-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "plan-publication-authority":
+            value["publication_authorized"] = True
+        else:
+            value["limitations"] = []
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+        plan.write_bytes(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
     elif failure == "not-array": candidate["deviations"] = None
     elif failure == "duplicate": candidate["deviations"].append(dict(candidate["deviations"][0]))
     elif failure == "stage": candidate["deviations"][0]["stage"] = "invent_results"

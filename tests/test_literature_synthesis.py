@@ -43,7 +43,13 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
         "synthesis_type": synthesis_type, "screening_sha256": screening_sha, "snapshot_id": "snap",
         "plan_id": "p1", "research_question": "Fixture?", "primary_outcome": "Outcome",
         "conclusion_rule": "Bound all wording", "minimum_independent_studies": minimum,
-        "included_source_ids_at_freeze": ["s1"]})
+        "included_source_ids_at_freeze": ["s1"],
+        "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
+        "limitations": [
+            "A frozen synthesis plan is a prospective commitment, not evidence.",
+        ]})
     extraction = tmp_path / "extraction.json"
     extraction_record = {"extraction_id": "e1", "study_id": "study-1",
         "claim_text": "Synthetic null result", "evidence_location": "page 1",
@@ -149,6 +155,10 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
 
 @pytest.mark.parametrize("failure", [
     "plan-hash",
+    "plan-authority",
+    "plan-conclusion-authority",
+    "plan-publication-authority",
+    "plan-limitations-missing",
     "map-hash",
     "quantitative",
     "screening",
@@ -184,6 +194,21 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
 def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(tmp_path, synthesis_type="quantitative" if failure == "quantitative" else "qualitative")
     if failure == "plan-hash": plan_sha = "0" * 64
+    elif failure in {"plan-authority", "plan-conclusion-authority",
+                     "plan-publication-authority", "plan-limitations-missing"}:
+        value = json.loads(plan.read_text())
+        if failure == "plan-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "plan-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "plan-publication-authority":
+            value["publication_authorized"] = True
+        else:
+            value["limitations"] = []
+        plan_sha = write_json(plan, value)
+        value = json.loads(deviations.read_text())
+        value["synthesis_plan_sha256"] = plan_sha
+        deviations_sha = write_json(deviations, value)
     elif failure == "map-hash": map_sha = "0" * 64
     elif failure == "screening":
         value = json.loads(extraction.read_text()); value["screening_sha256"] = "2" * 64; write_json(extraction, value)

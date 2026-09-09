@@ -1095,7 +1095,11 @@ research questions, primary outcomes, effect measures, contrast definitions,
 subgroup and sensitivity entries, policy prose, conclusion rules, deviation
 policies, and frozen included source IDs before hashing the plan, so the
 prospective synthesis commitment cannot silently normalize its own scope or
-analysis rule text.
+analysis rule text. The frozen plan also carries explicit
+`scientific_evidence_eligible`, `conclusion_authorized`, and
+`publication_authorized` false boundaries with retained limitations, and
+deviation recording, qualitative synthesis, quantitative effect preparation, and
+pooling replay that boundary before relying on the plan.
 
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim

@@ -13,6 +13,7 @@ from research_machine.domain.errors import ValidationError
 from research_machine.literature.evidence_map import validate_evidence_map_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
+from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
 _EXTRACTION_RECORD_FIELDS = {
@@ -328,6 +329,7 @@ def create_effect_records(
     if (plan.get("synthesis_plan_version") != 1 or plan.get("status") != "synthesis_plan_frozen"
             or plan.get("synthesis_type") != "quantitative"):
         raise ValidationError("effect records require a frozen quantitative synthesis plan")
+    validate_synthesis_plan_boundary(plan)
     if (extraction.get("extraction_version") != 1 or extraction.get("status") != "extraction_recorded"
             or extraction.get("screening_sha256") != plan.get("screening_sha256")):
         raise ValidationError("effect records require an extraction from the plan's pinned screening")

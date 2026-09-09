@@ -41,7 +41,13 @@ def artifacts(tmp_path, minimum=1):
     plan_sha = write_json(plan, {"synthesis_plan_version": 1, "status": "synthesis_plan_frozen",
         "synthesis_type": "quantitative", "effect_measure": "log_risk_ratio",
         "minimum_independent_studies": minimum, "screening_sha256": screening_sha,
-        "snapshot_id": "snap", "plan_id": "p1", "included_source_ids_at_freeze": ["source-fixture"]})
+        "snapshot_id": "snap", "plan_id": "p1", "included_source_ids_at_freeze": ["source-fixture"],
+        "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
+        "limitations": [
+            "A frozen synthesis plan is a prospective commitment, not evidence.",
+        ]})
     extraction = tmp_path / "extraction.json"
     extraction_records = [
         {"extraction_id": "claim-1", "study_id": "study-1",
@@ -137,7 +143,9 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
 
 
 @pytest.mark.parametrize("failure", [
-    "plan-hash", "map-hash", "measure", "missing", "duplicate", "padded-duplicate",
+    "plan-hash", "plan-authority", "plan-conclusion-authority",
+    "plan-publication-authority", "plan-limitations-missing",
+    "map-hash", "measure", "missing", "duplicate", "padded-duplicate",
     "extraction-source-duplicate", "nan", "se", "bool-n", "unavailable-value",
     "extraction-authority", "extraction-count-drift", "extraction-limitations-missing",
     "extraction-padded-limitation", "extraction-claim-payload", "extraction-extra-claim",
@@ -153,6 +161,18 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
     candidate = review()
     if failure == "plan-hash": plan_sha = "0" * 64
+    elif failure in {"plan-authority", "plan-conclusion-authority",
+                     "plan-publication-authority", "plan-limitations-missing"}:
+        value = json.loads(plan.read_text())
+        if failure == "plan-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "plan-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "plan-publication-authority":
+            value["publication_authorized"] = True
+        else:
+            value["limitations"] = []
+        plan_sha = write_json(plan, value)
     elif failure == "map-hash": map_sha = "0" * 64
     elif failure == "measure": candidate["records"][0]["effect_measure"] = "odds_ratio"
     elif failure == "missing": candidate["records"].pop()

@@ -1379,6 +1379,10 @@ the completed screening hash. It also requires a canonical lowercase SHA-256
 screening hash before binding the plan to those bytes. It belongs before extraction. The artifact records
 commitments but cannot prove external chronology or that the chosen methods are
 appropriate; later synthesis must verify this plan and declare every departure.
+The plan now carries explicit scientific-evidence, conclusion, and publication
+non-authority flags plus retained limitations, and deviation recording,
+qualitative synthesis, effect preparation, and pooling replay that boundary
+before relying on the frozen plan.
 `research literature synthesize` now executes the frozen qualitative branch. It
 verifies canonical lowercase trusted hashes for the plan, evidence map, and
 deviation declaration before checking extraction and full evidence-map lineage;
@@ -1966,9 +1970,12 @@ use.
 Literature synthesis-plan freezing now requires canonical plan IDs, reviewer
 text, questions, outcomes, effect measures, contrast definitions, subgroup and
 sensitivity entries, policy prose, conclusion rules, deviation policies, and
-included screening source IDs before hashing the plan. A padded prospective
-analysis rule or source handle is rejected instead of being trimmed into a
-different frozen commitment.
+included screening source IDs before hashing the plan. The plan is also
+explicitly non-evidentiary and non-authorizing for conclusions or publication;
+deviation, qualitative synthesis, effect-preparation, and pooling commands replay
+those false boundaries and retained limitations before using the plan. A padded
+prospective analysis rule or source handle is rejected instead of being trimmed
+into a different frozen commitment.
 
 Completion criterion: a new experiment can be initialized without manually
 authoring JSON while no generated hypothesis or protocol silently becomes
