@@ -1414,9 +1414,12 @@ order-check and finding entries rather than allowing unreviewed annotations to
 ride along with a trusted assessment.
 Failed temporal-order assessments may only be retained as failed gates, keeping
 reversals, unresolved timing, and registered-window misses visible while
-blocking required-gate evidence eligibility. Rigor and synthesis expose these
+blocking required-gate evidence eligibility. Canonical run intake also stores
+replay-derived counts of registered order checks, failed checks, warnings, and
+findings, rejecting any caller-supplied summary that disagrees with the verified
+record. Rigor, synthesis, and replication-package verification expose these
 gates by run, artifact locator, record hash, timing-assessment hash,
-specification hash, and bounded status.
+specification hash, bounded status, and check-summary counts.
 
 Use `measurement assess-preprocessing --registered-pipeline-file REGISTERED
 --expected-registered-pipeline-sha256 HASH --observed-pipeline-file OBSERVED

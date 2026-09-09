@@ -1710,7 +1710,8 @@ reversals, unresolved timing, upstream timing failure, and registered-window
 misses stay visible without being rewritten into favorable summaries. Rigor,
 deterministic synthesis, and replication-package verification now carry those
 gates with their exact artifact locator, record hash, timing-assessment hash,
-specification hash, and bounded status.
+specification hash, bounded status, and replay-derived counts of registered
+checks, failed checks, warnings, and findings.
 Canary-target delivery: canonical protocols may now freeze a generic masked
 canary target plan. The plan binds canonical candidate target IDs, a separately
 committed random seed, the SHA-256 of the hidden assignment artifact, masking

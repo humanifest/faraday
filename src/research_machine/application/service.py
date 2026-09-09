@@ -567,9 +567,16 @@ def _validate_temporal_order_assessment_gate(
         "timing_assessment_sha256",
         "specification_sha256",
     }
-    if set(assessment) != required_fields:
+    derived_fields = {
+        "check_count",
+        "failed_check_count",
+        "warning_check_count",
+        "finding_count",
+    }
+    allowed_fields = required_fields | derived_fields
+    if set(assessment) - allowed_fields or not required_fields <= set(assessment):
         raise ValidationError(
-            f"quality gate {gate.gate_id} temporal_order_assessment must contain exactly: "
+            f"quality gate {gate.gate_id} temporal_order_assessment must contain at least: "
             + ", ".join(sorted(required_fields))
         )
     prefix = f"quality gate {gate.gate_id} temporal_order_assessment"
@@ -623,6 +630,15 @@ def _validate_temporal_order_assessment_gate(
         raise ValidationError(
             f"quality gate {gate.gate_id} temporal_order_assessment status does not match the verified record"
         )
+    for field in derived_fields:
+        expected = verified[field]
+        supplied = assessment.get(field)
+        if supplied is not None and supplied != expected:
+            raise ValidationError(
+                f"quality gate {gate.gate_id} temporal_order_assessment {field} "
+                "does not match the verified record"
+            )
+        assessment[field] = expected
     if gate.status is QualityGateStatus.PASSED:
         if verified["record_status"] != "temporal_order_passed":
             raise ValidationError(

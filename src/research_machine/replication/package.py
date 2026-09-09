@@ -307,7 +307,14 @@ def _validate_temporal_order_assessment_gate_metadata(
         "timing_assessment_sha256",
         "specification_sha256",
     }
-    if set(assessment) != required_fields:
+    derived_fields = {
+        "check_count",
+        "failed_check_count",
+        "warning_check_count",
+        "finding_count",
+    }
+    allowed_fields = required_fields | derived_fields
+    if set(assessment) != allowed_fields:
         raise ValidationError(
             f"package run {run_id} gate {gate.gate_id} temporal_order_assessment fields are invalid"
         )
@@ -340,15 +347,50 @@ def _validate_temporal_order_assessment_gate_metadata(
         raise ValidationError(
             f"package run {run_id} gate {gate.gate_id} temporal-order assessment record is not a declared output artifact"
         )
+    counts: dict[str, int] = {}
+    for field in derived_fields:
+        value = assessment[field]
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise ValidationError(
+                f"package run {run_id} gate {gate.gate_id} temporal_order_assessment {field} must be a non-negative integer"
+            )
+        counts[field] = value
+    if "check_count" in counts:
+        for field in ("failed_check_count", "warning_check_count"):
+            if field in counts and counts[field] > counts["check_count"]:
+                raise ValidationError(
+                    f"package run {run_id} gate {gate.gate_id} temporal_order_assessment {field} exceeds check_count"
+                )
+        if (
+            "failed_check_count" in counts
+            and "warning_check_count" in counts
+            and counts["failed_check_count"] + counts["warning_check_count"] > counts["check_count"]
+        ):
+            raise ValidationError(
+                f"package run {run_id} gate {gate.gate_id} temporal_order_assessment check counts are inconsistent"
+            )
     if gate.status is QualityGateStatus.PASSED:
         if declared_status != "temporal_order_passed":
             raise ValidationError(
                 f"package run {run_id} passed temporal-order gate {gate.gate_id} lacks passed assessment metadata"
             )
+        if counts.get("failed_check_count", 0) != 0:
+            raise ValidationError(
+                f"package run {run_id} passed temporal-order gate {gate.gate_id} retains failed checks"
+            )
     elif gate.status is QualityGateStatus.FAILED:
         if declared_status != "temporal_order_failed":
             raise ValidationError(
                 f"package run {run_id} failed temporal-order gate {gate.gate_id} lacks failed assessment metadata"
+            )
+        if (
+            "failed_check_count" in counts
+            and "finding_count" in counts
+            and counts["failed_check_count"] == 0
+            and counts["finding_count"] == 0
+        ):
+            raise ValidationError(
+                f"package run {run_id} failed temporal-order gate {gate.gate_id} lacks failed-check or finding summary"
             )
     else:
         raise ValidationError(

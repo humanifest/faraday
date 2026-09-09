@@ -871,7 +871,11 @@ def audit_research_state(
                     add(
                         "RUN_TEMPORAL_ORDER_ASSESSMENT_FAILED",
                         RigorSeverity.ERROR,
-                        "Run retains a failed temporal-order assessment; causal direction or event-order interpretation must stay bounded.",
+                        "Run retains a failed temporal-order assessment "
+                        f"({temporal_order.get('failed_check_count', 'unknown')} failed of "
+                        f"{temporal_order.get('check_count', 'unknown')} registered checks; "
+                        f"{temporal_order.get('warning_check_count', 'unknown')} warnings). "
+                        "Causal direction or event-order interpretation must stay bounded.",
                         entity_type="run",
                         entity_id=run.run_id,
                         remediation=(
@@ -882,7 +886,10 @@ def audit_research_state(
                     add(
                         "RUN_TEMPORAL_ORDER_ASSESSMENT_REPLAYED",
                         RigorSeverity.INFO,
-                        "Run exposes an artifact-bound temporal-order assessment; the pass classifies order under timing uncertainty and does not prove causality.",
+                        "Run exposes an artifact-bound temporal-order assessment "
+                        f"({temporal_order.get('check_count', 'unknown')} registered checks; "
+                        f"{temporal_order.get('warning_check_count', 'unknown')} warnings). "
+                        "The pass classifies order under timing uncertainty and does not prove causality.",
                         entity_type="run",
                         entity_id=run.run_id,
                     )

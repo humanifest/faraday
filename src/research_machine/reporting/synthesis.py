@@ -525,6 +525,14 @@ def build_synthesis(
                     f"`{assessment.get('specification_sha256', 'unavailable')}`. "
                     "This classifies event order under timing uncertainty; it does not prove causality."
                 )
+                if "check_count" in assessment:
+                    lines.append(
+                        "  - Registered order checks: "
+                        f"{assessment.get('check_count', 'unavailable')}; failed: "
+                        f"{assessment.get('failed_check_count', 'unavailable')}; warnings: "
+                        f"{assessment.get('warning_check_count', 'unavailable')}; findings: "
+                        f"{assessment.get('finding_count', 'unavailable')}."
+                    )
     canary_protocols = [
         protocol for protocol in protocols if protocol.canary_target_plan is not None
     ]
