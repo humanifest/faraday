@@ -45,6 +45,12 @@ _STEP_FIELDS = {
     "implementation_sha256",
 }
 _ARTIFACT_FIELDS = {"artifact_id", "sha256", "media_type", "role"}
+_CONFORMANCE_CONCLUSION_CEILING = (
+    "Provider-free preprocessing conformance check only. It detects whether an "
+    "observed preprocessing declaration matches the trusted registered pipeline, "
+    "but it does not authenticate acquisition, prove implementation correctness, "
+    "clear a protocol gate, register a dataset, or authorize scientific evidence."
+)
 
 
 def _text(value: Any, field: str, *, optional: bool = False) -> str:
@@ -506,12 +512,7 @@ def assess_preprocessing_conformance(
         "status": status,
         "scientific_evidence_eligible": False,
         "authorized_actions": [],
-        "conclusion_ceiling": (
-            "Provider-free preprocessing conformance check only. It detects whether an "
-            "observed preprocessing declaration matches the trusted registered pipeline, "
-            "but it does not authenticate acquisition, prove implementation correctness, "
-            "clear a protocol gate, register a dataset, or authorize scientific evidence."
-        ),
+        "conclusion_ceiling": _CONFORMANCE_CONCLUSION_CEILING,
     }
     encoded = (json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n").encode()
     root = output.expanduser().resolve()
@@ -610,7 +611,10 @@ def verify_preprocessing_conformance_record(
         raise ValidationError(
             "preprocessing conformance record must not authorize actions"
         )
-    _text(record["conclusion_ceiling"], "record.conclusion_ceiling")
+    if record["conclusion_ceiling"] != _CONFORMANCE_CONCLUSION_CEILING:
+        raise ValidationError(
+            "preprocessing conformance record conclusion ceiling has changed"
+        )
     failed_steps = [item for item in step_results if item["status"] == "failed"]
     if status == "preprocessing_conformance_passed" and (findings or failed_steps):
         raise ValidationError(

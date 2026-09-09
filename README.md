@@ -1546,7 +1546,10 @@ hide rewritten step results, findings, or status. Legacy records without those
 snapshots remain visible as missing self-contained comparison replay. Every
 failed step must still retain at least one finding scoped to that exact step, so
 a legacy or current record cannot preserve a failed step while hiding what
-changed behind an unrelated summary. A passed
+changed behind an unrelated summary. The retained non-evidentiary conclusion
+ceiling must match exactly, so a trusted preprocessing record cannot rewrite
+declaration conformance into implementation correctness, gate clearance, or
+evidence authorization. A passed
 conformance check only says the observed declaration matches the trusted
 registered declaration; it does not authenticate acquisition, prove
 implementation correctness, clear a protocol gate, register a dataset, or

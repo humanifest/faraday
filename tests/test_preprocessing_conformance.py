@@ -323,3 +323,28 @@ def test_preprocessing_conformance_record_verifier_rejects_evidence_upgrade(
 
     with pytest.raises(ValidationError, match="must remain non-evidentiary"):
         verify_preprocessing_conformance_record(record, tampered_sha)
+
+
+def test_preprocessing_conformance_record_replays_conclusion_ceiling(
+    tmp_path: Path,
+) -> None:
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha = _write_json(registered, _pipeline())
+    observed_sha = _write_json(observed, _pipeline())
+    result = assess_preprocessing_conformance(
+        registered,
+        registered_sha,
+        observed,
+        observed_sha,
+        tmp_path / "preprocessing-conformance",
+    )
+    record = Path(result["path"]) / "preprocessing-conformance.json"
+    retained = json.loads(record.read_text())
+    retained["conclusion_ceiling"] = (
+        "This preprocessing record proves implementation correctness."
+    )
+    tampered_sha = _write_json(record, retained)
+
+    with pytest.raises(ValidationError, match="conclusion ceiling has changed"):
+        verify_preprocessing_conformance_record(record, tampered_sha)
