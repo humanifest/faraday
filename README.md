@@ -1745,20 +1745,23 @@ be interpreted as factor-specific effects.
 Selection weights must be finite, non-negative, and include at least one
 positive utility term; Faraday rejects non-finite or all-zero weights so action
 identifiers cannot silently decide a supposedly information-driven
-recommendation. Each ranked score preserves the signed weighted contribution of
-expected discrimination, uncertainty reduction, cost, burden, safety risk, and
-ambiguity risk, and deterministic synthesis reports the selected actions'
-components so the tradeoff remains inspectable. Authoritative recommendation
-reads replay the selected action, lane selections, ranked utilities, and signed
-components from the stored candidates, lanes, dependencies, completed actions,
-weights, and hypothesis-discrimination targets; mismatches fail before list,
-inquiry display, or synthesis can use a stale score record. New recommendations
-also retain a service-generated `recommendation_payload_sha256` over the complete
-immutable recommendation outside that field itself, so a canonical rewrite of a
-candidate rationale, hypothesis-discrimination target, lane context, completed
-dependency, weight, score, or selected action fails before it can influence later
-reports. Legacy uncommitted recommendations remain readable only as legacy
-records and are not silently upgraded. If the top utility is tied, Faraday
+recommendation. Candidate score inputs must remain finite numbers from zero to
+one. Each ranked score preserves the signed weighted contribution of expected
+discrimination, uncertainty reduction, cost, burden, safety risk, and ambiguity
+risk, and deterministic synthesis reports the selected actions' components so
+the tradeoff remains inspectable. Authoritative recommendation reads revalidate
+those weight and candidate-score inputs, then replay the selected action, lane
+selections, ranked utilities, and signed components from the stored candidates,
+lanes, dependencies, completed actions, weights, and hypothesis-discrimination
+targets; mismatches fail before list, inquiry display, or synthesis can use a
+stale score record. New recommendations also retain a service-generated
+`recommendation_payload_sha256` over the complete immutable recommendation
+outside that field itself, so a canonical rewrite of a candidate rationale,
+hypothesis-discrimination target, lane context, completed dependency, weight,
+score, or selected action fails before it can influence later reports. Legacy
+uncommitted recommendations remain readable only as legacy records when their
+scoring inputs still satisfy the current utility contract; they are not silently
+upgraded. If the top utility is tied, Faraday
 rejects the selection until the utility model or candidate estimates distinguish
 the actions. The resulting recommendation remains an immutable, ledgered record;
 it does not establish scientific independence or satisfy a promotion gate.

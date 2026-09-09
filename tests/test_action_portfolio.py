@@ -245,6 +245,96 @@ def test_recommendation_reads_replay_ranked_score_components(
         service.build_synthesis()
 
 
+def test_recommendation_replay_rejects_legacy_invalid_selection_weights(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[
+                candidate("low-information", "machine", 0.1),
+                candidate("high-information", "machine", 0.9),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["weights"] = {
+        "expected_discrimination": -1.0,
+        "uncertainty_reduction": 0.0,
+        "cost": 0.0,
+        "burden": 0.0,
+        "safety_risk": 0.0,
+        "ambiguity_risk": 0.0,
+    }
+    payload["selected_action_id"] = "low-information"
+    payload["selected_action_ids_by_lane"] = {"machine": "low-information"}
+    payload["ranked_scores"] = [
+        {
+            "action_id": "low-information",
+            "utility": -0.1,
+            "weighted_components": {
+                "expected_discrimination": -0.1,
+                "uncertainty_reduction": 0.0,
+                "cost_penalty": -0.0,
+                "burden_penalty": -0.0,
+                "safety_risk_penalty": -0.0,
+                "ambiguity_risk_penalty": -0.0,
+            },
+        },
+        {
+            "action_id": "high-information",
+            "utility": -0.9,
+            "weighted_components": {
+                "expected_discrimination": -0.9,
+                "uncertainty_reduction": 0.0,
+                "cost_penalty": -0.0,
+                "burden_penalty": -0.0,
+                "safety_risk_penalty": -0.0,
+                "ambiguity_risk_penalty": -0.0,
+            },
+        },
+    ]
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="selection weight expected_discrimination must be a finite non-negative number",
+    ):
+        service.list_recommendations()
+
+
+def test_recommendation_replay_rejects_legacy_invalid_candidate_score(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[candidate("candidate-with-bad-score", "machine", 0.8)],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][0]["expected_discrimination"] = 1.2
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="expected_discrimination must be a number from 0 to 1",
+    ):
+        service.list_recommendations()
+
+
 def test_portfolio_recommendation_reads_replay_lane_selections(
     tmp_path: Path,
 ) -> None:

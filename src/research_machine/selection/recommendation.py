@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
@@ -41,6 +42,57 @@ def _require_canonical_text(value: object, field: str) -> str:
     if value != value.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
     return value
+
+
+_CANDIDATE_SCORE_FIELDS = (
+    "expected_discrimination",
+    "uncertainty_reduction",
+    "cost",
+    "burden",
+    "safety_risk",
+    "ambiguity_risk",
+)
+
+
+def _validate_selection_weights_for_replay(weights: SelectionWeights) -> None:
+    if not isinstance(weights, SelectionWeights):
+        raise ValidationError("weights must be SelectionWeights")
+    values: list[float] = []
+    for field_name in _CANDIDATE_SCORE_FIELDS:
+        value = getattr(weights, field_name)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or float(value) < 0
+        ):
+            raise ValidationError(
+                f"selection weight {field_name} must be a finite non-negative number"
+            )
+        values.append(float(value))
+    if not any(value > 0 for value in values):
+        raise ValidationError(
+            "selection weights must include at least one positive utility term"
+        )
+
+
+def _validate_candidate_score_inputs_for_replay(candidate: ActionCandidate) -> None:
+    if not isinstance(candidate, ActionCandidate):
+        raise ValidationError("candidates must contain ActionCandidate values")
+    _require_canonical_text(candidate.action_id, "action_id")
+    for field_name in _CANDIDATE_SCORE_FIELDS:
+        value = getattr(candidate, field_name)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or not 0 <= float(value) <= 1
+        ):
+            raise ValidationError(f"{field_name} must be a number from 0 to 1")
+    if not isinstance(candidate.prerequisites_met, bool):
+        raise ValidationError("prerequisites_met must be true or false")
+    if not isinstance(candidate.safety_approved, bool):
+        raise ValidationError("safety_approved must be true or false")
 
 
 def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
@@ -107,7 +159,9 @@ def rank_actions(
 ) -> list[ActionScore]:
     """Rank safe, currently feasible actions using an auditable utility function."""
 
+    _validate_selection_weights_for_replay(weights)
     for candidate in candidates:
+        _validate_candidate_score_inputs_for_replay(candidate)
         _validate_discrimination_target_replay(candidate)
     eligible = [
         candidate
@@ -149,7 +203,9 @@ def rank_actions_by_lane(
 ) -> dict[str, list[ActionScore]]:
     """Rank feasible actions separately so one active lane cannot starve another."""
 
+    _validate_selection_weights_for_replay(weights)
     for candidate in candidates:
+        _validate_candidate_score_inputs_for_replay(candidate)
         _validate_discrimination_target_replay(candidate)
     completed = set(completed_action_ids)
     rankings: dict[str, list[ActionScore]] = {}
