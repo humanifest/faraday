@@ -447,7 +447,7 @@ rewriting history.
 
 `research design scaffold` turns a small, plain-language JSON brief into
 review-only hypothesis, protocol, typed primary-measurement, data-dictionary,
-analysis-contract, data-dictionary, and collection-plan drafts.
+analysis-contract, and collection-plan drafts.
 Every JSON draft carries a `scaffold_provenance` anchor with deterministic
 hashes of the canonical brief content and design-audit findings, and the
 scaffold also emits `design-scaffold-provenance.json` with per-artifact content
@@ -1792,6 +1792,12 @@ hypothesis with the discriminating observation, expected result if the hypothesi
 is right, expected result under the alternative, and the observation that would
 weaken it. Infrastructure actions may instead name typed `information_targets`
 without pretending to discriminate a hypothesis.
+For every hypothesis-discriminating action, Faraday derives and retains the
+target hypothesis workflow state (`active` or `pending_review`) from canonical
+records at recommendation time. That status is not accepted through action-spec
+JSON and is overwritten from canonical state for application callers. It
+participates in the recommendation payload commitment and remains visible in
+synthesis so pending-review proposals cannot be reported as approved hypotheses.
 Deterministic synthesis reports the selected actions' manipulated-factor plan
 and design status so later reviewers can see whether the recommendation changes
 one factor, no declared factor, or a declared factorial/crossover structure.

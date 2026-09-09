@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 import math
 import re
@@ -2413,7 +2413,7 @@ def validate_quality_gates(
 
 def validate_action_candidates(
     candidates: Sequence[ActionCandidate],
-    known_hypotheses: set[str],
+    known_hypotheses: Mapping[str, str],
 ) -> list[ActionCandidate]:
     if isinstance(candidates, (str, bytes)) or not isinstance(candidates, Sequence):
         raise ValidationError("candidates must be a list")
@@ -2450,12 +2450,16 @@ def validate_action_candidates(
             raise ValidationError(
                 f"action {action_id} repeats a hypothesis distinction"
             )
-        unknown = sorted(set(hypotheses) - known_hypotheses)
+        unknown = sorted(set(hypotheses) - set(known_hypotheses))
         if unknown:
             raise ValidationError(
                 f"action {action_id} references unknown hypotheses: "
                 + ", ".join(unknown)
             )
+        hypothesis_workflow_states = {
+            hypothesis_id: known_hypotheses[hypothesis_id]
+            for hypothesis_id in hypotheses
+        }
         discrimination_targets = _validate_hypothesis_discrimination_targets(
             candidate.hypothesis_discrimination_targets, hypotheses, action_id
         )
@@ -2524,6 +2528,7 @@ def validate_action_candidates(
                 ambiguity_risk=float(candidate.ambiguity_risk),
                 rationale=require_text(candidate.rationale, "action rationale"),
                 hypothesis_discrimination_targets=discrimination_targets,
+                hypothesis_workflow_states=hypothesis_workflow_states,
                 prerequisites_met=candidate.prerequisites_met,
                 safety_approved=candidate.safety_approved,
                 lane_id=require_canonical_text(candidate.lane_id, "lane_id"),
@@ -2650,7 +2655,7 @@ def validate_action_lanes(lanes: Sequence[ActionLane]) -> list[ActionLane]:
 
 def validate_portfolio_action_candidates(
     candidates: Sequence[ActionCandidate],
-    known_hypotheses: set[str],
+    known_hypotheses: Mapping[str, str],
     lanes: Sequence[ActionLane],
     completed_action_ids: Sequence[str],
 ) -> tuple[list[ActionCandidate], list[str]]:

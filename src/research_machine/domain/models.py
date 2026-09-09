@@ -839,6 +839,7 @@ class ActionCandidate(Serializable):
     hypothesis_discrimination_targets: list[HypothesisDiscriminationTarget] = field(
         default_factory=list
     )
+    hypothesis_workflow_states: dict[str, str] = field(default_factory=dict)
     prerequisites_met: bool = True
     safety_approved: bool = True
     lane_id: str = "default"
@@ -853,6 +854,7 @@ class ActionCandidate(Serializable):
     def from_dict(cls, value: dict[str, Any]) -> "ActionCandidate":
         copied = dict(value)
         copied.setdefault("hypothesis_discrimination_targets", [])
+        copied.setdefault("hypothesis_workflow_states", {})
         copied["hypothesis_discrimination_targets"] = [
             item
             if isinstance(item, HypothesisDiscriminationTarget)

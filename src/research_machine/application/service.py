@@ -4256,7 +4256,7 @@ class ResearchService:
     ) -> ActionRecommendation:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         researchable_hypotheses = {
-            hypothesis.hypothesis_id
+            hypothesis.hypothesis_id: hypothesis.workflow_state.value
             for hypothesis in self.repository.list_hypotheses(resolved)
             if hypothesis.workflow_state
             in {
@@ -4305,7 +4305,7 @@ class ResearchService:
     ) -> ActionRecommendation:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         researchable_hypotheses = {
-            hypothesis.hypothesis_id
+            hypothesis.hypothesis_id: hypothesis.workflow_state.value
             for hypothesis in self.repository.list_hypotheses(resolved)
             if hypothesis.workflow_state
             in {

@@ -2247,14 +2247,21 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
         "ambiguity_risk_penalty": -0.075,
     }
     assert recommendation.ranked_scores[0].utility == 1.14
-    assert recommendation.candidates == candidates
+    selected_candidate = next(
+        candidate
+        for candidate in recommendation.candidates
+        if candidate.action_id == "decisive-proof-check"
+    )
+    assert selected_candidate.hypothesis_workflow_states == {
+        hypothesis_id: "active"
+    }
     assert service.list_recommendations() == [recommendation]
     synthesis = service.build_synthesis()["content"]
     assert "Utility components: utility 1.14" in synthesis
     assert "expected_discrimination 0.9" in synthesis
     assert "ambiguity_risk_penalty -0.075" in synthesis
     assert "Discrimination targets: " in synthesis
-    assert f"{hypothesis_id}: A separately implemented checker" in synthesis
+    assert f"{hypothesis_id} [active]: A separately implemented checker" in synthesis
     assert (
         "Payload commitment: " + recommendation.recommendation_payload_sha256
         in synthesis

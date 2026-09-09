@@ -53,6 +53,8 @@ _CANDIDATE_SCORE_FIELDS = (
     "ambiguity_risk",
 )
 
+_RECOMMENDATION_HYPOTHESIS_STATES = {"active", "pending_review"}
+
 
 def _validate_selection_weights_for_replay(weights: SelectionWeights) -> None:
     if not isinstance(weights, SelectionWeights):
@@ -98,6 +100,29 @@ def _validate_candidate_score_inputs_for_replay(candidate: ActionCandidate) -> N
 def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
     hypotheses = [_require_canonical_text(item, "distinguishes_hypotheses item")
                   for item in candidate.distinguishes_hypotheses]
+    workflow_states = candidate.hypothesis_workflow_states
+    if not isinstance(workflow_states, dict):
+        raise ValidationError("hypothesis_workflow_states must be an object")
+    if workflow_states:
+        normalized_states: dict[str, str] = {}
+        for hypothesis_id, state in workflow_states.items():
+            normalized_hypothesis = _require_canonical_text(
+                hypothesis_id, "hypothesis_workflow_states hypothesis_id"
+            )
+            normalized_state = _require_canonical_text(
+                state, "hypothesis_workflow_states state"
+            )
+            if normalized_state not in _RECOMMENDATION_HYPOTHESIS_STATES:
+                raise ValidationError(
+                    "hypothesis_workflow_states may only retain active or "
+                    "pending_review targets"
+                )
+            normalized_states[normalized_hypothesis] = normalized_state
+        if set(normalized_states) != set(hypotheses):
+            raise ValidationError(
+                f"action {candidate.action_id} hypothesis_workflow_states do "
+                "not replay from distinguishes_hypotheses"
+            )
     if len(set(hypotheses)) != len(hypotheses):
         raise ValidationError(
             f"action {candidate.action_id} repeats a hypothesis distinction"
@@ -229,15 +254,31 @@ def rank_actions_by_lane(
     return rankings
 
 
-def recommendation_payload_sha256(recommendation: ActionRecommendation) -> str:
-    """Commit the immutable recommendation while excluding the commitment itself."""
+def _recommendation_payload(
+    recommendation: ActionRecommendation,
+    *,
+    include_hypothesis_workflow_states: bool = True,
+) -> dict[str, object]:
     payload = recommendation.to_dict()
     payload.pop("recommendation_payload_sha256", None)
+    if not include_hypothesis_workflow_states:
+        for candidate in payload.get("candidates", []):
+            if isinstance(candidate, dict):
+                candidate.pop("hypothesis_workflow_states", None)
+    return payload
+
+
+def _sha256_json_payload(payload: dict[str, object]) -> str:
     return hashlib.sha256(
         json.dumps(
             payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
         ).encode("utf-8")
     ).hexdigest()
+
+
+def recommendation_payload_sha256(recommendation: ActionRecommendation) -> str:
+    """Commit the immutable recommendation while excluding the commitment itself."""
+    return _sha256_json_payload(_recommendation_payload(recommendation))
 
 
 def validate_recommendation_payload_commitment(
@@ -248,6 +289,19 @@ def validate_recommendation_payload_commitment(
         return None
     expected = recommendation_payload_sha256(recommendation)
     if retained != expected:
+        legacy_expected = _sha256_json_payload(
+            _recommendation_payload(
+                recommendation, include_hypothesis_workflow_states=False
+            )
+        )
+        if (
+            retained == legacy_expected
+            and all(
+                not candidate.hypothesis_workflow_states
+                for candidate in recommendation.candidates
+            )
+        ):
+            return retained
         raise ValidationError(
             f"recommendation {recommendation.recommendation_id} payload no "
             "longer matches its service-generated commitment"

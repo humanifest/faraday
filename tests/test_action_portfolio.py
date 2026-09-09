@@ -1,4 +1,6 @@
+import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -190,12 +192,16 @@ def test_hypothesis_discrimination_targets_are_retained_and_visible(
         for item in recommendation.candidates
         if item.action_id == "machine-discriminator"
     )
+    assert selected.hypothesis_workflow_states == {
+        competing_hypothesis: "active",
+        target_hypothesis: "active",
+    }
     assert [item.hypothesis_id for item in selected.hypothesis_discrimination_targets] == [
         *sorted([competing_hypothesis, target_hypothesis]),
     ]
     synthesis = service.build_synthesis()["content"]
     assert "Discrimination targets: machine: " in synthesis
-    assert f"{target_hypothesis}: Target channel separates" in synthesis
+    assert f"{target_hypothesis} [active]: Target channel separates" in synthesis
     assert "weakens if Target channel is absent" in synthesis
 
     recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
@@ -212,6 +218,166 @@ def test_hypothesis_discrimination_targets_are_retained_and_visible(
         match="payload no longer matches its service-generated commitment",
     ):
         service.list_recommendations()
+
+
+def test_pending_review_discrimination_targets_retain_visible_workflow_state(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    pending = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement="A complete pending explanation.",
+            observable_prediction="The target observable follows the pending pattern.",
+            null_model="The target observable follows the ordinary alternative.",
+            competing_models=["A mundane process explains the target observable."],
+            falsification_conditions=[
+                "The pending pattern disappears under the registered falsifier."
+            ],
+        )
+    )
+    staged = service.stage_hypothesis(
+        pending.hypothesis_id,
+        rationale="The proposal is complete enough for exploratory planning.",
+        confidence="high",
+    )
+
+    recommendation = service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate(
+                    "pending-review-discriminator",
+                    "machine",
+                    0.9,
+                    distinguishes_hypotheses=[staged.hypothesis_id],
+                    hypothesis_discrimination_targets=[
+                        discrimination_target(staged.hypothesis_id, "Pending target")
+                    ],
+                ),
+                candidate("theory-next", "theory", 0.7),
+            ],
+        )
+    )
+
+    selected = next(
+        item
+        for item in recommendation.candidates
+        if item.action_id == "pending-review-discriminator"
+    )
+    assert selected.hypothesis_workflow_states == {
+        staged.hypothesis_id: "pending_review"
+    }
+    synthesis = service.build_synthesis()["content"]
+    assert (
+        f"{staged.hypothesis_id} [pending_review]: Pending target separates"
+        in synthesis
+    )
+
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["candidates"][0]["hypothesis_workflow_states"][
+        staged.hypothesis_id
+    ] = "active"
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        ValidationError,
+        match="payload no longer matches its service-generated commitment",
+    ):
+        service.list_recommendations()
+
+
+def test_caller_supplied_hypothesis_workflow_state_is_not_trusted(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    hypothesis_id = reviewed_hypothesis(
+        service, "The selected target is already active in the canonical store."
+    )
+    stale_candidate = replace(
+        candidate(
+            "stale-status-discriminator",
+            "machine",
+            0.9,
+            distinguishes_hypotheses=[hypothesis_id],
+            hypothesis_discrimination_targets=[
+                discrimination_target(hypothesis_id, "Canonical status")
+            ],
+        ),
+        hypothesis_workflow_states={hypothesis_id: "pending_review"},
+    )
+
+    recommendation = service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                stale_candidate,
+                candidate("theory-next", "theory", 0.7),
+            ],
+        )
+    )
+
+    selected = next(
+        item
+        for item in recommendation.candidates
+        if item.action_id == "stale-status-discriminator"
+    )
+    assert selected.hypothesis_workflow_states == {hypothesis_id: "active"}
+
+
+def test_legacy_sealed_recommendation_without_workflow_states_remains_readable(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    hypothesis_id = reviewed_hypothesis(
+        service, "A legacy recommendation cited this active hypothesis."
+    )
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate(
+                    "legacy-status-discriminator",
+                    "machine",
+                    0.9,
+                    distinguishes_hypotheses=[hypothesis_id],
+                    hypothesis_discrimination_targets=[
+                        discrimination_target(hypothesis_id, "Legacy target")
+                    ],
+                ),
+                candidate("theory-next", "theory", 0.7),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    for item in payload["candidates"]:
+        item.pop("hypothesis_workflow_states", None)
+    payload_without_commitment = dict(payload)
+    payload_without_commitment.pop("recommendation_payload_sha256", None)
+    payload["recommendation_payload_sha256"] = hashlib.sha256(
+        json.dumps(
+            payload_without_commitment,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    recommendation = service.list_recommendations()[0]
+    selected = next(
+        item
+        for item in recommendation.candidates
+        if item.action_id == "legacy-status-discriminator"
+    )
+    assert selected.hypothesis_workflow_states == {}
+    assert "legacy_state_missing" in service.build_synthesis()["content"]
 
 
 def test_recommendation_reads_replay_ranked_score_components(

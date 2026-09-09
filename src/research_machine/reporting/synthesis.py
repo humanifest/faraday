@@ -962,7 +962,9 @@ def _action_discrimination_summary(candidate: ActionCandidate) -> str:
             return "hypothesis IDs named without retained discriminating observations"
         return "no hypothesis-specific discrimination declared"
     return "; ".join(
-        f"{target.hypothesis_id}: {target.discriminating_observation}; "
+        f"{target.hypothesis_id}"
+        f" [{candidate.hypothesis_workflow_states.get(target.hypothesis_id, 'legacy_state_missing')}]: "
+        f"{target.discriminating_observation}; "
         f"weakens if {target.would_weaken_if}"
         for target in targets
     )
