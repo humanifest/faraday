@@ -51,6 +51,28 @@
             "items": {"type": "string", "minLength": 1},
             "uniqueItems": true
           },
+          "hypothesis_discrimination_targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "hypothesis_id",
+                "discriminating_observation",
+                "expected_if_hypothesis",
+                "expected_if_alternative",
+                "would_weaken_if"
+              ],
+              "properties": {
+                "hypothesis_id": {"type": "string", "minLength": 1},
+                "discriminating_observation": {"type": "string", "minLength": 1},
+                "expected_if_hypothesis": {"type": "string", "minLength": 1},
+                "expected_if_alternative": {"type": "string", "minLength": 1},
+                "would_weaken_if": {"type": "string", "minLength": 1}
+              },
+              "additionalProperties": false
+            },
+            "default": []
+          },
           "information_targets": {
             "type": "array",
             "items": {"type": "string", "minLength": 1},
@@ -73,11 +95,46 @@
             "uniqueItems": true,
             "default": []
           },
+          "manipulated_factors": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true,
+            "default": []
+          },
+          "factorial_or_crossover_design": {"type": "boolean", "default": false},
+          "factor_interpretability_plan": {"type": "string", "default": ""},
           "metadata": {"type": "object"}
         },
         "anyOf": [
-          {"properties": {"distinguishes_hypotheses": {"minItems": 1}}},
+          {
+            "required": ["hypothesis_discrimination_targets"],
+            "properties": {
+              "distinguishes_hypotheses": {"minItems": 1},
+              "hypothesis_discrimination_targets": {"minItems": 1}
+            }
+          },
           {"required": ["information_targets"], "properties": {"information_targets": {"minItems": 1}}}
+        ],
+        "allOf": [
+          {
+            "if": {
+              "required": ["distinguishes_hypotheses"],
+              "properties": {"distinguishes_hypotheses": {"minItems": 1}}
+            },
+            "then": {
+              "required": ["hypothesis_discrimination_targets"],
+              "properties": {"hypothesis_discrimination_targets": {"minItems": 1}}
+            }
+          },
+          {
+            "if": {
+              "required": ["distinguishes_hypotheses"],
+              "properties": {"distinguishes_hypotheses": {"maxItems": 0}}
+            },
+            "then": {
+              "properties": {"hypothesis_discrimination_targets": {"maxItems": 0}}
+            }
+          }
         ],
         "additionalProperties": false
       }

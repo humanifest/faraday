@@ -30,6 +30,9 @@ methods without changing its epistemic rules or canonical state.
   unapproved in recommendations and synthesis. Callers cannot supply that
   status map through action-spec JSON; it is derived from the canonical
   hypothesis lanes and covered by the recommendation payload commitment.
+  The published next-action schemas now expose the caller-supplied discriminator
+  target and factor-plan fields while rejecting service-derived workflow-state
+  claims.
   Multi-factor candidates must declare a factorial or crossover design plus a canonical
   factor-interpretability plan before they can be ranked, so action selection
   cannot prefer a simultaneous intervention whose result would not distinguish

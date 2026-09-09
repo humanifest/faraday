@@ -6,6 +6,7 @@ import pytest
 
 jsonschema = pytest.importorskip("jsonschema")
 SCHEMAS = Path(__file__).resolve().parents[1] / "schemas"
+EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 from research_machine.addons.general_science import MANIFEST
 
 
@@ -135,6 +136,82 @@ def test_analysis_schema_fields_match_shared_execution_contract():
 
     schema = json.loads((SCHEMAS / "general-analysis.schema.json").read_text())
     assert set(schema["properties"]) == set(ANALYSIS_SPEC_FIELDS)
+
+
+@pytest.mark.parametrize(
+    ("schema_name", "example_name"),
+    [
+        ("next-action.schema.json", "next-actions.json"),
+        ("next-action-portfolio.schema.json", "next-action-portfolio.json"),
+    ],
+)
+def test_next_action_examples_match_published_schemas(schema_name, example_name):
+    schema = json.loads((SCHEMAS / schema_name).read_text())
+    example = json.loads((EXAMPLES / example_name).read_text())
+    jsonschema.validate(example, schema)
+
+
+@pytest.mark.parametrize(
+    "schema_name",
+    ["next-action.schema.json", "next-action-portfolio.schema.json"],
+)
+def test_next_action_schema_requires_discrimination_targets(schema_name):
+    schema = json.loads((SCHEMAS / schema_name).read_text())
+    candidate = {
+        "action_id": "hypothesis-target",
+        "title": "Hypothesis target",
+        "distinguishes_hypotheses": ["hyp-active"],
+        "information_targets": ["lane:uncertainty"],
+        "expected_discrimination": 0.8,
+        "uncertainty_reduction": 0.7,
+        "cost": 0.2,
+        "burden": 0.1,
+        "safety_risk": 0.0,
+        "ambiguity_risk": 0.1,
+        "rationale": "Separate the registered hypothesis from an alternative.",
+        "lane_id": "science",
+    }
+    command = {"candidates": [candidate]}
+    if schema_name == "next-action-portfolio.schema.json":
+        command["lanes"] = [{"lane_id": "science", "title": "Science"}]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
+@pytest.mark.parametrize(
+    "schema_name",
+    ["next-action.schema.json", "next-action-portfolio.schema.json"],
+)
+def test_next_action_schema_rejects_service_derived_workflow_states(schema_name):
+    schema = json.loads((SCHEMAS / schema_name).read_text())
+    candidate = {
+        "action_id": "hypothesis-target",
+        "title": "Hypothesis target",
+        "distinguishes_hypotheses": ["hyp-active"],
+        "hypothesis_discrimination_targets": [
+            {
+                "hypothesis_id": "hyp-active",
+                "discriminating_observation": "The registered falsifier separates the target from the alternative.",
+                "expected_if_hypothesis": "The target pattern remains.",
+                "expected_if_alternative": "The target pattern follows the alternative.",
+                "would_weaken_if": "The target pattern disappears.",
+            }
+        ],
+        "hypothesis_workflow_states": {"hyp-active": "active"},
+        "expected_discrimination": 0.8,
+        "uncertainty_reduction": 0.7,
+        "cost": 0.2,
+        "burden": 0.1,
+        "safety_risk": 0.0,
+        "ambiguity_risk": 0.1,
+        "rationale": "Separate the registered hypothesis from an alternative.",
+        "lane_id": "science",
+    }
+    command = {"candidates": [candidate]}
+    if schema_name == "next-action-portfolio.schema.json":
+        command["lanes"] = [{"lane_id": "science", "title": "Science"}]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
 
 
 def test_general_addon_manifest_matches_published_schema():

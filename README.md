@@ -1798,6 +1798,9 @@ records at recommendation time. That status is not accepted through action-spec
 JSON and is overwritten from canonical state for application callers. It
 participates in the recommendation payload commitment and remains visible in
 synthesis so pending-review proposals cannot be reported as approved hypotheses.
+The published next-action schemas expose the caller-supplied discriminator and
+factor-plan fields while continuing to reject service-derived workflow-state
+claims.
 Deterministic synthesis reports the selected actions' manipulated-factor plan
 and design status so later reviewers can see whether the recommendation changes
 one factor, no declared factor, or a declared factorial/crossover structure.

@@ -4,6 +4,15 @@
       "action_id": "independent-proof-check",
       "title": "Replay with an independent checker",
       "distinguishes_hypotheses": ["<hypothesis-id>"],
+      "hypothesis_discrimination_targets": [
+        {
+          "hypothesis_id": "<hypothesis-id>",
+          "discriminating_observation": "The independent checker reproduces the registered result without sharing implementation state.",
+          "expected_if_hypothesis": "The registered effect appears with the independent checker.",
+          "expected_if_alternative": "The effect disappears or follows an implementation-specific artifact.",
+          "would_weaken_if": "The independent checker fails to reproduce the registered result."
+        }
+      ],
       "expected_discrimination": 0.9,
       "uncertainty_reduction": 0.8,
       "cost": 0.2,
