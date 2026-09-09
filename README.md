@@ -735,13 +735,13 @@ may appear, `matches_expected` must remain boolean, and the evaluation evidence
 hash must reference a packaged run output. This keeps failed or unexpected
 controls visible as scientific outcomes without treating expected behavior as
 proof that the study is valid. Skipped gates cannot carry completed structured
-assessment or retained-record payloads such as measurement-validity results,
-missingness assessments, causal-assumption diagnostics, canary assessments, or
-retained acquisition/conformance records; skipped means unperformed, not a place
-to park observations under an invalid run. Structured measurement-validity
-metadata is also replayed for every performed validity gate: each frozen check
-must have exactly one result, the evidence type must match the protocol,
-passed/warning/failed
+assessment or retained-record payloads, or any real SHA-256 evidence anchors
+inside those payloads, such as measurement-validity results, missingness
+assessments, causal-assumption diagnostics, canary assessments, or retained
+acquisition/conformance records; skipped means unperformed, not a place to park
+observations under an invalid run. Structured measurement-validity metadata is
+also replayed for every performed validity gate: each frozen check must have
+exactly one result, the evidence type must match the protocol, passed/warning/failed
 gates must retain `consistent_with_validity_claim`, `inconclusive`, or
 `contradicted_validity_claim` respectively, and each result must cite a packaged
 run output. Consistency remains a bounded diagnostic, not proof of construct

@@ -292,13 +292,24 @@ def _contains_template_placeholder(value: Any) -> bool:
     return False
 
 
+def _contains_canonical_sha256(value: Any) -> bool:
+    if is_canonical_sha256(value):
+        return True
+    if isinstance(value, dict):
+        return any(_contains_canonical_sha256(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_canonical_sha256(item) for item in value)
+    return False
+
+
 def _reject_skipped_gate_structured_results(gate: QualityGateResult) -> None:
     if gate.status is not QualityGateStatus.SKIPPED:
         return
     retained = sorted(
         key
         for key in _STRUCTURED_RESULT_DETAIL_KEYS.intersection(gate.details)
-        if not _contains_template_placeholder(gate.details[key])
+        if _contains_canonical_sha256(gate.details[key])
+        or not _contains_template_placeholder(gate.details[key])
     )
     if retained:
         raise ValidationError(

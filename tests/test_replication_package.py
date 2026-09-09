@@ -2024,6 +2024,7 @@ def test_replication_package_verifies_control_gate_metadata(
         ("unbound_evidence", "must reference a run output artifact"),
         ("blank_diagnostic", "observed_diagnostic must be nonempty text"),
         ("skipped_gate_with_results", "skipped quality gate"),
+        ("skipped_gate_with_partial_hash", "skipped quality gate"),
     ],
 )
 def test_replication_package_verifies_measurement_validity_gate_metadata(
@@ -2189,6 +2190,11 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
         result["observed_diagnostic"] = ""
     elif mutation == "skipped_gate_with_results":
         gate["status"] = "skipped"
+        runs[0]["status"] = "invalid"
+        runs[0]["scientific_evidence_eligible"] = False
+    elif mutation == "skipped_gate_with_partial_hash":
+        gate["status"] = "skipped"
+        result["observed_diagnostic"] = ""
         runs[0]["status"] = "invalid"
         runs[0]["scientific_evidence_eligible"] = False
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")

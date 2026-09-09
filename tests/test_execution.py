@@ -1460,7 +1460,14 @@ def test_run_rejects_skipped_gate_with_structured_result_metadata(
                 "proof-check",
                 QualityGateStatus.SKIPPED,
                 "The synthetic fixture gate was not performed.",
-                details={"measurement_validity_results": {}},
+                details={
+                    "measurement_validity_results": {
+                        "checker-reference-agreement": {
+                            "observed_diagnostic": "",
+                            "evidence_sha256": "c" * 64,
+                        }
+                    },
+                },
             )
         ],
     )
