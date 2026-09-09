@@ -1101,6 +1101,13 @@ retained effect-status contract:
 available effects must carry clean source and calculation checks, while
 unavailable effects must remain not-applicable rather than acquiring
 after-the-fact numeric-looking verification.
+Effect records and effect-verification artifacts also carry explicit
+`scientific_evidence_eligible`, `conclusion_authorized`, and
+`publication_authorized` false boundaries plus retained limitations. Verification
+and pooling replay those boundaries, study counts, readiness status, independent
+review status, and mismatch summaries before creating downstream artifacts, so a
+hash-consistent rewrite cannot turn source-summary arithmetic into evidence,
+conclusion authorization, or publication clearance.
 Literature deviation declarations retain a compact snapshot of the frozen
 synthesis-plan commitments, and qualitative synthesis or quantitative pooling
 must match that snapshot before recording a result. Each declared departure

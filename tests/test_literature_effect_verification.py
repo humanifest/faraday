@@ -38,7 +38,14 @@ def effects_file(tmp_path):
         "plan_id": "p1", "snapshot_id": "snap", "effect_measure": "mean_difference",
         "source_summaries": summaries, "records": [
             {"study_id": "s1", "status": "available", "mapped_claims": [mapped_claim("s1")]},
-            {"study_id": "s2", "status": "unavailable", "mapped_claims": [mapped_claim("s2")]}]}
+            {"study_id": "s2", "status": "unavailable", "mapped_claims": [mapped_claim("s2")]}],
+        "study_count": 2, "available_effect_count": 1, "unavailable_effect_count": 1,
+        "minimum_independent_studies": 1, "scientific_evidence_eligible": False,
+        "conclusion_authorized": False, "publication_authorized": False,
+        "limitations": [
+            "Effect values are reviewer assertions.",
+            "Unavailable statistics remain explicit.",
+        ]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode(); path = tmp_path / "effects.json"; path.write_bytes(encoded)
     return path, hashlib.sha256(encoded).hexdigest()
 
@@ -58,6 +65,9 @@ def test_effect_verification_cli_records_clean_independent_review(tmp_path, caps
         "--expected-effects-sha256", digest, "--review-file", str(review_path), "--output", str(output)]) == 0
     result = json.loads(capsys.readouterr().out)["result"]
     assert result["status"] == "effect_verification_recorded" and result["independent_review"] is True
+    assert result["scientific_evidence_eligible"] is False
+    assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
     assert result["assessments"][0]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s1"))
     assert result["assessments"][1]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s2", "unavailable"))
     with pytest.raises(ValidationError, match="already exists"):
@@ -107,6 +117,13 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     "location",
     "padded-location",
     "padded-rationale",
+    "authority",
+    "conclusion-authority",
+    "publication-authority",
+    "limitations-missing",
+    "count-drift",
+    "availability-count-drift",
+    "readiness-drift",
 ])
 def test_invalid_effect_verification_never_publishes(tmp_path, failure):
     effects, digest = effects_file(tmp_path); candidate = review()
@@ -190,6 +207,27 @@ def test_invalid_effect_verification_never_publishes(tmp_path, failure):
     elif failure == "bad-source-anchor":
         value = json.loads(effects.read_text())
         value["records"][0]["mapped_claims"][0]["source_retained_file_sha256"] = "B" * 64
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+        effects.write_bytes(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
+    elif failure in {"authority", "conclusion-authority", "publication-authority",
+                     "limitations-missing", "count-drift", "availability-count-drift",
+                     "readiness-drift"}:
+        value = json.loads(effects.read_text())
+        if failure == "authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "publication-authority":
+            value["publication_authorized"] = True
+        elif failure == "limitations-missing":
+            value["limitations"] = []
+        elif failure == "count-drift":
+            value["study_count"] = 3
+        elif failure == "availability-count-drift":
+            value["available_effect_count"] = 2
+        elif failure == "readiness-drift":
+            value["status"] = "insufficient_effects"
         encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
         effects.write_bytes(encoded)
         digest = hashlib.sha256(encoded).hexdigest()

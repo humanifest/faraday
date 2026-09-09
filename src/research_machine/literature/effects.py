@@ -164,6 +164,58 @@ def retained_source_summary_sha256(summary: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def validate_effect_records_boundary(effects: dict[str, Any]) -> None:
+    """Replay effect-record non-authority, study counts, and readiness status."""
+    if effects.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("effect records must remain scientifically ineligible")
+    if effects.get("conclusion_authorized") is not False:
+        raise ValidationError("effect records must not authorize conclusions")
+    if effects.get("publication_authorized") is not False:
+        raise ValidationError("effect records must not authorize publication claims")
+    limitations = effects.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("effect records require retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"effect-record limitation {index + 1}")
+
+    records = effects.get("records")
+    if not isinstance(records, list) or not records:
+        raise ValidationError("effect records require retained study records")
+    available = 0
+    unavailable = 0
+    seen = set()
+    for item in records:
+        if not isinstance(item, dict):
+            raise ValidationError("effect records contain malformed study records")
+        study_id = _canonical_text(item.get("study_id"), "effect record study_id")
+        if study_id in seen:
+            raise ValidationError("effect records contain duplicate study IDs")
+        seen.add(study_id)
+        status = item.get("status")
+        if status == "available":
+            available += 1
+        elif status == "unavailable":
+            unavailable += 1
+        else:
+            raise ValidationError("effect record status is invalid")
+
+    study_count = effects.get("study_count")
+    available_count = effects.get("available_effect_count")
+    unavailable_count = effects.get("unavailable_effect_count")
+    if isinstance(study_count, bool) or study_count != len(records):
+        raise ValidationError("effect-record study_count does not replay from records")
+    if isinstance(available_count, bool) or available_count != available:
+        raise ValidationError("effect-record available_effect_count does not replay from records")
+    if isinstance(unavailable_count, bool) or unavailable_count != unavailable:
+        raise ValidationError("effect-record unavailable_effect_count does not replay from records")
+    minimum = effects.get("minimum_independent_studies")
+    if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
+        raise ValidationError("effect records require a valid minimum_independent_studies")
+    expected_status = "effects_ready" if available >= minimum else "insufficient_effects"
+    if effects.get("status") != expected_status:
+        raise ValidationError("effect-record status does not replay from retained counts")
+
+
 def create_effect_records(
     plan_path: Path,
     expected_plan_sha256: str,
@@ -325,6 +377,8 @@ def create_effect_records(
         "minimum_independent_studies": minimum,
         "status": "effects_ready" if available >= minimum else "insufficient_effects",
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "Effect values and derivations are reviewer assertions; the machine validates shape and variance but does not reproduce calculations from source data.",
             "Unavailable statistics remain explicit and are not imputed or silently excluded.",

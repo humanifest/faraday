@@ -77,10 +77,26 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
     effects_sha = write_json(effects, {"effect_records_version": 1, "status": "effects_ready",
         "inputs": {"synthesis_plan_sha256": plan_sha}, "effect_measure": "mean_difference",
         "derivation_scope": "recomputed_from_source_reported_arm_summaries",
-        "source_summaries": source_summaries, "records": records})
+        "source_summaries": source_summaries, "records": records,
+        "study_count": len(records), "available_effect_count": count,
+        "unavailable_effect_count": 1, "minimum_independent_studies": minimum,
+        "scientific_evidence_eligible": False, "conclusion_authorized": False,
+        "publication_authorized": False,
+        "limitations": [
+            "Effect values are reviewer assertions.",
+            "Unavailable statistics remain explicit.",
+        ]})
     verification = tmp_path / "effect-verification.json"
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
+        "effect_reviewer": "Effect reviewer", "verification_reviewer": "Independent checker",
+        "independent_review": True, "mismatch_study_ids": [],
+        "scientific_evidence_eligible": False, "conclusion_authorized": False,
+        "publication_authorized": False,
+        "limitations": [
+            "The machine records an independent check but does not read the cited source.",
+            "Matching calculations verify arithmetic from retained summaries only.",
+        ],
         "assessments": [
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
@@ -153,6 +169,7 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
                                  "checked_location": "results"}},
     ]
     assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
     assert result["small_study_effects"]["status"] == "not_estimable"
     assert result["small_study_effects"]["publication_bias_conclusion"] is False
     assert [item["analysis"] for item in result["planned_sensitivity_results"]] == [
@@ -188,9 +205,20 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
         for i in range(10)
     ]
     value["source_summaries"] = [source_summary(f"s{i}") for i in range(10)]
+    value["study_count"] = 10
+    value["available_effect_count"] = 10
+    value["unavailable_effect_count"] = 0
     effects_sha = write_json(effects, value)
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
+        "effect_reviewer": "Effect reviewer", "verification_reviewer": "Independent checker",
+        "independent_review": True, "mismatch_study_ids": [],
+        "scientific_evidence_eligible": False, "conclusion_authorized": False,
+        "publication_authorized": False,
+        "limitations": [
+            "The machine records an independent check but does not read the cited source.",
+            "Matching calculations verify arithmetic from retained summaries only.",
+        ],
         "assessments": [
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
@@ -215,9 +243,20 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
          "mapped_claims": [mapped_claim(f"s{i}")]} for i in range(10)
     ]
     value["source_summaries"] = [source_summary(f"s{i}") for i in range(10)]
+    value["study_count"] = 10
+    value["available_effect_count"] = 10
+    value["unavailable_effect_count"] = 0
     effects_sha = write_json(effects, value)
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
+        "effect_reviewer": "Effect reviewer", "verification_reviewer": "Independent checker",
+        "independent_review": True, "mismatch_study_ids": [],
+        "scientific_evidence_eligible": False, "conclusion_authorized": False,
+        "publication_authorized": False,
+        "limitations": [
+            "The machine records an independent check but does not read the cited source.",
+            "Matching calculations verify arithmetic from retained summaries only.",
+        ],
         "assessments": [
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
@@ -273,7 +312,7 @@ def test_meta_analysis_requires_canonical_effect_and_verification_handles(tmp_pa
         )
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "derivation-scope", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-source-summary-digest", "verification-source-summary-digest-drift", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "derivation-scope", "effects-authority", "effects-conclusion-authority", "effects-publication-authority", "effects-limitations-missing", "effects-count-drift", "effects-availability-count-drift", "effects-readiness-drift", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-authority", "verification-conclusion-authority", "verification-publication-authority", "verification-limitations-missing", "verification-independent-drift", "verification-reviewer-drift", "verification-mismatch-drift", "verification-status-rewrite", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-source-summary-digest", "verification-source-summary-digest-drift", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -286,6 +325,20 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(effects.read_text()); value["effect_measure"] = "other"; effects_sha = write_json(effects, value)
     elif failure == "derivation-scope":
         value = json.loads(effects.read_text()); value["derivation_scope"] = "reviewer_reported_effect_and_standard_error"; effects_sha = write_json(effects, value)
+    elif failure == "effects-authority":
+        value = json.loads(effects.read_text()); value["scientific_evidence_eligible"] = True; effects_sha = write_json(effects, value)
+    elif failure == "effects-conclusion-authority":
+        value = json.loads(effects.read_text()); value["conclusion_authorized"] = True; effects_sha = write_json(effects, value)
+    elif failure == "effects-publication-authority":
+        value = json.loads(effects.read_text()); value["publication_authorized"] = True; effects_sha = write_json(effects, value)
+    elif failure == "effects-limitations-missing":
+        value = json.loads(effects.read_text()); value["limitations"] = []; effects_sha = write_json(effects, value)
+    elif failure == "effects-count-drift":
+        value = json.loads(effects.read_text()); value["study_count"] = 99; effects_sha = write_json(effects, value)
+    elif failure == "effects-availability-count-drift":
+        value = json.loads(effects.read_text()); value["available_effect_count"] = 99; effects_sha = write_json(effects, value)
+    elif failure == "effects-readiness-drift":
+        value = json.loads(effects.read_text()); value["status"] = "insufficient_effects"; effects_sha = write_json(effects, value)
     elif failure == "source-summary-missing":
         value = json.loads(effects.read_text()); del value["source_summaries"]; effects_sha = write_json(effects, value)
     elif failure == "source-summary-status":
@@ -306,6 +359,25 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(effects.read_text())
         value["records"][0]["mapped_claims"].append({"extraction_id": "claim-1"})
         effects_sha = write_json(effects, value)
+    elif failure == "verification-authority":
+        value = json.loads(verification.read_text()); value["scientific_evidence_eligible"] = True; verification_sha = write_json(verification, value)
+    elif failure == "verification-conclusion-authority":
+        value = json.loads(verification.read_text()); value["conclusion_authorized"] = True; verification_sha = write_json(verification, value)
+    elif failure == "verification-publication-authority":
+        value = json.loads(verification.read_text()); value["publication_authorized"] = True; verification_sha = write_json(verification, value)
+    elif failure == "verification-limitations-missing":
+        value = json.loads(verification.read_text()); value["limitations"] = []; verification_sha = write_json(verification, value)
+    elif failure == "verification-independent-drift":
+        value = json.loads(verification.read_text()); value["independent_review"] = False; verification_sha = write_json(verification, value)
+    elif failure == "verification-reviewer-drift":
+        value = json.loads(verification.read_text()); value["verification_reviewer"] = "Effect reviewer"; verification_sha = write_json(verification, value)
+    elif failure == "verification-mismatch-drift":
+        value = json.loads(verification.read_text()); value["mismatch_study_ids"] = ["s1"]; verification_sha = write_json(verification, value)
+    elif failure == "verification-status-rewrite":
+        value = json.loads(verification.read_text())
+        value["assessments"][0]["calculation_matches"] = False
+        value["mismatch_study_ids"] = ["s1"]
+        verification_sha = write_json(verification, value)
     elif failure == "verification-provenance":
         value = json.loads(verification.read_text()); value["assessments"][0]["checked_location"] = ""; verification_sha = write_json(verification, value)
     elif failure == "verification-duplicate":

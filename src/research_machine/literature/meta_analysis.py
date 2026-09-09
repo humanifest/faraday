@@ -11,8 +11,10 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.effect_verification import validate_effect_verification_boundary
 from research_machine.literature.effects import (
     retained_source_summary_sha256,
+    validate_effect_records_boundary,
     validate_retained_source_summaries,
 )
 from research_machine.literature.hashes import require_sha256
@@ -168,6 +170,7 @@ def execute_meta_analysis(
             or not isinstance(effects.get("inputs"), dict)
             or effects["inputs"].get("synthesis_plan_sha256") != plan_sha):
         raise ValidationError("meta-analysis requires ready effect records bound to the supplied plan")
+    validate_effect_records_boundary(effects)
     if effects.get("effect_measure") != plan.get("effect_measure"):
         raise ValidationError("effect records do not match the frozen effect measure")
     if effects.get("derivation_scope") != "recomputed_from_source_reported_arm_summaries":
@@ -178,6 +181,7 @@ def execute_meta_analysis(
             or effect_verification.get("status") != "effect_verification_recorded"
             or effect_verification.get("effect_records_sha256") != effects_sha):
         raise ValidationError("meta-analysis requires clean independent verification of the supplied effects")
+    validate_effect_verification_boundary(effect_verification)
     verification_assessments = effect_verification.get("assessments")
     if not isinstance(verification_assessments, list) or not verification_assessments:
         raise ValidationError("meta-analysis requires retained effect-verification assessments")

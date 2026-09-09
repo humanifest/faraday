@@ -75,6 +75,8 @@ def test_effect_cli_preserves_unavailable_study_and_is_write_once(tmp_path, caps
     assert result["records"][0]["mapped_claims"][0]["extraction_claim_sha256"] == "a" * 64
     assert result["records"][0]["mapped_claims"][0]["citation_checked_location"] == "page fixture"
     assert result["scientific_evidence_eligible"] is False
+    assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, review(), output)
 

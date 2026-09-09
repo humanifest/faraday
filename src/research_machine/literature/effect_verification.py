@@ -11,6 +11,7 @@ from typing import Any
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.effects import (
     retained_source_summary_sha256,
+    validate_effect_records_boundary,
     validate_retained_source_summaries,
 )
 from research_machine.literature.hashes import require_sha256
@@ -32,6 +33,66 @@ def _source_anchor(value: object, field: str) -> str:
     return require_sha256(value, field)
 
 
+def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -> None:
+    """Replay effect-verification non-authority, independence, and mismatch status."""
+    if effect_verification.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("effect verification must remain scientifically ineligible")
+    if effect_verification.get("conclusion_authorized") is not False:
+        raise ValidationError("effect verification must not authorize conclusions")
+    if effect_verification.get("publication_authorized") is not False:
+        raise ValidationError("effect verification must not authorize publication claims")
+    limitations = effect_verification.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("effect verification requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"effect-verification limitation {index + 1}")
+
+    if effect_verification.get("independent_review") is not True:
+        raise ValidationError("effect verification must retain independent_review true")
+    effect_reviewer = _canonical_text(
+        effect_verification.get("effect_reviewer"),
+        "effect verification effect_reviewer",
+    )
+    verification_reviewer = _canonical_text(
+        effect_verification.get("verification_reviewer"),
+        "effect verification verification_reviewer",
+    )
+    if effect_reviewer.casefold() == verification_reviewer.casefold():
+        raise ValidationError("effect verification reviewers must remain distinct")
+    assessments = effect_verification.get("assessments")
+    if not isinstance(assessments, list) or not assessments:
+        raise ValidationError("effect verification requires retained assessments")
+    seen = set()
+    mismatches = []
+    for assessment in assessments:
+        if not isinstance(assessment, dict):
+            raise ValidationError("effect-verification assessment is malformed")
+        study_id = _canonical_text(
+            assessment.get("study_id"), "effect-verification assessment study_id"
+        )
+        if study_id in seen:
+            raise ValidationError("effect-verification assessments require unique study IDs")
+        seen.add(study_id)
+        effect_status = assessment.get("effect_status")
+        if effect_status not in {"available", "unavailable"}:
+            raise ValidationError("effect-verification assessment must retain effect status")
+        source_values_match = assessment.get("source_values_match")
+        calculation_matches = assessment.get("calculation_matches")
+        if effect_status == "available":
+            if not isinstance(source_values_match, bool) or not isinstance(calculation_matches, bool):
+                raise ValidationError("available effects require boolean verification checks")
+            if not source_values_match or not calculation_matches:
+                mismatches.append(study_id)
+        elif source_values_match is not None or calculation_matches is not None:
+            raise ValidationError("unavailable effects require not-applicable verification checks")
+    mismatch_study_ids = effect_verification.get("mismatch_study_ids")
+    if mismatch_study_ids != sorted(mismatches):
+        raise ValidationError("effect-verification mismatch_study_ids do not replay from assessments")
+    expected_status = "review_required" if mismatches else "effect_verification_recorded"
+    if effect_verification.get("status") != expected_status:
+        raise ValidationError("effect-verification status does not replay from assessments")
+
+
 def create_effect_verification(effects_path: Path, expected_sha256: str,
                                review: dict[str, Any], output: Path) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_effects_sha256")
@@ -45,6 +106,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
     if (not isinstance(effects, dict) or effects.get("effect_records_version") != 1
             or effects.get("derivation_scope") != "recomputed_from_source_reported_arm_summaries"):
         raise ValidationError("effect verification requires reproducibly derived effect records")
+    validate_effect_records_boundary(effects)
     effect_reviewer = _canonical_text(effects.get("reviewer"), "effect reviewer")
     records = effects.get("records")
     if not isinstance(records, list) or not records:
@@ -140,6 +202,8 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
         "mismatch_study_ids": sorted(mismatches),
         "status": "review_required" if mismatches else "effect_verification_recorded",
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "The machine records an independent check but does not read the cited source or authenticate reviewers.",
             "A matching calculation verifies arithmetic from retained summaries, not source truth, outcome compatibility, or participant-level analysis.",

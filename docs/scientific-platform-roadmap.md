@@ -1412,6 +1412,14 @@ summary values in the verification artifact. This authenticates neither reviewer
 nor source content, but closes the cleanly-coded/wrongly-copied input path and
 prevents independent verification from shedding source-byte anchors or malformed
 retained numeric inputs in the enforced quantitative workflow.
+Effect verification now also replays the effect-record non-authority boundary
+before accepting a reproducible effect artifact: scientific-evidence,
+conclusion, and publication authorization must all remain false; limitations must
+remain retained and canonical; and study, available-effect, unavailable-effect,
+and readiness-status counts must replay from the retained records. The
+verification artifact carries the same explicit false authority flags and
+retained limitations, plus service-derived independent-review and mismatch
+summaries.
 `research literature pool-effects` performs deterministic inverse-variance
 pooling only after the quantitative plan, prepared-effect, effect-verification,
 and deviation hashes are canonical lowercase digests and agree. It
@@ -1442,6 +1450,12 @@ summary and matching verifier-retained source-summary digest for every effect
 record, so padded identifiers, rewritten source hashes, substituted summary
 values, or malformed retained inputs cannot be silently accepted while creating
 duplicate pooled records or hiding required verification coverage.
+Pooling also replays the non-authority boundary for both prepared effects and
+their independent verification, including retained limitations, false conclusion
+and publication authorization, count/status summaries, reviewer independence,
+and mismatch IDs. A recomputed file hash therefore cannot bless an upstream
+artifact whose summary fields were rewritten to imply evidence eligibility,
+clean review, publication readiness, or a different study count.
 Random-effects confidence and prediction intervals now use a conservative
 modified Hartung-Knapp standard error with tabulated Student-t critical values;
 the conventional standard error remains reported for auditability. Leave-one-out
