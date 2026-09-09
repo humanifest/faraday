@@ -1435,6 +1435,7 @@ def test_replication_package_verifies_temporal_order_gate_metadata(
         ("wrong_evidence", "is not a declared output artifact"),
         ("gate_evidence_mismatch", "does not match gate evidence"),
         ("wrong_gate", "is not bound to the frozen canary gate"),
+        ("skipped_gate_with_assessment", "skipped canary assessment gate"),
     ],
 )
 def test_replication_package_verifies_canary_target_gate_metadata(
@@ -1573,6 +1574,10 @@ def test_replication_package_verifies_canary_target_gate_metadata(
         gate["details"]["evidence_sha256"] = runs[0]["output_artifacts"][1]["sha256"]
     elif mutation == "wrong_gate":
         gate["gate_id"] = "other-gate"
+    elif mutation == "skipped_gate_with_assessment":
+        gate["status"] = "skipped"
+        runs[0]["status"] = "invalid"
+        runs[0]["scientific_evidence_eligible"] = False
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 

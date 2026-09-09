@@ -449,6 +449,10 @@ def _validate_canary_target_assessment_gate_metadata(
         raise ValidationError(
             f"package run {run_id} gate {gate.gate_id} canary_target_assessment is not bound to the frozen canary gate"
         )
+    if gate.status is QualityGateStatus.SKIPPED:
+        raise ValidationError(
+            f"package run {run_id} skipped canary assessment gate {gate.gate_id} cannot report results"
+        )
     if not isinstance(assessment, dict):
         raise ValidationError(
             f"package run {run_id} gate {gate.gate_id} canary_target_assessment must be an object"
