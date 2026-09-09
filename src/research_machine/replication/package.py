@@ -1373,6 +1373,10 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
             if manifest_run_ids != sorted(run_ids):
                 raise ValidationError("package run IDs disagree with unique run records")
             dataset_by_id = {item.dataset_id: item for item in datasets}
+            protected_dataset_role = {
+                AnalysisMode.CONFIRMATORY: DatasetRole.CONFIRMATORY,
+                AnalysisMode.REPLICATION: DatasetRole.REPLICATION,
+            }.get(protocol.analysis_mode)
             for dataset in datasets:
                 dataset_id = require_canonical_text(
                     dataset.dataset_id, "package dataset dataset_id"
@@ -1386,6 +1390,13 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     dataset.source_dataset_ids,
                     f"package dataset {dataset_id} source_dataset_ids",
                 )
+                if protected_dataset_role is not None and (
+                    dataset.role is not protected_dataset_role
+                    or dataset.protocol_id != protocol_id
+                ):
+                    raise ValidationError(
+                        f"package protected dataset {dataset_id} is outside the packaged protocol-closed lineage"
+                    )
                 _validate_packaged_artifacts(
                     artifacts=dataset.artifacts,
                     label=f"package dataset {dataset_id}",

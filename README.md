@@ -1095,7 +1095,13 @@ Protected dataset derivation is also protocol-closed: confirmatory or replicatio
 sources must be bound to the exact same frozen protocol as the derived dataset.
 Matching roles alone are insufficient. This prevents human data, consent scope,
 review conditions, or prospective analysis commitments from being laundered
-through another protocol or amendment.
+through another protocol or amendment. Rigor audit now reports protected
+datasets with missing, unknown, repeated, or cross-boundary lineage sources as
+structural errors, and deterministic synthesis exposes each protected dataset's
+lineage state as protocol-closure provenance rather than consent, custody,
+measurement-validity, or analysis proof. Replication-package verification
+replays the same protocol-closed lineage boundary from packaged metadata before
+trusting a redacted handoff.
 
 Non-synthetic confirmatory and replication datasets must also prove that their
 declared observation artifacts exist at registration. Supply `--artifact-root`;

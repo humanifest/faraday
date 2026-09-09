@@ -10,8 +10,19 @@ from research_machine.application.dataset_integrity import (
     reverify_dataset_artifacts,
     verify_dataset_artifacts,
 )
+from research_machine.application.rigor import audit_research_state
 from research_machine.domain.errors import ValidationError
-from research_machine.domain.models import DatasetArtifact, DatasetRole
+from research_machine.domain.models import (
+    AnalysisMode,
+    DatasetArtifact,
+    DatasetManifest,
+    DatasetRole,
+    ExperimentProtocol,
+    Inquiry,
+    ProtocolKind,
+    ProtocolStatus,
+)
+from research_machine.reporting.synthesis import build_synthesis
 from test_ethics_gate import _human_protocol
 from test_execution import prepared_service
 
@@ -34,6 +45,91 @@ def _artifact(path: Path) -> DatasetArtifact:
         path.stat().st_size,
         "text/csv",
     )
+
+
+def test_audit_and_synthesis_expose_protected_lineage_mismatch() -> None:
+    inquiry = Inquiry(
+        inquiry_id="lineage",
+        title="Lineage",
+        initial_statement="Can protected lineage be laundered?",
+        created_at="2026-09-09T00:00:00Z",
+        decision_to_support="Whether protected observations remain protocol-closed.",
+        minimum_evidence="A structural audit that rejects cross-boundary ancestry.",
+        decision_change_criteria=["Stop if a protected derivative crosses protocols."],
+        decision_owner="project-owner",
+    )
+    protocol = ExperimentProtocol(
+        protocol_id="protocol-v1",
+        protocol_family_id="protocol",
+        version=1,
+        experiment_id="lineage-test",
+        title="Lineage test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[],
+        primary_outcome="Outcome",
+        created_at="2026-09-09T00:00:00Z",
+        created_by="test",
+        protocol_kind=ProtocolKind.OBSERVATIONAL,
+        quality_requirements=["gate"],
+        controls=["control"],
+        sample_size_or_stopping_rule="one synthetic fixture",
+        status=ProtocolStatus.FROZEN,
+    )
+    source = DatasetManifest(
+        dataset_id="source-dataset",
+        name="Source dataset",
+        role=DatasetRole.EXPLORATORY,
+        created_at="2026-09-09T00:00:00Z",
+        artifacts=[DatasetArtifact("source.csv", "c" * 64)],
+        protocol_id="other-protocol-v1",
+        synthetic=True,
+    )
+    derived = DatasetManifest(
+        dataset_id="derived-dataset",
+        name="Derived dataset",
+        role=DatasetRole.CONFIRMATORY,
+        created_at="2026-09-09T00:00:00Z",
+        artifacts=[DatasetArtifact("derived.csv", "d" * 64)],
+        source_dataset_ids=[source.dataset_id],
+        protocol_id=protocol.protocol_id,
+        synthetic=True,
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[source, derived],
+        protocols=[protocol],
+        runs=[],
+    )
+
+    assert any(
+        item.code == "PROTECTED_DATASET_LINEAGE_PROTOCOL_MISMATCH"
+        and item.entity_id == derived.dataset_id
+        for item in audit.findings
+    )
+    assert audit.structurally_valid is False
+
+    synthesis = build_synthesis(
+        inquiry,
+        questions=[],
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[source, derived],
+        protocols=[protocol],
+        runs=[],
+        recommendations=[],
+        cross_lane_lessons=[],
+        rigor_audit=audit,
+        evidence_status_events=[],
+    )
+
+    assert "### Protected dataset lineage" in synthesis
+    assert "cross-boundary source `source-dataset`" in synthesis
+    assert "protocol-closure provenance, not proof" in synthesis
 
 
 def test_real_protected_dataset_requires_current_registered_bytes(tmp_path: Path) -> None:

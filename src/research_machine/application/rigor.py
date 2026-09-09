@@ -15,6 +15,7 @@ from research_machine.domain.models import (
     ClaimDisposition,
     ClaimEpistemicLayer,
     DatasetManifest,
+    DatasetRole,
     EvidenceDirection,
     EvidenceRecord,
     ExperimentProtocol,
@@ -308,6 +309,78 @@ def audit_research_state(
     protocol_by_id = {item.protocol_id: item for item in protocols}
     run_by_id = {item.run_id: item for item in runs}
     dataset_by_id = {item.dataset_id: item for item in datasets}
+    protected_dataset_roles = {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
+    for dataset in datasets:
+        if dataset.role not in protected_dataset_roles:
+            continue
+        if not dataset.protocol_id:
+            add(
+                "PROTECTED_DATASET_PROTOCOL_MISSING",
+                RigorSeverity.ERROR,
+                "Protected dataset is not bound to a frozen protocol.",
+                entity_type="dataset",
+                entity_id=dataset.dataset_id,
+                remediation=(
+                    "Treat this dataset as unusable for protected analysis; register "
+                    "future protected observations against the exact frozen protocol."
+                ),
+            )
+            continue
+        if dataset.protocol_id not in protocol_by_id:
+            add(
+                "PROTECTED_DATASET_PROTOCOL_UNKNOWN",
+                RigorSeverity.ERROR,
+                "Protected dataset references a protocol that is not present in the workspace.",
+                entity_type="dataset",
+                entity_id=dataset.dataset_id,
+                remediation=(
+                    "Restore the frozen protocol or register a new protected dataset "
+                    "without rewriting this record."
+                ),
+            )
+        seen_sources: set[str] = set()
+        for source_id in dataset.source_dataset_ids:
+            if source_id in seen_sources:
+                add(
+                    "PROTECTED_DATASET_LINEAGE_DUPLICATE_SOURCE",
+                    RigorSeverity.ERROR,
+                    "Protected dataset repeats a lineage source.",
+                    entity_type="dataset",
+                    entity_id=dataset.dataset_id,
+                    remediation=(
+                        "Do not collapse duplicate lineage by editing state; create a "
+                        "new corrected dataset record if the lineage was recorded incorrectly."
+                    ),
+                )
+                continue
+            seen_sources.add(source_id)
+            source = dataset_by_id.get(source_id)
+            if source is None:
+                add(
+                    "PROTECTED_DATASET_LINEAGE_SOURCE_MISSING",
+                    RigorSeverity.ERROR,
+                    "Protected dataset references a missing lineage source.",
+                    entity_type="dataset",
+                    entity_id=dataset.dataset_id,
+                    remediation=(
+                        "Restore the source dataset or treat this protected derivative "
+                        "as unusable for confirmatory or replication analysis."
+                    ),
+                )
+                continue
+            if source.role is not dataset.role or source.protocol_id != dataset.protocol_id:
+                add(
+                    "PROTECTED_DATASET_LINEAGE_PROTOCOL_MISMATCH",
+                    RigorSeverity.ERROR,
+                    "Protected dataset lineage crosses role or protocol boundaries.",
+                    entity_type="dataset",
+                    entity_id=dataset.dataset_id,
+                    remediation=(
+                        "Do not use role equality or a derivative label to launder "
+                        "observations across frozen protocols; collect or register "
+                        "lineage under the exact same protected protocol."
+                    ),
+                )
 
     tag_counts: Counter[str] = Counter()
     prospective_tag_counts: Counter[str] = Counter()

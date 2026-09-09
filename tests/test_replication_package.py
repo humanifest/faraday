@@ -738,8 +738,18 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     assert service.verify_ledger()["valid"] is True
 
 
-def test_replication_package_rejects_padded_lineage_source_ids(
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("padded_source_id", "source_dataset_ids item"),
+        ("source_protocol_mismatch", "outside the packaged protocol-closed lineage"),
+        ("source_role_mismatch", "outside the packaged protocol-closed lineage"),
+    ],
+)
+def test_replication_package_rejects_invalid_protected_lineage(
     tmp_path: Path,
+    mutation: str,
+    message: str,
 ) -> None:
     service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
     service.init_workspace()
@@ -829,15 +839,24 @@ def test_replication_package_rejects_padded_lineage_source_ids(
     datasets_path = package / "datasets.json"
     datasets = json.loads(datasets_path.read_text())
     for dataset in datasets:
-        if dataset["dataset_id"] == derived.dataset_id:
+        if mutation == "padded_source_id" and dataset["dataset_id"] == derived.dataset_id:
             dataset["source_dataset_ids"] = [f" {source.dataset_id} "]
             break
+        if (
+            mutation == "source_protocol_mismatch"
+            and dataset["dataset_id"] == source.dataset_id
+        ):
+            dataset["protocol_id"] = "other-protocol-v1"
+            break
+        if mutation == "source_role_mismatch" and dataset["dataset_id"] == source.dataset_id:
+            dataset["role"] = "exploratory"
+            break
     else:
-        raise AssertionError("derived fixture dataset was not exported")
+        raise AssertionError("target fixture dataset was not exported")
     datasets_path.write_text(json.dumps(datasets, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "datasets.json")
 
-    with pytest.raises(ValidationError, match="source_dataset_ids item"):
+    with pytest.raises(ValidationError, match=message):
         verify_replication_package(package, commitment)
 
 

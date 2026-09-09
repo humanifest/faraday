@@ -1620,7 +1620,15 @@ Protected dataset lineage now requires every source to share the exact frozen
 protocol, not merely the same confirmatory or replication role. This prevents
 human-subject and prospective-analysis commitments from being silently replaced
 through cross-protocol derivation; deliberate reuse requires a separately
-auditable workflow rather than metadata relabeling.
+auditable workflow rather than metadata relabeling. Rigor audit now flags
+protected lineage records with missing protocol bindings, unknown protocols,
+duplicate lineage sources, missing sources, or cross-role/cross-protocol
+ancestry as structural errors. Deterministic synthesis exposes each protected
+dataset's lineage state while explicitly treating it as protocol-closure
+provenance only, not consent, custody, measurement-validity, or analysis
+adequacy. Replication-package verification replays the same protocol-closed
+lineage rule from packaged metadata, including redacted packages that cannot
+reopen local dataset payload commitments.
 Literature synthesis-plan freezing now requires canonical plan IDs, reviewer
 text, questions, outcomes, effect measures, contrast definitions, subgroup and
 sensitivity entries, policy prose, conclusion rules, deviation policies, and

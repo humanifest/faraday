@@ -8,6 +8,7 @@ from research_machine.domain.models import (
     Claim,
     CrossLaneLesson,
     DatasetManifest,
+    DatasetRole,
     EvidenceRecord,
     EvidenceStatusEvent,
     ExperimentProtocol,
@@ -42,6 +43,25 @@ def _protocol_factor_summary(protocol: ExperimentProtocol) -> str:
     elif len(factors) > 1 or protocol.factorial_or_crossover_design:
         design += "; missing factor-interpretability plan"
     return ", ".join(factors) + f" ({design})"
+
+
+def _protected_lineage_state(
+    dataset: DatasetManifest, datasets_by_id: dict[str, DatasetManifest]
+) -> str:
+    if dataset.role not in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}:
+        return "not protected"
+    if not dataset.protocol_id:
+        return "missing protocol binding"
+    problems: list[str] = []
+    for source_id in dataset.source_dataset_ids:
+        source = datasets_by_id.get(source_id)
+        if source is None:
+            problems.append(f"missing source `{source_id}`")
+        elif source.role is not dataset.role or source.protocol_id != dataset.protocol_id:
+            problems.append(f"cross-boundary source `{source_id}`")
+    if problems:
+        return "; ".join(problems)
+    return "protocol-closed"
 
 
 def _evidence_detail_lines(
@@ -273,6 +293,7 @@ def build_synthesis(
 
     valid_runs = [run for run in runs if run.scientific_evidence_eligible]
     invalid_runs = [run for run in runs if not run.scientific_evidence_eligible]
+    datasets_by_id = {dataset.dataset_id: dataset for dataset in datasets}
     lines.extend(
         [
             "",
@@ -286,6 +307,24 @@ def build_synthesis(
             f"- Evidence records under qualification, withdrawal, or retraction: {len(evidence) - len(contributing_ids)}",
         ]
     )
+    protected_datasets = [
+        dataset for dataset in datasets
+        if dataset.role in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
+    ]
+    if protected_datasets:
+        lines.extend(["", "### Protected dataset lineage", ""])
+        for dataset in sorted(protected_datasets, key=lambda item: item.dataset_id):
+            sources = (
+                ", ".join(f"`{source_id}`" for source_id in dataset.source_dataset_ids)
+                or "none"
+            )
+            lines.append(
+                f"- Dataset `{dataset.dataset_id}` [{dataset.role.value}; protocol "
+                f"`{dataset.protocol_id or 'unbound'}`]: sources {sources}; "
+                f"lineage state: {_protected_lineage_state(dataset, datasets_by_id)}. "
+                "This is protocol-closure provenance, not proof of consent, custody, "
+                "measurement validity, or analysis adequacy."
+            )
     factor_protocols = [
         protocol for protocol in protocols
         if (
