@@ -1879,7 +1879,10 @@ claim silent adherence to the registered pipeline. Current conformance records
 retain normalized snapshots of both pipeline declarations and verification
 recomputes the step results, findings, and status from those snapshots; legacy
 records without retained snapshots remain visible as missing self-contained
-comparison replay rather than being silently upgraded. A pass only means the
+comparison replay rather than being silently upgraded. Every failed step must
+still retain at least one finding scoped to that exact step, so a legacy or
+current record cannot preserve a failed step while hiding what changed behind an
+unrelated summary. A pass only means the
 observed declaration matches the trusted registered declaration; it does not
 authenticate acquisition, prove implementation correctness, clear a gate,
 register a dataset, or authorize evidence. Canonical run intake now treats

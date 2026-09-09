@@ -620,6 +620,16 @@ def verify_preprocessing_conformance_record(
         raise ValidationError(
             "failed preprocessing conformance record lacks documented discrepancies"
         )
+    finding_step_ids = {
+        finding["step_id"] for finding in findings if "step_id" in finding
+    }
+    failed_step_ids = {item["step_id"] for item in failed_steps}
+    undocumented_failed_steps = sorted(failed_step_ids - finding_step_ids)
+    if undocumented_failed_steps:
+        raise ValidationError(
+            "preprocessing conformance record omits finding details for failed steps: "
+            + ", ".join(undocumented_failed_steps)
+        )
     comparison_replay = _verify_retained_pipeline_comparison(
         record,
         pipeline_id=pipeline_id,

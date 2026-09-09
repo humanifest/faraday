@@ -271,6 +271,37 @@ def test_preprocessing_conformance_record_labels_legacy_missing_snapshots(
     assert verified["comparison_replay"] == "legacy_missing"
 
 
+def test_preprocessing_conformance_record_requires_findings_for_failed_steps(
+    tmp_path: Path,
+) -> None:
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha = _write_json(registered, _pipeline())
+    observed_sha = _write_json(observed, _pipeline(smoothing_window=9))
+    result = assess_preprocessing_conformance(
+        registered,
+        registered_sha,
+        observed,
+        observed_sha,
+        tmp_path / "preprocessing-conformance",
+    )
+    record = Path(result["path"]) / "preprocessing-conformance.json"
+    retained = json.loads(record.read_text())
+    del retained["registered_pipeline_snapshot"]
+    del retained["observed_pipeline_snapshot"]
+    retained["findings"] = [
+        {
+            "severity": "error",
+            "code": "STEP_PARAMETERS_MISMATCH",
+            "message": "A preprocessing step changed without retained step scope.",
+        }
+    ]
+    trusted_sha = _write_json(record, retained)
+
+    with pytest.raises(ValidationError, match="failed steps: smooth-signal"):
+        verify_preprocessing_conformance_record(record, trusted_sha)
+
+
 def test_preprocessing_conformance_record_verifier_rejects_evidence_upgrade(
     tmp_path: Path,
 ) -> None:
