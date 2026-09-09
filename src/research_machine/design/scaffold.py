@@ -147,6 +147,137 @@ def _scaffold_manifest(
     }
 
 
+def _analysis_contract_method(family: str) -> str:
+    return {
+        "mean_difference": "independent_mean_difference_ci",
+        "paired_mean_difference": "paired_mean_difference_ci",
+        "adjusted_linear_effect": "adjusted_linear_effect",
+        "descriptive": "descriptive_summary",
+        "custom_reviewed": "[REVIEW REQUIRED] method from the reviewed add-on manifest",
+    }.get(family, "[REVIEW REQUIRED] choose an executable reviewed method")
+
+
+def _analysis_contract_assignment_type(
+    *, study_type: str, assignment_type: str
+) -> str:
+    if study_type == "causal" and assignment_type == "randomized":
+        return "randomized_between_units"
+    if assignment_type == "observational" or study_type == "correlational":
+        return "observational"
+    if assignment_type == "randomized":
+        return "randomized_between_units"
+    return "[REVIEW REQUIRED] observational, randomized_between_units, nonrandomized, or not_applicable"
+
+
+def _analysis_contract_selectors(method: str) -> tuple[str, str]:
+    if method == "adjusted_linear_effect":
+        return (
+            "/result/adjusted_mean_difference_first_minus_second",
+            "/result/robust_confidence_interval",
+        )
+    if method in {"independent_mean_difference_ci", "paired_mean_difference_ci"}:
+        return (
+            "/result/mean_difference_first_minus_second",
+            "/result/confidence_interval",
+        )
+    return (
+        "[REVIEW REQUIRED] absolute JSON Pointer to the registered effect estimate",
+        "[REVIEW REQUIRED] absolute JSON Pointer to the registered uncertainty object",
+    )
+
+
+def _analysis_contract_draft(
+    brief: dict[str, Any],
+    *,
+    study_type: str,
+    assignment_type: str,
+) -> dict[str, Any]:
+    method = _analysis_contract_method(brief.get("primary_analysis_family", ""))
+    contract_assignment_type = _analysis_contract_assignment_type(
+        study_type=study_type, assignment_type=assignment_type
+    )
+    effect_path, uncertainty_path = _analysis_contract_selectors(method)
+    adjustment_columns: list[str] = []
+    if (
+        method == "adjusted_linear_effect"
+        and isinstance(brief.get("causal_identification"), dict)
+    ):
+        adjustment_columns = list(
+            brief["causal_identification"].get("proposed_adjustment_set", [])
+        )
+    return {
+        "primary_hypothesis_id": "[REVIEW REQUIRED] bind the reviewed primary hypothesis ID",
+        "primary_measurement_id": "[REVIEW REQUIRED] bind the reviewed primary measurement ID",
+        "method": method,
+        "outcome_column": brief.get(
+            "outcome_data_column",
+            "[REVIEW REQUIRED] exact primary outcome column",
+        ),
+        "group_column": brief.get(
+            "group_data_column",
+            "[REVIEW REQUIRED] exact comparison or exposure column",
+        ),
+        "groups": _text_list(brief, "contrast_groups") or [
+            "[REVIEW REQUIRED] first contrast level",
+            "[REVIEW REQUIRED] second contrast level",
+        ],
+        "adjustment_columns": adjustment_columns,
+        "estimand": brief.get(
+            "primary_estimand", "[REVIEW REQUIRED] primary estimand"
+        ),
+        "contrast_definition": brief.get(
+            "contrast_definition", "[REVIEW REQUIRED] signed contrast"
+        ),
+        "contrast_groups": _text_list(brief, "contrast_groups") or [
+            "[REVIEW REQUIRED] first contrast level",
+            "[REVIEW REQUIRED] second contrast level",
+        ],
+        "missing_data_policy": "complete_case",
+        "assignment_type": contract_assignment_type,
+        "effect_estimate_path": effect_path,
+        "uncertainty_path": uncertainty_path,
+        "null_value": brief.get("null_value", "[REVIEW REQUIRED] numeric null"),
+        "support_rule": brief.get("support_rule", "[REVIEW REQUIRED] support rule"),
+        "confidence_level": brief.get(
+            "confidence_level", "[REVIEW REQUIRED] confidence level"
+        ),
+        "minimum_analyzable_units": brief.get(
+            "minimum_analyzable_units",
+            "[REVIEW REQUIRED] minimum analyzable independent units",
+        ),
+        "maximum_excluded_fraction": brief.get(
+            "maximum_excluded_fraction",
+            "[REVIEW REQUIRED] maximum excluded fraction",
+        ),
+        "maximum_group_excluded_fraction_difference": brief.get(
+            "maximum_group_excluded_fraction_difference",
+            "[REVIEW REQUIRED] maximum group exclusion-fraction difference",
+        ),
+        "allocation_sha256": "[REVIEW REQUIRED] design randomize allocation_sha256"
+        if contract_assignment_type == "randomized_between_units"
+        else "",
+        "missingness_assumption": brief.get(
+            "missingness_assumption", "[REVIEW REQUIRED] missingness assumption"
+        ),
+        "missingness_assessment_plan": brief.get(
+            "missingness_assessment_plan",
+            "[REVIEW REQUIRED] missingness assessment plan",
+        ),
+        "missingness_failure_response": brief.get(
+            "missingness_failure_response",
+            "[REVIEW REQUIRED] missingness failure response",
+        ),
+        "missingness_assessment_kind": brief.get(
+            "missingness_assessment_kind",
+            "[REVIEW REQUIRED] empirical_diagnostic, design_record_review, external_validation, or substantive_judgment",
+        ),
+        "missingness_assessment_gate_id": brief.get(
+            "missingness_assessment_gate_id",
+            "[REVIEW REQUIRED] dedicated missingness gate ID",
+        ),
+    }
+
+
 def validate_brief(brief: dict[str, Any]) -> None:
     if not isinstance(brief, dict):
         raise ValueError("design brief must be an object")
@@ -1494,6 +1625,15 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         and brief["assignment_type"] != graph_assignment
     )
     assignment_type = brief.get("assignment_type", "") or graph_assignment
+    analysis_contract = (
+        _analysis_contract_draft(
+            brief,
+            study_type=study_type,
+            assignment_type=assignment_type,
+        )
+        if study_type in {"causal", "correlational"}
+        else None
+    )
     protocol_kind = (
         "[REVIEW REQUIRED] resolve conflicting assignment classifications"
         if assignment_conflict
@@ -1517,6 +1657,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         "multiplicity_method": brief.get("multiplicity_method", ""),
         "multiplicity_alpha": brief.get("multiplicity_alpha"),
         "analysis_steps": analysis_steps,
+        "analysis_contract": analysis_contract,
         "conclusion_contract": ({
             "primary_hypothesis_id": "[REVIEW REQUIRED] bind the primary reviewed hypothesis",
             "decision_rule": (
@@ -1825,6 +1966,10 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "confidence_level": brief.get("confidence_level", "[REVIEW REQUIRED]"),
                 "analysis_family": brief.get("primary_analysis_family", "[REVIEW REQUIRED]"),
                 "measurement_scale": brief.get("outcome_scale", "[REVIEW REQUIRED]"),
+                "analysis_contract": analysis_contract or {
+                    "status": "unresolved",
+                    "notice": "Exploratory or descriptive scaffolds may retain prose analysis review; protected confirmatory protocols must freeze a structured contract before execution.",
+                },
                 "notice": "This is a prospective review aid, not a frozen analysis contract. Bind stable hypothesis and measurement IDs plus exact executable specifications before collection.",
             },
             "sample-size-plan-draft.json": (

@@ -619,6 +619,85 @@ def test_secondary_outcomes_require_distinct_roles_and_multiplicity_plan():
     ]
 
 
+def test_confirmatory_scaffold_emits_structured_analysis_contract():
+    brief = {
+        "title": "Analysis contract fixture",
+        "question": "Does the intervention change the score?",
+        "decision": "Choose the next intervention.",
+        "study_type": "correlational",
+        "population": "Eligible fixture participants.",
+        "setting": "Registered fixture setting.",
+        "outcome": "Primary score",
+        "outcome_unit": "points",
+        "outcome_scale": "interval",
+        "outcome_valid_min": 0.0,
+        "outcome_valid_max": 100.0,
+        "outcome_missing_value_codes": ["<blank>"],
+        "outcome_data_column": "score",
+        "unit_of_observation": "participant",
+        "independent_unit": "participant",
+        "unit_id_column": "participant_id",
+        "analysis_design": "independent_groups",
+        "primary_analysis_family": "mean_difference",
+        "primary_estimand": "Mean score difference, treated minus control.",
+        "contrast_definition": "treated minus control",
+        "contrast_groups": ["treated", "control"],
+        "group_data_column": "arm",
+        "expected_effect_direction": "positive",
+        "null_value": 0.0,
+        "support_rule": "interval_excludes_null",
+        "confidence_level": 0.95,
+        "effect_scale": "mean difference",
+        "conclusion_time_window": "Registered endpoint.",
+        "smallest_effect_size_of_interest": 2.0,
+        "non_supporting_direction": "inconclusive",
+        "higher_level_conclusions_unsupported": [
+            "No causal, mechanism, or out-of-scope conclusion."
+        ],
+        "minimum_analyzable_units": 12,
+        "maximum_excluded_fraction": 0.2,
+        "maximum_group_excluded_fraction_difference": 0.1,
+        "missingness_assumption": "Complete cases preserve the registered contrast.",
+        "missingness_assessment_plan": "Inspect total and group-specific exclusions.",
+        "missingness_failure_response": "Stop primary interpretation if exclusions exceed thresholds.",
+        "missingness_assessment_kind": "empirical_diagnostic",
+        "missingness_assessment_gate_id": "missingness-assessed",
+        "measurement_validity": "Compare a blinded subset with a traceable reference.",
+        "measurement_validity_checks": [_validity_check()],
+        "measurement_observable": "Recorded primary score.",
+        "measurement_input_condition": "All eligible participants at endpoint.",
+        "measurement_parameter_values": {"instrument": "registered fixture"},
+        "measurement_evaluation_point": "Registered endpoint.",
+        "measurement_convention": "Higher means more of the target construct.",
+        "measurement_aggregation": "One value per independent participant.",
+        "measurement_tolerance": "Exact parser agreement.",
+        "measurement_expected_behavior": "Retain valid scores regardless of direction.",
+        "measurement_temporal_role": "not_applicable",
+        "human_participants": False,
+    }
+
+    result = scaffold_design(brief)
+
+    codes = {item["code"] for item in result["findings"]}
+    assert "INFERENCE_COMMITMENT_INCOMPLETE" not in codes
+    assert "MISSINGNESS_ASSESSMENT_INCOMPLETE" not in codes
+    protocol = result["artifacts"]["protocol-draft.json"]
+    analysis = result["artifacts"]["analysis-commitment-draft.json"]
+    contract = protocol["analysis_contract"]
+    assert contract == analysis["analysis_contract"]
+    assert contract["method"] == "independent_mean_difference_ci"
+    assert contract["outcome_column"] == "score"
+    assert contract["group_column"] == "arm"
+    assert contract["groups"] == ["treated", "control"]
+    assert contract["contrast_definition"] == "treated minus control"
+    assert contract["effect_estimate_path"] == "/result/mean_difference_first_minus_second"
+    assert contract["uncertainty_path"] == "/result/confidence_interval"
+    assert contract["missingness_assessment_gate_id"] == "missingness-assessed"
+    assert contract["minimum_analyzable_units"] == 12
+    assert contract["assignment_type"] == "observational"
+    assert "missingness-assessed" in protocol["quality_requirements"]
+
+
 def test_secondary_outcomes_require_exact_typed_measurement_coverage():
     base = {
         "title": "Secondary measurement fixture", "question": "Question",
@@ -1585,6 +1664,21 @@ def test_causal_scaffold_blocks_open_backdoor_and_carries_passing_audit() -> Non
     protocol = reviewed["artifacts"]["protocol-draft.json"]
     assert protocol["protocol_kind"] == "observational"
     assert "assignment: observational; exposure: treatment" in protocol["methodology"]
+    adjusted = scaffold_design({
+        **base,
+        "primary_analysis_family": "adjusted_linear_effect",
+        "primary_estimand": "Mean outcome under treatment minus control at day 7.",
+        "contrast_definition": "treatment minus control",
+        "contrast_groups": ["treatment", "control"],
+        "group_data_column": "treatment",
+        "outcome_data_column": "outcome",
+        "causal_identification": {**graph, "proposed_adjustment_set": ["baseline"]},
+    })
+    contract = adjusted["artifacts"]["protocol-draft.json"]["analysis_contract"]
+    assert contract["method"] == "adjusted_linear_effect"
+    assert contract["adjustment_columns"] == ["baseline"]
+    assert contract["effect_estimate_path"] == "/result/adjusted_mean_difference_first_minus_second"
+    assert contract["uncertainty_path"] == "/result/robust_confidence_interval"
     incomplete_graph = {
         **graph,
         "proposed_adjustment_set": ["baseline"],

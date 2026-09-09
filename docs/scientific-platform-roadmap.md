@@ -791,14 +791,17 @@ to an experiment.
 Prospective inference-commitment delivery: confirmatory guided designs now
 require an explicit primary estimand, signed contrast definition, expected
 direction, numeric null, support rule, and confidence level. The scaffold emits
-a distinct analysis-commitment draft and retains the estimand and direction in
-the hypothesis proposal. Population, setting, effect scale, endpoint window,
+a distinct analysis-commitment draft, carries the same structured
+`analysis_contract` in the protocol draft, and retains the estimand and
+direction in the hypothesis proposal. Population, setting, effect scale, endpoint window,
 estimand, and signed contrast text now receive blocking findings when
 surrounding whitespace would otherwise be preserved as bounded conclusion or
 inference commitments. It rejects equivalence/difference-rule conflicts and
 point-only confirmatory support, preventing favorable contrast reversal or a
-post-result choice of the decision event. The artifact remains review-only and
-does not substitute for a frozen executable analysis contract.
+post-result choice of the decision event. The generated contract still contains
+review placeholders for canonical hypothesis, measurement, specification, and
+randomization bindings the scaffold cannot authenticate; it is a review-only
+bridge into the frozen executable analysis contract, not preregistration.
 Canonical guided-commitment delivery: initialization and guided revision now
 transfer the primary estimand, signed contrast, and expected direction into the
 canonical unreviewed hypothesis. `contrast_definition` is a first-class sealed

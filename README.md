@@ -447,7 +447,7 @@ rewriting history.
 
 `research design scaffold` turns a small, plain-language JSON brief into
 review-only hypothesis, protocol, typed primary-measurement, data-dictionary,
-and collection-plan drafts.
+analysis-contract, data-dictionary, and collection-plan drafts.
 Every JSON draft carries a `scaffold_provenance` anchor with deterministic
 hashes of the canonical brief content and design-audit findings, and the
 scaffold also emits `design-scaffold-provenance.json` with per-artifact content
