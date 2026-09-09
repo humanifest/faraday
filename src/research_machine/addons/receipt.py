@@ -14,6 +14,7 @@ from research_machine.addons.execution import (
     _resolve_json_pointer,
     validate_registered_information,
 )
+from research_machine.addons.models import RANDOMNESS_CONTROLS
 from research_machine.domain.errors import ValidationError
 from research_machine.application.service import ResearchService
 
@@ -26,6 +27,30 @@ def _require_sha256(value: Any, field: str) -> str:
     ):
         raise ValidationError(f"{field} must be a lowercase SHA-256 digest")
     return value
+
+
+def _validate_randomness_binding(
+    receipt: dict[str, Any], result: dict[str, Any]
+) -> None:
+    receipt_control = receipt.get("randomness_control")
+    result_control = result.get("randomness_control")
+    if receipt_control is None and result_control is None:
+        return
+    if receipt_control != result_control or receipt_control not in RANDOMNESS_CONTROLS:
+        raise ValidationError("execution receipt/result randomness_control is unsupported or inconsistent")
+    receipt_binding = receipt.get("randomness_binding")
+    result_binding = result.get("randomness_binding")
+    if receipt_binding != result_binding or not isinstance(receipt_binding, dict):
+        raise ValidationError("execution receipt/result randomness binding disagrees")
+    if receipt_binding.get("control") != receipt_control:
+        raise ValidationError("execution randomness binding control disagrees with method identity")
+    if receipt_control == "seeded":
+        _require_sha256(
+            receipt_binding.get("seed_sha256"),
+            "execution randomness_binding.seed_sha256",
+        )
+    elif "seed_sha256" in receipt_binding:
+        raise ValidationError("deterministic execution randomness binding cannot declare seed_sha256")
 
 
 def execution_run_draft(service: ResearchService, directory: Path, expected_receipt_sha256: str,
@@ -108,10 +133,10 @@ def verify_execution_output(directory: Path, expected_receipt_sha256: str) -> di
     if (not isinstance(addon, dict) or not isinstance(receipt.get("method"), str)
             or receipt["method"] != result.get("method")
             or receipt.get("maximum_inference_level") != result.get("maximum_inference_level")
-            or receipt.get("randomness_control") != result.get("randomness_control")
             or addon.get("addon_id") != result.get("addon_id")
             or addon.get("version") != result.get("addon_version")):
         raise ValidationError("execution receipt/result method identities disagree")
+    _validate_randomness_binding(receipt, result)
     binding = receipt.get("protocol_design_check")
     if isinstance(binding, dict):
         contract = binding.get("analysis_contract")

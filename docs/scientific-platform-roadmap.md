@@ -73,9 +73,11 @@ methods without changing its epistemic rules or canonical state.
   revalidates measurement scale, unit, and value-domain contracts before applying
   them to rows. Analysis methods now expose `randomness_control` as
   `deterministic` or `seeded`; seeded methods must require the executable `seed`
-  field, and execution binds that declaration into the result and receipt. This
-  makes stochastic reproducibility a provider-neutral add-on contract without
-  treating the random procedure as scientifically adequate.
+  field, and execution rejects non-integer seeds before the runner executes.
+  Results and receipts bind the declared control plus, for seeded methods, a
+  digest of the committed seed value. This makes stochastic reproducibility a
+  provider-neutral add-on contract without treating the random procedure as
+  scientifically adequate.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit

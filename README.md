@@ -311,9 +311,11 @@ it from the frozen protocol and receipt. Editing the nested check, result level,
 or receipt level breaks verification even if a new receipt digest is supplied.
 Analysis methods also publish `randomness_control`: either `deterministic` or
 `seeded`. Seeded methods must require the executable `seed` field, and execution
-binds the declared control into the result and receipt. This exposes stochastic
-reproducibility at the add-on boundary without claiming that the randomization,
-bootstrap, or simulation procedure is scientifically adequate.
+rejects non-integer seeds before the runner executes. Results and receipts bind
+the declared control plus, for seeded methods, a digest of the committed seed
+value. This exposes stochastic reproducibility at the add-on boundary without
+claiming that the randomization, bootstrap, or simulation procedure is
+scientifically adequate.
 It must also define one structured causal estimand: the canonical target
 hypothesis, a one-sentence estimand description, target population, exactly two
 distinct exposure strategies, DAG outcome variable, time zero, outcome time,

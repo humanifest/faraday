@@ -370,6 +370,59 @@ def test_registry_rejects_unknown_or_unseeded_randomness_control() -> None:
         )
 
 
+def test_seeded_addon_method_requires_integer_seed_before_runner_executes(
+    tmp_path: Path,
+) -> None:
+    from research_machine.addons.execution import execute_analysis
+
+    data = tmp_path / "data.csv"
+    data.write_text("value\n1\n2\n", encoding="utf-8")
+    spec = tmp_path / "spec.json"
+    spec.write_text(
+        json.dumps(
+            {
+                "method": "seeded_fixture",
+                "claim_ceiling": "Synthetic fixture only.",
+                "seed": "not-an-integer",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def runner(spec, rows):
+        raise AssertionError("seeded runner should not execute before seed validation")
+
+    registry = AddonRegistry()
+    registry.register(
+        AddonManifest(
+            "seeded_fixture",
+            "Seeded fixture",
+            "1",
+            "test",
+            "Synthetic fixture",
+            methods=(
+                AnalysisMethod(
+                    "seeded_fixture",
+                    "Seeded fixture",
+                    "Fixture",
+                    ("seed",),
+                    runner,
+                    randomness_control="seeded",
+                ),
+            ),
+        )
+    )
+
+    with pytest.raises(ValidationError, match="committed integer seed"):
+        execute_analysis(
+            registry=registry,
+            spec_path=spec,
+            data_path=data,
+            output_dir=tmp_path / "output",
+        )
+    assert not (tmp_path / "output").exists()
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
@@ -633,7 +686,10 @@ def test_general_analysis_is_deterministic_and_non_evidentiary(
     assert first_result["result"] == second_result["result"]
     assert first_result["result"]["missing_data_policy"] == "complete_case"
     assert first_result["result"]["randomness_control"] == "seeded"
+    assert first_result["result"]["randomness_binding"]["control"] == "seeded"
+    assert len(first_result["result"]["randomness_binding"]["seed_sha256"]) == 64
     assert first_result["receipt"]["randomness_control"] == "seeded"
+    assert first_result["receipt"]["randomness_binding"] == first_result["result"]["randomness_binding"]
     assert first_result["receipt"]["scientific_evidence_eligible"] is False
     receipt = json.loads((first / "execution-receipt.json").read_text())
     result_bytes = (first / "analysis-result.json").read_bytes()
@@ -702,7 +758,65 @@ MANIFEST = AddonManifest(
     assert result["result"]["result"] == {"n": 2}
     assert result["receipt"]["addon"]["addon_id"] == "example_domain"
     assert result["result"]["randomness_control"] == "deterministic"
+    assert result["result"]["randomness_binding"] == {"control": "deterministic"}
     assert result["receipt"]["randomness_control"] == "deterministic"
+    assert result["receipt"]["randomness_binding"] == {"control": "deterministic"}
+
+
+def test_execution_handoff_rejects_unsupported_randomness_identity(
+    tmp_path: Path, capsys
+) -> None:
+    data = tmp_path / "observations.csv"
+    data.write_text("x\n1\n2\n", encoding="utf-8")
+    spec = tmp_path / "analysis.json"
+    spec.write_text(
+        json.dumps(
+            {
+                "method": "descriptive_summary",
+                "columns": ["x"],
+                "claim_ceiling": "Synthetic fixture only.",
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "output"
+    assert main(
+        [
+            "--json",
+            "analysis",
+            "run",
+            "--spec-file",
+            str(spec),
+            "--data-file",
+            str(data),
+            "--output",
+            str(output),
+        ]
+    ) == 0
+    _result(capsys)
+    result_path = output / "analysis-result.json"
+    receipt_path = output / "execution-receipt.json"
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    result["randomness_control"] = "ambient_rng"
+    result["randomness_binding"] = {"control": "ambient_rng"}
+    result_path.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    receipt["randomness_control"] = "ambient_rng"
+    receipt["randomness_binding"] = {"control": "ambient_rng"}
+    result_bytes = result_path.read_bytes()
+    receipt["output"]["sha256"] = hashlib.sha256(result_bytes).hexdigest()
+    receipt["output"]["size_bytes"] = len(result_bytes)
+    receipt_path.write_text(
+        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    from research_machine.addons.receipt import verify_execution_output
+
+    receipt_hash = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+    with pytest.raises(ValidationError, match="randomness_control"):
+        verify_execution_output(output, receipt_hash)
 
 
 def test_local_instrument_adapter_proposes_only_core_hashed_acquisition_metadata(

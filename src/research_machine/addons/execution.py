@@ -519,6 +519,12 @@ def execute_analysis(
     missing = [field for field in method.required_spec_fields if field not in spec]
     if missing:
         raise ValidationError("analysis specification is missing fields: " + ", ".join(missing))
+    randomness_binding: dict[str, Any] = {"control": method.randomness_control}
+    if method.randomness_control == "seeded":
+        seed = spec.get("seed")
+        if isinstance(seed, bool) or not isinstance(seed, int):
+            raise ValidationError("seeded analysis method requires a committed integer seed")
+        randomness_binding["seed_sha256"] = _hash_bytes(_json_bytes(seed))
     if design_check is not None and method.method_id == "independent_mean_difference_ci" and "unit_column" not in spec:
         raise ValidationError("protocol-bound independent analysis requires a committed unit_column identity check")
     started_at = _utc_now()
@@ -557,6 +563,7 @@ def execute_analysis(
         "claim_ceiling": method.maximum_claim_ceiling,
         "maximum_inference_level": method.maximum_inference_level,
         "randomness_control": method.randomness_control,
+        "randomness_binding": dict(randomness_binding),
         "declared_claim_ceiling": spec["claim_ceiling"],
         "claim_ceiling_status": "method_enforced_maximum; the researcher declaration is retained but cannot widen it",
         "missing_data_policy": spec.get("missing_data_policy"),
@@ -615,6 +622,7 @@ def execute_analysis(
         "method": method.method_id,
         "maximum_inference_level": method.maximum_inference_level,
         "randomness_control": method.randomness_control,
+        "randomness_binding": dict(randomness_binding),
         "specification": {"locator": str(spec_path.resolve()), "sha256": spec_sha256},
         "input": {
             "locator": str(data_path.resolve()),
