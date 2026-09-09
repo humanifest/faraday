@@ -370,6 +370,18 @@ def _implementation_hash(runner: Callable[..., Any]) -> tuple[str, str]:
     return str(path), _hash_path(path)
 
 
+def _measurement_value_domain_sha256(definition: dict[str, Any]) -> str:
+    return _hash_bytes(_json_bytes({
+        "measurement_id": definition.get("measurement_id"),
+        "scale_type": definition.get("scale_type"),
+        "unit": definition.get("unit"),
+        "admissible_values": definition.get("admissible_values"),
+        "missing_value_codes": definition.get("missing_value_codes"),
+        "valid_min": definition.get("valid_min"),
+        "valid_max": definition.get("valid_max"),
+    }))
+
+
 def validate_measurement_values(
     rows: list[dict[str, str]], definitions: Any,
 ) -> dict[str, Any]:
@@ -506,6 +518,7 @@ def validate_measurement_values(
             "data_column": column,
             "scale_type": scale,
             "unit": unit,
+            "value_domain_sha256": _measurement_value_domain_sha256(definition),
             "observed_count": observed,
             "missing_count": missing,
             "status": "passed",

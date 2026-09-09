@@ -83,7 +83,7 @@ def _validate_measurement_value_check(
         )
     expected_fields = {
         "measurement_id", "data_column", "scale_type", "unit",
-        "observed_count", "missing_count", "status",
+        "value_domain_sha256", "observed_count", "missing_count", "status",
     }
     for index, (contract, item) in enumerate(zip(contracts, observed)):
         if not isinstance(contract, dict) or not isinstance(item, dict):
@@ -100,6 +100,19 @@ def _validate_measurement_value_check(
                     "execution receipt measurement value check disagrees with "
                     f"frozen contract at index {index}"
                 )
+        expected_domain_sha256 = _hash_bytes(_json_bytes({
+            "measurement_id": contract.get("measurement_id"),
+            "scale_type": contract.get("scale_type"),
+            "unit": contract.get("unit"),
+            "admissible_values": contract.get("admissible_values"),
+            "missing_value_codes": contract.get("missing_value_codes"),
+            "valid_min": contract.get("valid_min"),
+            "valid_max": contract.get("valid_max"),
+        }))
+        if item.get("value_domain_sha256") != expected_domain_sha256:
+            raise ValidationError(
+                "execution receipt measurement value check domain digest is invalid"
+            )
         observed_count = item.get("observed_count")
         missing_count = item.get("missing_count")
         if (

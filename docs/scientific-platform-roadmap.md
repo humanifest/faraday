@@ -723,9 +723,9 @@ frozen measurement-value check from silently normalizing measurement handles or
 observation encodings that were not declared in the protocol, while preserving
 the existing distinction between exact registered missing codes and observed
 numeric values. Receipt verification now also replays the retained
-measurement-value check against the frozen contract order and row count,
-preventing a handoff from silently omitting or reshaping the source-domain check
-after execution.
+measurement-value check against the frozen contract order, value-domain digest,
+and row count, preventing a handoff from silently omitting or reshaping the
+source-domain check after execution.
 Independent-unit schema delivery: whenever a guided design names an independent
 unit, it must also name the exact stable identifier column. That name now agrees
 across protocol, data dictionary, collection plan, and measurement-collision

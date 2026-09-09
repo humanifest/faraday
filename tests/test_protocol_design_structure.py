@@ -1782,6 +1782,7 @@ def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, fai
         assert receipt["protocol_design_check"]["synthetic"] is True
         assert receipt["measurement_value_check"]["status"] == "passed"
         assert receipt["measurement_value_check"]["measurements"][0]["observed_count"] == 4
+        assert len(receipt["measurement_value_check"]["measurements"][0]["value_domain_sha256"]) == 64
         assert receipt["maximum_inference_level"] == "design_conditional_effect"
         assert receipt["protocol_design_check"]["method_inference_check"] == {
             "required_inference_level": "not_causal",
@@ -1850,6 +1851,12 @@ def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, fai
             ("input", "sha256", "0" * 64),
             ("input", "size_bytes", 1),
             ("measurement_value_check", "status", "failed"),
+            ("measurement_value_check", "measurements", [
+                {
+                    **receipt["measurement_value_check"]["measurements"][0],
+                    "value_domain_sha256": "0" * 64,
+                }
+            ]),
             ("registered_result_selection", "effect_estimate_sha256", "0" * 64),
             ("registered_information_check", "observed_minimum_analyzable_units", 999),
         ]:
