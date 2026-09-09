@@ -1201,7 +1201,9 @@ flags, retained scientific constraints, retained context reference index,
 proposal body grounding, suggestion references, and the
 `pending_human_review` boundary while explicitly limiting replay to the retained
 index and guardrails rather than reopening original context bytes or
-authenticating the generator.
+authenticating the generator. Replay also requires the exact non-authority
+conclusion ceiling, so a trusted proposal record cannot rewrite review-only
+suggestions into findings, approvals, or action authorization.
 All canonical changes retain the existing domain commands and scientific gates.
 `research collaborator review-proposal` adds a second independently hash-bound
 human adjudication artifact. It requires exactly one reject, defer, or
@@ -1227,7 +1229,10 @@ compatible routes, and advanced-suggestion summary without performing canonical
 writes or authenticating the reviewer. When the retained
 context index is nonempty, reviewed suggestions must retain at least one
 context-backed citation during replay, so a copied review record cannot become
-self-consistent by dropping the proposal's grounding. Legacy review records without a
+self-consistent by dropping the proposal's grounding. Replay also requires the
+exact non-authority conclusion ceiling, so trusted triage cannot be rewritten
+into claim acceptance, protocol amendment, evidence creation, or action
+authorization. Legacy review records without a
 retained context index, proposal-record replay digest, or ordered suggestion-ID
 anchor remain visible with `legacy_missing` replay rather than being silently
 upgraded. The collaborator context, proposal, and review input contracts are now

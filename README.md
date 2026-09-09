@@ -964,7 +964,10 @@ proposal input receipts, authority flags, retained scientific constraints,
 retained context write boundary, retained context reference index, proposal body grounding, suggestion
 references, and the `pending_human_review` boundary. It uses only the retained
 index and guardrails; it does not reopen the original context bytes, authenticate
-the generator, call a model, or authorize the proposal.
+the generator, call a model, or authorize the proposal. The retained
+non-authority conclusion ceiling must match exactly, so a trusted proposal
+record cannot rewrite review-only suggestions into findings, approvals, or
+action authorization.
 
 Adjudicate every returned suggestion explicitly using a review JSON file rather
 than treating the generated response as accepted by default:
@@ -998,7 +1001,10 @@ retained suggestion digest, the ordered proposal-suggestion snapshot anchor,
 reviewed-suggestion evidence-reference coverage, exact
 coverage of the proposal's ordered suggestion IDs, and the advanced-suggestion
 summary. It still does not authenticate the reviewer or turn the review into a
-canonical scientific action. Older review records that lack the retained context
+canonical scientific action. The retained non-authority conclusion ceiling must
+match exactly, so trusted triage cannot be rewritten into claim acceptance,
+protocol amendment, evidence creation, or action authorization. Older review
+records that lack the retained context
 index, write boundary, proposal-record replay digest, or ordered suggestion-ID anchor remain
 verifiable as `legacy_missing`, but their copied guardrails or
 reviewed-suggestion citations cannot be treated as upgraded provenance.

@@ -85,6 +85,14 @@ _ROUTES_BY_SUGGESTION_KIND = {
     "analysis_interpretation": {"hypothesis.propose", "next-action.recommend"},
     "next_action": {"next-action.recommend"},
 }
+_PROPOSAL_CONCLUSION_CEILING = (
+    "Untrusted review proposal only. It is not a finding, evidence, approval, "
+    "protocol amendment, analysis result, or authorization to act."
+)
+_REVIEW_CONCLUSION_CEILING = (
+    "Accountable triage only. Advancement requests a separate domain review; "
+    "it does not accept a claim, amend a protocol, create evidence, or authorize action."
+)
 _PROPOSAL_RECORD_FIELDS = {
     "collaborator_proposal_record_version",
     "context_input",
@@ -818,10 +826,7 @@ def validate_collaborator_proposal(
         "model_invoked_by_faraday": False,
         "scientific_evidence_eligible": False,
         "authorized_actions": [],
-        "conclusion_ceiling": (
-            "Untrusted review proposal only. It is not a finding, evidence, approval, "
-            "protocol amendment, analysis result, or authorization to act."
-        ),
+        "conclusion_ceiling": _PROPOSAL_CONCLUSION_CEILING,
     }
     content = _publish_json(output, "collaborator-proposal.json", record)
     return {
@@ -884,7 +889,10 @@ def verify_collaborator_proposal_record(
         record.get("proposal_input"),
         "collaborator proposal record proposal_input",
     )
-    _canonical_text(record["conclusion_ceiling"], "proposal_record.conclusion_ceiling")
+    if record["conclusion_ceiling"] != _PROPOSAL_CONCLUSION_CEILING:
+        raise ValidationError(
+            "collaborator proposal record conclusion ceiling has changed"
+        )
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
@@ -996,7 +1004,10 @@ def adjudicate_collaborator_proposal(
             or value["size_bytes"] <= 0
         ):
             raise ValidationError(f"collaborator proposal record {label} size is invalid")
-    _canonical_text(record["conclusion_ceiling"], "record.conclusion_ceiling")
+    if record["conclusion_ceiling"] != _PROPOSAL_CONCLUSION_CEILING:
+        raise ValidationError(
+            "collaborator proposal record conclusion ceiling has changed"
+        )
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
@@ -1116,10 +1127,7 @@ def adjudicate_collaborator_proposal(
         "canonical_writes_performed": False,
         "scientific_evidence_eligible": False,
         "authorized_actions": [],
-        "conclusion_ceiling": (
-            "Accountable triage only. Advancement requests a separate domain review; "
-            "it does not accept a claim, amend a protocol, create evidence, or authorize action."
-        ),
+        "conclusion_ceiling": _REVIEW_CONCLUSION_CEILING,
     }
     if has_context_write_boundary:
         adjudication["context_write_boundary"] = record["context_write_boundary"]
@@ -1253,7 +1261,10 @@ def verify_collaborator_review_record(
         record.get("review_input"),
         "collaborator proposal review record review_input",
     )
-    _canonical_text(record["conclusion_ceiling"], "review_record.conclusion_ceiling")
+    if record["conclusion_ceiling"] != _REVIEW_CONCLUSION_CEILING:
+        raise ValidationError(
+            "collaborator proposal review record conclusion ceiling has changed"
+        )
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
