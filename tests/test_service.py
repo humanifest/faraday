@@ -16,6 +16,7 @@ from research_machine.application.commands import (
     RetireHypothesis,
 )
 from research_machine.application.service import ResearchService
+from research_machine.application.claim_integrity import claim_scientific_sha256
 from research_machine.domain.errors import IntegrityError, ValidationError
 from research_machine.domain.models import (
     ClaimLevel,
@@ -80,6 +81,74 @@ def test_unreferenced_claims_and_hypotheses_reject_scientific_content_drift(
         ValidationError, match=f"hypothesis {hypothesis.hypothesis_id} scientific content"
     ):
         service.list_hypotheses()
+
+
+def test_claim_hierarchy_rejects_higher_inference_parent_dependencies(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Claim ladder", "Can claims depend upward?", "ladder"))
+    measurement = service.add_claim(
+        AddClaim(
+            statement="The instrument detected the registered event.",
+            level=ClaimLevel.MEASUREMENT_VALIDITY,
+        )
+    )
+    service.add_claim(
+        AddClaim(
+            statement="The event is associated with the registered condition.",
+            level=ClaimLevel.STATISTICAL_ASSOCIATION,
+            parent_claims=[measurement.claim_id],
+        )
+    )
+    causal = service.add_claim(
+        AddClaim(
+            statement="The condition directionally precedes the event in scope.",
+            level=ClaimLevel.CAUSAL_DIRECTION,
+            parent_claims=[measurement.claim_id],
+        )
+    )
+
+    with pytest.raises(ValidationError, match="higher-inference parent claim"):
+        service.add_claim(
+            AddClaim(
+                statement="A lower-level measurement assertion cannot depend on causal direction.",
+                level=ClaimLevel.MEASUREMENT_VALIDITY,
+                parent_claims=[causal.claim_id],
+            )
+        )
+
+
+def test_authoritative_inquiry_read_rejects_resealed_inverted_claim_hierarchy(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Claim read", "Can resealed claims invert?", "read"))
+    measurement = service.add_claim(
+        AddClaim(
+            statement="The instrument detected the registered event.",
+            level=ClaimLevel.MEASUREMENT_VALIDITY,
+        )
+    )
+    causal = service.add_claim(
+        AddClaim(
+            statement="The registered condition precedes the event.",
+            level=ClaimLevel.CAUSAL_DIRECTION,
+            parent_claims=[measurement.claim_id],
+        )
+    )
+
+    claims_path = tmp_path / "inquiries" / "read" / "claims.json"
+    claims = json.loads(claims_path.read_text(encoding="utf-8"))
+    claims[0]["parent_claims"] = [causal.claim_id]
+    resealed = type(measurement).from_dict(claims[0])
+    claims[0]["scientific_content_sha256"] = claim_scientific_sha256(resealed)
+    claims_path.write_text(json.dumps(claims), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="higher-inference parent claim"):
+        service.show_inquiry()
 
 
 def test_complete_inquiry_loop_preserves_rejected_hypotheses(tmp_path: Path) -> None:

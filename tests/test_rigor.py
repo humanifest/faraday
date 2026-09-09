@@ -9,6 +9,7 @@ import pytest
 
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import (
+    AddClaim,
     CreateInquiry,
     CreateProtocol,
     ProposeHypothesis,
@@ -23,6 +24,8 @@ from research_machine.reporting.synthesis import build_synthesis
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     AnalysisMode,
+    Claim,
+    ClaimLevel,
     DatasetArtifact,
     EvidenceDirection,
     MeasurementDefinition,
@@ -233,6 +236,45 @@ def test_rigor_and_synthesis_expose_protocol_factor_interpretability(
     assert "Manipulated-factor interpretability" in synthesis
     assert "person, room (factorial/crossover declared; plan:" in synthesis
     assert "not proof that factor effects are separable" in synthesis
+
+
+def test_rigor_flags_inverted_claim_dependency_levels(tmp_path: Path) -> None:
+    inquiry = CreateInquiry(
+        "Claim ladder",
+        "Can a lower-level claim depend on a stronger conclusion?",
+        "claim-ladder",
+    )
+    service = _service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(inquiry)
+    causal = service.add_claim(
+        AddClaim(
+            statement="The registered condition caused the event in scope.",
+            level=ClaimLevel.CAUSAL_DIRECTION,
+        )
+    )
+    measurement = Claim(
+        claim_id="clm-inverted",
+        statement="The instrument detected the event.",
+        level=ClaimLevel.MEASUREMENT_VALIDITY,
+        created_at="2026-09-02T12:00:00Z",
+        parent_claims=[causal.claim_id],
+    )
+    audit = audit_research_state(
+        inquiry=service.repository.load_inquiry("claim-ladder"),
+        claims=[causal, measurement],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[],
+        runs=[],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "CLAIM_DEPENDENCY_LEVEL_INVERTED"
+    )
+    assert finding.entity_id == measurement.claim_id
+    assert causal.claim_id in finding.message
 
 
 def test_rigor_flags_legacy_unresolved_multi_factor_protocol(

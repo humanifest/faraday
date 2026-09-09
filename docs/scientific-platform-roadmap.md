@@ -256,6 +256,13 @@ assessment, replication, and retirement transitions. Inquiry and direct
 hypothesis reads validate every seal; review, activation, staging, and retirement
 validate the source record before moving it. Thus even an unreferenced draft or
 claim cannot be silently rewritten through direct state-file mutation.
+Known scientific claim levels now also enforce an inferential dependency
+direction: a claim may depend on lower or same-level parents, but a
+measurement-validity, association, causal-direction, robustness, mechanism,
+adaptation, or attribution/intent claim cannot depend on a higher-inference
+parent. Canonical claim creation and inquiry reads fail closed on inverted
+dependencies, and rigor flags legacy or externally modified inversions so a
+stronger conclusion cannot become hidden support for a lower-level assertion.
 
 Causal-identification audit delivery: provider-free `design identify` accepts a
 typed DAG, exposure, outcome, assignment type, observed/unobserved declarations,

@@ -8,6 +8,7 @@ from research_machine.application.policies import (
     normalize_confidence,
     validate_validation_tag_context,
 )
+from research_machine.application.claim_integrity import claim_level_rank
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.domain.models import (
     AnalysisMode,
@@ -228,6 +229,31 @@ def audit_research_state(
                 entity_type="claim",
                 entity_id=claim.claim_id,
             )
+        claim_rank = claim_level_rank(claim.level)
+        if claim_rank is not None:
+            for parent_id in claim.parent_claims:
+                parent = claims_by_id.get(parent_id)
+                if parent is None:
+                    continue
+                parent_rank = claim_level_rank(parent.level)
+                if parent_rank is not None and parent_rank > claim_rank:
+                    add(
+                        "CLAIM_DEPENDENCY_LEVEL_INVERTED",
+                        RigorSeverity.ERROR,
+                        (
+                            f"Claim depends on higher-inference parent {parent_id} "
+                            f"({parent.level.value}) while its own level is "
+                            f"{claim.level.value}."
+                        ),
+                        entity_type="claim",
+                        entity_id=claim.claim_id,
+                        remediation=(
+                            "Restructure the claim graph so known scientific "
+                            "dependencies flow from lower or same inference levels "
+                            "toward stronger conclusions; do not use a stronger "
+                            "claim as hidden support for a lower-level assertion."
+                        ),
+                    )
         if (
             claim.epistemic_layer
             in {

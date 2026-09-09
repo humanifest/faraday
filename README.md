@@ -1465,6 +1465,11 @@ generated or replayed.
   decision owner, and observations that would change the decision.
 - Record and answer clarifying questions.
 - Build a claim hierarchy from measurement validity through attribution/intent.
+- Scientific claim dependencies across known hierarchy levels must flow from
+  lower or same inference levels toward stronger conclusions; a lower-level
+  claim cannot depend on a higher-inference parent. Rigor flags legacy or
+  externally modified inversions instead of letting stronger claims hide inside
+  weaker ones.
 - Seal each claim’s stable proposition and each hypothesis’s scientific content
   when created. Explicit review, staging, activation, assessment, and retirement
   fields may evolve, but out-of-band edits to the underlying proposition fail

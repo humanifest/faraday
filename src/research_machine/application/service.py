@@ -1074,10 +1074,13 @@ class ResearchService:
         hypotheses = self.repository.list_hypotheses(resolved)
         claims = self.repository.load_claims(resolved)
         from research_machine.application.claim_integrity import (
+            validate_claim_dependency_levels,
             validate_claim_scientific_commitment,
         )
+        claims_by_id = {claim.claim_id: claim for claim in claims}
         for claim in claims:
             validate_claim_scientific_commitment(claim)
+            validate_claim_dependency_levels(claim, claims_by_id)
         from research_machine.application.hypothesis_integrity import (
             validate_hypothesis_scientific_commitment,
         )
@@ -1452,10 +1455,12 @@ class ResearchService:
         )
         from research_machine.application.claim_integrity import (
             claim_scientific_sha256,
+            validate_claim_dependency_levels,
         )
         claim = replace(
             claim, scientific_content_sha256=claim_scientific_sha256(claim)
         )
+        validate_claim_dependency_levels(claim, {item.claim_id: item for item in claims})
         self._validate_claim_authority(claim)
         claims.append(claim)
         self.repository.save_claims(resolved, claims)
