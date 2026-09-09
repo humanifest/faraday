@@ -738,6 +738,81 @@ def validate_collaborator_proposal(
     }
 
 
+def verify_collaborator_proposal_record(
+    proposal_record_file: Path,
+    expected_proposal_record_sha256: str,
+) -> dict[str, Any]:
+    """Replay a retained collaborator proposal record before human review."""
+    if not _SHA256.fullmatch(expected_proposal_record_sha256):
+        raise ValidationError(
+            "expected proposal-record SHA-256 must be 64 lowercase hex characters"
+        )
+    record, record_content = _load_object(
+        proposal_record_file, "collaborator proposal record"
+    )
+    record_digest = hashlib.sha256(record_content).hexdigest()
+    if record_digest != expected_proposal_record_sha256:
+        raise ValidationError(
+            "collaborator proposal record does not match trusted SHA-256"
+        )
+    _exact_fields(record, _PROPOSAL_RECORD_FIELDS, "collaborator proposal record")
+    if record.get("collaborator_proposal_record_version") != 1:
+        raise ValidationError("collaborator proposal record version must be 1")
+    if record.get("status") != "pending_human_review":
+        raise ValidationError("collaborator proposal record is not pending human review")
+    for field, expected in (
+        ("canonical_writes_performed", False),
+        ("model_invoked_by_faraday", False),
+        ("scientific_evidence_eligible", False),
+        ("authorized_actions", []),
+    ):
+        if record.get(field) != expected:
+            raise ValidationError(
+                f"collaborator proposal record violates its authority boundary: {field}"
+            )
+    context_input = _validate_input_receipt(
+        record.get("context_input"),
+        "collaborator proposal record context_input",
+    )
+    _validate_input_receipt(
+        record.get("proposal_input"),
+        "collaborator proposal record proposal_input",
+    )
+    _canonical_text(record["conclusion_ceiling"], "proposal_record.conclusion_ceiling")
+    _context_scientific_constraints(
+        {"scientific_constraints": record["context_scientific_constraints"]}
+    )
+    proposal = record.get("proposal")
+    if not isinstance(proposal, dict):
+        raise ValidationError("collaborator proposal record has no proposal object")
+    replay_context = {
+        "purpose": proposal.get("purpose"),
+        "context_reference_index": record["context_reference_index"],
+    }
+    proposal_body_grounding = _validate_proposal(
+        proposal,
+        replay_context,
+        context_input["sha256"],
+    )
+    if record["proposal_body_grounding"] != proposal_body_grounding:
+        raise ValidationError(
+            "collaborator proposal body grounding disagrees with retained proposal"
+        )
+    return {
+        "record_sha256": record_digest,
+        "record_status": record["status"],
+        "context_sha256": context_input["sha256"],
+        "proposal_sha256": record["proposal_input"]["sha256"],
+        "proposal_id": proposal["proposal_id"],
+        "suggestion_count": len(proposal["suggestions"]),
+        "body_grounding_count": len(proposal_body_grounding),
+        "context_reference_replay": "retained_index_verified",
+        "canonical_writes_performed": False,
+        "model_invoked_by_faraday": False,
+        "scientific_evidence_eligible": False,
+    }
+
+
 def _rfc3339(value: Any, field: str) -> str:
     text = _text(value, field)
     candidate = text[:-1] + "+00:00" if text.endswith("Z") else text

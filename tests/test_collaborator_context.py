@@ -10,6 +10,7 @@ from research_machine.collaboration.proposal import (
     adjudicate_collaborator_proposal,
     create_context_snapshot,
     validate_collaborator_proposal,
+    verify_collaborator_proposal_record,
     verify_collaborator_review_record,
 )
 from research_machine.adapters.filesystem import FileSystemRepository
@@ -490,6 +491,23 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
     assert record["model_invoked_by_faraday"] is False
     assert record["scientific_evidence_eligible"] is False
     assert record["authorized_actions"] == []
+    verified = verify_collaborator_proposal_record(
+        Path(result["record_file"]),
+        result["record_sha256"],
+    )
+    assert verified == {
+        "record_sha256": result["record_sha256"],
+        "record_status": "pending_human_review",
+        "context_sha256": context_result["context_sha256"],
+        "proposal_sha256": result["proposal_sha256"],
+        "proposal_id": "proposal-1",
+        "suggestion_count": 1,
+        "body_grounding_count": 4,
+        "context_reference_replay": "retained_index_verified",
+        "canonical_writes_performed": False,
+        "model_invoked_by_faraday": False,
+        "scientific_evidence_eligible": False,
+    }
     assert service.show_inquiry(inquiry.inquiry_id) == before
     with pytest.raises(ValidationError, match="already exists"):
         validate_collaborator_proposal(
@@ -573,6 +591,83 @@ def test_proposal_fails_closed_on_missing_scientific_boundaries(
             tmp_path / "validated",
         )
     assert not (tmp_path / "validated").exists()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda record: record.update({"canonical_writes_performed": True}),
+            "authority boundary",
+        ),
+        (
+            lambda record: record["proposal"].update({"context_sha256": "0" * 64}),
+            "not bound to the exact context hash",
+        ),
+        (
+            lambda record: record["proposal"]["suggestions"][0].update(
+                {"authority": "canonical_write"}
+            ),
+            "authority must be review_only",
+        ),
+        (
+            lambda record: record["proposal_body_grounding"][0].update(
+                {"context_refs": ["claim:not-in-context"]}
+            ),
+            "body grounding disagrees",
+        ),
+        (
+            lambda record: record["proposal"]["suggestions"][0].update(
+                {"evidence_refs": ["claim:not-in-context"]}
+            ),
+            "evidence_refs are not present",
+        ),
+        (
+            lambda record: record.update(
+                {
+                    "context_scientific_constraints": [
+                        "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action."
+                    ]
+                }
+            ),
+            "inferential-boundary",
+        ),
+    ],
+)
+def test_verify_collaborator_proposal_record_replays_retained_boundaries(
+    tmp_path: Path, mutation, message: str
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(
+            _proposal(
+                snapshot["context_sha256"],
+                evidence_refs=["claim:claim-1"],
+            )
+        ),
+        encoding="utf-8",
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    record_path = Path(validated["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    mutation(record)
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match=message):
+        verify_collaborator_proposal_record(record_path, trusted_hash)
 
 
 def test_proposal_requires_a_citation_when_context_has_references(
@@ -949,6 +1044,21 @@ def test_cli_exports_context_and_validates_proposal_without_a_provider(
     result = json.loads(capsys.readouterr().out)["result"]
     assert result["status"] == "pending_human_review"
     assert result["model_invoked_by_faraday"] is False
+    assert main(
+        [
+            *common,
+            "collaborator",
+            "verify-proposal",
+            "--proposal-record-file",
+            result["record_file"],
+            "--expected-proposal-record-sha256",
+            result["record_sha256"],
+        ]
+    ) == 0
+    verified_proposal = json.loads(capsys.readouterr().out)["result"]
+    assert verified_proposal["record_status"] == "pending_human_review"
+    assert verified_proposal["context_reference_replay"] == "retained_index_verified"
+    assert verified_proposal["model_invoked_by_faraday"] is False
 
     review_file = tmp_path / "review.json"
     review_file.write_text(json.dumps(_review(result["record_sha256"])), encoding="utf-8")

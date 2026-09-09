@@ -861,6 +861,21 @@ accept a finding, create evidence, or authorize an action. Any accepted idea
 must still be translated deliberately through the normal question, hypothesis,
 protocol-freeze, ethics, custody, run, and evidence commands.
 
+Replay a saved proposal record before using it as review input:
+
+```bash
+./research --json collaborator verify-proposal \
+  --proposal-record-file validated-proposal/collaborator-proposal.json \
+  --expected-proposal-record-sha256 <trusted-proposal-record-sha256>
+```
+
+Verification checks the trusted proposal-record hash, retained context and
+proposal input receipts, authority flags, retained scientific constraints,
+retained context reference index, proposal body grounding, suggestion
+references, and the `pending_human_review` boundary. It uses only the retained
+index and guardrails; it does not reopen the original context bytes, authenticate
+the generator, call a model, or authorize the proposal.
+
 Adjudicate every returned suggestion explicitly using a review JSON file rather
 than treating the generated response as accepted by default:
 

@@ -1079,6 +1079,14 @@ source identity, review obligation, or scientific prose.
 The resulting record remains `pending_human_review`, scientifically ineligible,
 and unable to authorize or write anything. Neither command invokes a model, so
 this workflow has no provider or API-cost dependency.
+`research collaborator verify-proposal` now independently replays a saved
+proposal record against a trusted proposal-record hash before it is used as
+review input. It checks retained context/proposal input receipts, authority
+flags, retained scientific constraints, retained context reference index,
+proposal body grounding, suggestion references, and the
+`pending_human_review` boundary while explicitly limiting replay to the retained
+index and guardrails rather than reopening original context bytes or
+authenticating the generator.
 All canonical changes retain the existing domain commands and scientific gates.
 `research collaborator review-proposal` adds a second independently hash-bound
 human adjudication artifact. It requires exactly one reject, defer, or

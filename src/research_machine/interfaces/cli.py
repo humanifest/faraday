@@ -892,6 +892,16 @@ def build_parser() -> argparse.ArgumentParser:
     collaborator_validate.add_argument("--expected-context-sha256", required=True)
     collaborator_validate.add_argument("--proposal-file", type=Path, required=True)
     collaborator_validate.add_argument("--output", type=Path, required=True)
+    collaborator_verify_proposal = collaborator_commands.add_parser(
+        "verify-proposal",
+        help="Replay a collaborator proposal record against a trusted record hash",
+    )
+    collaborator_verify_proposal.add_argument(
+        "--proposal-record-file", type=Path, required=True
+    )
+    collaborator_verify_proposal.add_argument(
+        "--expected-proposal-record-sha256", required=True
+    )
     collaborator_review = collaborator_commands.add_parser(
         "review-proposal",
         help="Adjudicate every suggestion without applying canonical changes",
@@ -2107,6 +2117,13 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             args.expected_context_sha256,
             args.proposal_file,
             args.output,
+        )
+
+    if args.group == "collaborator" and args.action == "verify-proposal":
+        from research_machine.collaboration.proposal import verify_collaborator_proposal_record
+        return verify_collaborator_proposal_record(
+            args.proposal_record_file,
+            args.expected_proposal_record_sha256,
         )
 
     if args.group == "collaborator" and args.action == "review-proposal":
