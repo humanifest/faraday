@@ -747,6 +747,159 @@ def _validate_causal_assumption_gate_metadata(
         )
 
 
+def _validate_protocol_deviation_disclosure_metadata(
+    *,
+    run_id: str,
+    metadata: dict[str, Any],
+    output_artifacts: list[DatasetArtifact],
+) -> dict[str, Any]:
+    disclosure = metadata.get("protocol_deviation_disclosure")
+    if not isinstance(disclosure, dict):
+        raise ValidationError(
+            f"package run {run_id} requires protocol_deviation_disclosure metadata"
+        )
+    status = require_canonical_text(
+        disclosure.get("status"),
+        f"package run {run_id} protocol_deviation_disclosure.status",
+    )
+    deviations = disclosure.get("deviations")
+    if not isinstance(deviations, list):
+        raise ValidationError(
+            f"package run {run_id} protocol_deviation_disclosure.deviations must be an array"
+        )
+    automatic = disclosure.get("automatic_evidence_eligible")
+    if type(automatic) is not bool:
+        raise ValidationError(
+            f"package run {run_id} protocol_deviation_disclosure.automatic_evidence_eligible must be a boolean"
+        )
+    if status == "legacy_not_declared":
+        if set(disclosure) != {
+            "status",
+            "deviations",
+            "automatic_evidence_eligible",
+        }:
+            raise ValidationError(
+                f"package run {run_id} legacy protocol deviation disclosure fields are invalid"
+            )
+        if deviations or automatic:
+            raise ValidationError(
+                f"package run {run_id} legacy protocol deviation disclosure must remain ineligible"
+            )
+        return disclosure
+    if status not in {"no_deviations_declared", "deviations_declared"}:
+        raise ValidationError(
+            f"package run {run_id} protocol deviation disclosure status is invalid"
+        )
+    if set(disclosure) != {
+        "status",
+        "deviations",
+        "automatic_evidence_eligible",
+        "interpretation_boundary",
+    }:
+        raise ValidationError(
+            f"package run {run_id} protocol deviation disclosure fields are invalid"
+        )
+    boundary = require_canonical_text(
+        disclosure["interpretation_boundary"],
+        f"package run {run_id} protocol_deviation_disclosure.interpretation_boundary",
+    )
+    if (
+        "no-deviation declaration is an unauthenticated execution assertion"
+        not in boundary
+        or "declared departure requires separate scientific review" not in boundary
+    ):
+        raise ValidationError(
+            f"package run {run_id} protocol deviation disclosure boundary is invalid"
+        )
+    if automatic is not (status == "no_deviations_declared"):
+        raise ValidationError(
+            f"package run {run_id} protocol deviation disclosure eligibility disagrees with status"
+        )
+    if (status == "no_deviations_declared") != (not deviations):
+        raise ValidationError(
+            f"package run {run_id} protocol deviation disclosure status disagrees with deviations"
+        )
+    required_fields = {
+        "deviation_id",
+        "stage",
+        "frozen_commitment",
+        "actual_method",
+        "reason",
+        "timing",
+        "potential_impact",
+        "corrective_action",
+        "evidence_sha256",
+        "evidence_location",
+    }
+    allowed_timing = {
+        "before_execution",
+        "during_execution",
+        "after_execution_before_results",
+        "after_results_seen",
+        "unknown",
+    }
+    allowed_impact = {
+        "none",
+        "minor",
+        "potentially_material",
+        "invalidating",
+        "unknown",
+    }
+    output_hashes = {artifact.sha256 for artifact in output_artifacts}
+    seen_ids: set[str] = set()
+    for deviation in deviations:
+        if not isinstance(deviation, dict) or set(deviation) != required_fields:
+            raise ValidationError(
+                f"package run {run_id} protocol deviation must contain the exact documented fields"
+            )
+        deviation_id = require_canonical_text(
+            deviation["deviation_id"],
+            f"package run {run_id} protocol deviation deviation_id",
+        )
+        if deviation_id in seen_ids:
+            raise ValidationError(
+                f"package run {run_id} repeats protocol deviation_id {deviation_id}"
+            )
+        seen_ids.add(deviation_id)
+        for field in (
+            "stage",
+            "frozen_commitment",
+            "actual_method",
+            "reason",
+            "corrective_action",
+            "evidence_location",
+        ):
+            require_canonical_text(
+                deviation[field],
+                f"package run {run_id} protocol deviation {deviation_id} {field}",
+            )
+        timing = require_canonical_text(
+            deviation["timing"],
+            f"package run {run_id} protocol deviation {deviation_id} timing",
+        )
+        if timing not in allowed_timing:
+            raise ValidationError(
+                f"package run {run_id} protocol deviation {deviation_id} timing is invalid"
+            )
+        impact = require_canonical_text(
+            deviation["potential_impact"],
+            f"package run {run_id} protocol deviation {deviation_id} potential_impact",
+        )
+        if impact not in allowed_impact:
+            raise ValidationError(
+                f"package run {run_id} protocol deviation {deviation_id} potential_impact is invalid"
+            )
+        digest = require_sha256(
+            deviation["evidence_sha256"],
+            f"package run {run_id} protocol deviation {deviation_id} evidence_sha256",
+        )
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"package run {run_id} protocol deviation evidence must reference a run output artifact"
+            )
+    return disclosure
+
+
 def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any]:
     """Verify packaged bytes against an independently retained export commitment."""
     expected_manifest_sha256 = require_sha256(
@@ -1076,6 +1229,11 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     isinstance(artifact_integrity, dict)
                     and artifact_integrity.get("status") != "passed"
                 )
+                deviation_disclosure = _validate_protocol_deviation_disclosure_metadata(
+                    run_id=run.run_id,
+                    metadata=run.metadata,
+                    output_artifacts=run.output_artifacts,
+                )
                 invalid = bool(
                     missing_gates
                     or protocol_gate_failure
@@ -1090,17 +1248,10 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     not invalid
                     and not run.synthetic
                     and run.metadata.get("workflow_component_only") is not True
-                    and isinstance(
-                        run.metadata.get("protocol_deviation_disclosure"), dict
-                    )
-                    and run.metadata["protocol_deviation_disclosure"].get("status")
+                    and deviation_disclosure.get("status")
                     == "no_deviations_declared"
-                    and run.metadata["protocol_deviation_disclosure"].get("deviations")
-                    == []
-                    and run.metadata["protocol_deviation_disclosure"].get(
-                        "automatic_evidence_eligible"
-                    )
-                    is True
+                    and deviation_disclosure.get("deviations") == []
+                    and deviation_disclosure.get("automatic_evidence_eligible") is True
                     and isinstance(artifact_integrity, dict)
                     and artifact_integrity.get("status") == "passed"
                     and (

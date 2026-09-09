@@ -686,6 +686,12 @@ run validity, and final scientific-evidence eligibility. Gate IDs and
 prerequisite references must also be nonblank, unique, and canonical without
 surrounding whitespace before package verification accepts the run, so malformed
 package metadata cannot survive independent verification. Structured
+protocol-deviation disclosure metadata is also checked: legacy silence remains
+ineligible, explicit no-deviation declarations must retain their interpretation
+boundary, declared departures must preserve exact typed fields, and every
+deviation evidence hash must cite a packaged run output. This keeps departures
+visible in replication handoffs without treating a no-deviation assertion as
+authenticated protocol adherence. Structured
 control-evaluation metadata is replayed for passed control gates: each frozen
 control mapped to the gate must have exactly one evaluation, no extra controls
 may appear, `matches_expected` must remain boolean, and the evaluation evidence

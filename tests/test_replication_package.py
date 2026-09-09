@@ -1147,6 +1147,155 @@ def test_replication_package_verifies_canary_target_gate_metadata(
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
+        ("missing_disclosure", "requires protocol_deviation_disclosure"),
+        ("missing_field", "fields are invalid"),
+        ("bad_status", "status is invalid"),
+        ("missing_auto", "automatic_evidence_eligible must be a boolean"),
+        ("wrong_auto", "eligibility disagrees with status"),
+        ("status_disagrees", "status disagrees with deviations"),
+        ("missing_deviation_field", "exact documented fields"),
+        ("duplicate_deviation", "repeats protocol deviation_id"),
+        ("bad_timing", "timing is invalid"),
+        ("bad_impact", "potential_impact is invalid"),
+        ("padded_stage", "stage must be canonical"),
+        ("unbound_evidence", "must reference a run output artifact"),
+        ("blank_location", "evidence_location must not be empty"),
+        ("rewritten_boundary", "boundary is invalid"),
+    ],
+)
+def test_replication_package_verifies_protocol_deviation_disclosure(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test",
+        title="Test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id],
+        primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL,
+        methodology="Method",
+        quality_requirements=["gate"],
+        controls=["control"],
+        expected_outputs=["output"],
+        success_conditions=["success"],
+        environment_requirements=["environment"],
+        sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"],
+        safety_constraints=["safe"],
+        analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    output = tmp_path / "deviation-output.json"
+    output.write_text('{"deviation":{"solver_tolerance":"loose"}}\n', encoding="utf-8")
+    output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+    disclosure = {
+        "status": "deviations_declared",
+        "deviations": [{
+            "deviation_id": "dev-1",
+            "stage": "analysis",
+            "frozen_commitment": "Use the registered solver tolerance.",
+            "actual_method": "Used a looser tolerance after convergence failed.",
+            "reason": "The registered tolerance did not converge.",
+            "timing": "after_results_seen",
+            "potential_impact": "potentially_material",
+            "corrective_action": "Repeat both tolerances and report all results.",
+            "evidence_sha256": output_hash,
+            "evidence_location": "/deviation/solver_tolerance",
+        }],
+    }
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            output.name,
+            output_hash,
+            output.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "gate",
+            QualityGateStatus.PASSED,
+            "Synthetic package fixture passed.",
+            details={"evidence_sha256": output_hash},
+        )],
+        summary="Synthetic package fixture with a declared deviation.",
+        metadata={"protocol_deviation_disclosure": disclosure},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    disclosure = runs[0]["metadata"]["protocol_deviation_disclosure"]
+    deviation = disclosure["deviations"][0]
+    if mutation == "missing_disclosure":
+        del runs[0]["metadata"]["protocol_deviation_disclosure"]
+    elif mutation == "missing_field":
+        del disclosure["interpretation_boundary"]
+    elif mutation == "bad_status":
+        disclosure["status"] = "resolved"
+    elif mutation == "missing_auto":
+        del disclosure["automatic_evidence_eligible"]
+    elif mutation == "wrong_auto":
+        disclosure["automatic_evidence_eligible"] = True
+    elif mutation == "status_disagrees":
+        disclosure["status"] = "no_deviations_declared"
+        disclosure["automatic_evidence_eligible"] = True
+    elif mutation == "missing_deviation_field":
+        del deviation["actual_method"]
+    elif mutation == "duplicate_deviation":
+        disclosure["deviations"].append(dict(deviation))
+    elif mutation == "bad_timing":
+        deviation["timing"] = "after_reassuring_results"
+    elif mutation == "bad_impact":
+        deviation["potential_impact"] = "beneficial"
+    elif mutation == "padded_stage":
+        deviation["stage"] = " analysis"
+    elif mutation == "unbound_evidence":
+        deviation["evidence_sha256"] = "f" * 64
+    elif mutation == "blank_location":
+        deviation["evidence_location"] = ""
+    elif mutation == "rewritten_boundary":
+        disclosure["interpretation_boundary"] = "No deviations means the run followed the protocol."
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
         ("missing_results", "requires exact evaluations"),
         ("missing_control", "requires exact evaluations"),
         ("extra_control", "requires exact evaluations"),

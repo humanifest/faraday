@@ -109,7 +109,10 @@ frozen commitment, actual method, reason, timing relative to result access,
 potential impact, corrective action, and exact evidence location bound to an
 artifact emitted by that run. They remain recordable for transparency but block
 automatic evidence promotion. Replication-package verification independently
-recomputes the same disclosure-aware eligibility rule.
+recomputes the same disclosure-aware eligibility rule and validates the retained
+disclosure structure itself: legacy silence stays ineligible, no-deviation
+assertions retain their interpretation boundary, typed departures remain exact,
+and deviation evidence hashes must cite packaged run outputs.
 
 Run-output and evidence-admission delivery: scientific evidence eligibility now
 also requires a passed verification of every declared output under an explicit
@@ -939,7 +942,12 @@ output-bound gate evidence, prerequisites, validity status, workflow-component
 status, and evidence eligibility. The verifier requires packaged protocol
 requirements, run gates, and run-gate prerequisites to be nonblank, unique, and
 canonical without surrounding whitespace before coverage checks, closing package-
-only ambiguity before a package can be trusted independently. Structured
+only ambiguity before a package can be trusted independently. Protocol-deviation
+disclosure metadata is also replayed before eligibility is trusted: legacy
+silence remains ineligible, explicit no-deviation declarations must retain the
+unauthenticated-assertion boundary, declared departures must preserve exact typed
+fields, and every departure's evidence hash must be a packaged run output.
+Structured
 preprocessing-conformance gate metadata is also checked in package verification:
 the declared conformance record hash must be the gate evidence and a packaged run
 output, registered and observed pipeline hashes must be canonical, and passed or
