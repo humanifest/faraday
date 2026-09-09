@@ -134,8 +134,12 @@ Replication-package verification now replays passed control-gate metadata agains
 the frozen control definitions: every mapped control must have exactly one
 evaluation, no invented controls may appear, `matches_expected` must remain a
 boolean scientific outcome, and each evaluation must cite a packaged run output.
-This prevents exported packages from hiding failed controls, adding convenient
-controls, or detaching control results from output-bound evidence.
+If that output is a retained workflow-adjudication artifact, the verifier resolves
+the control's absolute JSON Pointer inside the packaged adjudication body, so
+composite exports cannot replace inherited gate locations with fabricated
+human-inspectable text. This prevents exported packages from hiding failed
+controls, adding convenient controls, or detaching control results from
+output-bound evidence.
 All passed quality gates now require `details.evidence_sha256` referencing an
 artifact emitted by that exact run. Optional `prerequisite_gate_ids` are checked
 against the same run: every named gate must be canonical without surrounding

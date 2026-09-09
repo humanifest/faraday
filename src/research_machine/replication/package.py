@@ -492,7 +492,7 @@ def _validate_canary_target_assessment_gate_metadata(
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
-    execution_results_by_sha: dict[str, Any],
+    verified_results_by_sha: dict[str, Any],
 ) -> None:
     assessment = gate.details.get("canary_target_assessment")
     if assessment is None:
@@ -600,7 +600,7 @@ def _validate_canary_target_assessment_gate_metadata(
         digest=evidence_sha256,
         location=location,
         field_name="canary assessment evidence_location",
-        execution_results_by_sha=execution_results_by_sha,
+        verified_results_by_sha=verified_results_by_sha,
     )
 
 
@@ -710,10 +710,35 @@ def _validate_execution_handoff_measurement_value_check(run: ResearchRun) -> Non
             )
 
 
-def _execution_handoff_results_by_output_sha(run: ResearchRun) -> dict[str, Any]:
-    handoff = run.metadata.get("execution_handoff")
-    if handoff is None:
+def _verified_handoff_results_by_output_sha(run: ResearchRun) -> dict[str, Any]:
+    execution_handoff = run.metadata.get("execution_handoff")
+    adjudication_handoff = run.metadata.get("workflow_adjudication_handoff")
+    if execution_handoff is not None and adjudication_handoff is not None:
+        raise ValidationError(
+            f"package run {run.run_id} cannot retain both execution and adjudication handoffs"
+        )
+    if execution_handoff is None and adjudication_handoff is None:
         return {}
+    if adjudication_handoff is not None:
+        if not isinstance(adjudication_handoff, dict):
+            raise ValidationError(
+                f"package run {run.run_id} workflow_adjudication_handoff must be an object"
+            )
+        receipt = adjudication_handoff.get("receipt")
+        adjudication = adjudication_handoff.get("adjudication")
+        if not isinstance(receipt, dict) or not isinstance(adjudication, dict):
+            raise ValidationError(
+                f"package run {run.run_id} workflow_adjudication_handoff receipt and adjudication must be objects"
+            )
+        output = receipt.get("output")
+        if not isinstance(output, dict):
+            return {}
+        digest = require_sha256(
+            output.get("sha256"),
+            f"package run {run.run_id} workflow_adjudication_handoff output.sha256",
+        )
+        return {digest: adjudication}
+    handoff = execution_handoff
     if not isinstance(handoff, dict):
         raise ValidationError(
             f"package run {run.run_id} execution_handoff must be an object"
@@ -740,9 +765,9 @@ def _validate_analysis_result_location(
     digest: str,
     location: str,
     field_name: str,
-    execution_results_by_sha: dict[str, Any],
+    verified_results_by_sha: dict[str, Any],
 ) -> None:
-    result = execution_results_by_sha.get(digest)
+    result = verified_results_by_sha.get(digest)
     if result is None:
         return
     if not location.startswith("/"):
@@ -762,7 +787,7 @@ def _validate_control_gate_metadata(
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
-    execution_results_by_sha: dict[str, Any],
+    verified_results_by_sha: dict[str, Any],
 ) -> None:
     controls = [
         control
@@ -820,7 +845,7 @@ def _validate_control_gate_metadata(
             digest=digest,
             location=result["evidence_location"],
             field_name=f"control {control.control_id} evidence_location",
-            execution_results_by_sha=execution_results_by_sha,
+            verified_results_by_sha=verified_results_by_sha,
         )
 
 
@@ -830,7 +855,7 @@ def _validate_measurement_validity_gate_metadata(
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
-    execution_results_by_sha: dict[str, Any],
+    verified_results_by_sha: dict[str, Any],
 ) -> None:
     checks = [
         check
@@ -906,7 +931,7 @@ def _validate_measurement_validity_gate_metadata(
             digest=digest,
             location=result["evidence_location"],
             field_name=f"measurement validity {check.check_id} evidence_location",
-            execution_results_by_sha=execution_results_by_sha,
+            verified_results_by_sha=verified_results_by_sha,
         )
 
 
@@ -916,7 +941,7 @@ def _validate_missingness_gate_metadata(
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
-    execution_results_by_sha: dict[str, Any],
+    verified_results_by_sha: dict[str, Any],
 ) -> None:
     contract = protocol.analysis_contract
     if (
@@ -983,7 +1008,7 @@ def _validate_missingness_gate_metadata(
         digest=digest,
         location=result["evidence_location"],
         field_name="missingness assessment evidence_location",
-        execution_results_by_sha=execution_results_by_sha,
+        verified_results_by_sha=verified_results_by_sha,
     )
 
 
@@ -993,7 +1018,7 @@ def _validate_causal_assumption_gate_metadata(
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
-    execution_results_by_sha: dict[str, Any],
+    verified_results_by_sha: dict[str, Any],
 ) -> None:
     if not protocol.causal_claim or gate.status is QualityGateStatus.SKIPPED:
         return
@@ -1065,7 +1090,7 @@ def _validate_causal_assumption_gate_metadata(
             digest=digest,
             location=result["evidence_location"],
             field_name=f"causal assumption {category} evidence_location",
-            execution_results_by_sha=execution_results_by_sha,
+            verified_results_by_sha=verified_results_by_sha,
         )
     if gate.status is QualityGateStatus.PASSED and observed_statuses != {
         "consistent_with_assumption"
@@ -1776,7 +1801,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     label=f"package run {run.run_id}",
                     locator_policy=manifest["artifact_locator_policy"],
                 )
-                execution_results_by_sha = _execution_handoff_results_by_output_sha(
+                verified_results_by_sha = _verified_handoff_results_by_output_sha(
                     run
                 )
                 quality_gates = validate_quality_gates(run.quality_gates)
@@ -1830,35 +1855,35 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=output_artifacts,
-                        execution_results_by_sha=execution_results_by_sha,
+                        verified_results_by_sha=verified_results_by_sha,
                     )
                     _validate_control_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=output_artifacts,
-                        execution_results_by_sha=execution_results_by_sha,
+                        verified_results_by_sha=verified_results_by_sha,
                     )
                     _validate_measurement_validity_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=output_artifacts,
-                        execution_results_by_sha=execution_results_by_sha,
+                        verified_results_by_sha=verified_results_by_sha,
                     )
                     _validate_missingness_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=output_artifacts,
-                        execution_results_by_sha=execution_results_by_sha,
+                        verified_results_by_sha=verified_results_by_sha,
                     )
                     _validate_causal_assumption_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=output_artifacts,
-                        execution_results_by_sha=execution_results_by_sha,
+                        verified_results_by_sha=verified_results_by_sha,
                     )
                     prerequisites = gate.details.get("prerequisite_gate_ids", [])
                     if not isinstance(prerequisites, list) or any(

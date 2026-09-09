@@ -131,7 +131,10 @@ artifact instead of allowing their results to be re-entered after the combined
 result is known. A researcher may add review context but cannot alter the inherited
 gate results. Canonical intake recomputes the handoff and derived gates again,
 pins the exact adjudication artifact, and only then applies ordinary eligibility
-rules. Evidence attached
+rules. Replication-package verification treats that retained adjudication
+artifact as the verified result body for inherited gate metadata, so absolute
+JSON Pointers for controls, missingness, causal assumptions, canary assessments,
+and validity checks must still resolve after export. Evidence attached
 to the composite must select its exact registered estimate and uncertainty; a
 `supports` direction is rejected unless the adjusted primary decision also
 rejects. Successful local assembly therefore cannot promote itself into a

@@ -1550,6 +1550,57 @@ def test_holm_execution_binds_frozen_workflow_family_and_registered_input(tmp_pa
     assert composite_evidence.scientific_evidence_eligible is True
     assert composite_evidence.effect_estimate == "-7.0"
     assert "multiplicity_adjusted_primary_decision_checked" in composite_evidence.result_direction_check
+    from research_machine.replication.package import verify_replication_package
+    package = tmp_path / "composite-replication-package"
+    exported = service.export_replication_package(frozen.protocol_id, str(package))
+    verify_replication_package(package, exported["package_manifest_sha256"])
+    runs_path = package / "runs.json"
+    manifest_path = package / "package-manifest.json"
+    packaged_runs = json.loads(runs_path.read_text())
+    packaged_composite = next(
+        run for run in packaged_runs
+        if run["run_id"] == completed_composite["run_id"]
+    )
+    assert "workflow_adjudication_handoff" in packaged_composite["metadata"]
+    control_gate = next(
+        gate for gate in packaged_composite["quality_gates"]
+        if isinstance(gate["details"].get("control_results"), dict)
+    )
+    control_result = next(iter(control_gate["details"]["control_results"].values()))
+    for bad_location, message in (
+        ("quality_gate_adjudication/0", "absolute JSON Pointer"),
+        ("/quality_gate_adjudication/missing", "does not resolve"),
+    ):
+        tampered_runs = json.loads(json.dumps(packaged_runs))
+        tampered_composite = next(
+            run for run in tampered_runs
+            if run["run_id"] == completed_composite["run_id"]
+        )
+        tampered_gate = next(
+            gate for gate in tampered_composite["quality_gates"]
+            if isinstance(gate["details"].get("control_results"), dict)
+        )
+        next(iter(tampered_gate["details"]["control_results"].values()))[
+            "evidence_location"
+        ] = bad_location
+        runs_path.write_text(
+            json.dumps(tampered_runs, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["runs.json"] = hashlib.sha256(
+            runs_path.read_bytes()
+        ).hexdigest()
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        tampered_commitment = hashlib.sha256(
+            manifest_path.read_bytes()
+        ).hexdigest()
+        with pytest.raises(ValidationError, match=message):
+            verify_replication_package(package, tampered_commitment)
+    assert control_result["evidence_location"].startswith("/quality_gate_adjudication/")
     service.review_claim(ReviewClaim(
         claim_id=target_claim.claim_id,
         epistemic_layer=ClaimEpistemicLayer.REASONABLE_INFERENCE,
