@@ -1849,6 +1849,7 @@ def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, fai
             ("specification", "sha256", "0" * 64),
             ("input", "sha256", "0" * 64),
             ("input", "size_bytes", 1),
+            ("measurement_value_check", "status", "failed"),
             ("registered_result_selection", "effect_estimate_sha256", "0" * 64),
             ("registered_information_check", "observed_minimum_analyzable_units", 999),
         ]:

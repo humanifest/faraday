@@ -53,6 +53,70 @@ def _validate_randomness_binding(
         raise ValidationError("deterministic execution randomness binding cannot declare seed_sha256")
 
 
+def _validate_measurement_value_check(
+    receipt: dict[str, Any], binding: dict[str, Any]
+) -> None:
+    contracts = binding.get("measurement_contracts")
+    if not contracts:
+        return
+    if not isinstance(contracts, list):
+        raise ValidationError(
+            "protocol-bound receipt measurement contracts must be a list"
+        )
+    check = receipt.get("measurement_value_check")
+    if not isinstance(check, dict) or check.get("status") != "passed":
+        raise ValidationError("execution receipt measurement value check is invalid")
+    if (
+        check.get("scope")
+        != "source_values_against_frozen_scale_domain_bounds_and_missing_codes"
+    ):
+        raise ValidationError(
+            "execution receipt measurement value check scope is invalid"
+        )
+    rows = receipt.get("input", {}).get("row_count")
+    if isinstance(rows, bool) or not isinstance(rows, int) or rows < 0:
+        raise ValidationError("execution receipt input row_count is invalid")
+    observed = check.get("measurements")
+    if not isinstance(observed, list) or len(observed) != len(contracts):
+        raise ValidationError(
+            "execution receipt measurement value check coverage is invalid"
+        )
+    expected_fields = {
+        "measurement_id", "data_column", "scale_type", "unit",
+        "observed_count", "missing_count", "status",
+    }
+    for index, (contract, item) in enumerate(zip(contracts, observed)):
+        if not isinstance(contract, dict) or not isinstance(item, dict):
+            raise ValidationError(
+                "execution receipt measurement value check entries are invalid"
+            )
+        if set(item) != expected_fields:
+            raise ValidationError(
+                "execution receipt measurement value check fields are invalid"
+            )
+        for field in ("measurement_id", "data_column", "scale_type", "unit"):
+            if item.get(field) != contract.get(field):
+                raise ValidationError(
+                    "execution receipt measurement value check disagrees with "
+                    f"frozen contract at index {index}"
+                )
+        observed_count = item.get("observed_count")
+        missing_count = item.get("missing_count")
+        if (
+            isinstance(observed_count, bool)
+            or isinstance(missing_count, bool)
+            or not isinstance(observed_count, int)
+            or not isinstance(missing_count, int)
+            or observed_count < 0
+            or missing_count < 0
+            or observed_count + missing_count != rows
+            or item.get("status") != "passed"
+        ):
+            raise ValidationError(
+                "execution receipt measurement value check counts are invalid"
+            )
+
+
 def execution_run_draft(service: ResearchService, directory: Path, expected_receipt_sha256: str,
                         inquiry_id: str | None = None) -> dict[str, Any]:
     verified = verify_execution_output(directory, expected_receipt_sha256)
@@ -139,6 +203,7 @@ def verify_execution_output(directory: Path, expected_receipt_sha256: str) -> di
     _validate_randomness_binding(receipt, result)
     binding = receipt.get("protocol_design_check")
     if isinstance(binding, dict):
+        _validate_measurement_value_check(receipt, binding)
         contract = binding.get("analysis_contract")
         step = binding.get("analysis_step_contract")
         if isinstance(contract, dict):

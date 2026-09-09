@@ -84,7 +84,11 @@ numeric treatment of unknown scales, unit/group allocation hash corruption,
 out-of-domain categories, padded numeric source encodings, out-of-range values,
 fractional counts, and
 unregistered missing encodings; they do not prove measurement validity or
-calibration.
+calibration. Receipt verification now also requires the retained
+measurement-value check to match the frozen measurement-contract order and
+conserve the receipt row count before a handoff can draft or record a canonical
+run, so a post-run receipt edit cannot delete or reshape the source-domain
+check.
 
 `./research --workspace PATH analysis run-draft --execution-directory OUTPUT
 --expected-receipt-sha256 TRUSTED_HASH` returns a review-only run draft from a
