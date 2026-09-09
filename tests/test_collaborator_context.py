@@ -79,6 +79,10 @@ def _context(
                 context.setdefault("evidence", []).append(
                     {"evidence_id": ref.removeprefix("evidence:")}
                 )
+            elif kind == "evidence_status_event" and ref.startswith("evidence_status_event:"):
+                context.setdefault("evidence_status_events", []).append(
+                    {"event_id": ref.removeprefix("evidence_status_event:")}
+                )
             elif kind == "dataset" and ref.startswith("dataset:"):
                 context.setdefault("datasets", []).append(
                     {"dataset_id": ref.removeprefix("dataset:")}
@@ -130,6 +134,37 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
         {"ref": f"claim:{claim.claim_id}", "kind": "claim"},
     ]
     assert any("causality" in item for item in context["scientific_constraints"])
+
+
+def test_proposal_can_cite_body_backed_evidence_status_event(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[
+            {
+                "ref": "evidence_status_event:evidence-status-1",
+                "kind": "evidence_status_event",
+            }
+        ]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(
+        snapshot["context_sha256"],
+        evidence_refs=["evidence_status_event:evidence-status-1"],
+    )
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    record = json.loads(Path(validated["record_file"]).read_text(encoding="utf-8"))
+    assert record["proposal"]["suggestions"][0]["evidence_refs"] == [
+        "evidence_status_event:evidence-status-1"
+    ]
 
 
 def test_context_snapshot_rejects_index_without_visible_body_record(

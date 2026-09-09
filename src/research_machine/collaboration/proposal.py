@@ -133,11 +133,13 @@ _CONTEXT_REFERENCE_PREFIXES = {
     "dataset": "dataset:",
     "protocol": "protocol:",
     "run": "run:",
+    "evidence_status_event": "evidence_status_event:",
     "ethics_review_event": "ethics_review_event:",
 }
 _CONTEXT_RECORD_COLLECTIONS = {
     "claims": ("claim:", "claim_id"),
     "evidence": ("evidence:", "evidence_id"),
+    "evidence_status_events": ("evidence_status_event:", "event_id"),
     "datasets": ("dataset:", "dataset_id"),
     "protocols": ("protocol:", "protocol_id"),
     "runs": ("run:", "run_id"),

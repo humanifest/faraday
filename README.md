@@ -835,14 +835,16 @@ authorization-boundary warnings; validation replays those constraints from the
 trusted context bytes, and proposal/review records retain them for later
 inspection. The frozen context also carries a compact reference index such as
 `question:<id>`, `claim:<id>`, `hypothesis:<id>`, `evidence:<id>`,
-`protocol:<id>`, `run:<id>`, and `ethics_review_event:<id>`. Those handles must
-match visible records in the frozen context body; a dangling reference index
-entry is rejected rather than becoming a citable but unseen authority. Active and
-`pending_review` hypotheses are exposed in separate context lanes, and pending
-hypotheses retain their unapproved workflow state when cited for review; proposal
-`evidence_refs` must cite only those typed, prefix-checked, body-backed handles,
-so an optional collaborator cannot smuggle uncited external claims across the
-provider boundary. Context and proposal purpose bindings, context handles, proposal IDs,
+`evidence_status_event:<id>`, `protocol:<id>`, `run:<id>`, and
+`ethics_review_event:<id>`. Those handles must match visible records in the
+frozen context body; a dangling reference index entry is rejected rather than
+becoming a citable but unseen authority. Evidence correction, qualification,
+withdrawal, and retraction events are therefore independently citable alongside
+the evidence they qualify. Active and `pending_review` hypotheses are exposed in
+separate context lanes, and pending hypotheses retain their unapproved workflow
+state when cited for review; proposal `evidence_refs` must cite only those
+typed, prefix-checked, body-backed handles, so an optional collaborator cannot
+smuggle uncited external claims across the provider boundary. Context and proposal purpose bindings, context handles, proposal IDs,
 generator provider/model handles, suggestion IDs, evidence references, review
 IDs, reviewer handles, review-decision suggestion IDs, proposal summaries,
 uncertainty statements, suggestion statements, suggestion rationales, suggestion

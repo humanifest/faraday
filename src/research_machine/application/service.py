@@ -1220,6 +1220,13 @@ class ResearchService:
                 for item in state["evidence"]
             ],
             *[
+                {
+                    "ref": f"evidence_status_event:{item['event_id']}",
+                    "kind": "evidence_status_event",
+                }
+                for item in state["evidence_status_events"]
+            ],
+            *[
                 {"ref": f"dataset:{item['dataset_id']}", "kind": "dataset"}
                 for item in state["datasets"]
             ],
