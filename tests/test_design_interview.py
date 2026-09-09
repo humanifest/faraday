@@ -215,10 +215,57 @@ def test_interview_preserves_noncanonical_measurement_parameter_bindings() -> No
 
     result = interview_design(ask)
 
-    assert result["brief"]["measurement_parameter_values"] == {"window ": " 10 minutes"}
+    assert result["brief"]["measurement_parameter_values"] == {" window ": " 10 minutes "}
     assert "MEASUREMENT_CONTRACT_NONCANONICAL" in {
         item["code"] for item in result["scaffold"]["findings"]
     }
+
+
+def test_interview_preserves_noncanonical_list_commitments_for_scaffold_audit() -> None:
+    def ask(prompt: str) -> str:
+        responses = {
+            "What is the study's working title?": "List interview",
+            "What question do you want to investigate?": "Question",
+            "What practical decision would the findings inform?": "Decision",
+            "What exactly will you measure as the primary outcome?": "Score",
+            "What does one data row represent, such as one pot-day?": "unit",
+            "What kind of claim are you investigating?": "correlational",
+            "Does this involve people or data about people?": "no",
+            "Which factors will be deliberately changed?": " person ",
+            "Name planned controls, separated by semicolons": " Blank sample ",
+            "Name alternative explanations or confounders, separated by semicolons": " Selection ",
+            "What observations would weaken your hypothesis?": " Null result ",
+            "Which higher-level conclusions must remain unsupported?": " No causal conclusion ",
+            "What secondary outcomes will be analyzed?": " Response time ",
+            "Which secondary outcomes are confirmatory?": "",
+            "What family-wise alpha will govern the confirmatory family?": "0.05",
+            "What is the confirmatory testing family and adjustment or hierarchical rule? How will secondary outcomes be interpreted?": " Primary only ",
+            "List the two ordered contrast levels as first; second": " treated; control ",
+        }
+        return next((value for key, value in responses.items() if prompt.startswith(key)), "")
+
+    result = interview_design(ask)
+
+    assert result["brief"]["manipulated_factors"] == [" person "]
+    assert result["brief"]["controls"] == [" Blank sample "]
+    assert result["brief"]["confounds"] == [" Selection "]
+    assert result["brief"]["falsification_conditions"] == [" Null result "]
+    assert result["brief"]["higher_level_conclusions_unsupported"] == [
+        " No causal conclusion "
+    ]
+    assert result["brief"]["secondary_outcomes"] == [" Response time "]
+    assert result["brief"]["contrast_groups"] == [" treated", "control "]
+    codes = {item["code"] for item in result["scaffold"]["findings"]}
+    assert {
+        "MANIPULATED_FACTOR_NONCANONICAL",
+        "CONTROL_LABEL_NONCANONICAL",
+        "CONFOUND_LABEL_NONCANONICAL",
+        "FALSIFICATION_CONDITION_NONCANONICAL",
+        "UNSUPPORTED_CONCLUSION_NONCANONICAL",
+        "SECONDARY_OUTCOME_LABEL_NONCANONICAL",
+        "CONTRAST_GROUP_LABEL_NONCANONICAL",
+    } <= codes
+    assert result["scaffold"]["status"] == "blocked"
 
 
 def test_interview_collects_numeric_information_thresholds() -> None:

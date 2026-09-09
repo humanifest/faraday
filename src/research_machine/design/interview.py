@@ -11,6 +11,21 @@ from research_machine.design.scaffold import scaffold_design
 from research_machine.domain.models import CONTROL_FAMILIES, MEASUREMENT_TEMPORAL_ROLES
 
 
+def _split_semicolon_answer(raw: str) -> list[str]:
+    parts = raw.split(";")
+    last = len(parts) - 1
+    values: list[str] = []
+    for index, part in enumerate(parts):
+        value = part
+        if index > 0:
+            value = value.lstrip()
+        if index < last:
+            value = value.rstrip()
+        if value.strip():
+            values.append(value)
+    return values
+
+
 def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
     brief: dict[str, Any] = {}
 
@@ -113,9 +128,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
     raw_factors = ask(
         "Which factors will be deliberately changed? Separate exact factor names with semicolons [blank = none declared]"
     )
-    brief["manipulated_factors"] = [
-        item.strip() for item in raw_factors.split(";") if item.strip()
-    ]
+    brief["manipulated_factors"] = _split_semicolon_answer(raw_factors)
     if brief["manipulated_factors"]:
         answer(
             "factorial_or_crossover_design",
@@ -160,7 +173,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
     for key, prompt in (("controls", "Name planned controls, separated by semicolons"),
                         ("confounds", "Name alternative explanations or confounders, separated by semicolons")):
         value = ask(prompt + " [blank = unresolved]")
-        brief[key] = [item.strip() for item in value.split(";") if item.strip()]
+        brief[key] = _split_semicolon_answer(value)
     if brief["study_type"] == "causal":
         answer(
             "_enter_causal_structure",
@@ -180,7 +193,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
                 raw_nodes = ask(
                     "List every variable in the causal graph, separated by semicolons [required]"
                 )
-                node_ids = [item.strip() for item in raw_nodes.split(";") if item.strip()]
+                node_ids = _split_semicolon_answer(raw_nodes)
                 if (
                     len(node_ids) >= 2
                     and len(set(node_ids)) == len(node_ids)
@@ -206,7 +219,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
                 ).strip()
                 edges = []
                 valid = True
-                for raw_edge in [item.strip() for item in raw_edges.split(";") if item.strip()]:
+                for raw_edge in _split_semicolon_answer(raw_edges):
                     parts = [item.strip() for item in raw_edge.split("->")]
                     if len(parts) != 2 or parts[0] not in node_ids or parts[1] not in node_ids or parts[0] == parts[1]:
                         valid = False
@@ -219,7 +232,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
                 raw_adjustment = ask(
                     "Which observed pre-exposure variables will be adjusted for? Separate names with semicolons [blank = none]"
                 )
-                adjustment = [item.strip() for item in raw_adjustment.split(";") if item.strip()]
+                adjustment = _split_semicolon_answer(raw_adjustment)
                 if len(set(adjustment)) == len(adjustment) and all(item in node_ids for item in adjustment):
                     break
             assignment = brief.pop("_causal_assignment")
@@ -330,13 +343,11 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             answer("independent_review_artifact_sha256", "What is the lowercase SHA-256 digest of the review artifact?")
             if brief["independent_review_decision"] == "approved_with_conditions":
                 conditions = ask("List every approval condition, separated by semicolons")
-                brief["independent_review_conditions"] = [
-                    item.strip() for item in conditions.split(";") if item.strip()
-                ]
+                brief["independent_review_conditions"] = _split_semicolon_answer(conditions)
     answer("observable_prediction", "What observable result do you predict, including direction and time window?")
     answer("null_model", "What no-effect or competing explanation could account for the observations?")
     falsifiers = ask("What observations would weaken your hypothesis? Separate conditions with semicolons [blank = unresolved]")
-    brief["falsification_conditions"] = [item.strip() for item in falsifiers.split(";") if item.strip()]
+    brief["falsification_conditions"] = _split_semicolon_answer(falsifiers)
     answer("blinding_plan", "Who can see condition labels during collection, outcome assessment, and analysis? Describe masking, when labels are revealed, or why masking is infeasible and what safeguards replace it.")
     if brief["study_type"] in {"causal", "correlational"}:
         for key, prompt in (
@@ -364,11 +375,9 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
         unsupported = ask(
             "Which higher-level conclusions must remain unsupported? Separate them with semicolons [blank = unresolved]"
         )
-        brief["higher_level_conclusions_unsupported"] = [
-            item.strip() for item in unsupported.split(";") if item.strip()
-        ]
+        brief["higher_level_conclusions_unsupported"] = _split_semicolon_answer(unsupported)
     secondary = ask("What secondary outcomes will be analyzed? Separate exact outcome names with semicolons [blank = none declared]")
-    brief["secondary_outcomes"] = [item.strip() for item in secondary.split(";") if item.strip()]
+    brief["secondary_outcomes"] = _split_semicolon_answer(secondary)
     if brief["secondary_outcomes"]:
         registered_outcomes = [brief["outcome"], *brief["secondary_outcomes"]]
         if brief["study_type"] in {"exploratory", "descriptive"}:
@@ -379,7 +388,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
         else:
             selected = ask("Which secondary outcomes are confirmatory? Enter exact names separated by semicolons [blank = none]")
             selected_keys = {
-                item.strip().casefold() for item in selected.split(";") if item.strip()
+                item.casefold() for item in _split_semicolon_answer(selected)
             }
             brief["confirmatory_outcomes"] = [
                 brief["outcome"],
@@ -406,7 +415,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
     )
     if brief.get("outcome_scale") in {"binary", "nominal", "ordinal"}:
         values = ask("List every permitted outcome category, separated by semicolons [blank = unresolved]")
-        brief["outcome_admissible_values"] = [item.strip() for item in values.split(";") if item.strip()]
+        brief["outcome_admissible_values"] = _split_semicolon_answer(values)
     answer(
         "primary_analysis_family", "Which structured primary analysis family fits the design and outcome scale?",
         choices=("mean_difference", "paired_mean_difference", "adjusted_linear_effect", "descriptive", "custom_reviewed"),
@@ -414,9 +423,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
     answer("primary_estimand", "What exact population quantity will the primary analysis estimate?")
     answer("contrast_definition", "Define the signed contrast order, such as treatment minus control.")
     contrast_groups = ask("List the two ordered contrast levels as first; second [blank = unresolved]")
-    brief["contrast_groups"] = [
-        item.strip() for item in contrast_groups.split(";") if item.strip()
-    ]
+    brief["contrast_groups"] = _split_semicolon_answer(contrast_groups)
     if len(brief["contrast_groups"]) == 2:
         answer(
             "group_data_column",
@@ -441,7 +448,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             break
         parameter_values: dict[str, str] = {}
         valid_parameters = True
-        for item in (part.strip() for part in raw_parameters.split(";")):
+        for item in _split_semicolon_answer(raw_parameters):
             parts = item.split("=", 1)
             if len(parts) != 2 or not all(part.strip() for part in parts) or parts[0] in parameter_values:
                 valid_parameters = False
@@ -466,7 +473,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
         "Name prospective primary-measurement validity checks, separated by semicolons [blank = unresolved]"
     )
     validity_checks = []
-    for name in [item.strip() for item in validity_names.split(";") if item.strip()]:
+    for name in _split_semicolon_answer(validity_names):
         draft: dict[str, str] = {"check_id": name}
         answer(
             "_validity_type",
@@ -503,7 +510,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
                 break
             values: dict[str, str] = {}
             valid = True
-            for item in (part.strip() for part in raw.split(";")):
+            for item in _split_semicolon_answer(raw):
                 parts = item.split("=", 1)
                 if len(parts) != 2 or not all(part.strip() for part in parts) or parts[0] in values:
                     valid = False
@@ -530,11 +537,11 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
         draft["unit"] = brief.pop("_secondary_unit", "")
         if draft["scale_type"] in {"binary", "nominal", "ordinal"}:
             raw = ask(f"List every admissible value for secondary outcome '{outcome}', separated by semicolons [blank = unresolved]")
-            draft["admissible_values"] = [item.strip() for item in raw.split(";") if item.strip()]
+            draft["admissible_values"] = _split_semicolon_answer(raw)
         else:
             draft["admissible_values"] = []
         raw = ask(f"List missing-value codes for secondary outcome '{outcome}', separated by semicolons [blank = none]")
-        draft["missing_value_codes"] = [item.strip() for item in raw.split(";") if item.strip()]
+        draft["missing_value_codes"] = _split_semicolon_answer(raw)
         draft["valid_min"] = None
         draft["valid_max"] = None
         if (
@@ -577,7 +584,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
                     break
                 values: dict[str, str] = {}
                 valid = True
-                for item in (part.strip() for part in raw.split(";")):
+                for item in _split_semicolon_answer(raw):
                     parts = item.split("=", 1)
                     if len(parts) != 2 or not all(part.strip() for part in parts) or parts[0] in values:
                         valid = False
@@ -603,11 +610,11 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             draft["unit"] = brief.pop("_causal_unit", "")
             if draft["scale_type"] in {"binary", "nominal", "ordinal"}:
                 raw = ask(f"List every admissible value for causal {role} '{variable}', separated by semicolons [blank = unresolved]")
-                draft["admissible_values"] = [item.strip() for item in raw.split(";") if item.strip()]
+                draft["admissible_values"] = _split_semicolon_answer(raw)
             else:
                 draft["admissible_values"] = []
             raw = ask(f"List missing-value codes for causal {role} '{variable}', separated by semicolons [blank = none]")
-            draft["missing_value_codes"] = [item.strip() for item in raw.split(";") if item.strip()]
+            draft["missing_value_codes"] = _split_semicolon_answer(raw)
             draft["valid_min"] = None
             draft["valid_max"] = None
             if (
@@ -637,7 +644,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
                 break
             values: dict[str, str] = {}
             valid = True
-            for item in (part.strip() for part in raw.split(";")):
+            for item in _split_semicolon_answer(raw):
                 parts = item.split("=", 1)
                 if len(parts) != 2 or not all(part.strip() for part in parts) or parts[0] in values:
                     valid = False
@@ -669,9 +676,9 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             draft["unit"] = brief.pop("_control_unit", "")
             if draft["scale_type"] in {"binary", "nominal", "ordinal"}:
                 raw = ask(f"List every admissible value for control '{control}', separated by semicolons [blank = unresolved]")
-                draft["admissible_values"] = [item.strip() for item in raw.split(";") if item.strip()]
+                draft["admissible_values"] = _split_semicolon_answer(raw)
             raw = ask(f"List missing-value codes for control '{control}', separated by semicolons [blank = none]")
-            draft["missing_value_codes"] = [item.strip() for item in raw.split(";") if item.strip()]
+            draft["missing_value_codes"] = _split_semicolon_answer(raw)
         if all(draft[key] for key in (
             "observable", "input_condition", "parameter_values",
             "evaluation_point", "convention", "aggregation", "tolerance",
