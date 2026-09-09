@@ -1200,10 +1200,11 @@ exact evidence-map lineage, then records exactly one effect measure, standard
 error, variance, and sample size per reconciled study. Each effect record also
 retains the mapped claim IDs, citation verdicts, citation-check locations, and
 interpretive ceilings that brought the study across the evidence-map boundary,
-and preparation rejects extraction source sets that do not match the plan's
-frozen included sources. Unavailable statistics must remain explicit null
-records and count against the frozen minimum-study requirement. This validates
-finite values, positive variance, coverage, review provenance, and plan
+plus the retained source-file hashes for those mapped claims, and preparation
+rejects extraction source sets that do not match the plan's frozen included
+sources. Unavailable statistics must remain explicit null records and count
+against the frozen minimum-study requirement. This validates finite values,
+positive variance, coverage, review provenance, source-byte continuity, and plan
 consistency, but does not reproduce source calculations, prove outcome
 compatibility, impute missing values, or authorize pooling.
 Effect preparation requires canonical frozen plan source IDs, extraction source
@@ -1211,7 +1212,8 @@ IDs, mapped study/source/claim IDs, citation anchors, reviewer text, derivation
 scope, reasons, evidence locations, and derivation prose before coverage and
 duplicate checks. Effect verification also requires canonical effect reviewer,
 retained study IDs, source-summary study IDs, verification reviewer, checked
-locations, and rationales before coverage checks.
+locations, rationales, and service-derived claim source anchors before coverage
+checks.
 `research literature derive-effects` provides a reproducible alternative for
 `mean_difference` and `log_risk_ratio`: it computes estimates and standard errors
 from source-reported experimental and comparator arm summaries under canonical
@@ -1227,9 +1229,12 @@ reproducible during execution but their numeric inputs were not persisted.
 effect reviewer to check both source transcription and reproduced arithmetic for
 every available study under a canonical lowercase effect-record hash;
 unavailable studies receive explicit not-applicable checks. Any mismatch remains
-visible and blocks `pool-effects`. This authenticates
-neither reviewer nor source content, but closes the cleanly-coded/wrongly-copied
-input path in the enforced quantitative workflow.
+visible and blocks `pool-effects`. The verifier also retains the exact mapped
+claim source provenance derived from the effect records, including extraction
+claim digests and retained source-file hashes. This authenticates neither
+reviewer nor source content, but closes the cleanly-coded/wrongly-copied input
+path and prevents independent verification from shedding source-byte anchors in
+the enforced quantitative workflow.
 `research literature pool-effects` performs deterministic inverse-variance
 pooling only after the quantitative plan, prepared-effect, effect-verification,
 and deviation hashes are canonical lowercase digests and agree. It
@@ -1239,17 +1244,19 @@ I-squared, DerSimonian-Laird tau-squared, a 95% confidence interval, a random-
 effects prediction interval when at least three studies exist, leave-one-study-
 out estimates, and a study-provenance table spanning available and unavailable
 studies. That table retains the mapped claim IDs, study risk of bias, and
-independent effect-verification assessment for each record. It also replays the
-verification artifact's retained effect status against the effect records, so
-available studies require clean transcription and arithmetic checks and
-unavailable studies retain not-applicable checks. Unavailable studies remain
-disclosed. The executor does not interpret effect direction, reproduce source
-calculations, or authorize causal, clinical, practical, or publication
-conclusions.
+independent effect-verification assessment for each record, including mapped
+claim source provenance. It also replays the verification artifact's retained
+effect status and claim source anchors against the effect records, so available
+studies require clean transcription and arithmetic checks, unavailable studies
+retain not-applicable checks, and source-byte provenance cannot be rewritten
+between verification and pooling. Unavailable studies remain disclosed. The
+executor does not interpret effect direction, reproduce source calculations, or
+authorize causal, clinical, practical, or publication conclusions.
 Meta-analysis now requires canonical effect-record study IDs, verification study
-IDs, mapped claim IDs, and verification checked locations before provenance
-joins, so padded identifiers cannot be silently rewritten while creating
-duplicate pooled records or hiding required verification coverage.
+IDs, mapped claim IDs, verification checked locations, and matching retained
+claim source anchors before provenance joins, so padded identifiers or rewritten
+source hashes cannot be silently accepted while creating duplicate pooled records
+or hiding required verification coverage.
 Random-effects confidence and prediction intervals now use a conservative
 modified Hartung-Knapp standard error with tabulated Student-t critical values;
 the conventional standard error remains reported for auditability. Leave-one-out

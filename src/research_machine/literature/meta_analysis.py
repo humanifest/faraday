@@ -13,6 +13,8 @@ from typing import Any
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
 
+_LEGACY_SOURCE_ANCHOR = "legacy_missing"
+
 
 _T_CRITICAL_975 = {
     1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447,
@@ -55,6 +57,43 @@ def _canonical_text(value: Any, field: str) -> str:
     if value != value.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
     return value
+
+
+def _source_anchor(value: object, field: str) -> str:
+    if value == _LEGACY_SOURCE_ANCHOR:
+        return _LEGACY_SOURCE_ANCHOR
+    return require_sha256(value, field)
+
+
+def _claim_source_provenance(claims: list[object], field_prefix: str) -> list[dict[str, str]]:
+    retained = []
+    seen_claims = set()
+    for claim in claims:
+        if not isinstance(claim, dict):
+            raise ValidationError(f"{field_prefix} claim source provenance is malformed")
+        extraction_id = _canonical_text(
+            claim.get("extraction_id"), f"{field_prefix} extraction_id"
+        )
+        if extraction_id in seen_claims:
+            raise ValidationError(f"{field_prefix} claim source provenance requires unique extraction IDs")
+        seen_claims.add(extraction_id)
+        retained.append({
+            "extraction_id": extraction_id,
+            "extraction_claim_sha256": require_sha256(
+                claim.get("extraction_claim_sha256"),
+                f"{field_prefix} extraction_claim_sha256",
+            ),
+            "source_id": _canonical_text(claim.get("source_id"), f"{field_prefix} source_id"),
+            "source_retained_file_sha256": _source_anchor(
+                claim.get("source_retained_file_sha256", _LEGACY_SOURCE_ANCHOR),
+                f"{field_prefix} source_retained_file_sha256",
+            ),
+            "citation_checked_location": _canonical_text(
+                claim.get("citation_checked_location"),
+                f"{field_prefix} citation_checked_location",
+            ),
+        })
+    return sorted(retained, key=lambda claim: claim["extraction_id"])
 
 
 def _weighted(records: list[dict[str, Any]], tau_squared: float = 0.0) -> tuple[float, float]:
@@ -155,11 +194,17 @@ def execute_meta_analysis(
             assessment.get("checked_location"),
             "effect-verification assessment checked_location",
         )
+        assessment_claims = assessment.get("claim_source_provenance")
+        if not isinstance(assessment_claims, list) or not assessment_claims:
+            raise ValidationError("effect-verification assessment must retain claim source provenance")
         verification_by_study[study_id] = {
             "study_id": study_id,
             "effect_status": effect_status,
             "source_values_match": source_values_match,
             "calculation_matches": calculation_matches,
+            "claim_source_provenance": _claim_source_provenance(
+                assessment_claims, "effect-verification claim"
+            ),
             "checked_location": checked_location,
         }
     deviation_status = deviations.get("status")
@@ -201,15 +246,11 @@ def execute_meta_analysis(
         if not isinstance(mapped_claims, list) or not mapped_claims:
             raise ValidationError("effect records must retain mapped claim provenance")
         claim_ids = []
-        for claim in mapped_claims:
-            if not isinstance(claim, dict):
-                raise ValidationError("mapped claim provenance is malformed")
-            extraction_id = _canonical_text(
-                claim.get("extraction_id"), "mapped claim extraction_id"
-            )
-            if extraction_id in claim_ids:
-                raise ValidationError("mapped claim provenance requires unique extraction IDs")
-            claim_ids.append(extraction_id)
+        claim_source_provenance = _claim_source_provenance(mapped_claims, "mapped claim")
+        for claim in claim_source_provenance:
+            claim_ids.append(claim["extraction_id"])
+        if verification["claim_source_provenance"] != claim_source_provenance:
+            raise ValidationError("effect-verification claim source provenance does not match effect records")
         risk = item.get("risk_of_bias")
         if risk not in {"low", "some_concerns", "high", "unclear"}:
             raise ValidationError("effect records require a valid risk_of_bias")
@@ -218,6 +259,7 @@ def execute_meta_analysis(
             "effect_status": item.get("status"),
             "risk_of_bias": risk,
             "mapped_claim_ids": claim_ids,
+            "mapped_claim_source_provenance": claim_source_provenance,
             "effect_verification": verification,
         })
         if item.get("status") == "unavailable":
@@ -236,7 +278,8 @@ def execute_meta_analysis(
             raise ValidationError("available effects require finite estimates and positive variances")
         available.append({"study_id": study_id, "estimate": float(estimate),
                           "variance": float(variance), "risk_of_bias": risk,
-                          "mapped_claim_ids": claim_ids})
+                          "mapped_claim_ids": claim_ids,
+                          "mapped_claim_source_provenance": claim_source_provenance})
     minimum = plan.get("minimum_independent_studies")
     if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
         raise ValidationError("frozen minimum_independent_studies is invalid")

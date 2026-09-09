@@ -938,8 +938,9 @@ analysis rule text.
 
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim
-IDs and citation-review anchors, after checking the extraction source set against
-the synthesis plan's frozen included sources. Trusted plan, evidence-map,
+IDs, citation-review anchors, and retained source-file hashes, after checking
+the extraction source set against the synthesis plan's frozen included sources.
+Trusted plan, evidence-map,
 effect-record, effect-verification, and deviation hashes must be canonical
 lowercase SHA-256 digests before later synthesis commands can bind those
 artifacts. Effect preparation now requires canonical frozen plan source IDs,
@@ -949,13 +950,18 @@ coverage and duplicate checks; reproducible effect derivation also rejects a
 padded frozen contrast definition before preserving it in the effect-record
 artifact. Independent effect verification also requires canonical effect
 reviewer, retained study IDs, source-summary study IDs, verification reviewer,
-checked locations, and rationales before coverage checks.
+checked locations, rationales, and service-derived claim source anchors before
+coverage checks. Meta-analysis replays those verifier-retained anchors against
+the prepared effect records before pooling, so an independent verification
+artifact cannot silently drop or rewrite the retained source bytes behind a
+mapped literature claim.
 Meta-analysis now requires canonical prepared-effect study IDs, mapped claim
 IDs, verification study IDs, and checked locations before joining prepared
 effects to independent verification, then reports a compact `study_provenance`
 table for available and unavailable studies, so a pooled estimate cannot shed the
-reviewed claim boundary, rewrite padded provenance handles, or hide studies with
-missing compatible statistics. The same table retains the independent source-
+reviewed claim boundary, rewrite padded provenance handles, launder source-byte
+anchors, or hide studies with missing compatible statistics. The same table
+retains the mapped claim source provenance plus the independent source-
 transcription and arithmetic verification status for each effect record, and
 pooling replays the retained effect-status contract: available effects must carry
 clean source and calculation checks, while unavailable effects must remain not-

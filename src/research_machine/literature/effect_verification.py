@@ -12,12 +12,20 @@ from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
+_LEGACY_SOURCE_ANCHOR = "legacy_missing"
+
 
 def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
     return text
+
+
+def _source_anchor(value: object, field: str) -> str:
+    if value == _LEGACY_SOURCE_ANCHOR:
+        return _LEGACY_SOURCE_ANCHOR
+    return require_sha256(value, field)
 
 
 def create_effect_verification(effects_path: Path, expected_sha256: str,
@@ -38,6 +46,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
     if not isinstance(records, list) or not records:
         raise ValidationError("effect verification requires effect records")
     statuses = {}
+    claim_provenance: dict[str, list[dict[str, str]]] = {}
     for item in records:
         if not isinstance(item, dict):
             raise ValidationError("effect record is malformed")
@@ -45,6 +54,39 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
         if study_id in statuses or item.get("status") not in {"available", "unavailable"}:
             raise ValidationError("effect record study IDs or statuses are invalid")
         statuses[study_id] = item["status"]
+        mapped_claims = item.get("mapped_claims")
+        if not isinstance(mapped_claims, list) or not mapped_claims:
+            raise ValidationError("effect records must retain mapped claim source provenance")
+        seen_claims = set()
+        retained = []
+        for claim in mapped_claims:
+            if not isinstance(claim, dict):
+                raise ValidationError("effect mapped claim source provenance is malformed")
+            extraction_id = _canonical_text(
+                claim.get("extraction_id"), "effect mapped claim extraction_id"
+            )
+            if extraction_id in seen_claims:
+                raise ValidationError("effect mapped claim source provenance has duplicate extraction IDs")
+            seen_claims.add(extraction_id)
+            retained.append({
+                "extraction_id": extraction_id,
+                "extraction_claim_sha256": require_sha256(
+                    claim.get("extraction_claim_sha256"),
+                    "effect mapped claim extraction_claim_sha256",
+                ),
+                "source_id": _canonical_text(
+                    claim.get("source_id"), "effect mapped claim source_id"
+                ),
+                "source_retained_file_sha256": _source_anchor(
+                    claim.get("source_retained_file_sha256", _LEGACY_SOURCE_ANCHOR),
+                    "effect mapped claim source_retained_file_sha256",
+                ),
+                "citation_checked_location": _canonical_text(
+                    claim.get("citation_checked_location"),
+                    "effect mapped claim citation_checked_location",
+                ),
+            })
+        claim_provenance[study_id] = sorted(retained, key=lambda claim: claim["extraction_id"])
     summaries = effects.get("source_summaries")
     if not isinstance(summaries, list) or len(summaries) != len(records):
         raise ValidationError("effect artifact does not retain complete source summaries")
@@ -85,6 +127,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
             raise ValidationError("unavailable effects require null transcription and calculation checks")
         by_study[study_id] = {"study_id": study_id, "effect_status": statuses[study_id],
             "source_values_match": values_match, "calculation_matches": calculation_matches,
+            "claim_source_provenance": claim_provenance[study_id],
             "checked_location": _canonical_text(item["checked_location"], "effect checked_location"),
             "rationale": _canonical_text(item["rationale"], "effect verification rationale")}
     if set(by_study) != set(statuses):
@@ -102,6 +145,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
         "limitations": [
             "The machine records an independent check but does not read the cited source or authenticate reviewers.",
             "A matching calculation verifies arithmetic from retained summaries, not source truth, outcome compatibility, or participant-level analysis.",
+            "Retained claim source anchors bind verification to the prepared-effect artifact; they do not prove that the cited source supports the claim.",
             "Mismatches remain visible and prevent quantitative pooling through the verified workflow.",
         ]}
     root = output.expanduser().resolve()

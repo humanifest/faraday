@@ -14,6 +14,28 @@ def write_json(path, value):
     return hashlib.sha256(encoded).hexdigest()
 
 
+def mapped_claim(study_id):
+    if study_id == "missing":
+        return {"extraction_id": "claim-missing",
+                "extraction_claim_sha256": "a" * 64,
+                "source_id": "source-missing",
+                "source_retained_file_sha256": "legacy_missing",
+                "citation_checked_location": "not reported"}
+    suffix = study_id.removeprefix("s")
+    return {"extraction_id": f"claim-{suffix}",
+            "extraction_claim_sha256": "a" * 64,
+            "source_id": f"source-{suffix}",
+            "source_retained_file_sha256": "b" * 64,
+            "citation_checked_location": f"page {suffix}"}
+
+
+def claim_source_provenance(record):
+    return [{key: claim[key] for key in ("extraction_id", "extraction_claim_sha256",
+                                         "source_id", "source_retained_file_sha256",
+                                         "citation_checked_location")}
+            for claim in record["mapped_claims"]]
+
+
 def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
               sensitivities=None):
     if sensitivities is None:
@@ -26,10 +48,10 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
         "sensitivity_analyses": sensitivities})
     records = [{"study_id": f"s{i}", "status": "available", "estimate": value, "variance": 1.0,
                 "risk_of_bias": "high" if i == 3 else "low",
-                "mapped_claims": [{"extraction_id": f"claim-{i}"}]}
+                "mapped_claims": [mapped_claim(f"s{i}")]}
                for i, value in enumerate([1.0, 2.0, 6.0][:count], start=1)]
     records.append({"study_id": "missing", "status": "unavailable", "reason": "Not reported",
-                    "risk_of_bias": "unclear", "mapped_claims": [{"extraction_id": "claim-missing"}]})
+                    "risk_of_bias": "unclear", "mapped_claims": [mapped_claim("missing")]})
     effects = tmp_path / "effects.json"
     effects_sha = write_json(effects, {"effect_records_version": 1, "status": "effects_ready",
         "inputs": {"synthesis_plan_sha256": plan_sha}, "effect_measure": "mean_difference", "records": records})
@@ -39,10 +61,12 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
         "assessments": [
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
+             "claim_source_provenance": claim_source_provenance(records[i - 1]),
              "checked_location": f"table {i}"}
             for i in range(1, count + 1)
         ] + [{"study_id": "missing", "effect_status": "unavailable",
               "source_values_match": None, "calculation_matches": None,
+              "claim_source_provenance": claim_source_provenance(records[-1]),
               "checked_location": "results"}]})
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
@@ -73,15 +97,21 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     assert result["deviation_plan_commitments"]["statistical_model"] == "fixed_effect"
     assert result["study_provenance"] == [
         {"study_id": "s1", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-1"],
+         "mapped_claim_source_provenance": [mapped_claim("s1")],
          "effect_verification": {"study_id": "s1", "effect_status": "available", "source_values_match": True,
-                                 "calculation_matches": True, "checked_location": "table 1"}},
+                                 "calculation_matches": True, "claim_source_provenance": [mapped_claim("s1")],
+                                 "checked_location": "table 1"}},
         {"study_id": "s2", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-2"],
+         "mapped_claim_source_provenance": [mapped_claim("s2")],
          "effect_verification": {"study_id": "s2", "effect_status": "available", "source_values_match": True,
-                                 "calculation_matches": True, "checked_location": "table 2"}},
+                                 "calculation_matches": True, "claim_source_provenance": [mapped_claim("s2")],
+                                 "checked_location": "table 2"}},
         {"study_id": "missing", "effect_status": "unavailable", "risk_of_bias": "unclear",
          "mapped_claim_ids": ["claim-missing"],
+         "mapped_claim_source_provenance": [mapped_claim("missing")],
          "effect_verification": {"study_id": "missing", "effect_status": "unavailable", "source_values_match": None,
-                                 "calculation_matches": None, "checked_location": "results"}},
+                                 "calculation_matches": None, "claim_source_provenance": [mapped_claim("missing")],
+                                 "checked_location": "results"}},
     ]
     assert result["conclusion_authorized"] is False
     assert result["small_study_effects"]["status"] == "not_estimable"
@@ -115,7 +145,7 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
     value["records"] = [
         {"study_id": f"s{i}", "status": "available", "estimate": 0.1 + i * 0.02,
          "variance": 0.05 + i * 0.01, "risk_of_bias": "low",
-         "mapped_claims": [{"extraction_id": f"claim-{i}"}]}
+         "mapped_claims": [mapped_claim(f"s{i}")]}
         for i in range(10)
     ]
     effects_sha = write_json(effects, value)
@@ -124,6 +154,7 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
         "assessments": [
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
+             "claim_source_provenance": [mapped_claim(f"s{i}")],
              "checked_location": f"table {i}"} for i in range(10)
         ]})
     result = execute_meta_analysis(plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha, tmp_path / "meta")
@@ -140,7 +171,7 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
     value["records"] = [
         {"study_id": f"s{i}", "status": "available", "estimate": float(i),
          "variance": 1.0, "risk_of_bias": "low",
-         "mapped_claims": [{"extraction_id": f"claim-{i}"}]} for i in range(10)
+         "mapped_claims": [mapped_claim(f"s{i}")]} for i in range(10)
     ]
     effects_sha = write_json(effects, value)
     verification_sha = write_json(verification, {"effect_verification_version": 1,
@@ -148,6 +179,7 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
         "assessments": [
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
+             "claim_source_provenance": [mapped_claim(f"s{i}")],
              "checked_location": f"table {i}"} for i in range(10)
         ]})
     result = execute_meta_analysis(plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha, tmp_path / "meta")
@@ -198,7 +230,7 @@ def test_meta_analysis_requires_canonical_effect_and_verification_handles(tmp_pa
         )
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "effects-hash", "model", "link", "measure", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -229,6 +261,12 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(verification.read_text()); value["assessments"][1]["study_id"] = " s1 "; verification_sha = write_json(verification, value)
     elif failure == "verification-missing-status":
         value = json.loads(verification.read_text()); del value["assessments"][0]["effect_status"]; verification_sha = write_json(verification, value)
+    elif failure == "verification-missing-claim-source":
+        value = json.loads(verification.read_text()); del value["assessments"][0]["claim_source_provenance"]; verification_sha = write_json(verification, value)
+    elif failure == "verification-source-anchor-drift":
+        value = json.loads(verification.read_text())
+        value["assessments"][0]["claim_source_provenance"][0]["source_retained_file_sha256"] = "c" * 64
+        verification_sha = write_json(verification, value)
     elif failure == "verification-status-drift":
         value = json.loads(verification.read_text()); value["assessments"][0]["effect_status"] = "unavailable"; verification_sha = write_json(verification, value)
     elif failure == "verification-unclean-available":

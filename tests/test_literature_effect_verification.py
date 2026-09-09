@@ -9,12 +9,20 @@ from research_machine.interfaces.cli import main
 from research_machine.literature.effect_verification import create_effect_verification
 
 
+def mapped_claim(study):
+    suffix = "1" if study == "s1" else "2"
+    return {"extraction_id": f"claim-{suffix}", "extraction_claim_sha256": "a" * 64,
+            "source_id": f"source-{suffix}", "source_retained_file_sha256": "b" * 64,
+            "citation_checked_location": f"page {suffix}"}
+
+
 def effects_file(tmp_path):
     value = {"effect_records_version": 1, "status": "effects_ready",
         "derivation_scope": "recomputed_from_source_reported_arm_summaries", "reviewer": "Effect reviewer",
         "plan_id": "p1", "snapshot_id": "snap", "source_summaries": [
             {"study_id": "s1", "status": "available"}, {"study_id": "s2", "status": "unavailable"}], "records": [
-            {"study_id": "s1", "status": "available"}, {"study_id": "s2", "status": "unavailable"}]}
+            {"study_id": "s1", "status": "available", "mapped_claims": [mapped_claim("s1")]},
+            {"study_id": "s2", "status": "unavailable", "mapped_claims": [mapped_claim("s2")]}]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode(); path = tmp_path / "effects.json"; path.write_bytes(encoded)
     return path, hashlib.sha256(encoded).hexdigest()
 
@@ -49,6 +57,7 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     result = create_effect_verification(effects, digest, review(), tmp_path / "verification")
     assert result["assessments"][0]["study_id"] == "s1"
     assert result["assessments"][0]["checked_location"] == "table 1"
+    assert result["assessments"][0]["claim_source_provenance"] == [mapped_claim("s1")]
 
 
 @pytest.mark.parametrize("failure", [
@@ -62,6 +71,10 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     "duplicate",
     "padded-duplicate",
     "summary-duplicate",
+    "missing-claim-provenance",
+    "duplicate-claim-provenance",
+    "padded-claim-source",
+    "bad-source-anchor",
     "available-null",
     "unavailable-bool",
     "location",
@@ -90,6 +103,30 @@ def test_invalid_effect_verification_never_publishes(tmp_path, failure):
     elif failure == "summary-duplicate":
         value = json.loads(effects.read_text())
         value["source_summaries"][1]["study_id"] = " s1 "
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+        effects.write_bytes(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
+    elif failure == "missing-claim-provenance":
+        value = json.loads(effects.read_text())
+        value["records"][0]["mapped_claims"] = []
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+        effects.write_bytes(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
+    elif failure == "duplicate-claim-provenance":
+        value = json.loads(effects.read_text())
+        value["records"][0]["mapped_claims"].append(mapped_claim("s1"))
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+        effects.write_bytes(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
+    elif failure == "padded-claim-source":
+        value = json.loads(effects.read_text())
+        value["records"][0]["mapped_claims"][0]["source_id"] = " source-1 "
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+        effects.write_bytes(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
+    elif failure == "bad-source-anchor":
+        value = json.loads(effects.read_text())
+        value["records"][0]["mapped_claims"][0]["source_retained_file_sha256"] = "B" * 64
         encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
         effects.write_bytes(encoded)
         digest = hashlib.sha256(encoded).hexdigest()
