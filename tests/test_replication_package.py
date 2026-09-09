@@ -1468,6 +1468,8 @@ def test_replication_package_verifies_temporal_order_gate_metadata(
         ("wrong_evidence", "is not a declared output artifact"),
         ("gate_evidence_mismatch", "does not match gate evidence"),
         ("wrong_gate", "is not bound to the frozen canary gate"),
+        ("relative_analysis_location", "requires an absolute JSON Pointer"),
+        ("missing_analysis_location", "does not resolve"),
         ("skipped_gate_with_assessment", "skipped quality gate"),
     ],
 )
@@ -1587,6 +1589,20 @@ def test_replication_package_verifies_canary_target_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
+    runs[0]["metadata"]["execution_handoff"] = {
+        "receipt": {"output": {"sha256": record_sha256}},
+        "result": {
+            "canary": {
+                "comparison": {
+                    "revealed_target_id": "actual-state",
+                    "status": "follows_comparator_or_decoy",
+                }
+            }
+        },
+    }
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+    verify_replication_package(package, commitment)
     gate = runs[0]["quality_gates"][0]
     assessment = gate["details"]["canary_target_assessment"]
     if mutation == "missing_assessment":
@@ -1607,6 +1623,10 @@ def test_replication_package_verifies_canary_target_gate_metadata(
         gate["details"]["evidence_sha256"] = runs[0]["output_artifacts"][1]["sha256"]
     elif mutation == "wrong_gate":
         gate["gate_id"] = "other-gate"
+    elif mutation == "relative_analysis_location":
+        assessment["evidence_location"] = "canary/comparison"
+    elif mutation == "missing_analysis_location":
+        assessment["evidence_location"] = "/canary/missing-comparison"
     elif mutation == "skipped_gate_with_assessment":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"

@@ -492,6 +492,7 @@ def _validate_canary_target_assessment_gate_metadata(
     run_id: str,
     gate: QualityGateResult,
     output_artifacts: list[DatasetArtifact],
+    execution_results_by_sha: dict[str, Any],
 ) -> None:
     assessment = gate.details.get("canary_target_assessment")
     if assessment is None:
@@ -591,7 +592,16 @@ def _validate_canary_target_assessment_gate_metadata(
         raise ValidationError(
             f"package run {run_id} gate {gate.gate_id} canary assessment evidence does not match gate evidence"
         )
-    require_canonical_text(assessment["evidence_location"], f"{prefix}.evidence_location")
+    location = require_canonical_text(
+        assessment["evidence_location"], f"{prefix}.evidence_location"
+    )
+    _validate_analysis_result_location(
+        run_id=run_id,
+        digest=evidence_sha256,
+        location=location,
+        field_name="canary assessment evidence_location",
+        execution_results_by_sha=execution_results_by_sha,
+    )
 
 
 def _measurement_value_domain_sha256(definition: dict[str, Any]) -> str:
@@ -1820,6 +1830,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         run_id=run.run_id,
                         gate=gate,
                         output_artifacts=output_artifacts,
+                        execution_results_by_sha=execution_results_by_sha,
                     )
                     _validate_control_gate_metadata(
                         protocol=protocol,

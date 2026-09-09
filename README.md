@@ -487,6 +487,8 @@ interpretation, status, and artifact location. Statuses such as
 `follows_comparator_or_decoy`, `follows_no_target`, `mixed`, or `inconclusive`
 remain visible scientific outcomes rather than execution summaries being
 rewritten into support for adaptation, mechanism, attribution, or intent.
+Replication-package verification resolves that location as an absolute JSON
+Pointer when the assessment cites a retained Faraday analysis result.
 
 The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,
@@ -808,8 +810,10 @@ protocol and run:
 the gate must be the frozen canary assessment gate, the plan and hidden
 assignment hashes must agree with `canary_target_plan`, the revealed and
 comparator targets must come from the frozen candidate set without overlap, and
-the cited evidence hash must be a packaged run output. A skipped canary gate
-cannot carry a structured assessment result in the package; skipped means the
+the cited evidence hash must be a packaged run output. When that evidence is a
+retained Faraday analysis result, the cited location must be an absolute JSON
+Pointer that resolves in the retained result body. A skipped canary gate cannot
+carry a structured assessment result in the package; skipped means the
 assessment was not performed, not that an adverse or inconclusive result may be
 hidden under an invalid run status. This keeps comparator, decoy, no-target,
 mixed, and inconclusive observations visible in replication handoffs without
