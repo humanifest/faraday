@@ -1344,11 +1344,13 @@ intake requires that same inspection record as a byte-verified output artifact
 under `artifact_root`, replays the retained record hash, source hash, committed
 config hash, adapter implementation hash, and `inspection_recorded` status from
 current bytes, requires the gate's `evidence_sha256` to match the retained
-record hash, and accepts it only as a passed retention gate. Rigor, synthesis,
-and replication-package verification expose the record locator and hashes while
-preserving the boundary: this proves local retention of low-authority
-acquisition metadata, not calibration, custody, dataset registration, or
-scientific evidence.
+record hash, derives the exact stream count and temporal-metadata status from
+the verified record, rejects caller-supplied summary drift, and accepts it only
+as a passed retention gate. Rigor, synthesis, and replication-package
+verification expose the record locator, hashes, derived stream count, and
+temporal-metadata status while preserving the boundary: this proves local
+retention of low-authority acquisition metadata, not calibration, custody,
+dataset registration, or scientific evidence.
 
 Use `measurement assess-timing --inspection-file FILE
 --expected-inspection-sha256 HASH --spec-file SPEC --output DIRECTORY` to turn a

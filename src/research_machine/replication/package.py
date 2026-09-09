@@ -419,7 +419,12 @@ def _validate_instrument_inspection_gate_metadata(
         "config_sha256",
         "implementation_sha256",
     }
-    if set(inspection) != required_fields:
+    derived_fields = {
+        "stream_count",
+        "temporal_metadata_status",
+    }
+    allowed_fields = required_fields | derived_fields
+    if set(inspection) != allowed_fields:
         raise ValidationError(
             f"package run {run_id} gate {gate.gate_id} instrument_inspection fields are invalid"
         )
@@ -435,6 +440,31 @@ def _validate_instrument_inspection_gate_metadata(
         inspection["implementation_sha256"],
         f"{prefix}.implementation_sha256",
     )
+    stream_count = inspection["stream_count"]
+    if (
+        not isinstance(stream_count, int)
+        or isinstance(stream_count, bool)
+        or stream_count < 0
+    ):
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} instrument_inspection stream_count must be a non-negative integer"
+        )
+    temporal_metadata_status = require_canonical_text(
+        inspection["temporal_metadata_status"],
+        f"{prefix}.temporal_metadata_status",
+    )
+    if temporal_metadata_status not in {"proposed_unverified", "not_provided"}:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} instrument_inspection temporal_metadata_status is unsupported"
+        )
+    if temporal_metadata_status == "not_provided" and stream_count != 0:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} instrument_inspection not_provided temporal metadata requires zero streams"
+        )
+    if temporal_metadata_status == "proposed_unverified" and stream_count == 0:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} instrument_inspection proposed temporal metadata requires streams"
+        )
     evidence_sha256 = require_sha256(
         gate.details.get("evidence_sha256"),
         f"package run {run_id} gate {gate.gate_id} evidence_sha256",

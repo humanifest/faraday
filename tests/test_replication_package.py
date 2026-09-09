@@ -1354,6 +1354,10 @@ def test_replication_package_verifies_instrument_inspection_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
+    original_runs = json.loads(json.dumps(runs))
+    inspection = runs[0]["quality_gates"][0]["details"]["instrument_inspection"]
+    assert inspection["stream_count"] == 1
+    assert inspection["temporal_metadata_status"] == "proposed_unverified"
     _add_packaged_decoy_output(runs)
     runs[0]["quality_gates"][0]["details"]["evidence_sha256"] = "f" * 64
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
@@ -1376,6 +1380,36 @@ def test_replication_package_verifies_instrument_inspection_gate_metadata(
     commitment = _refresh_packaged_file(package, "runs.json")
 
     with pytest.raises(ValidationError, match="status is unsupported"):
+        verify_replication_package(package, commitment)
+
+    runs = json.loads(json.dumps(original_runs))
+    runs[0]["quality_gates"][0]["details"]["instrument_inspection"].pop(
+        "stream_count"
+    )
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match="instrument_inspection fields are invalid"):
+        verify_replication_package(package, commitment)
+
+    runs = json.loads(json.dumps(original_runs))
+    runs[0]["quality_gates"][0]["details"]["instrument_inspection"][
+        "stream_count"
+    ] = -1
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match="stream_count must be a non-negative integer"):
+        verify_replication_package(package, commitment)
+
+    runs = json.loads(json.dumps(original_runs))
+    runs[0]["quality_gates"][0]["details"]["instrument_inspection"][
+        "temporal_metadata_status"
+    ] = "trusted"
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match="temporal_metadata_status is unsupported"):
         verify_replication_package(package, commitment)
 
 

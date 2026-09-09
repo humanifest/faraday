@@ -677,9 +677,14 @@ def _validate_instrument_inspection_gate(
         "config_sha256",
         "implementation_sha256",
     }
-    if set(inspection) != required_fields:
+    derived_fields = {
+        "stream_count",
+        "temporal_metadata_status",
+    }
+    allowed_fields = required_fields | derived_fields
+    if set(inspection) - allowed_fields or not required_fields <= set(inspection):
         raise ValidationError(
-            f"quality gate {gate.gate_id} instrument_inspection must contain exactly: "
+            f"quality gate {gate.gate_id} instrument_inspection must contain at least: "
             + ", ".join(sorted(required_fields))
         )
     prefix = f"quality gate {gate.gate_id} instrument_inspection"
@@ -736,6 +741,15 @@ def _validate_instrument_inspection_gate(
         raise ValidationError(
             f"quality gate {gate.gate_id} instrument_inspection status does not match the verified record"
         )
+    for field in derived_fields:
+        expected = verified[field]
+        supplied = inspection.get(field)
+        if supplied is not None and supplied != expected:
+            raise ValidationError(
+                f"quality gate {gate.gate_id} instrument_inspection {field} "
+                "does not match the verified record"
+            )
+        inspection[field] = expected
     if gate.status is not QualityGateStatus.PASSED:
         raise ValidationError(
             f"quality gate {gate.gate_id} instrument_inspection can only record a passed retention gate"

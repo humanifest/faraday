@@ -1647,8 +1647,10 @@ published inspection records have no failed-record status, this metadata may
 only support a passed retention gate; it does not clear calibration, custody,
 dataset intake, timing feasibility, or scientific evidence. Rigor, deterministic
 synthesis, and replication-package verification now carry the locator, record
-hash, source hash, config hash, implementation hash, and bounded
-non-evidentiary status.
+hash, source hash, config hash, implementation hash, derived stream count,
+temporal-metadata status, and bounded non-evidentiary status. Run intake derives
+those summaries from the byte-verified record and rejects copied summary fields
+that disagree with the replayed inspection.
 Stream-timing feasibility delivery: `measurement assess-timing` now accepts an
 independently trusted instrument-inspection hash plus a machine-readable timing
 specification. It publishes a deterministic, non-evidentiary

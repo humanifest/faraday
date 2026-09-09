@@ -816,7 +816,11 @@ def audit_research_state(
                     add(
                         "RUN_INSTRUMENT_INSPECTION_REPLAYED",
                         RigorSeverity.INFO,
-                        "Run exposes an artifact-bound instrument-inspection record; the retained inspection is low-authority acquisition metadata, not calibration, custody, or evidence approval.",
+                        "Run exposes an artifact-bound instrument-inspection record "
+                        f"({instrument_inspection.get('stream_count', 'unknown')} proposed streams; "
+                        "temporal metadata status "
+                        f"{instrument_inspection.get('temporal_metadata_status', 'unknown')}). "
+                        "The retained inspection is low-authority acquisition metadata, not calibration, custody, or evidence approval.",
                         entity_type="run",
                         entity_id=run.run_id,
                     )

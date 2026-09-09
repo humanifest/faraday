@@ -471,6 +471,12 @@ def build_synthesis(
                     f"`{inspection.get('implementation_sha256', 'unavailable')}`. "
                     "This is retained acquisition metadata only, not calibration, custody, or scientific-evidence approval."
                 )
+                if "stream_count" in inspection:
+                    lines.append(
+                        "  - Proposed streams: "
+                        f"{inspection.get('stream_count', 'unavailable')}; temporal metadata status: "
+                        f"`{inspection.get('temporal_metadata_status', 'unavailable')}`."
+                    )
     stream_timing_runs = [
         run for run in runs
         if any(

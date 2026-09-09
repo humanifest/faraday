@@ -936,18 +936,46 @@ def test_run_replays_passed_instrument_inspection_gate(tmp_path: Path) -> None:
     ))
 
     assert run.status is RunStatus.COMPLETED
-    assert run.quality_gates[0].details["instrument_inspection"]["status"] == (
-        "inspection_recorded"
-    )
+    inspection = run.quality_gates[0].details["instrument_inspection"]
+    assert inspection["status"] == "inspection_recorded"
+    assert inspection["stream_count"] == 1
+    assert inspection["temporal_metadata_status"] == "proposed_unverified"
     assert run.quality_gates[0].details["evidence_sha256"] == result["inspection_sha256"]
     synthesis = service.build_synthesis()["content"]
     assert "Instrument inspection provenance" in synthesis
     assert result["inspection_sha256"] in synthesis
+    assert "Proposed streams: 1; temporal metadata status: `proposed_unverified`" in synthesis
     assert "not calibration, custody, or scientific-evidence approval" in synthesis
-    assert any(
-        finding.code == "RUN_INSTRUMENT_INSPECTION_REPLAYED"
+    finding = next(
+        finding
         for finding in service.audit_rigor().findings
+        if finding.code == "RUN_INSTRUMENT_INSPECTION_REPLAYED"
     )
+    assert "1 proposed streams" in finding.message
+    assert "proposed_unverified" in finding.message
+
+
+def test_run_rejects_instrument_inspection_summary_drift(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _instrument_inspection_gate_fixture(
+        tmp_path
+    )
+    quality_gates[0].details["instrument_inspection"]["stream_count"] = 99
+
+    with pytest.raises(
+        ValidationError,
+        match="instrument_inspection stream_count does not match the verified record",
+    ):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
 
 
 def test_run_rejects_instrument_inspection_gate_evidence_split(
