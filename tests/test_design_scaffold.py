@@ -244,6 +244,75 @@ def test_confirmatory_measurement_requires_structured_validity_decision_rules():
     assert padded["status"] == "blocked"
 
 
+def test_causal_scaffold_retains_measurement_validity_and_assumption_gates():
+    assumptions = [
+        {
+            "category": category,
+            "statement": f"Synthetic {category} assumption.",
+            "assessment_kind": "design_record_review",
+            "assessment_plan": f"Assess {category} before interpretation.",
+            "failure_response": f"Stop causal interpretation if {category} fails.",
+            "assessment_gate_id": f"causal-{category}-assessed",
+        }
+        for category in (
+            "positivity",
+            "consistency",
+            "interference",
+            "temporal_order",
+            "measurement_validity",
+            "selection_bias",
+            "exchangeability",
+        )
+    ]
+    result = scaffold_design({
+        "title": "Combined gate fixture",
+        "question": "Does exposure change outcome?",
+        "decision": "Choose a strategy",
+        "study_type": "causal",
+        "assignment_type": "observational",
+        "exposure_definition": "Observed exposure before follow-up.",
+        "comparison": "control",
+        "outcome": "outcome",
+        "outcome_unit": "points",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "measurement_validity_checks": [_validity_check()],
+        "causal_identification": {
+            "nodes": [
+                {"id": "treatment", "observed": True},
+                {"id": "outcome", "observed": True},
+            ],
+            "edges": [{"cause": "treatment", "effect": "outcome"}],
+            "exposure": "treatment",
+            "outcome": "outcome",
+            "proposed_adjustment_set": [],
+            "assignment_type": "observational",
+            "assumptions": assumptions,
+            "causal_estimand": {
+                "target_hypothesis_id": "[REVIEW REQUIRED] bind the reviewed hypothesis",
+                "description": "Mean outcome under treatment minus control.",
+                "population": "Eligible units.",
+                "exposure_strategies": ["observe treatment", "observe control"],
+                "outcome_variable": "outcome",
+                "time_zero": "Exposure assessment.",
+                "outcome_time": "Registered follow-up.",
+                "contrast": "Treatment minus control.",
+                "summary_measure": "Population mean difference.",
+                "intercurrent_events_policy": "Retain eligible units and disclose missing outcomes.",
+            },
+        },
+    })
+
+    requirements = result["artifacts"]["protocol-draft.json"][
+        "quality_requirements"
+    ]
+    assert "primary-validity-assessed" in requirements
+    assert {
+        item["assessment_gate_id"] for item in assumptions
+    } <= set(requirements)
+    assert len(requirements) == len(set(requirements))
+
+
 def test_unit_identity_column_is_explicit_and_shared_by_all_guided_artifacts():
     base = {
         "title": "Unit fixture", "question": "Question", "decision": "Decision",

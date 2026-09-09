@@ -1484,6 +1484,12 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         "independent_review_artifact_sha256": brief.get("independent_review_artifact_sha256", ""),
         "independent_review_conditions": _text_list(brief, "independent_review_conditions"),
     }
+
+    def add_quality_requirements(gate_ids: list[str]) -> None:
+        protocol["quality_requirements"] = list(dict.fromkeys(
+            protocol.get("quality_requirements", []) + gate_ids
+        ))
+
     if brief.get("independent_unit"):
         protocol["unit_id_column"] = brief.get(
             "unit_id_column", "[REVIEW REQUIRED] exact independent-unit ID column"
@@ -1496,28 +1502,24 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             }
             for item in brief["measurement_validity_checks"]
         ]
-        protocol["quality_requirements"] = list(dict.fromkeys(
-            protocol.get("quality_requirements", [])
-            + [
-                item["assessment_gate_id"]
-                for item in brief["measurement_validity_checks"]
-            ]
-        ))
+        add_quality_requirements([
+            item["assessment_gate_id"]
+            for item in brief["measurement_validity_checks"]
+        ])
     if isinstance(brief.get("causal_identification"), dict):
         protocol["causal_identification"] = dict(brief["causal_identification"])
-        protocol["quality_requirements"] = list(dict.fromkeys(
+        add_quality_requirements([
             item["assessment_gate_id"]
             for item in brief["causal_identification"].get("assumptions", [])
-        ))
+        ])
     for field in ("independent_unit", "repeated_measures", "analysis_design", "unit_analysis_plan"):
         if field in brief:
             protocol[field] = brief[field]
     if brief.get("control_definitions"):
         protocol["control_definitions"] = [dict(item) for item in brief["control_definitions"]]
-        protocol["quality_requirements"] = list(dict.fromkeys(
-            protocol.get("quality_requirements", [])
-            + [item["evaluation_gate_id"] for item in brief["control_definitions"]]
-        ))
+        add_quality_requirements([
+            item["evaluation_gate_id"] for item in brief["control_definitions"]
+        ])
     if all(str(brief.get(field, "")).strip() for field in (
         "missingness_assumption", "missingness_assessment_plan",
         "missingness_failure_response", "missingness_assessment_kind",
@@ -1530,10 +1532,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "missingness_assessment_gate_id",
             )
         }
-        protocol["quality_requirements"] = list(dict.fromkeys(
-            protocol.get("quality_requirements", [])
-            + [brief["missingness_assessment_gate_id"]]
-        ))
+        add_quality_requirements([brief["missingness_assessment_gate_id"]])
     return {
         "status": "blocked" if blockers else "review_required",
         "plain_language_summary": "This scaffold is a draft. It does not register, approve, or freeze a study.",

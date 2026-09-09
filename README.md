@@ -477,7 +477,9 @@ criterion, failure response, and dedicated quality gate. These checks are
 emitted in `measurement-validity-plan-draft.json` and added to the protocol’s
 required gates. They remain plans—not evidence that validity has been shown.
 Validity gates cannot be reused for control, causal-assumption, or missingness
-assessments. Guided readiness now also rejects surrounding whitespace in the
+assessments, and causal-assumption gates are accumulated with validity,
+control, and missingness gates rather than replacing earlier guided
+commitments. Guided readiness now also rejects surrounding whitespace in the
 validity-check text and gate handles before those entries can appear in the
 draft protocol.
 During canonical protocol construction, each check must be bound to the exact

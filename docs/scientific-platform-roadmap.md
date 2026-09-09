@@ -567,7 +567,9 @@ specific validity claim, assessment procedure, acceptance criterion, failure
 response, and dedicated required gate. The provider-free interview collects the
 same contract and emits `measurement-validity-plan-draft.json`. Gate IDs cannot
 be reused across validity, control, causal-assumption, or missingness purposes;
-the plan never counts as an observed pass or proof of construct validity.
+causal-assumption gates are accumulated with validity, control, and missingness
+requirements rather than replacing earlier guided commitments. The plan never
+counts as an observed pass or proof of construct validity.
 Guided validity-check canonicalization now blocks surrounding whitespace in
 check IDs, evidence-type labels, validity claims, assessment procedures,
 acceptance criteria, failure responses, and gate IDs before the draft protocol
