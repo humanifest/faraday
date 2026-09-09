@@ -136,6 +136,60 @@ def test_unit_identity_check_through_cli(tmp_path, capsys, case):
     assert data.read_text() == content
 
 
+@pytest.mark.parametrize(
+    ("method", "design", "identity_column"),
+    [
+        ("independent_mean_difference_ci", "independent_groups", "unit"),
+        ("paired_mean_difference_ci", "paired", "pair"),
+    ],
+)
+def test_protocol_bound_unit_structure_rejects_padded_row_identifiers(
+    tmp_path: Path, method: str, design: str, identity_column: str
+) -> None:
+    """Synthetic fixture: row identity handles must not be normalized into receipts."""
+    from research_machine.addons.execution import execute_analysis
+
+    data = tmp_path / "synthetic.csv"
+    data.write_text(
+        f"{identity_column},group,outcome\n"
+        f" {identity_column}-1 ,a,1\n"
+        f"{identity_column}-2,a,2\n"
+        f"{identity_column}-3,b,4\n"
+        f"{identity_column}-4,b,5\n",
+        encoding="utf-8",
+    )
+    spec = tmp_path / "spec.json"
+    spec.write_text(
+        json.dumps(
+            {
+                "method": method,
+                "claim_ceiling": "Synthetic fixture only.",
+                "outcome_column": "outcome",
+                "group_column": "group",
+                "groups": ["a", "b"],
+                "study_design": design,
+                "seed": 1,
+                "bootstrap_resamples": 1000,
+                f"{identity_column}_column": identity_column,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def design_check(*args):
+        raise AssertionError("design check should not receive normalized identity rows")
+
+    with pytest.raises(ValidationError, match="unit identifier is noncanonical"):
+        execute_analysis(
+            registry=default_registry(include_installed=False),
+            spec_path=spec,
+            data_path=data,
+            output_dir=tmp_path / "output",
+            design_check=design_check,
+        )
+    assert not (tmp_path / "output").exists()
+
+
 @pytest.mark.parametrize("field", ["claim_ceiling", "analysis_id", "purpose", "parameters"])
 def test_addon_specification_mutation_fails_before_publication(tmp_path: Path, field) -> None:
     from research_machine.addons.execution import execute_analysis

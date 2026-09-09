@@ -951,11 +951,11 @@ The binding is retained in the execution receipt and revalidated during run-draf
 handoff. Guided unit-ID handles and the later unit, pair, and group column
 handles used to derive row-to-unit and allocation receipts must be canonical
 before audits pass or receipts are hashed, and the group handle must be distinct
-from the unit or pair handle. Row-level group assignment values must also be
-nonblank and canonical before allocation receipt hashing. This verifies
-identifier-column consistency and the estimator's own duplicate/incomplete-unit
-checks; it does not prove that source rows were assigned to the correct
-real-world units.
+from the unit or pair handle. Row-level unit identifiers, pair identifiers, and
+group assignment values must also be nonblank and canonical before row-to-unit or
+allocation receipt hashing. This verifies identifier-column consistency and the
+estimator's own duplicate/incomplete-unit checks; it does not prove that source
+rows were assigned to the correct real-world units.
 Execution now also derives a unit-structure receipt from the exact parsed CSV:
 row and unit counts, repeated-unit count, minimum and maximum observations per
 unit, and a SHA-256 commitment to the ordered row-to-unit mapping. A protocol

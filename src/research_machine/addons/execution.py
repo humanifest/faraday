@@ -332,7 +332,11 @@ def _unit_structure(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[st
         value = row.get(column)
         if not isinstance(value, str) or not value.strip():
             raise ValidationError(f"analysis unit identifier is missing at CSV row {row_number}")
-        identifier = value.strip()
+        if value != value.strip():
+            raise ValidationError(
+                f"analysis unit identifier is noncanonical at CSV row {row_number}"
+            )
+        identifier = value
         counts[identifier] = counts.get(identifier, 0) + 1
         mapping.append({"csv_row": row_number, "unit_id": identifier})
         if isinstance(group_column, str) and group_column.strip():

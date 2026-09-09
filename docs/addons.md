@@ -305,9 +305,12 @@ The bundled estimators require an explicit `study_design`. An
 `independent_mean_difference_ci` refuses an undeclared or paired design; a
 `paired_mean_difference_ci` requires one observation for each registered group
 per pair identifier and refuses incomplete or duplicate pairs. Every submitted
-paired-analysis row must contain a nonblank pair identifier, group, and outcome;
-implicit missing-row exclusions are rejected, including entirely missing pairs.
-This estimator does not implement a missing-data exclusion or imputation policy.
+padded row-level unit or pair identifier is rejected before protocol-bound
+receipt construction, so the row-to-unit digest cannot depend on silent
+normalization. Every submitted paired-analysis row must contain a nonblank pair
+identifier, group, and outcome; implicit missing-row exclusions are rejected,
+including entirely missing pairs. This estimator does not implement a
+missing-data exclusion or imputation policy.
 Their bootstrap
 intervals and standardized effects quantify uncertainty but do not establish
 causality, generalizability, or mechanism.
