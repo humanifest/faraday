@@ -96,7 +96,11 @@ methods without changing its epistemic rules or canonical state.
   Results and receipts bind the declared control plus, for seeded methods, a
   digest of the committed seed value. This makes stochastic reproducibility a
   provider-neutral add-on contract without treating the random procedure as
-  scientifically adequate.
+  scientifically adequate. Pinned execution handoff verification now also
+  replays the closed version-2 analysis-result envelope, rejecting unsupported
+  inference levels, authority-smuggling top-level fields, rewritten
+  method-enforced ceiling status, or altered non-authority missing-data scope
+  before downstream run, evidence, replication, or rigor paths can trust it.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit

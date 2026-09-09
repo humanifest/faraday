@@ -203,7 +203,12 @@ effect is non-finite, or the selected confidence interval lacks finite
 an invalid confidence level. The receipt stores separate hashes for the selected effect and uncertainty, and both
 `run-draft` and canonical run intake recompute them from the verified result.
 Execution-backed evidence also carries the add-on method's enforced claim
-ceiling. The frozen contract declares a numeric null and either a
+ceiling. Pinned execution verification now rejects result files whose version-2
+contract envelope contains extra authority fields, unsupported inference levels,
+rewritten claim-ceiling status, or altered non-authority missing-data scope, so
+later evidence and rigor code cannot consume a strengthened handoff merely
+because the receipt and output hashes were made self-consistent. The frozen
+contract declares a numeric null and either a
 `point_direction` or `interval_excludes_null` support rule. A `supports` label
 must satisfy that rule in the hypothesis's frozen direction. These checks enforce
 the preregistered interpretation boundary; they do not establish truth.

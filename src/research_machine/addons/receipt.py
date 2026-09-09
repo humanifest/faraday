@@ -14,9 +14,36 @@ from research_machine.addons.execution import (
     _resolve_json_pointer,
     validate_registered_information,
 )
-from research_machine.addons.models import RANDOMNESS_CONTROLS
+from research_machine.addons.models import INFERENCE_LEVELS, RANDOMNESS_CONTROLS
 from research_machine.domain.errors import ValidationError
 from research_machine.application.service import ResearchService
+
+_RESULT_CONTRACT_FIELDS = frozenset({
+    "result_contract_version",
+    "analysis_id",
+    "addon_id",
+    "addon_version",
+    "method",
+    "purpose",
+    "estimand",
+    "contrast_definition",
+    "contrast_groups",
+    "claim_ceiling",
+    "maximum_inference_level",
+    "randomness_control",
+    "randomness_binding",
+    "declared_claim_ceiling",
+    "claim_ceiling_status",
+    "missing_data_policy",
+    "missing_data_policy_scope",
+    "result",
+})
+_CLAIM_CEILING_STATUS = (
+    "method_enforced_maximum; the researcher declaration is retained but cannot widen it"
+)
+_MISSING_DATA_POLICY_SCOPE = (
+    "Declared specification setting only; consult method results for actual exclusions or rejection rules."
+)
 
 
 def _require_sha256(value: Any, field: str) -> str:
@@ -27,6 +54,40 @@ def _require_sha256(value: Any, field: str) -> str:
     ):
         raise ValidationError(f"{field} must be a lowercase SHA-256 digest")
     return value
+
+
+def _require_text(value: Any, field: str, *, allow_empty: bool = False) -> str:
+    if not isinstance(value, str) or (not allow_empty and not value):
+        raise ValidationError(f"{field} must be text")
+    return value
+
+
+def _validate_result_contract(result: dict[str, Any]) -> None:
+    if set(result) != _RESULT_CONTRACT_FIELDS:
+        raise ValidationError("analysis result contract fields do not match version 2")
+    if result.get("result_contract_version") != 2:
+        raise ValidationError("analysis result contract version is unsupported")
+    for field in ("analysis_id", "addon_id", "addon_version", "method"):
+        _require_text(result.get(field), f"analysis result {field}")
+    for field in ("purpose", "estimand", "contrast_definition"):
+        _require_text(result.get(field), f"analysis result {field}", allow_empty=True)
+    if not isinstance(result.get("contrast_groups"), list) or any(
+        not isinstance(item, str) for item in result["contrast_groups"]
+    ):
+        raise ValidationError("analysis result contrast_groups must be an array of text")
+    _require_text(result.get("claim_ceiling"), "analysis result claim_ceiling")
+    _require_text(
+        result.get("declared_claim_ceiling"),
+        "analysis result declared_claim_ceiling",
+    )
+    if result.get("claim_ceiling_status") != _CLAIM_CEILING_STATUS:
+        raise ValidationError("analysis result claim_ceiling_status is invalid")
+    if result.get("maximum_inference_level") not in INFERENCE_LEVELS:
+        raise ValidationError("analysis result maximum_inference_level is unsupported")
+    if result.get("missing_data_policy") not in (None, "complete_case"):
+        raise ValidationError("analysis result missing_data_policy is unsupported")
+    if result.get("missing_data_policy_scope") != _MISSING_DATA_POLICY_SCOPE:
+        raise ValidationError("analysis result missing_data_policy_scope is invalid")
 
 
 def _validate_randomness_binding(
@@ -206,6 +267,7 @@ def verify_execution_output(directory: Path, expected_receipt_sha256: str) -> di
     if (output.get("sha256") != hashlib.sha256(raw).hexdigest()
             or type(output.get("size_bytes")) is not int or output["size_bytes"] != len(raw)):
         raise ValidationError("execution result does not match receipt hash and size")
+    _validate_result_contract(result)
     addon = receipt.get("addon")
     if (not isinstance(addon, dict) or not isinstance(receipt.get("method"), str)
             or receipt["method"] != result.get("method")
