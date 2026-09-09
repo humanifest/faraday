@@ -674,10 +674,12 @@ the human-facing replication handoff from weakening those warnings while keeping
 file hashes internally consistent. Export and verification receipts report the
 package version and applied verification contract, so downstream clients can
 distinguish v1 file-integrity checks from v2 guardrail replay.
-It also reconstructs dataset lineage, rejects duplicate IDs, missing ancestors,
-cycles, and unrelated extras, requires manifest dataset/run IDs to match the
-records exactly, and verifies that every run binds the packaged protocol and
-uses only included datasets.
+It also requires protocol-summary, dataset, run, ethics-event, lineage-source,
+and run-input IDs to be exact canonical handles before reconstructing dataset
+lineage. Verification then rejects duplicate IDs, missing ancestors, cycles, and
+unrelated extras, requires manifest dataset/run IDs to match the records exactly,
+and verifies that every run binds the packaged protocol and uses only included
+datasets.
 The packaged protocol's required-gate identities must be nonblank, unique, and
 canonical before run checks. For every run it also recomputes analysis-mode and
 dataset-role compatibility, synthetic propagation, unique quality gates, required

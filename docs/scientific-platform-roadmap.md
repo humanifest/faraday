@@ -934,9 +934,11 @@ reuse authorization. `INSTRUCTIONS.md` must match the same contract exactly, so
 the human-facing replication handoff cannot weaken those warnings while keeping
 file hashes internally consistent. Export and verification receipts name the
 package version and applied verification contract so downstream clients can tell
-v1 file-integrity checks from v2 guardrail replay. It also reconstructs an acyclic, closed dataset lineage,
-checks exact unique dataset/run summaries, and requires every run to bind the
-packaged protocol and included inputs. Run semantics are also recomputed:
+v1 file-integrity checks from v2 guardrail replay. It also requires protocol
+summaries, dataset IDs, run IDs, ethics event IDs, lineage sources, and run-input
+dataset IDs to be exact canonical handles before reconstructing an acyclic,
+closed dataset lineage, checking exact unique dataset/run summaries, and
+requiring every run to bind the packaged protocol and included inputs. Run semantics are also recomputed:
 analysis mode, dataset roles, synthetic propagation, unique and required gates,
 output-bound gate evidence, prerequisites, validity status, workflow-component
 status, and evidence eligibility. The verifier requires packaged protocol

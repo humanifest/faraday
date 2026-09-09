@@ -367,6 +367,9 @@ def test_replication_verify_rejects_noncanonical_manifest_file_hash(
     "dataset_unredacted_locator", "dataset_duplicate_digest",
     "dataset_padded_locator", "dataset_bad_hash", "dataset_negative_size",
     "dataset_bad_metadata", "dataset_padded_media_type",
+    "protocol_id_padded_everywhere", "manifest_dataset_id_padded",
+    "dataset_id_padded_everywhere", "run_id_padded_everywhere",
+    "run_dataset_id_padded",
     "protocol_gate_duplicate", "protocol_gate_padded", "output_unredacted_locator",
     "output_duplicate_digest", "output_padded_locator", "output_bad_hash",
     "output_negative_size", "output_bad_metadata", "output_padded_media_type",
@@ -409,6 +412,7 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         completed_at=completed_at,
         analysis_code_hash="a" * 64,
         environment_hash="e" * 64,
+        dataset_ids=[dataset.dataset_id],
         output_artifacts=[DatasetArtifact(
             "result.json", output_hash, output.stat().st_size, "application/json"
         )],
@@ -507,6 +511,73 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         manifest["dataset_ids"] = ["invented-dataset"]
         manifest_path.write_text(json.dumps(manifest))
         commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "protocol_id_padded_everywhere":
+        protocol_path = package / "protocol.json"
+        datasets_path = package / "datasets.json"
+        runs_path = package / "runs.json"
+        manifest_path = package / "package-manifest.json"
+        protocol_record = json.loads(protocol_path.read_text())
+        datasets = json.loads(datasets_path.read_text())
+        runs = json.loads(runs_path.read_text())
+        manifest = json.loads(manifest_path.read_text())
+        padded = f" {protocol_record['protocol_id']} "
+        protocol_record["protocol_id"] = padded
+        manifest["protocol"]["protocol_id"] = padded
+        datasets[0]["protocol_id"] = padded
+        runs[0]["protocol_id"] = padded
+        protocol_path.write_text(json.dumps(protocol_record, indent=2, sort_keys=True) + "\n")
+        datasets_path.write_text(json.dumps(datasets, indent=2, sort_keys=True) + "\n")
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        manifest["files"]["protocol.json"] = hashlib.sha256(protocol_path.read_bytes()).hexdigest()
+        manifest["files"]["datasets.json"] = hashlib.sha256(datasets_path.read_bytes()).hexdigest()
+        manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "manifest_dataset_id_padded":
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["dataset_ids"] = [f" {manifest['dataset_ids'][0]} "]
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "dataset_id_padded_everywhere":
+        datasets_path = package / "datasets.json"
+        runs_path = package / "runs.json"
+        manifest_path = package / "package-manifest.json"
+        datasets = json.loads(datasets_path.read_text())
+        runs = json.loads(runs_path.read_text())
+        manifest = json.loads(manifest_path.read_text())
+        padded = f" {datasets[0]['dataset_id']} "
+        datasets[0]["dataset_id"] = padded
+        runs[0]["dataset_ids"] = [padded]
+        manifest["dataset_ids"] = [padded]
+        datasets_path.write_text(json.dumps(datasets, indent=2, sort_keys=True) + "\n")
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        manifest["files"]["datasets.json"] = hashlib.sha256(datasets_path.read_bytes()).hexdigest()
+        manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "run_id_padded_everywhere":
+        runs_path = package / "runs.json"
+        manifest_path = package / "package-manifest.json"
+        runs = json.loads(runs_path.read_text())
+        manifest = json.loads(manifest_path.read_text())
+        padded = f" {runs[0]['run_id']} "
+        runs[0]["run_id"] = padded
+        manifest["run_ids"] = [padded]
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "run_dataset_id_padded":
+        runs_path = package / "runs.json"
+        runs = json.loads(runs_path.read_text())
+        runs[0]["dataset_ids"] = [f" {runs[0]['dataset_ids'][0]} "]
+        runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["runs.json"] = hashlib.sha256(runs_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     elif mutation == "dataset_cycle":
         datasets_path = package / "datasets.json"
         cycle = DatasetManifest(
@@ -529,7 +600,7 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     elif mutation == "run_eligibility":
         runs_path = package / "runs.json"
         runs = json.loads(runs_path.read_text())
-        runs[0]["synthetic"] = True
+        runs[0]["synthetic"] = False
         runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
         manifest_path = package / "package-manifest.json"
         manifest = json.loads(manifest_path.read_text())
@@ -665,6 +736,109 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     with pytest.raises(ValidationError):
         verify_replication_package(package, commitment)
     assert service.verify_ledger()["valid"] is True
+
+
+def test_replication_package_rejects_padded_lineage_source_ids(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement",
+        observable_prediction="Prediction",
+        null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test",
+        title="Test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id],
+        primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL,
+        methodology="Method",
+        quality_requirements=["gate"],
+        controls=["control"],
+        expected_outputs=["output"],
+        success_conditions=["success"],
+        environment_requirements=["environment"],
+        sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"],
+        safety_constraints=["safe"],
+        analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    source = service.register_dataset(RegisterDataset(
+        name="Synthetic source observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("source.csv", "c" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    derived = service.register_dataset(RegisterDataset(
+        name="Synthetic derived observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("derived.csv", "d" * 64)],
+        source_dataset_ids=[source.dataset_id],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    output = tmp_path / "result.json"
+    output.write_text('{"result":"passed"}\n', encoding="utf-8")
+    output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        dataset_ids=[derived.dataset_id],
+        output_artifacts=[DatasetArtifact(
+            "result.json",
+            output_hash,
+            output.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "gate",
+            QualityGateStatus.PASSED,
+            "Synthetic package fixture passed.",
+            details={"evidence_sha256": output_hash},
+        )],
+        summary="Synthetic package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared",
+            "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    datasets_path = package / "datasets.json"
+    datasets = json.loads(datasets_path.read_text())
+    for dataset in datasets:
+        if dataset["dataset_id"] == derived.dataset_id:
+            dataset["source_dataset_ids"] = [f" {source.dataset_id} "]
+            break
+    else:
+        raise AssertionError("derived fixture dataset was not exported")
+    datasets_path.write_text(json.dumps(datasets, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "datasets.json")
+
+    with pytest.raises(ValidationError, match="source_dataset_ids item"):
+        verify_replication_package(package, commitment)
 
 
 def test_redacted_replication_package_allows_multiple_artifacts(

@@ -145,6 +145,10 @@ def _validate_packaged_artifacts(
     return normalized
 
 
+def _validate_package_identity_list(values: Any, field_name: str) -> list[str]:
+    return require_unique_canonical_text_list(values, field_name)
+
+
 def _validate_preprocessing_conformance_gate_metadata(
     *,
     protocol: ExperimentProtocol,
@@ -1255,6 +1259,16 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 (root / "protocol.json").read_bytes(), "protocol.json"
             )
             protocol = ExperimentProtocol.from_dict(protocol_value)
+            protocol_id = require_canonical_text(
+                protocol.protocol_id, "package protocol protocol_id"
+            )
+            protocol_hash = require_sha256(
+                protocol.protocol_hash, "package protocol protocol_hash"
+            )
+            registration_timestamp = require_canonical_text(
+                protocol.registration_timestamp,
+                "package protocol registration_timestamp",
+            )
             protocol_gate_ids = [
                 require_canonical_text(gate_id, "quality_requirements item")
                 for gate_id in protocol.quality_requirements
@@ -1272,13 +1286,28 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 "protocol_id", "protocol_hash", "registration_timestamp"
             }:
                 raise ValidationError("version-2 package protocol summary is invalid")
+            summary_protocol_id = require_canonical_text(
+                protocol_summary["protocol_id"],
+                "version-2 package protocol summary protocol_id",
+            )
+            summary_protocol_hash = require_sha256(
+                protocol_summary["protocol_hash"],
+                "version-2 package protocol summary protocol_hash",
+            )
+            summary_registration_timestamp = require_canonical_text(
+                protocol_summary["registration_timestamp"],
+                "version-2 package protocol summary registration_timestamp",
+            )
             if (
-                protocol_summary["protocol_id"] != protocol.protocol_id
-                or protocol_summary["protocol_hash"] != protocol.protocol_hash
-                or protocol_summary["registration_timestamp"]
-                != protocol.registration_timestamp
+                summary_protocol_id != protocol_id
+                or summary_protocol_hash != protocol_hash
+                or summary_registration_timestamp != registration_timestamp
             ):
                 raise ValidationError("version-2 package protocol summary disagrees with protocol.json")
+            manifest_ethics_event_ids = _validate_package_identity_list(
+                manifest.get("ethics_review_event_ids"),
+                "version-2 package manifest ethics_review_event_ids",
+            )
             if manifest.get("artifact_locator_policy") == "included":
                 if (
                     not protocol.protocol_hash
@@ -1298,7 +1327,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
             events = validate_ethics_review_event_chain(
                 protocol, events, verify_current_artifacts=False
             )
-            if manifest.get("ethics_review_event_ids") != [item.event_id for item in events]:
+            if manifest_ethics_event_ids != [item.event_id for item in events]:
                 raise ValidationError("package ethics event IDs disagree with the event chain")
             expected_status = (
                 events[-1].status
@@ -1323,29 +1352,51 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 raise ValidationError("package datasets and runs must be arrays")
             datasets = [DatasetManifest.from_dict(item) for item in dataset_value]
             runs = [ResearchRun.from_dict(item) for item in run_value]
-            dataset_ids = [item.dataset_id for item in datasets]
-            run_ids = [item.run_id for item in runs]
-            if len(dataset_ids) != len(set(dataset_ids)) or manifest.get("dataset_ids") != sorted(dataset_ids):
+            dataset_ids = _validate_package_identity_list(
+                [item.dataset_id for item in datasets],
+                "package dataset IDs",
+            )
+            run_ids = _validate_package_identity_list(
+                [item.run_id for item in runs],
+                "package run IDs",
+            )
+            manifest_dataset_ids = _validate_package_identity_list(
+                manifest.get("dataset_ids"),
+                "version-2 package manifest dataset_ids",
+            )
+            manifest_run_ids = _validate_package_identity_list(
+                manifest.get("run_ids"),
+                "version-2 package manifest run_ids",
+            )
+            if manifest_dataset_ids != sorted(dataset_ids):
                 raise ValidationError("package dataset IDs disagree with unique dataset records")
-            if len(run_ids) != len(set(run_ids)) or manifest.get("run_ids") != sorted(run_ids):
+            if manifest_run_ids != sorted(run_ids):
                 raise ValidationError("package run IDs disagree with unique run records")
             dataset_by_id = {item.dataset_id: item for item in datasets}
             for dataset in datasets:
+                dataset_id = require_canonical_text(
+                    dataset.dataset_id, "package dataset dataset_id"
+                )
+                if dataset.protocol_id is not None:
+                    require_canonical_text(
+                        dataset.protocol_id,
+                        f"package dataset {dataset_id} protocol_id",
+                    )
+                require_unique_canonical_text_list(
+                    dataset.source_dataset_ids,
+                    f"package dataset {dataset_id} source_dataset_ids",
+                )
                 _validate_packaged_artifacts(
                     artifacts=dataset.artifacts,
-                    label=f"package dataset {dataset.dataset_id}",
+                    label=f"package dataset {dataset_id}",
                     locator_policy=manifest["artifact_locator_policy"],
                 )
                 if manifest.get("artifact_locator_policy") == "included":
                     validate_dataset_payload_commitment(dataset)
-                if len(dataset.source_dataset_ids) != len(set(dataset.source_dataset_ids)):
-                    raise ValidationError(
-                        f"package dataset {dataset.dataset_id} repeats a lineage source"
-                    )
                 unavailable = sorted(set(dataset.source_dataset_ids) - set(dataset_by_id))
                 if unavailable:
                     raise ValidationError(
-                        f"package dataset {dataset.dataset_id} has unavailable lineage sources: "
+                        f"package dataset {dataset_id} has unavailable lineage sources: "
                         + ", ".join(unavailable)
                     )
             visiting: set[str] = set()
@@ -1366,7 +1417,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 visit(dataset_id)
             roots = {
                 item.dataset_id for item in datasets
-                if item.protocol_id == protocol.protocol_id
+                if item.protocol_id == protocol_id
             }
             reachable = set(roots)
             pending = list(roots)
@@ -1379,25 +1430,33 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
             if reachable != set(dataset_by_id):
                 raise ValidationError("package contains datasets outside protocol lineage closure")
             for run in runs:
+                run_id = require_canonical_text(run.run_id, "package run run_id")
+                run_protocol_id = require_canonical_text(
+                    run.protocol_id, f"package run {run_id} protocol_id"
+                )
+                run_protocol_hash = require_sha256(
+                    run.protocol_hash, f"package run {run_id} protocol_hash"
+                )
+                run_dataset_ids = require_unique_canonical_text_list(
+                    run.dataset_ids, f"package run {run_id} dataset_ids"
+                )
                 if manifest.get("artifact_locator_policy") == "included":
                     validate_run_payload_commitment(run)
-                if run.protocol_id != protocol.protocol_id or run.protocol_hash != protocol.protocol_hash:
+                if run_protocol_id != protocol_id or run_protocol_hash != protocol_hash:
                     raise ValidationError(
-                        f"package run {run.run_id} does not match the packaged frozen protocol"
+                        f"package run {run_id} does not match the packaged frozen protocol"
                     )
-                if len(run.dataset_ids) != len(set(run.dataset_ids)):
-                    raise ValidationError(f"package run {run.run_id} repeats a dataset input")
                 if run.analysis_mode is not protocol.analysis_mode:
                     raise ValidationError(
-                        f"package run {run.run_id} analysis mode disagrees with the protocol"
+                        f"package run {run_id} analysis mode disagrees with the protocol"
                     )
-                missing_inputs = sorted(set(run.dataset_ids) - set(dataset_by_id))
+                missing_inputs = sorted(set(run_dataset_ids) - set(dataset_by_id))
                 if missing_inputs:
                     raise ValidationError(
-                        f"package run {run.run_id} has unavailable dataset inputs: "
+                        f"package run {run_id} has unavailable dataset inputs: "
                         + ", ".join(missing_inputs)
                     )
-                input_datasets = [dataset_by_id[value] for value in run.dataset_ids]
+                input_datasets = [dataset_by_id[value] for value in run_dataset_ids]
                 expected_role = {
                     AnalysisMode.EXPLORATORY: DatasetRole.EXPLORATORY,
                     AnalysisMode.CONFIRMATORY: DatasetRole.CONFIRMATORY,
