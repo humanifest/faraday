@@ -594,6 +594,112 @@ def _validate_canary_target_assessment_gate_metadata(
     require_canonical_text(assessment["evidence_location"], f"{prefix}.evidence_location")
 
 
+def _measurement_value_domain_sha256(definition: dict[str, Any]) -> str:
+    return hashlib.sha256(_bytes({
+        "measurement_id": definition.get("measurement_id"),
+        "scale_type": definition.get("scale_type"),
+        "unit": definition.get("unit"),
+        "admissible_values": definition.get("admissible_values"),
+        "missing_value_codes": definition.get("missing_value_codes"),
+        "valid_min": definition.get("valid_min"),
+        "valid_max": definition.get("valid_max"),
+    })).hexdigest()
+
+
+def _validate_execution_handoff_measurement_value_check(run: ResearchRun) -> None:
+    handoff = run.metadata.get("execution_handoff")
+    if handoff is None:
+        return
+    if not isinstance(handoff, dict):
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff must be an object"
+        )
+    receipt = handoff.get("receipt")
+    if not isinstance(receipt, dict):
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff receipt must be an object"
+        )
+    binding = receipt.get("protocol_design_check")
+    if not isinstance(binding, dict):
+        return
+    contracts = binding.get("measurement_contracts")
+    if not contracts:
+        return
+    if not isinstance(contracts, list):
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff measurement contracts must be an array"
+        )
+    check = receipt.get("measurement_value_check")
+    if not isinstance(check, dict) or check.get("status") != "passed":
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff measurement value check is invalid"
+        )
+    if (
+        check.get("scope")
+        != "source_values_against_frozen_scale_domain_bounds_and_missing_codes"
+    ):
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff measurement value check scope is invalid"
+        )
+    rows = receipt.get("input", {}).get("row_count")
+    if isinstance(rows, bool) or not isinstance(rows, int) or rows < 0:
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff input row_count is invalid"
+        )
+    measurements = check.get("measurements")
+    if not isinstance(measurements, list) or len(measurements) != len(contracts):
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff measurement value check coverage is invalid"
+        )
+    required_fields = {
+        "measurement_id",
+        "data_column",
+        "scale_type",
+        "unit",
+        "value_domain_sha256",
+        "observed_count",
+        "missing_count",
+        "status",
+    }
+    for index, (contract, measurement) in enumerate(zip(contracts, measurements)):
+        if not isinstance(contract, dict) or not isinstance(measurement, dict):
+            raise ValidationError(
+                f"package run {run.run_id} execution_handoff measurement value check entries are invalid"
+            )
+        if set(measurement) != required_fields:
+            raise ValidationError(
+                f"package run {run.run_id} execution_handoff measurement value check fields are invalid"
+            )
+        for field in ("measurement_id", "data_column", "scale_type", "unit"):
+            if measurement.get(field) != contract.get(field):
+                raise ValidationError(
+                    f"package run {run.run_id} execution_handoff measurement value check disagrees with frozen contract at index {index}"
+                )
+        digest = require_sha256(
+            measurement["value_domain_sha256"],
+            f"package run {run.run_id} execution_handoff measurement_value_check.value_domain_sha256",
+        )
+        if digest != _measurement_value_domain_sha256(contract):
+            raise ValidationError(
+                f"package run {run.run_id} execution_handoff measurement value check domain digest is invalid"
+            )
+        observed_count = measurement.get("observed_count")
+        missing_count = measurement.get("missing_count")
+        if (
+            isinstance(observed_count, bool)
+            or isinstance(missing_count, bool)
+            or not isinstance(observed_count, int)
+            or not isinstance(missing_count, int)
+            or observed_count < 0
+            or missing_count < 0
+            or observed_count + missing_count != rows
+            or measurement.get("status") != "passed"
+        ):
+            raise ValidationError(
+                f"package run {run.run_id} execution_handoff measurement value check counts are invalid"
+            )
+
+
 def _validate_control_gate_metadata(
     *,
     protocol: ExperimentProtocol,
@@ -1705,6 +1811,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     metadata=run.metadata,
                     output_artifacts=output_artifacts,
                 )
+                _validate_execution_handoff_measurement_value_check(run)
                 sample_size_plan_check = _validate_sample_size_plan_check_metadata(
                     protocol=protocol,
                     run=run,

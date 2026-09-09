@@ -783,7 +783,11 @@ evidence type must match the protocol, passed/warning/failed
 gates must retain `consistent_with_validity_claim`, `inconclusive`, or
 `contradicted_validity_claim` respectively, and each result must cite a packaged
 run output. Consistency remains a bounded diagnostic, not proof of construct
-validity. Structured missingness-assessment metadata is replayed for the frozen
+validity. Retained execution handoffs also replay the measurement-value check
+against the frozen measurement contracts: the package verifier recomputes the
+value-domain digest, checks exact ordered coverage, and conserves the recorded
+input row count before trusting the redacted receipt metadata. Structured
+missingness-assessment metadata is replayed for the frozen
 complete-case gate: the retained assessment kind must match the analysis
 contract, passed/warning/failed gates must retain
 `consistent_with_assumption`, `inconclusive`, or

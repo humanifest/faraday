@@ -858,7 +858,12 @@ protocol-bound execution, reviewed run preflight, invalid-run preservation,
 rigor audit, replication-package verification, redaction checks, and ledger
 verification. It explicitly refuses to approve skipped gates or turn a numerical
 result into valid scientific evidence; this proves workflow integration, not a
-real scientific finding.
+real scientific finding. Replication-package verification now also replays the
+retained execution handoff's measurement-value check against the frozen
+measurement contracts, including exact ordered coverage, value-domain digest
+recalculation, per-measurement status, and recorded row-count conservation, so a
+redacted package cannot launder a post-run edit to source-domain conformance
+metadata.
 Canonical run intake now independently repeats this verification whenever
 `execution_handoff` metadata is present: it requires the artifact root, reloads
 the exact receipt and result from the trusted receipt hash, and revalidates the

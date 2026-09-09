@@ -1930,6 +1930,28 @@ def test_cli_checks_actual_execution_against_frozen_design(tmp_path, capsys, fai
         packaged_receipt = packaged_runs[0]["metadata"]["execution_handoff"]["receipt"]
         for section in ("input", "implementation", "specification", "output"):
             assert packaged_receipt[section]["locator"].startswith("[redacted:")
+        packaged_receipt["measurement_value_check"]["measurements"][0][
+            "value_domain_sha256"
+        ] = "0" * 64
+        runs_path = package / "runs.json"
+        runs_path.write_text(
+            json.dumps(packaged_runs, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["runs.json"] = hashlib.sha256(
+            runs_path.read_bytes()
+        ).hexdigest()
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        tampered_commitment = hashlib.sha256(
+            manifest_path.read_bytes()
+        ).hexdigest()
+        with pytest.raises(ValidationError, match="measurement value check domain digest"):
+            verify_replication_package(package, tampered_commitment)
         # Export redaction must not mutate canonical provenance.
         retained = service.get_run(recorded["run_id"]).to_dict()
         assert retained["metadata"]["execution_handoff"]["receipt"]["input"]["locator"] == receipt["input"]["locator"]
