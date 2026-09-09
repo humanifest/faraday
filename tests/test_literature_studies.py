@@ -15,6 +15,8 @@ def bias_file(tmp_path):
         "independent_review": True,
         "overall_judgment_counts": {"low": 1, "some_concerns": 1, "high": 0, "unclear": 0},
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "Overall judgments are conservative deterministic summaries of reviewer-entered domain judgments, not automated validity findings.",
             "The generic domains do not replace design-specific validated instruments or authenticate reviewer expertise or independence.",
@@ -80,6 +82,8 @@ def test_reconciliation_preserves_canonical_study_source_and_registration_handle
     "padded-reviewer",
     "padded-bias-reviewer",
     "bias-authority",
+    "bias-conclusion-authority",
+    "bias-publication-authority",
     "bias-not-independent",
     "bias-count-drift",
     "bias-limitations-missing",
@@ -117,6 +121,8 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
     elif failure in {
         "padded-bias-reviewer",
         "bias-authority",
+        "bias-conclusion-authority",
+        "bias-publication-authority",
         "bias-not-independent",
         "bias-count-drift",
         "bias-limitations-missing",
@@ -130,6 +136,10 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
             value["reviewer"] = " Bias reviewer "
         elif failure == "bias-authority":
             value["scientific_evidence_eligible"] = True
+        elif failure == "bias-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "bias-publication-authority":
+            value["publication_authorized"] = True
         elif failure == "bias-not-independent":
             value["independent_review"] = False
         elif failure == "bias-count-drift":

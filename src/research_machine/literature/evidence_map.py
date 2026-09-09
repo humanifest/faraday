@@ -9,6 +9,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.bias import validate_bias_assessment_boundary
 from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
@@ -32,7 +33,6 @@ _INTERPRETIVE_CEILINGS = {
     "source_hypothesis_only",
     "insufficient_for_conclusion",
 }
-_BIAS_JUDGMENTS = {"low", "some_concerns", "high", "unclear"}
 _RELATIONSHIPS = {"independent", "overlapping_cohort", "duplicate_report", "unclear"}
 
 
@@ -100,25 +100,6 @@ def _validate_citation_verification_boundary(
     validate_citation_verification_boundary(
         verification, assessments, require_clean_verdicts=True
     )
-
-
-def _validate_bias_assessment_boundary(
-    bias: dict[str, Any],
-    assessments: list[dict[str, Any]],
-) -> None:
-    if bias.get("independent_review") is not True:
-        raise ValidationError("bias assessment must retain independent-review status")
-    if bias.get("scientific_evidence_eligible") is not False:
-        raise ValidationError("bias assessment must remain scientifically ineligible")
-    _validate_limitations(bias, "bias assessment")
-    counts = {judgment: 0 for judgment in ("low", "some_concerns", "high", "unclear")}
-    for item in assessments:
-        judgment = item.get("overall_judgment")
-        if judgment not in _BIAS_JUDGMENTS:
-            raise ValidationError("bias assessment overall_judgment is invalid")
-        counts[judgment] += 1
-    if bias.get("overall_judgment_counts") != counts:
-        raise ValidationError("bias assessment overall_judgment_counts do not replay from studies")
 
 
 def _validate_study_reconciliation_boundary(
@@ -258,7 +239,7 @@ def create_evidence_map(
     bias_assessments = bias.get("assessments", [])
     if not isinstance(bias_assessments, list):
         raise ValidationError("bias assessments must be an array")
-    _validate_bias_assessment_boundary(bias, bias_assessments)
+    validate_bias_assessment_boundary(bias, bias_assessments)
     for item in bias_assessments:
         if not isinstance(item, dict):
             raise ValidationError("bias assessments are malformed")

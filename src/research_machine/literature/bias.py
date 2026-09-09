@@ -44,6 +44,37 @@ def _overall(domains: list[dict[str, Any]]) -> str:
     return "low" if "low" in values else "unclear"
 
 
+def validate_bias_assessment_boundary(
+    bias: dict[str, Any],
+    assessments: list[dict[str, Any]],
+) -> None:
+    """Replay risk-of-bias authority, independence, and summary counts."""
+    if bias.get("independent_review") is not True:
+        raise ValidationError("bias assessment must retain independent-review status")
+    if bias.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("bias assessment must remain scientifically ineligible")
+    if bias.get("conclusion_authorized") is not False:
+        raise ValidationError("bias assessment must not authorize conclusions")
+    if bias.get("publication_authorized") is not False:
+        raise ValidationError("bias assessment must not authorize publication claims")
+    limitations = bias.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("bias assessment requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"bias assessment limitation {index + 1}")
+
+    counts: dict[str, int] = {
+        judgment: 0 for judgment in ("low", "some_concerns", "high", "unclear")
+    }
+    for item in assessments:
+        judgment = item.get("overall_judgment") if isinstance(item, dict) else None
+        if judgment not in counts:
+            raise ValidationError("bias assessment overall_judgment is invalid")
+        counts[judgment] += 1
+    if bias.get("overall_judgment_counts") != counts:
+        raise ValidationError("bias assessment overall_judgment_counts do not replay from studies")
+
+
 def create_bias_assessment(
     verification_path: Path,
     expected_sha256: str,
@@ -162,12 +193,15 @@ def create_bias_assessment(
         "overall_judgment_counts": counts,
         "status": "bias_assessment_recorded",
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "Overall judgments are conservative deterministic summaries of reviewer-entered domain judgments, not automated validity findings.",
             "The generic domains do not replace design-specific validated instruments or authenticate reviewer expertise or independence.",
             "Risk-of-bias assessment does not make a literature claim true or authorize quantitative synthesis.",
         ],
     }
+    validate_bias_assessment_boundary(result, result["assessments"])
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("bias assessment output already exists")

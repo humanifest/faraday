@@ -55,6 +55,8 @@ def test_bias_cli_computes_conservative_overall_and_is_write_once(tmp_path, caps
     result = json.loads(capsys.readouterr().out)["result"]
     assert result["assessments"][0]["overall_judgment"] == "high"
     assert result["scientific_evidence_eligible"] is False
+    assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_bias_assessment(verification, digest, review("high"), output)
 

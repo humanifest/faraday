@@ -1055,10 +1055,11 @@ non-conclusion, non-publication boundary, retained limitations, and
 study-level judgments, so unsupported or unclear source-claim judgments cannot
 be laundered into a clean risk-of-bias artifact by rewriting only summary
 fields. Study reconciliation now replays the
-bias-assessment artifact's independent-review flag, non-authority boundary,
-retained limitations, and `overall_judgment_counts` against the bias-assessed
-study records before accepting identity metadata, so a study-identity review
-cannot launder a rewritten bias summary into the terminal review chain.
+bias-assessment artifact's independent-review flag, non-evidence,
+non-conclusion, non-publication boundary, retained limitations, and
+`overall_judgment_counts` against the bias-assessed study records before
+accepting identity metadata, so a study-identity review cannot launder a
+rewritten bias summary into the terminal review chain.
 Qualitative synthesis now requires the extraction source set to match the
 synthesis plan's frozen included sources, and preserves those provenance anchors
 instead of carrying only a ceiling label.

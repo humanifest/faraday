@@ -87,6 +87,8 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
         "citation_verification_sha256": verification_sha, "independent_review": True,
         "overall_judgment_counts": judgment_counts,
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "Overall judgments are conservative deterministic summaries of reviewer-entered domain judgments, not automated validity findings.",
             "The generic domains do not replace design-specific validated instruments or authenticate reviewer expertise or independence.",
@@ -165,8 +167,9 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
     "verification-publication-authority", "verification-not-independent",
     "verification-count-drift", "verification-limitations-missing",
     "verification-padded-limitation",
-    "bias-authority", "bias-not-independent", "bias-count-drift",
-    "bias-limitations-missing", "bias-padded-limitation", "reconciliation-authority",
+    "bias-authority", "bias-conclusion-authority", "bias-publication-authority",
+    "bias-not-independent", "bias-count-drift", "bias-limitations-missing",
+    "bias-padded-limitation", "reconciliation-authority",
     "reconciliation-not-independent", "reconciliation-count-drift",
     "reconciliation-limitations-missing", "reconciliation-padded-limitation",
     "coverage", "padded-extraction-duplicate", "padded-citation-duplicate",
@@ -236,12 +239,17 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
     elif failure in {
-        "bias-authority", "bias-not-independent", "bias-count-drift",
-        "bias-limitations-missing", "bias-padded-limitation",
+        "bias-authority", "bias-conclusion-authority", "bias-publication-authority",
+        "bias-not-independent", "bias-count-drift", "bias-limitations-missing",
+        "bias-padded-limitation",
     }:
         value = json.loads(bias.read_text())
         if failure == "bias-authority":
             value["scientific_evidence_eligible"] = True
+        elif failure == "bias-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "bias-publication-authority":
+            value["publication_authorized"] = True
         elif failure == "bias-not-independent":
             value["independent_review"] = False
         elif failure == "bias-count-drift":
