@@ -1518,7 +1518,11 @@ authorize evidence. Canonical run intake now treats
 the gate must cite the assessment record as a declared output artifact under a
 passed artifact-integrity receipt, the retained record hash, source inspection
 hash, timing specification hash, and status are replayed from current bytes, and
-a passed gate requires a verified `timing_feasibility_passed` record. Failed
+a passed gate requires a verified `timing_feasibility_passed` record. Replay now
+derives retained channel mismatches, missing streams, unsupported uncertainty
+units, excessive uncertainty fractions, and missing-interval overlaps from the
+structured record, so a tampered status label or copied findings list cannot
+hide timing infeasibility. Failed
 stream-timing assessments remain recordable only as failed gates, preserving
 missing stream metadata, channel mismatches, unusable uncertainty units, and
 missing-interval overlaps without allowing a favorable summary to overwrite
@@ -1541,6 +1545,9 @@ claim: the gate must cite the assessment record as a declared output artifact
 under a passed artifact-integrity receipt, the retained record hash, upstream
 timing-assessment hash, specification hash, and status are replayed from current
 bytes, and a passed gate requires a verified `temporal_order_passed` record.
+Replay now recomputes retained separation-window seconds and derives each
+check's status from the expected relation, observed relation, point delta,
+conservative gap, and registered window.
 Failed temporal-order assessments remain recordable only as failed gates, so
 reversals, unresolved timing, upstream timing failure, and registered-window
 misses stay visible without being rewritten into favorable summaries. Rigor,

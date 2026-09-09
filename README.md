@@ -1250,7 +1250,11 @@ register a dataset, or authorize evidence. When a run quality gate declares
 `details.stream_timing_assessment`, canonical run intake requires the same
 record as a byte-verified output artifact under `artifact_root`, replays its
 retained record hash, source inspection hash, timing specification hash, and
-status, and rejects a passed gate unless the verified record itself passed.
+status, and rejects a passed gate unless the verified record itself passed. The
+independent verifier now derives retained channel mismatches, absent streams,
+unsupported uncertainty units, excessive uncertainty fractions, and
+missing-interval overlaps from the structured record rather than trusting a
+copied findings list or status label.
 Failed stream-timing assessments may only be retained as failed gates, preserving
 missing stream metadata, channel mismatches, unusable uncertainty units, and
 missing-interval overlaps while blocking required-gate evidence eligibility.
@@ -1276,7 +1280,11 @@ scientific evidence. When a run quality gate declares
 `details.temporal_order_assessment`, canonical run intake requires the same
 record as a byte-verified output artifact under `artifact_root`, replays its
 retained record hash, upstream timing-assessment hash, specification hash, and
-status, and rejects a passed gate unless the verified record itself passed.
+status, and rejects a passed gate unless the verified record itself passed. The
+independent verifier also recomputes retained separation-window seconds and
+derives each check's pass, warning, or failure status from the recorded expected
+relation, observed relation, point delta, conservative gap, and registered
+window.
 Failed temporal-order assessments may only be retained as failed gates, keeping
 reversals, unresolved timing, and registered-window misses visible while
 blocking required-gate evidence eligibility. Rigor and synthesis expose these

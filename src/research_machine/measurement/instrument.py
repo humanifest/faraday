@@ -137,6 +137,7 @@ _TEMPORAL_ORDER_RECORD_FIELDS = {
 _TEMPORAL_ORDER_SOURCE_FIELDS = {"sha256", "size_bytes"}
 _TEMPORAL_ORDER_TIMING_FIELDS = {"sha256", "size_bytes", "status"}
 _TIME_BOUND_FIELDS = {"duration", "unit"}
+_RETAINED_TIME_BOUND_FIELDS = {"duration", "unit", "seconds"}
 _EXPECTED_TEMPORAL_RELATIONS = {
     "first_precedes_second",
     "second_precedes_first",
@@ -684,6 +685,28 @@ def _time_bound_seconds(value: Any, field: str, *, allow_zero: bool = False) -> 
     }
 
 
+def _retained_time_bound_seconds(
+    value: Any, field: str, *, allow_zero: bool = False
+) -> float:
+    if not isinstance(value, dict):
+        raise ValidationError(f"instrument inspection {field} must be an object")
+    _exact_fields(value, _RETAINED_TIME_BOUND_FIELDS, field)
+    if allow_zero:
+        duration = _nonnegative_number(value["duration"], f"{field}.duration")
+    else:
+        duration = _positive_number(value["duration"], f"{field}.duration")
+    unit = _text(value["unit"], f"{field}.unit")
+    seconds = (
+        _nonnegative_number(value["seconds"], f"{field}.seconds")
+        if allow_zero
+        else _positive_number(value["seconds"], f"{field}.seconds")
+    )
+    recomputed = duration * _time_unit_seconds(unit, f"{field}.unit")
+    if not math.isclose(float(seconds), float(recomputed), rel_tol=1e-12, abs_tol=1e-15):
+        raise ValidationError(f"instrument inspection {field}.seconds disagrees with duration and unit")
+    return float(seconds)
+
+
 def _ordered_timing_streams(value: Any) -> list[dict[str, str]]:
     if not isinstance(value, list) or not value:
         raise ValidationError("instrument inspection timing required_streams must be a non-empty array")
@@ -1094,6 +1117,8 @@ def verify_temporal_order_assessment_record(
     if not isinstance(order_checks, list) or not order_checks:
         raise ValidationError("temporal order assessment order_checks must be a non-empty array")
     check_statuses: list[str] = []
+    derived_failed_checks = 0
+    derived_warning_checks = 0
     seen_checks: set[str] = set()
     for index, check in enumerate(order_checks):
         if not isinstance(check, dict):
@@ -1110,10 +1135,60 @@ def verify_temporal_order_assessment_record(
         )
         if observed_relation not in _EXPECTED_TEMPORAL_RELATIONS | {"not_assessed"}:
             raise ValidationError("temporal order assessment observed_relation is unsupported")
+        expected_relation = _text(
+            check.get("expected_relation"),
+            f"temporal_order order_checks[{index}].expected_relation",
+        )
+        if expected_relation not in _EXPECTED_TEMPORAL_RELATIONS:
+            raise ValidationError("temporal order assessment expected_relation is unsupported")
+        minimum_seconds = _retained_time_bound_seconds(
+            check.get("minimum_separation"),
+            f"temporal_order order_checks[{index}].minimum_separation",
+            allow_zero=True,
+        )
+        maximum_seconds = _retained_time_bound_seconds(
+            check.get("maximum_separation"),
+            f"temporal_order order_checks[{index}].maximum_separation",
+        )
+        if maximum_seconds < minimum_seconds:
+            raise ValidationError(
+                "temporal order assessment maximum_separation must be at least minimum_separation"
+            )
         status = _text(check.get("status"), f"temporal_order order_checks[{index}].status")
         if status not in {"passed", "warning", "failed"}:
             raise ValidationError("temporal order assessment check status is unsupported")
         check_statuses.append(status)
+        derived_status = "failed"
+        if observed_relation == expected_relation:
+            if observed_relation == "indeterminate_within_uncertainty":
+                derived_status = "warning"
+            elif observed_relation != "not_assessed":
+                point_delta = _finite_number(
+                    check.get("point_delta_seconds"),
+                    f"temporal_order order_checks[{index}].point_delta_seconds",
+                )
+                conservative_gap = _finite_number(
+                    check.get("conservative_gap_seconds"),
+                    f"temporal_order order_checks[{index}].conservative_gap_seconds",
+                )
+                direction_agrees = (
+                    (observed_relation == "first_precedes_second" and point_delta > 0)
+                    or (observed_relation == "second_precedes_first" and point_delta < 0)
+                )
+                if (
+                    direction_agrees
+                    and abs(float(point_delta)) <= maximum_seconds
+                    and float(conservative_gap) >= minimum_seconds
+                ):
+                    derived_status = "passed"
+        if status != derived_status:
+            raise ValidationError(
+                "temporal order assessment check status disagrees with retained order"
+            )
+        if derived_status == "failed":
+            derived_failed_checks += 1
+        elif derived_status == "warning":
+            derived_warning_checks += 1
     findings = record["findings"]
     if not isinstance(findings, list):
         raise ValidationError("temporal order assessment findings must be an array")
@@ -1139,11 +1214,11 @@ def verify_temporal_order_assessment_record(
         raise ValidationError("temporal order assessment must not authorize actions")
     _text(record["conclusion_ceiling"], "temporal_order conclusion_ceiling")
     if status == "temporal_order_passed" and (
-        error_findings or any(value == "failed" for value in check_statuses)
+        error_findings or derived_failed_checks
     ):
         raise ValidationError("temporal order passed record contains failed checks")
     if status == "temporal_order_failed" and not (
-        error_findings or any(value == "failed" for value in check_statuses)
+        error_findings or derived_failed_checks
     ):
         raise ValidationError("temporal order failed record lacks failed checks")
     return {
@@ -1157,7 +1232,7 @@ def verify_temporal_order_assessment_record(
         "specification_sha256": specification_sha256,
         "check_count": len(order_checks),
         "failed_check_count": sum(value == "failed" for value in check_statuses),
-        "warning_check_count": sum(value == "warning" for value in check_statuses),
+        "warning_check_count": derived_warning_checks,
         "finding_count": len(findings),
         "scientific_evidence_eligible": False,
     }
@@ -1463,32 +1538,42 @@ def verify_stream_timing_assessment_record(
     required_streams = record["required_streams"]
     if not isinstance(required_streams, list):
         raise ValidationError("stream timing assessment required_streams must be an array")
+    required_stream_failures = 0
+    seen_required_streams: set[str] = set()
     for index, stream in enumerate(required_streams):
         if not isinstance(stream, dict):
             raise ValidationError(f"stream timing assessment required_streams[{index}] must be an object")
         stream_id = _stable_identifier(
             stream.get("stream_id"), f"stream_timing required_streams[{index}].stream_id"
         )
+        if stream_id in seen_required_streams:
+            raise ValidationError("stream timing assessment required_streams must be unique")
+        seen_required_streams.add(stream_id)
         _text(stream.get("channel"), f"stream_timing required_streams[{index}].channel")
         _text(stream.get("purpose"), f"stream_timing required_streams[{index}].purpose")
         status = _text(stream.get("status"), f"stream_timing required_streams[{index}].status")
         if status not in {"present", "absent", "channel_mismatch"}:
             raise ValidationError("stream timing assessment required stream status is unsupported")
+        if status in {"absent", "channel_mismatch"}:
+            required_stream_failures += 1
         if status != "absent":
             _text(
                 stream.get("observed_channel"),
                 f"stream_timing required_streams[{index}].observed_channel",
             )
-        if stream_id == "":
-            raise ValidationError("stream timing assessment stream_id must be non-empty")
     events = record["events"]
     if not isinstance(events, list):
         raise ValidationError("stream timing assessment events must be an array")
     event_statuses: list[str] = []
+    event_condition_failures = 0
+    seen_events: set[str] = set()
     for index, event in enumerate(events):
         if not isinstance(event, dict):
             raise ValidationError(f"stream timing assessment events[{index}] must be an object")
-        _stable_identifier(event.get("event_id"), f"stream_timing events[{index}].event_id")
+        event_id = _stable_identifier(event.get("event_id"), f"stream_timing events[{index}].event_id")
+        if event_id in seen_events:
+            raise ValidationError("stream timing assessment events must be unique")
+        seen_events.add(event_id)
         _stable_identifier(event.get("stream_id"), f"stream_timing events[{index}].stream_id")
         _parse_time(event.get("event_time"), f"stream_timing events[{index}].event_time")
         status = _text(event.get("status"), f"stream_timing events[{index}].status")
@@ -1504,13 +1589,17 @@ def verify_stream_timing_assessment_record(
                 event.get("clock_uncertainty_seconds"),
                 f"stream_timing events[{index}].clock_uncertainty_seconds",
             )
-            _nonnegative_number(
+            uncertainty_fraction = _nonnegative_number(
                 event.get("uncertainty_fraction_of_lag_window"),
                 f"stream_timing events[{index}].uncertainty_fraction_of_lag_window",
             )
+            if uncertainty_fraction >= maximum_uncertainty_fraction:
+                event_condition_failures += 1
             overlaps = event.get("overlapping_missing_intervals")
             if not isinstance(overlaps, list):
                 raise ValidationError("stream timing assessment overlapping_missing_intervals must be an array")
+            if overlaps:
+                event_condition_failures += 1
     findings = record["findings"]
     if not isinstance(findings, list):
         raise ValidationError("stream timing assessment findings must be an array")
@@ -1539,9 +1628,19 @@ def verify_stream_timing_assessment_record(
         value in {"stream_absent", "unsupported_uncertainty_unit"}
         for value in event_statuses
     )
-    if status == "timing_feasibility_passed" and (error_findings or failed_event):
+    if status == "timing_feasibility_passed" and (
+        error_findings
+        or failed_event
+        or required_stream_failures
+        or event_condition_failures
+    ):
         raise ValidationError("passed stream timing assessment record contains failures")
-    if status == "timing_feasibility_failed" and not (error_findings or failed_event):
+    if status == "timing_feasibility_failed" and not (
+        error_findings
+        or failed_event
+        or required_stream_failures
+        or event_condition_failures
+    ):
         raise ValidationError("failed stream timing assessment record lacks failed checks")
     return {
         "status": "stream_timing_assessment_record_verified",

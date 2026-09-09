@@ -1168,6 +1168,59 @@ def test_stream_timing_assessment_rejects_untrusted_inspection_hash(
     assert not output.exists()
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda record: record["required_streams"][0].update(
+            {"status": "channel_mismatch", "observed_channel": "other-channel"}
+        ),
+        lambda record: record["events"][0].update(
+            {"uncertainty_fraction_of_lag_window": 0.25}
+        ),
+        lambda record: record["events"][0].update(
+            {
+                "overlapping_missing_intervals": [
+                    {
+                        "start_time": "2026-09-06T12:00:02Z",
+                        "end_time": "2026-09-06T12:00:04Z",
+                        "reason": "Tampered retained missing interval.",
+                    }
+                ]
+            }
+        ),
+    ],
+)
+def test_stream_timing_verifier_replays_hidden_failure_conditions(
+    tmp_path: Path, mutation
+) -> None:
+    from research_machine.measurement.instrument import (
+        assess_stream_timing,
+        verify_stream_timing_assessment_record,
+    )
+
+    inspection, record_file = _write_stream_timing_fixture(tmp_path)
+    spec_file = _write_timing_spec(tmp_path)
+    result = assess_stream_timing(
+        record_file,
+        inspection["inspection_sha256"],
+        spec_file,
+        tmp_path / "timing-assessment",
+    )
+    timing_record = Path(result["path"], "stream-timing-assessment.json")
+    record = json.loads(timing_record.read_text(encoding="utf-8"))
+    mutation(record)
+    record["findings"] = []
+    record["status"] = "timing_feasibility_passed"
+    timing_record.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(timing_record.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="contains failures"):
+        verify_stream_timing_assessment_record(timing_record, trusted_hash)
+
+
 def test_temporal_order_assessment_preserves_clear_registered_order(
     tmp_path: Path, capsys
 ) -> None:
@@ -1324,6 +1377,60 @@ def test_temporal_order_assessment_rejects_untrusted_timing_hash(
     with pytest.raises(ValidationError, match="expected_timing_assessment_sha256"):
         assess_temporal_order(timing_record, "0" * 64, order_spec, output)
     assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda check: check.update({"observed_relation": "second_precedes_first"}),
+        lambda check: check["maximum_separation"].update(
+            {"duration": 1, "unit": "ms", "seconds": 0.001}
+        ),
+        lambda check: check.update({"conservative_gap_seconds": 0.0001}),
+    ],
+)
+def test_temporal_order_verifier_replays_retained_order_status(
+    tmp_path: Path, mutation
+) -> None:
+    from research_machine.measurement.instrument import (
+        assess_temporal_order,
+        verify_temporal_order_assessment_record,
+    )
+
+    events = [
+        {
+            "event_id": "state-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.000000Z",
+        },
+        {
+            "event_id": "sound-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.010000Z",
+        },
+    ]
+    timing_result, timing_record = _write_timing_assessment_with_events(tmp_path, events)
+    order_spec = _write_temporal_order_spec(tmp_path)
+    result = assess_temporal_order(
+        timing_record,
+        timing_result["assessment_sha256"],
+        order_spec,
+        tmp_path / "order-assessment",
+    )
+    order_record = Path(result["path"], "temporal-order-assessment.json")
+    record = json.loads(order_record.read_text(encoding="utf-8"))
+    mutation(record["order_checks"][0])
+    record["findings"] = []
+    record["status"] = "temporal_order_passed"
+    record["order_checks"][0]["status"] = "passed"
+    order_record.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(order_record.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="status disagrees"):
+        verify_temporal_order_assessment_record(order_record, trusted_hash)
 
 
 def test_instrument_adapter_cannot_mutate_config_or_publish_invalid_result(
