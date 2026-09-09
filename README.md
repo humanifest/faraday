@@ -860,9 +860,10 @@ Replay a saved review record before relying on it as triage provenance:
 ```
 
 Verification checks the trusted record hash, authority flags, scientific
-constraints, review decisions, every retained suggestion digest, and the
-advanced-suggestion summary. It still does not authenticate the reviewer or turn
-the review into a canonical scientific action.
+constraints, retained context reference index, review decisions, every retained
+suggestion digest, reviewed-suggestion evidence references, and the advanced-
+suggestion summary. It still does not authenticate the reviewer or turn the
+review into a canonical scientific action.
 
 ## Literature snapshots
 

@@ -489,6 +489,10 @@ def test_proposal_rejects_stale_context_and_duplicate_json_keys(tmp_path: Path) 
             [{"ref": "evidence:ev1", "kind": "claim"}],
             "ref must match kind claim",
         ),
+        (
+            [{"ref": "claim:claim-1", "kind": "claim", "title": "Extra label"}],
+            "has unknown fields",
+        ),
     ],
 )
 def test_proposal_rejects_malformed_context_reference_index(
@@ -660,6 +664,7 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     assert record["advanced_suggestions"] == [
         {"suggestion_id": "suggestion-1", "domain_route": "design.revise"}
     ]
+    assert record["context_reference_index"] == []
     expected_suggestions = proposal["suggestions"]
     reviewed = record["reviewed_suggestions"]
     assert reviewed == [
@@ -697,6 +702,60 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     assert verified["reviewed_suggestion_count"] == 2
     assert verified["advanced_suggestion_count"] == 1
     assert verified["scientific_evidence_eligible"] is False
+
+
+def test_verify_collaborator_review_replays_retained_context_references(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(
+            _proposal(
+                snapshot["context_sha256"],
+                evidence_refs=["claim:claim-1"],
+            )
+        ),
+        encoding="utf-8",
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(
+        json.dumps(_review(validated["record_sha256"])), encoding="utf-8"
+    )
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    assert record["context_reference_index"] == context["context_reference_index"]
+    suggestion = record["reviewed_suggestions"][0]["suggestion"]
+    suggestion["evidence_refs"] = ["claim:not-in-context"]
+    record["reviewed_suggestions"][0]["suggestion_sha256"] = _canonical_json_sha256(
+        suggestion
+    )
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence_refs are not present in the retained context",
+    ):
+        verify_collaborator_review_record(record_path, trusted_hash)
 
 
 @pytest.mark.parametrize(

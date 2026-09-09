@@ -1063,7 +1063,8 @@ advancement neither invokes nor authorizes the route. This prevents omission and
 default acceptance while preserving an auditable path from generated suggestion
 to later manual domain review. `research collaborator verify-review` independently
 replays a saved review record against a trusted review-record hash, checking the
-authority flags, scientific constraints, reviewed suggestion digests, decision
+authority flags, scientific constraints, retained context reference index,
+reviewed suggestion digests, reviewed-suggestion evidence references, decision
 coverage, compatible routes, and advanced-suggestion summary without performing
 canonical writes or authenticating the reviewer.
 

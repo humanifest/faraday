@@ -96,6 +96,7 @@ _PROPOSAL_RECORD_FIELDS = {
 _REVIEW_RECORD_FIELDS = {
     "collaborator_proposal_review_record_version",
     "proposal_record_input",
+    "context_reference_index",
     "context_scientific_constraints",
     "review_input",
     "review",
@@ -120,6 +121,7 @@ _REVIEWED_SUGGESTION_FIELDS = {
     "scientific_evidence_eligible",
 }
 _INPUT_FIELDS = {"sha256", "size_bytes"}
+_CONTEXT_REFERENCE_FIELDS = {"ref", "kind"}
 _CONTEXT_REFERENCE_PREFIXES = {
     "inquiry": "inquiry:",
     "open_question": "question:",
@@ -246,6 +248,11 @@ def _context_reference_ids(context: dict[str, Any]) -> set[str]:
     for index, item in enumerate(raw_index):
         if not isinstance(item, dict):
             raise ValidationError(f"collaborator context_reference_index[{index}] must be an object")
+        _exact_fields(
+            item,
+            _CONTEXT_REFERENCE_FIELDS,
+            f"collaborator context_reference_index[{index}]",
+        )
         ref = item.get("ref")
         kind = item.get("kind")
         if not isinstance(ref, str) or not ref.strip():
@@ -612,6 +619,7 @@ def adjudicate_collaborator_proposal(
             "sha256": record_digest,
             "size_bytes": len(record_content),
         },
+        "context_reference_index": record["context_reference_index"],
         "context_scientific_constraints": record["context_scientific_constraints"],
         "review_input": {
             "sha256": hashlib.sha256(review_content).hexdigest(),
@@ -702,6 +710,9 @@ def verify_collaborator_review_record(
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
+    allowed_evidence_refs = _context_reference_ids(
+        {"context_reference_index": record["context_reference_index"]}
+    )
 
     review = record["review"]
     if not isinstance(review, dict):
@@ -767,11 +778,17 @@ def verify_collaborator_review_record(
             raise ValidationError(f"{label} suggestion authority must be review_only")
         for field in ("statement", "rationale", "uncertainty", "next_test"):
             _text(suggestion[field], f"{label}.{field}")
-        _string_array(
+        evidence_refs = _string_array(
             suggestion["evidence_refs"],
             f"{label}.evidence_refs",
             nonempty=False,
         )
+        unknown_refs = sorted(set(evidence_refs) - allowed_evidence_refs)
+        if unknown_refs:
+            raise ValidationError(
+                f"{label} evidence_refs are not present in the retained context: "
+                + ", ".join(unknown_refs)
+            )
         _string_array(
             suggestion["falsification_conditions"],
             f"{label}.falsification_conditions",
