@@ -1141,7 +1141,9 @@ reject before a packaged gate can use the retained result body for JSON Pointer
 resolution. Retained workflow-adjudication handoffs now replay the same
 non-evidence boundary at the composite layer: completed receipt semantics, false
 evidence eligibility, `reviewed_composite_run_required` status, and the bounded
-claim ceiling must match before package gates can cite adjudication content.
+claim ceiling must match, and the adjudication must bind to the packaged
+protocol, observation dataset, and declared run output, before package gates can
+cite adjudication content.
 When a package includes locators, verification also recomputes the packaged
 protocol, dataset, and run frozen hash commitments from the unredacted bytes;
 redacted packages preserve but cannot independently replay locator-bearing

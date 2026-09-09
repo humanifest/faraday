@@ -846,7 +846,12 @@ def _validate_execution_handoff_measurement_value_check(run: ResearchRun) -> Non
             )
 
 
-def _verified_handoff_results_by_output_sha(run: ResearchRun) -> dict[str, Any]:
+def _verified_handoff_results_by_output_sha(
+    *,
+    protocol: ExperimentProtocol,
+    run: ResearchRun,
+    output_artifacts: list[DatasetArtifact],
+) -> dict[str, Any]:
     execution_handoff = run.metadata.get("execution_handoff")
     adjudication_handoff = run.metadata.get("workflow_adjudication_handoff")
     if execution_handoff is not None and adjudication_handoff is not None:
@@ -893,6 +898,9 @@ def _verified_handoff_results_by_output_sha(run: ResearchRun) -> dict[str, Any]:
         if (
             adjudication.get("adjudication_version") != 1
             or adjudication.get("status") != "passed"
+            or adjudication.get("protocol_id") != protocol.protocol_id
+            or adjudication.get("protocol_hash") != protocol.protocol_hash
+            or adjudication.get("observation_dataset_id") not in run.dataset_ids
             or adjudication.get("scientific_evidence_eligible") is not False
             or adjudication.get("canonical_status")
             != "reviewed_composite_run_required"
@@ -903,12 +911,29 @@ def _verified_handoff_results_by_output_sha(run: ResearchRun) -> dict[str, Any]:
                 f"package run {run.run_id} workflow_adjudication_handoff adjudication authority boundary is invalid"
             )
         output = receipt.get("output")
-        if not isinstance(output, dict):
-            return {}
+        if (
+            not isinstance(output, dict)
+            or output.get("locator")
+            not in {"workflow-adjudication.json", _REDACTED_ARTIFACT_LOCATOR}
+            or not isinstance(output.get("size_bytes"), int)
+            or output["size_bytes"] <= 0
+        ):
+            raise ValidationError(
+                f"package run {run.run_id} workflow_adjudication_handoff output is invalid"
+            )
         digest = require_sha256(
             output.get("sha256"),
             f"package run {run.run_id} workflow_adjudication_handoff output.sha256",
         )
+        if not any(
+            artifact.sha256 == digest
+            and artifact.locator == output.get("locator")
+            and artifact.size_bytes == output["size_bytes"]
+            for artifact in output_artifacts
+        ):
+            raise ValidationError(
+                f"package run {run.run_id} workflow_adjudication_handoff output is not a declared run artifact"
+            )
         return {digest: adjudication}
     handoff = execution_handoff
     if not isinstance(handoff, dict):
@@ -944,7 +969,9 @@ def _verified_handoff_results_by_output_sha(run: ResearchRun) -> dict[str, Any]:
         )
     output = receipt.get("output")
     if not isinstance(output, dict):
-        return {}
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff output must be an object"
+        )
     digest = require_sha256(
         output.get("sha256"),
         f"package run {run.run_id} execution_handoff output.sha256",
@@ -1995,7 +2022,9 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     locator_policy=manifest["artifact_locator_policy"],
                 )
                 verified_results_by_sha = _verified_handoff_results_by_output_sha(
-                    run
+                    protocol=protocol,
+                    run=run,
+                    output_artifacts=output_artifacts,
                 )
                 quality_gates = validate_quality_gates(run.quality_gates)
                 gate_by_id = {item.gate_id: item for item in quality_gates}

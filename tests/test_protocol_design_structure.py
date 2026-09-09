@@ -1592,6 +1592,30 @@ def test_holm_execution_binds_frozen_workflow_family_and_registered_input(tmp_pa
             ),
             "receipt semantics are invalid",
         ),
+        (
+            lambda handoff: handoff["adjudication"].__setitem__(
+                "protocol_id", "other-protocol"
+            ),
+            "adjudication authority boundary is invalid",
+        ),
+        (
+            lambda handoff: handoff["adjudication"].__setitem__(
+                "observation_dataset_id", "other-dataset"
+            ),
+            "adjudication authority boundary is invalid",
+        ),
+        (
+            lambda handoff: handoff["receipt"]["output"].__setitem__(
+                "locator", "renamed-adjudication.json"
+            ),
+            "output is invalid",
+        ),
+        (
+            lambda handoff: handoff["receipt"]["output"].__setitem__(
+                "size_bytes", handoff["receipt"]["output"]["size_bytes"] + 1
+            ),
+            "not a declared run artifact",
+        ),
     ):
         tampered_runs = json.loads(json.dumps(packaged_runs))
         tampered_composite = next(
