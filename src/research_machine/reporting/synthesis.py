@@ -110,6 +110,20 @@ def _evidence_detail_lines(
     return lines
 
 
+def _cross_lane_lesson_lines(lessons: list[CrossLaneLesson]) -> list[str]:
+    lines = [f"- Cross-lane process lessons: {len(lessons)}"]
+    for lesson in sorted(lessons, key=lambda item: (item.created_at, item.lesson_id)):
+        commitment = lesson.lesson_payload_sha256 or "legacy_missing"
+        lines.append(
+            f"  - `{lesson.lesson_id}`: `{lesson.origin_lane_id}` -> "
+            f"{', '.join(f'`{lane}`' for lane in lesson.target_lane_ids)}; "
+            f"failure class `{lesson.failure_class}`; origin artifact "
+            f"`{lesson.origin_artifact_sha256}` ({lesson.origin_integrity_status}); "
+            f"payload commitment `{commitment}`; ceiling: {lesson.conclusion_ceiling}"
+        )
+    return lines
+
+
 def build_synthesis(
     inquiry: Inquiry,
     questions: list[Question],
@@ -818,7 +832,7 @@ def build_synthesis(
             f"- Parked hypotheses: {len(parked)}",
             f"- Active hypotheses: {len(active)}",
             f"- Evidence records: {len(evidence)}",
-            f"- Cross-lane process lessons: {len(cross_lane_lessons)}",
+            *_cross_lane_lesson_lines(cross_lane_lessons),
             _recommendation_summary(recommendations),
             "",
         ]

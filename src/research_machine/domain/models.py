@@ -925,10 +925,13 @@ class CrossLaneLesson(Serializable):
     conclusion_ceiling: str
     created_at: str
     created_by: str
+    lesson_payload_sha256: str = ""
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "CrossLaneLesson":
-        return cls(**value)
+        copied = dict(value)
+        copied.setdefault("lesson_payload_sha256", "")
+        return cls(**copied)
 
 
 @dataclass(frozen=True)

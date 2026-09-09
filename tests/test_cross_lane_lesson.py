@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -55,11 +56,47 @@ def test_cross_lane_lesson_is_immutable_ledgered_process_state(tmp_path: Path) -
     lesson = service.record_cross_lane_lesson(valid_command())
 
     assert lesson.lesson_id == "lesson-lesson00"
+    assert len(lesson.lesson_payload_sha256) == 64
     assert lesson.failure_class == "interface_ambiguity"
     assert service.list_cross_lane_lessons() == [lesson]
     assert service.show_inquiry()["cross_lane_lessons"] == [lesson.to_dict()]
-    assert "Cross-lane process lessons: 1" in service.build_synthesis()["content"]
+    synthesis = service.build_synthesis()["content"]
+    assert "Cross-lane process lessons: 1" in synthesis
+    assert f"payload commitment `{lesson.lesson_payload_sha256}`" in synthesis
+    assert "origin artifact `" + ("a" * 64) + "` (declared)" in synthesis
     assert service.verify_ledger()["events"] == 3
+
+
+def test_cross_lane_lesson_reads_replay_payload_commitment(tmp_path: Path) -> None:
+    service = prepared_service(tmp_path)
+    service.record_cross_lane_lesson(valid_command())
+    lesson_file = next(tmp_path.rglob("cross_lane_lessons/*.json"))
+    payload = json.loads(lesson_file.read_text(encoding="utf-8"))
+    payload["proposed_repair"] = "Silently rewrite the old target."
+    lesson_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="payload no longer matches"):
+        service.list_cross_lane_lessons()
+    with pytest.raises(ValidationError, match="payload no longer matches"):
+        service.show_inquiry()
+    with pytest.raises(ValidationError, match="payload no longer matches"):
+        service.build_synthesis()
+
+
+def test_legacy_cross_lane_lessons_without_payload_commitment_remain_readable(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    lesson = service.record_cross_lane_lesson(valid_command())
+    lesson_file = next(tmp_path.rglob("cross_lane_lessons/*.json"))
+    payload = json.loads(lesson_file.read_text(encoding="utf-8"))
+    payload.pop("lesson_payload_sha256")
+    lesson_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    restored = service.list_cross_lane_lessons()[0]
+    assert restored.lesson_id == lesson.lesson_id
+    assert restored.lesson_payload_sha256 == ""
+    assert "payload commitment `legacy_missing`" in service.build_synthesis()["content"]
 
 
 @pytest.mark.parametrize(

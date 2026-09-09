@@ -41,7 +41,12 @@ methods without changing its epistemic rules or canonical state.
 - Cross-lane process lessons preserve observed failures without rewriting prior
   conclusions. Lane IDs, artifact locators, integrity status, failure class,
   future-version handles, and prohibited-target handles must be canonical before
-  the lesson can influence later work.
+  the lesson can influence later work. New lesson records carry a
+  service-generated payload commitment, and authoritative reads replay that
+  commitment before list, inquiry display, or synthesis can trust the lesson.
+  Deterministic synthesis exposes each lesson's lane transfer, failure class,
+  origin artifact digest, conclusion ceiling, and commitment status. Legacy
+  uncommitted lessons remain visible without being silently upgraded.
 - Cross-disciplinary CSV summaries, correlation, and seeded permutation testing;
   summary, correlation, two-group estimators, adjusted models, and missingness
   methods require requested column, comparison, covariate, unit, pair, family,

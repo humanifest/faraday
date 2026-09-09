@@ -1655,7 +1655,16 @@ failure class, future-version handles, and prohibited-target handles must be
 canonical without surrounding whitespace before the lesson can become process
 state. The future and prohibited version sets must be disjoint. A lesson is
 process state only: recording one does not create evidence, change an old
-verdict, or raise a synthesis conclusion ceiling.
+verdict, or raise a synthesis conclusion ceiling. New lessons also retain a
+service-generated `lesson_payload_sha256` over the complete immutable lesson
+outside that field itself. Authoritative lesson reads replay the commitment
+before list, inquiry display, or synthesis can use the lesson, so an edited
+future-version target, repair, failure class, observation, or conclusion ceiling
+fails closed. Deterministic synthesis reports each lesson's lane transfer,
+failure class, origin artifact digest, retained conclusion ceiling, and payload
+commitment status. Historical lessons without this field remain readable as
+legacy process history, but they are not silently promoted to hash-replayed
+records.
 
 `run template` and `run preflight` are read-only. The template deliberately
 contains invalid placeholders and skipped gates so it cannot be mistaken for an

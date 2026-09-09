@@ -55,6 +55,10 @@ from research_machine.application.policies import (
     validate_selection_weights,
     validate_validation_tag_context,
 )
+from research_machine.application.cross_lane_lesson_integrity import (
+    cross_lane_lesson_payload_sha256,
+    validate_cross_lane_lesson_payload_commitment,
+)
 from research_machine.application.protocol_integrity import (
     protocol_commitment,
 )
@@ -1120,7 +1124,7 @@ class ResearchService:
             ],
             "cross_lane_lessons": [
                 item.to_dict()
-                for item in self.repository.list_cross_lane_lessons(resolved)
+                for item in self._verified_cross_lane_lessons(resolved)
             ],
             "ethics_review_events": [
                 item.to_dict()
@@ -4284,6 +4288,10 @@ class ResearchService:
             created_by=self.actor,
             **normalized,
         )
+        lesson = replace(
+            lesson,
+            lesson_payload_sha256=cross_lane_lesson_payload_sha256(lesson),
+        )
         self.repository.save_cross_lane_lesson(resolved, lesson)
         self._event(
             resolved,
@@ -4298,7 +4306,15 @@ class ResearchService:
         self, inquiry_id: str | None = None
     ) -> list[CrossLaneLesson]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        return self.repository.list_cross_lane_lessons(resolved)
+        return self._verified_cross_lane_lessons(resolved)
+
+    def _verified_cross_lane_lessons(
+        self, inquiry_id: str
+    ) -> list[CrossLaneLesson]:
+        lessons = self.repository.list_cross_lane_lessons(inquiry_id)
+        for lesson in lessons:
+            validate_cross_lane_lesson_payload_commitment(lesson)
+        return lessons
 
     def list_recommendations(
         self, inquiry_id: str | None = None
@@ -5016,7 +5032,7 @@ class ResearchService:
             protocols,
             runs,
             self._verified_recommendations(resolved),
-            self.repository.list_cross_lane_lessons(resolved),
+            self._verified_cross_lane_lessons(resolved),
             rigor_audit,
             evidence_status_events,
         )
