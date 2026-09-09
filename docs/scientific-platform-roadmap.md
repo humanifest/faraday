@@ -1220,10 +1220,11 @@ detect guardrail rewrites inside the review record itself. `research
 collaborator verify-review` independently replays a saved review record against
 a trusted review-record hash, checking the authority flags, retained scientific
 constraints, retained context reference index, proposal-record replay digests,
-review payload version, reviewed suggestion digests, reviewed-suggestion
-evidence-reference coverage, exact coverage of the retained ordered proposal
-suggestion IDs, compatible routes, and advanced-suggestion summary without
-performing canonical writes or authenticating the reviewer. When the retained
+review payload version, reviewed suggestion digests, the ordered
+proposal-suggestion snapshot anchor, reviewed-suggestion evidence-reference
+coverage, exact coverage of the retained ordered proposal suggestion IDs,
+compatible routes, and advanced-suggestion summary without performing canonical
+writes or authenticating the reviewer. When the retained
 context index is nonempty, reviewed suggestions must retain at least one
 context-backed citation during replay, so a copied review record cannot become
 self-consistent by dropping the proposal's grounding. Legacy review records without a

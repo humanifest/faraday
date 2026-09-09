@@ -127,6 +127,7 @@ _PROPOSAL_RECORD_REPLAY_FIELDS = {
     "context_scientific_constraints_sha256",
     "context_write_boundary_sha256",
     "proposal_body_grounding_sha256",
+    "proposal_suggestions_sha256",
 }
 _LEGACY_PROPOSAL_RECORD_REPLAY_FIELDS = (
     _PROPOSAL_RECORD_REPLAY_FIELDS - {"context_write_boundary_sha256"}
@@ -628,12 +629,27 @@ def _proposal_record_replay(record: dict[str, Any]) -> dict[str, str]:
         "proposal_body_grounding_sha256": _sha256_json(
             record["proposal_body_grounding"]
         ),
+        "proposal_suggestions_sha256": _proposal_suggestions_sha256(record),
     }
     if "context_write_boundary" in record:
         replay["context_write_boundary_sha256"] = _sha256_json(
             record["context_write_boundary"]
         )
     return replay
+
+
+def _proposal_suggestions_sha256(record: dict[str, Any]) -> str:
+    proposal = record.get("proposal")
+    if isinstance(proposal, dict) and isinstance(proposal.get("suggestions"), list):
+        suggestions = proposal["suggestions"]
+    else:
+        reviewed_suggestions = record.get("reviewed_suggestions")
+        suggestions = [
+            item.get("suggestion")
+            for item in reviewed_suggestions
+            if isinstance(item, dict)
+        ] if isinstance(reviewed_suggestions, list) else []
+    return _sha256_json([_sha256_json(suggestion) for suggestion in suggestions])
 
 
 def _validate_proposal_record_replay(
@@ -662,7 +678,17 @@ def _validate_proposal_record_replay(
             )
         replay[field] = digest
     expected = _proposal_record_replay(record)
-    if replay != expected:
+    replay_guardrails = {
+        key: value
+        for key, value in replay.items()
+        if key != "proposal_suggestions_sha256"
+    }
+    expected_guardrails = {
+        key: value
+        for key, value in expected.items()
+        if key != "proposal_suggestions_sha256"
+    }
+    if replay_guardrails != expected_guardrails:
         raise ValidationError(
             "collaborator proposal review record proposal_record_replay disagrees with retained proposal-record guardrails"
         )
@@ -1309,6 +1335,7 @@ def verify_collaborator_review_record(
             "collaborator proposal review record reviewed_suggestions must be non-empty"
         )
     reviewed_ids: set[str] = set()
+    reviewed_suggestion_sha256s: list[str] = []
     advanced: list[dict[str, str]] = []
     for index, item in enumerate(reviewed_suggestions):
         label = f"collaborator proposal reviewed_suggestion {index + 1}"
@@ -1361,6 +1388,7 @@ def verify_collaborator_review_record(
             raise ValidationError(f"{label} suggestion_sha256 is invalid")
         if suggestion_sha256 != _sha256_json(suggestion):
             raise ValidationError(f"{label} suggestion_sha256 does not match the suggestion")
+        reviewed_suggestion_sha256s.append(suggestion_sha256)
         decision = decisions_by_id[suggestion_id]
         for field in ("disposition", "rationale", "domain_route"):
             if item[field] != decision[field]:
@@ -1400,6 +1428,15 @@ def verify_collaborator_review_record(
             raise ValidationError(
                 "collaborator proposal reviewed_suggestions must retain the "
                 "proposal suggestion order and coverage"
+            )
+    if has_proposal_record_replay:
+        proposal_suggestions_sha256 = record["proposal_record_replay"].get(
+            "proposal_suggestions_sha256"
+        )
+        if proposal_suggestions_sha256 != _sha256_json(reviewed_suggestion_sha256s):
+            raise ValidationError(
+                "collaborator proposal review record proposal_record_replay "
+                "disagrees with retained proposal suggestion snapshots"
             )
     missing = sorted(set(decisions_by_id) - reviewed_ids)
     if missing:

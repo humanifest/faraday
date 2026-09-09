@@ -1284,6 +1284,7 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
         "provider_required": False,
         "canonical_changes_require": _CANONICAL_CHANGES_REQUIRE,
     }
+    expected_suggestions = proposal["suggestions"]
     assert record["proposal_record_replay"] == {
         "context_reference_index_sha256": _canonical_json_sha256([]),
         "context_scientific_constraints_sha256": _canonical_json_sha256(
@@ -1295,9 +1296,11 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
         "proposal_body_grounding_sha256": _canonical_json_sha256(
             _proposal_body_grounding(proposal)
         ),
+        "proposal_suggestions_sha256": _canonical_json_sha256(
+            [_canonical_json_sha256(item) for item in expected_suggestions]
+        ),
     }
     assert record["proposal_body_grounding"] == _proposal_body_grounding(proposal)
-    expected_suggestions = proposal["suggestions"]
     reviewed = record["reviewed_suggestions"]
     assert reviewed == [
         {
@@ -1837,6 +1840,48 @@ def test_verify_collaborator_review_record_replays_retained_receipts(
     trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
 
     with pytest.raises(ValidationError, match=message):
+        verify_collaborator_review_record(record_path, trusted_hash)
+
+
+def test_verify_collaborator_review_replays_original_suggestion_anchor(
+    tmp_path: Path,
+) -> None:
+    context = _context()
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(_proposal(snapshot["context_sha256"])), encoding="utf-8"
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(
+        json.dumps(_review(validated["record_sha256"])), encoding="utf-8"
+    )
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    suggestion = record["reviewed_suggestions"][0]["suggestion"]
+    suggestion["statement"] = "Replace the reviewed suggestion after adjudication."
+    record["reviewed_suggestions"][0]["suggestion_sha256"] = _canonical_json_sha256(
+        suggestion
+    )
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="proposal_record_replay disagrees"):
         verify_collaborator_review_record(record_path, trusted_hash)
 
 
