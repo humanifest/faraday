@@ -263,6 +263,14 @@ def _canonical_json_sha256(value: dict) -> str:
     ).hexdigest()
 
 
+def _pad_retained_suggestion_statement(record: dict) -> None:
+    suggestion = record["reviewed_suggestions"][0]["suggestion"]
+    suggestion["statement"] = " Add a prespecified negative-control outcome. "
+    record["reviewed_suggestions"][0]["suggestion_sha256"] = _canonical_json_sha256(
+        suggestion
+    )
+
+
 def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
     tmp_path: Path,
 ) -> None:
@@ -360,6 +368,24 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
             ),
             "evidence_refs must be canonical",
         ),
+        (
+            lambda proposal: proposal.update(
+                {"summary": " The observed contrast may not identify the proposed cause. "}
+            ),
+            "summary must be canonical",
+        ),
+        (
+            lambda proposal: proposal["suggestions"][0].update(
+                {"statement": " Add a prespecified negative-control outcome. "}
+            ),
+            "statement must be canonical",
+        ),
+        (
+            lambda proposal: proposal["suggestions"][0].update(
+                {"next_test": " Review whether the control is causally insulated from exposure. "}
+            ),
+            "next_test must be canonical",
+        ),
     ],
 )
 def test_proposal_fails_closed_on_missing_scientific_boundaries(
@@ -381,6 +407,51 @@ def test_proposal_fails_closed_on_missing_scientific_boundaries(
             tmp_path / "validated",
         )
     assert not (tmp_path / "validated").exists()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda review: review.update(
+                {"overall_assessment": " Advance the control idea for ordinary design review. "}
+            ),
+            "overall_assessment must be canonical",
+        ),
+        (
+            lambda review: review["decisions"][0].update(
+                {"rationale": " The proposed control could discriminate an alternative explanation. "}
+            ),
+            "decision.rationale must be canonical",
+        ),
+    ],
+)
+def test_collaborator_review_prose_must_be_canonical(
+    tmp_path: Path, mutation, message: str
+) -> None:
+    context = _context()
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(snapshot["context_sha256"])
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review = _review(validated["record_sha256"])
+    mutation(review)
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(review), encoding="utf-8")
+    with pytest.raises(ValidationError, match=message):
+        adjudicate_collaborator_proposal(
+            Path(validated["record_file"]),
+            validated["record_sha256"],
+            review_path,
+            tmp_path / "reviewed",
+        )
+    assert not (tmp_path / "reviewed").exists()
 
 
 def test_proposal_suggestion_ids_must_be_canonical(tmp_path: Path) -> None:
@@ -843,6 +914,22 @@ def test_verify_collaborator_review_replays_retained_context_references(
                 {"authority": "canonical_write"}
             ),
             "authority must be review_only",
+        ),
+        (
+            lambda record: record["review"].update(
+                {"overall_assessment": " Advance the control idea for ordinary design review. "}
+            ),
+            "overall_assessment must be canonical",
+        ),
+        (
+            lambda record: record["review"]["decisions"][0].update(
+                {"rationale": " The proposed control could discriminate an alternative explanation. "}
+            ),
+            "decision.rationale must be canonical",
+        ),
+        (
+            _pad_retained_suggestion_statement,
+            "statement must be canonical",
         ),
     ],
 )

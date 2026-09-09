@@ -826,10 +826,13 @@ hypotheses retain their unapproved workflow state when cited for review; proposa
 optional collaborator cannot smuggle uncited external claims across the provider
 boundary. Context and proposal purpose bindings, context handles, proposal IDs,
 generator provider/model handles, suggestion IDs, evidence references, review
-IDs, reviewer handles, and review-decision suggestion IDs must be canonical
-without surrounding whitespace before coverage or duplicate checks, so whitespace
-padding cannot be silently rewritten into a task purpose, citation, source
-identity, or review obligation. It does not call a provider, modify the inquiry,
+IDs, reviewer handles, review-decision suggestion IDs, proposal summaries,
+uncertainty statements, suggestion statements, suggestion rationales, suggestion
+uncertainty, next-test prose, review assessments, and review-decision rationales
+must be canonical without surrounding whitespace before coverage or duplicate
+checks, so whitespace padding cannot be silently rewritten into a task purpose,
+citation, source identity, review obligation, or scientific prose. It does not
+call a provider, modify the inquiry,
 accept a finding, create evidence, or authorize an action. Any accepted idea
 must still be translated deliberately through the normal question, hypothesis,
 protocol-freeze, ethics, custody, run, and evidence commands.

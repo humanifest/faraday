@@ -1043,10 +1043,13 @@ exact constraint text for later inspection. Active and `pending_review`
 hypotheses are exposed in separate context lanes, and pending hypotheses retain
 their unapproved workflow state when cited for review. Context and proposal
 purpose bindings, context handles, proposal IDs, generator provider/model
-handles, suggestion IDs, evidence references, review IDs, reviewer handles, and
-review-decision suggestion IDs must be canonical without surrounding whitespace
-before coverage or duplicate checks, so whitespace padding cannot be silently
-rewritten into a task purpose, citation, source identity, or review obligation.
+handles, suggestion IDs, evidence references, review IDs, reviewer handles,
+review-decision suggestion IDs, proposal summaries, uncertainty statements,
+suggestion statements, suggestion rationales, suggestion uncertainty, next-test
+prose, review assessments, and review-decision rationales must be canonical
+without surrounding whitespace before coverage or duplicate checks, so
+whitespace padding cannot be silently rewritten into a task purpose, citation,
+source identity, review obligation, or scientific prose.
 The resulting record remains `pending_human_review`, scientifically ineligible,
 and unable to authorize or write anything. Neither command invokes a model, so
 this workflow has no provider or API-cost dependency.

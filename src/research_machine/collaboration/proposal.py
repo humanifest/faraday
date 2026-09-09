@@ -354,7 +354,7 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
         raise ValidationError("collaborator proposal purpose does not match its context")
     _canonical_text(proposal["purpose"], "purpose")
     for field in ("summary", "uncertainty"):
-        _text(proposal[field], field)
+        _canonical_text(proposal[field], field)
     for field in ("competing_explanations", "disconfirming_evidence", "limitations"):
         _string_array(proposal[field], field)
     allowed_evidence_refs = _context_reference_ids(context)
@@ -391,7 +391,7 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
         if suggestion["authority"] != "review_only":
             raise ValidationError(f"{label} authority must be review_only")
         for field in ("statement", "rationale", "uncertainty", "next_test"):
-            _text(suggestion[field], field)
+            _canonical_text(suggestion[field], field)
         evidence_refs = _string_array(
             suggestion["evidence_refs"], "evidence_refs", nonempty=False
         )
@@ -526,7 +526,7 @@ def adjudicate_collaborator_proposal(
             or value["size_bytes"] <= 0
         ):
             raise ValidationError(f"collaborator proposal record {label} size is invalid")
-    _text(record["conclusion_ceiling"], "record.conclusion_ceiling")
+    _canonical_text(record["conclusion_ceiling"], "record.conclusion_ceiling")
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
@@ -544,7 +544,7 @@ def adjudicate_collaborator_proposal(
     if review["proposal_record_sha256"] != record_digest:
         raise ValidationError("collaborator proposal review is not bound to the exact proposal record")
     _rfc3339(review["reviewed_at"], "reviewed_at")
-    _text(review["overall_assessment"], "overall_assessment")
+    _canonical_text(review["overall_assessment"], "overall_assessment")
     reviewer = review["reviewer"]
     if not isinstance(reviewer, dict):
         raise ValidationError("collaborator proposal review reviewer must be an object")
@@ -575,7 +575,7 @@ def adjudicate_collaborator_proposal(
         disposition = decision["disposition"]
         if disposition not in _DISPOSITIONS:
             raise ValidationError(f"{label} disposition is invalid")
-        _text(decision["rationale"], "decision.rationale")
+        _canonical_text(decision["rationale"], "decision.rationale")
         route = decision["domain_route"]
         if disposition == "advance_to_domain_review":
             if route not in _DOMAIN_ROUTES:
@@ -718,7 +718,7 @@ def verify_collaborator_review_record(
         record.get("review_input"),
         "collaborator proposal review record review_input",
     )
-    _text(record["conclusion_ceiling"], "review_record.conclusion_ceiling")
+    _canonical_text(record["conclusion_ceiling"], "review_record.conclusion_ceiling")
     _context_scientific_constraints(
         {"scientific_constraints": record["context_scientific_constraints"]}
     )
@@ -740,6 +740,7 @@ def verify_collaborator_review_record(
         )
     _canonical_text(review["review_id"], "review_id")
     _rfc3339(review["reviewed_at"], "reviewed_at")
+    _canonical_text(review["overall_assessment"], "overall_assessment")
     reviewer = review["reviewer"]
     if not isinstance(reviewer, dict):
         raise ValidationError("collaborator proposal review reviewer must be an object")
@@ -761,7 +762,7 @@ def verify_collaborator_review_record(
         disposition = decision["disposition"]
         if disposition not in _DISPOSITIONS:
             raise ValidationError(f"{label} disposition is invalid")
-        _text(decision["rationale"], "decision.rationale")
+        _canonical_text(decision["rationale"], "decision.rationale")
         decisions_by_id[suggestion_id] = decision
 
     reviewed_suggestions = record["reviewed_suggestions"]
@@ -793,7 +794,7 @@ def verify_collaborator_review_record(
         if suggestion["authority"] != "review_only":
             raise ValidationError(f"{label} suggestion authority must be review_only")
         for field in ("statement", "rationale", "uncertainty", "next_test"):
-            _text(suggestion[field], f"{label}.{field}")
+            _canonical_text(suggestion[field], f"{label}.{field}")
         evidence_refs = _string_array(
             suggestion["evidence_refs"],
             f"{label}.evidence_refs",
