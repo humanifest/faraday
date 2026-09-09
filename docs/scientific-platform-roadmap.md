@@ -1409,7 +1409,10 @@ retains the mapped claim IDs, citation verdicts, citation-check locations, and
 interpretive ceilings that brought the study across the evidence-map boundary,
 plus the retained source-file hashes for those mapped claims, and preparation
 rejects extraction source sets that do not match the plan's frozen included
-sources. It replays the same evidence-map non-authority boundary and summary
+sources. It replays extraction non-authority flags, retained limitations,
+`record_count`, and every mapped claim's compact extraction-payload digest
+against the supplied extraction bytes before trusting evidence-map claims. It
+also replays the same evidence-map non-authority boundary and summary
 counts before preserving study-level effects. Unavailable statistics must remain explicit null records and count
 against the frozen minimum-study requirement. This validates finite values,
 positive variance, coverage, review provenance, source-byte continuity, and plan

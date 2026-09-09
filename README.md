@@ -1101,7 +1101,10 @@ Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim
 IDs, citation-review anchors, and retained source-file hashes, after checking
 the extraction source set against the synthesis plan's frozen included sources
-and replaying the evidence map's non-authority boundary and summary counts.
+and replaying extraction non-authority flags, retained limitations,
+`record_count`, and every mapped claim's compact extraction-payload digest
+against the supplied extraction bytes. It also replays the evidence map's
+non-authority boundary and summary counts.
 Trusted plan, evidence-map,
 effect-record, effect-verification, and deviation hashes must be canonical
 lowercase SHA-256 digests before later synthesis commands can bind those

@@ -14,6 +14,27 @@ def write_json(path, value):
     return hashlib.sha256(encoded).hexdigest()
 
 
+def claim_digest(source_id, record, source_retained_file_sha256="legacy_missing"):
+    payload = {
+        "source_id": source_id,
+        "extraction_id": record["extraction_id"],
+        "study_id": record["study_id"],
+        "claim_text": record["claim_text"],
+        "evidence_location": record["evidence_location"],
+        "epistemic_layer": record["epistemic_layer"],
+        "result_direction": record["result_direction"],
+        "uncertainty": record["uncertainty"],
+        "notes": record["notes"],
+    }
+    if source_retained_file_sha256 != "legacy_missing":
+        payload["source_retained_file_sha256"] = source_retained_file_sha256
+    return hashlib.sha256(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def artifacts(tmp_path, minimum=1):
     screening_sha = "1" * 64
     plan = tmp_path / "plan.json"
@@ -22,24 +43,41 @@ def artifacts(tmp_path, minimum=1):
         "minimum_independent_studies": minimum, "screening_sha256": screening_sha,
         "snapshot_id": "snap", "plan_id": "p1", "included_source_ids_at_freeze": ["source-fixture"]})
     extraction = tmp_path / "extraction.json"
+    extraction_records = [
+        {"extraction_id": "claim-1", "study_id": "study-1",
+         "claim_text": "Synthetic claim 1", "evidence_location": "page 1",
+         "epistemic_layer": "observed", "result_direction": "mixed",
+         "uncertainty": "fixture", "notes": "fixture notes 1"},
+        {"extraction_id": "claim-2", "study_id": "study-2",
+         "claim_text": "Synthetic claim 2", "evidence_location": "page 2",
+         "epistemic_layer": "observed", "result_direction": "mixed",
+         "uncertainty": "fixture", "notes": "fixture notes 2"},
+    ]
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded",
-        "screening_sha256": screening_sha, "snapshot_id": "snap",
-        "source_reviews": [{"source_id": "source-fixture"}]})
+        "screening_sha256": screening_sha, "snapshot_id": "snap", "record_count": 2,
+        "scientific_evidence_eligible": False,
+        "limitations": [
+            "Records are reviewer assertions bound to source IDs and locations; the machine has not verified that source text supports them.",
+            "Extraction does not perform risk-of-bias assessment, resolve disagreements, accept claims as facts, or conduct synthesis.",
+        ],
+        "source_reviews": [{"source_id": "source-fixture", "records": extraction_records}]})
     evidence_map = tmp_path / "map.json"
-    claim_template = {
+    def mapped_claim(extraction_id, study_id, digest):
+        return {"study_id": study_id, "risk_of_bias": "low" if study_id == "study-1" else "high",
+        "extraction_id": extraction_id,
         "source_id": "source-fixture",
-        "extraction_claim_sha256": "a" * 64,
+        "extraction_claim_sha256": digest,
         "result_direction": "mixed",
         "interpretive_ceiling": "reviewed_source_claim",
         "citation_verdict": "supported",
         "citation_checked_location": "page fixture",
-    }
+        }
     map_sha = write_json(evidence_map, {"evidence_map_version": 1, "status": "evidence_map_recorded",
         "snapshot_id": "snap", "inputs": {"extraction_sha256": extraction_sha},
-        "claims": [{"study_id": "study-1", "risk_of_bias": "low",
-                    "extraction_id": "claim-1", **claim_template},
-                   {"study_id": "study-2", "risk_of_bias": "high",
-                    "extraction_id": "claim-2", **claim_template}],
+        "claims": [
+            mapped_claim("claim-1", "study-1", claim_digest("source-fixture", extraction_records[0])),
+            mapped_claim("claim-2", "study-2", claim_digest("source-fixture", extraction_records[1])),
+        ],
         "claim_count": 2, "study_count": 2,
         "interpretive_ceiling_counts": {"reviewed_source_claim": 2},
         "scientific_evidence_eligible": False, "conclusion_authorized": False,
@@ -72,7 +110,10 @@ def test_effect_cli_preserves_unavailable_study_and_is_write_once(tmp_path, caps
     assert result["records"][0]["variance"] == pytest.approx(0.01)
     assert result["records"][1]["risk_of_bias"] == "high"
     assert result["records"][0]["mapped_claims"][0]["extraction_id"] == "claim-1"
-    assert result["records"][0]["mapped_claims"][0]["extraction_claim_sha256"] == "a" * 64
+    extraction_record = json.loads(extraction.read_text())["source_reviews"][0]["records"][0]
+    assert result["records"][0]["mapped_claims"][0]["extraction_claim_sha256"] == claim_digest(
+        "source-fixture", extraction_record
+    )
     assert result["records"][0]["mapped_claims"][0]["citation_checked_location"] == "page fixture"
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
@@ -98,6 +139,8 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
 @pytest.mark.parametrize("failure", [
     "plan-hash", "map-hash", "measure", "missing", "duplicate", "padded-duplicate",
     "extraction-source-duplicate", "nan", "se", "bool-n", "unavailable-value",
+    "extraction-authority", "extraction-count-drift", "extraction-limitations-missing",
+    "extraction-padded-limitation", "extraction-claim-payload", "extraction-extra-claim",
     "plan-source-missing", "plan-source-drift", "padded-plan-source",
     "padded-extraction-source", "padded-map-study", "padded-map-source",
     "padded-map-extraction", "padded-map-citation-location", "map-provenance",
@@ -117,8 +160,36 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     elif failure == "padded-duplicate": candidate["records"][1]["study_id"] = " study-1 "
     elif failure == "extraction-source-duplicate":
         value = json.loads(extraction.read_text())
-        value["source_reviews"].append({"source_id": "source-fixture"})
+        value["source_reviews"].append({"source_id": "source-fixture", "records": []})
         write_json(extraction, value)
+    elif failure in {
+        "extraction-authority",
+        "extraction-count-drift",
+        "extraction-limitations-missing",
+        "extraction-padded-limitation",
+        "extraction-claim-payload",
+        "extraction-extra-claim",
+    }:
+        value = json.loads(extraction.read_text())
+        if failure == "extraction-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "extraction-count-drift":
+            value["record_count"] = 1
+        elif failure == "extraction-limitations-missing":
+            value["limitations"] = []
+        elif failure == "extraction-padded-limitation":
+            value["limitations"][0] = " " + value["limitations"][0]
+        elif failure == "extraction-claim-payload":
+            value["source_reviews"][0]["records"][0]["notes"] = "changed fixture notes"
+        elif failure == "extraction-extra-claim":
+            duplicate = dict(value["source_reviews"][0]["records"][0])
+            duplicate["extraction_id"] = "claim-3"
+            value["source_reviews"][0]["records"].append(duplicate)
+            value["record_count"] = 3
+        extraction_sha = write_json(extraction, value)
+        value = json.loads(evidence_map.read_text())
+        value["inputs"]["extraction_sha256"] = extraction_sha
+        map_sha = write_json(evidence_map, value)
     elif failure == "nan": candidate["records"][0]["estimate"] = float("nan")
     elif failure == "se": candidate["records"][0]["standard_error"] = 0
     elif failure == "bool-n": candidate["records"][0]["sample_size"] = True
