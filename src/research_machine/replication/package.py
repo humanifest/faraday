@@ -29,6 +29,7 @@ from research_machine.application.policies import (
     require_sha256,
     require_canonical_text,
     require_unique_canonical_text_list,
+    normalize_text,
     validate_quality_gates,
 )
 from research_machine.application.protocol_integrity import protocol_commitment
@@ -97,7 +98,7 @@ def _validate_packaged_artifacts(
     locator_policy: str,
 ) -> list[DatasetArtifact]:
     if not artifacts:
-        raise ValidationError(f"{label} must contain at least one output artifact")
+        raise ValidationError(f"{label} must contain at least one artifact")
     normalized: list[DatasetArtifact] = []
     locators: set[str] = set()
     digests: set[str] = set()
@@ -121,9 +122,13 @@ def _validate_packaged_artifacts(
             or artifact.size_bytes < 0
         ):
             raise ValidationError(f"{label} artifact size_bytes must be non-negative or null")
-        media_type = require_canonical_text(
+        media_type = normalize_text(
             artifact.media_type, f"{label} artifact media_type"
         )
+        if media_type != artifact.media_type:
+            raise ValidationError(
+                f"{label} artifact media_type must be canonical without surrounding whitespace"
+            )
         if not isinstance(artifact.metadata, dict):
             raise ValidationError(f"{label} artifact metadata must be an object")
         locators.add(locator)
@@ -1326,6 +1331,11 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 raise ValidationError("package run IDs disagree with unique run records")
             dataset_by_id = {item.dataset_id: item for item in datasets}
             for dataset in datasets:
+                _validate_packaged_artifacts(
+                    artifacts=dataset.artifacts,
+                    label=f"package dataset {dataset.dataset_id}",
+                    locator_policy=manifest["artifact_locator_policy"],
+                )
                 if manifest.get("artifact_locator_policy") == "included":
                     validate_dataset_payload_commitment(dataset)
                 if len(dataset.source_dataset_ids) != len(set(dataset.source_dataset_ids)):

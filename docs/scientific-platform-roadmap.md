@@ -942,14 +942,15 @@ output-bound gate evidence, prerequisites, validity status, workflow-component
 status, and evidence eligibility. The verifier requires packaged protocol
 requirements, run gates, and run-gate prerequisites to be nonblank, unique, and
 canonical without surrounding whitespace before coverage checks, closing package-
-only ambiguity before a package can be trusted independently. Packaged run
-output artifact declarations are now replayed before downstream gate,
-deviation, and planning checks can cite them: locators, digests, media types,
-sizes, and metadata shape must be canonical, and sizes must be nonnegative where
-applicable. Digest anchors must be duplicate-free; included locators must be
-duplicate-free, while redacted locators must use the explicit package redaction
-placeholder. This prevents package-local rewrites from creating ambiguous output
-hash anchors while keeping the manifest internally consistent. Protocol-deviation
+only ambiguity before a package can be trusted independently. Packaged dataset
+and run artifact declarations are now replayed before lineage, input binding,
+or downstream gate, deviation, and planning checks can cite them: locators,
+digests, media types, sizes, and metadata shape must be canonical, and sizes
+must be nonnegative where applicable. Digest anchors must be duplicate-free;
+included locators must be duplicate-free, while redacted locators must use the
+explicit package redaction placeholder. This prevents package-local rewrites
+from creating ambiguous dataset or output hash anchors while keeping the
+manifest internally consistent. Protocol-deviation
 disclosure metadata is also replayed before eligibility is trusted: legacy
 silence remains ineligible, explicit no-deviation declarations must retain the
 unauthenticated-assertion boundary, declared departures must preserve exact typed

@@ -364,6 +364,9 @@ def test_replication_verify_rejects_noncanonical_manifest_file_hash(
     "privacy_mode", "locator_policy", "limitations", "ethics_summary",
     "instructions", "dataset_summary", "dataset_cycle", "run_eligibility",
     "blank_prerequisite", "padded_prerequisite", "quality_gate_duplicate_after_trim",
+    "dataset_unredacted_locator", "dataset_duplicate_digest",
+    "dataset_padded_locator", "dataset_bad_hash", "dataset_negative_size",
+    "dataset_bad_metadata", "dataset_padded_media_type",
     "protocol_gate_duplicate", "protocol_gate_padded", "output_unredacted_locator",
     "output_duplicate_digest", "output_padded_locator", "output_bad_hash",
     "output_negative_size", "output_bad_metadata", "output_padded_media_type",
@@ -572,6 +575,40 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         manifest_path.write_text(json.dumps(manifest))
         commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     elif mutation in {
+        "dataset_unredacted_locator",
+        "dataset_duplicate_digest",
+        "dataset_padded_locator",
+        "dataset_bad_hash",
+        "dataset_negative_size",
+        "dataset_bad_metadata",
+        "dataset_padded_media_type",
+    }:
+        datasets_path = package / "datasets.json"
+        datasets = json.loads(datasets_path.read_text())
+        artifact = datasets[0]["artifacts"][0]
+        if mutation == "dataset_unredacted_locator":
+            artifact["locator"] = "observations.csv"
+        elif mutation == "dataset_duplicate_digest":
+            duplicate = dict(artifact)
+            duplicate["locator"] = "duplicate-digest.csv"
+            datasets[0]["artifacts"].append(duplicate)
+        elif mutation == "dataset_padded_locator":
+            artifact["locator"] = f" {artifact['locator']} "
+        elif mutation == "dataset_bad_hash":
+            artifact["sha256"] = "A" * 64
+        elif mutation == "dataset_negative_size":
+            artifact["size_bytes"] = -1
+        elif mutation == "dataset_bad_metadata":
+            artifact["metadata"] = []
+        elif mutation == "dataset_padded_media_type":
+            artifact["media_type"] = f" {artifact['media_type']} "
+        datasets_path.write_text(json.dumps(datasets, indent=2, sort_keys=True) + "\n")
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["datasets.json"] = hashlib.sha256(datasets_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation in {
         "output_unredacted_locator",
         "output_duplicate_digest",
         "output_padded_locator",
@@ -630,7 +667,7 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
     assert service.verify_ledger()["valid"] is True
 
 
-def test_redacted_replication_package_allows_multiple_output_artifacts(
+def test_redacted_replication_package_allows_multiple_artifacts(
     tmp_path: Path,
 ) -> None:
     service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
@@ -665,7 +702,10 @@ def test_redacted_replication_package_allows_multiple_output_artifacts(
     dataset = service.register_dataset(RegisterDataset(
         name="Synthetic observations",
         role=DatasetRole.CONFIRMATORY,
-        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        artifacts=[
+            DatasetArtifact("observations.csv", "d" * 64),
+            DatasetArtifact("observations-sidecar.json", "c" * 64),
+        ],
         protocol_id=frozen.protocol_id,
         synthetic=True,
         quality_attestations=["Synthetic package fixture."],
@@ -719,14 +759,21 @@ def test_redacted_replication_package_allows_multiple_output_artifacts(
     )
     package = tmp_path / "package"
     verified = verify_replication_package(package, exported["package_manifest_sha256"])
+    packaged_datasets = json.loads((package / "datasets.json").read_text())
     packaged_runs = json.loads((package / "runs.json").read_text())
-    artifacts = packaged_runs[0]["output_artifacts"]
+    dataset_artifacts = packaged_datasets[0]["artifacts"]
+    output_artifacts = packaged_runs[0]["output_artifacts"]
     assert verified["status"] == "passed"
-    assert [item["locator"] for item in artifacts] == [
+    assert [item["locator"] for item in dataset_artifacts] == [
         "[redacted: obtain from authorized source]",
         "[redacted: obtain from authorized source]",
     ]
-    assert {item["sha256"] for item in artifacts} == {primary_hash, diagnostic_hash}
+    assert {item["sha256"] for item in dataset_artifacts} == {"d" * 64, "c" * 64}
+    assert [item["locator"] for item in output_artifacts] == [
+        "[redacted: obtain from authorized source]",
+        "[redacted: obtain from authorized source]",
+    ]
+    assert {item["sha256"] for item in output_artifacts} == {primary_hash, diagnostic_hash}
 
 
 @pytest.mark.parametrize(
