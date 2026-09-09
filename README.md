@@ -691,7 +691,16 @@ ineligible, explicit no-deviation declarations must retain their interpretation
 boundary, declared departures must preserve exact typed fields, and every
 deviation evidence hash must cite a packaged run output. This keeps departures
 visible in replication handoffs without treating a no-deviation assertion as
-authenticated protocol adherence. Structured
+authenticated protocol adherence. If the frozen protocol has a machine-
+recomputed `sample_size_plan`, package verification also replays the retained
+run `sample_size_plan_check` against the protocol and any retained verified
+execution or workflow-adjudication handoff. Required and observed analyzable
+counts, attrition assumptions and misses, precision-target status, variance-
+ratio disclosure, target handles, receipt hashes, and the
+`scientific_interpretation_verified=false` boundary must match exactly before
+run evidence eligibility is trusted. A package cannot reduce planning
+accountability to a bare `passed` label or turn a planning receipt into achieved
+power or design validity. Structured
 control-evaluation metadata is replayed for passed control gates: each frozen
 control mapped to the gate must have exactly one evaluation, no extra controls
 may appear, `matches_expected` must remain boolean, and the evaluation evidence

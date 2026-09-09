@@ -947,6 +947,14 @@ disclosure metadata is also replayed before eligibility is trusted: legacy
 silence remains ineligible, explicit no-deviation declarations must retain the
 unauthenticated-assertion boundary, declared departures must preserve exact typed
 fields, and every departure's evidence hash must be a packaged run output.
+For plan-bearing protocols, the verifier now replays retained
+`sample_size_plan_check` metadata against the frozen planning receipt and any
+retained verified execution or workflow-adjudication handoff before trusting
+eligibility. Required and observed analyzable counts, attrition diagnostics,
+precision-target status, variance-ratio disclosure, target handles, receipt
+hashes, and the `scientific_interpretation_verified=false` boundary must match
+exactly, preventing exported packages from collapsing planning accountability
+into a bare `passed` label or presenting a planning check as achieved power.
 Structured
 preprocessing-conformance gate metadata is also checked in package verification:
 the declared conformance record hash must be the gate evidence and a packaged run

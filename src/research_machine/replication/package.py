@@ -22,6 +22,9 @@ from research_machine.domain.models import (
     QualityGateStatus,
 )
 from research_machine.application.policies import (
+    assess_attrition_achievement,
+    assess_precision_achievement,
+    assess_variance_assumption,
     is_canonical_sha256,
     require_sha256,
     require_canonical_text,
@@ -900,6 +903,238 @@ def _validate_protocol_deviation_disclosure_metadata(
     return disclosure
 
 
+def _resolve_json_pointer(value: Any, pointer: str, field_name: str) -> Any:
+    pointer = require_canonical_text(pointer, field_name)
+    if pointer == "":
+        return value
+    if not pointer.startswith("/"):
+        raise ValidationError(f"{field_name} must be an absolute JSON Pointer")
+    current = value
+    for raw_part in pointer.split("/")[1:]:
+        part = raw_part.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, list):
+            if not part.isdigit():
+                raise ValidationError(f"{field_name} does not resolve")
+            index = int(part)
+            if index >= len(current):
+                raise ValidationError(f"{field_name} does not resolve")
+            current = current[index]
+        elif isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            raise ValidationError(f"{field_name} does not resolve")
+    return current
+
+
+def _validate_sample_size_plan_check_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    run: ResearchRun,
+) -> dict[str, Any]:
+    check = run.metadata.get("sample_size_plan_check")
+    if not protocol.sample_size_plan:
+        expected = {
+            "status": "not_applicable",
+            "reason": "protocol has no machine-recomputed sample_size_plan",
+        }
+        if check != expected:
+            raise ValidationError(
+                f"package run {run.run_id} sample_size_plan_check disagrees with the protocol"
+            )
+        return expected
+    if not isinstance(check, dict):
+        raise ValidationError(
+            f"package run {run.run_id} requires sample_size_plan_check metadata"
+        )
+    required_fields = {
+        "status",
+        "strategy",
+        "target_hypothesis_id",
+        "target_measurement_id",
+        "measurement_unit",
+        "planning_target_sha256",
+        "specification_sha256",
+        "required_analyzable_units_per_group",
+        "observed_minimum_analyzable_units_per_group",
+        "anticipated_attrition_fraction",
+        "registered_maximum_excluded_fraction",
+        "observed_excluded_fraction",
+        "precision_achievement",
+        "attrition_achievement",
+        "variance_assumption",
+        "execution_information_check_verified",
+        "scientific_interpretation_verified",
+    }
+    if set(check) != required_fields:
+        raise ValidationError(
+            f"package run {run.run_id} sample_size_plan_check fields are invalid"
+        )
+    status = require_canonical_text(
+        check["status"], f"package run {run.run_id} sample_size_plan_check.status"
+    )
+    if status not in {"passed", "unbound"}:
+        raise ValidationError(
+            f"package run {run.run_id} sample_size_plan_check status is invalid"
+        )
+    for field in (
+        "strategy",
+        "target_hypothesis_id",
+        "target_measurement_id",
+        "measurement_unit",
+        "planning_target_sha256",
+        "specification_sha256",
+    ):
+        value = check[field]
+        if value is not None:
+            require_canonical_text(
+                value, f"package run {run.run_id} sample_size_plan_check.{field}"
+            )
+    if check["planning_target_sha256"] is not None:
+        require_sha256(
+            check["planning_target_sha256"],
+            f"package run {run.run_id} sample_size_plan_check.planning_target_sha256",
+        )
+    require_sha256(
+        check["specification_sha256"],
+        f"package run {run.run_id} sample_size_plan_check.specification_sha256",
+    )
+    if type(check["execution_information_check_verified"]) is not bool:
+        raise ValidationError(
+            f"package run {run.run_id} sample_size_plan_check execution_information_check_verified must be a boolean"
+        )
+    if check["scientific_interpretation_verified"] is not False:
+        raise ValidationError(
+            f"package run {run.run_id} sample_size_plan_check must not verify scientific interpretation"
+        )
+    try:
+        calculation = protocol.sample_size_plan["calculation"]
+        expected_analyzable = calculation["analyzable_n_per_group"]
+        anticipated_attrition = calculation["anticipated_attrition_fraction"]
+        execution_handoff = run.metadata.get("execution_handoff")
+        adjudication_handoff = run.metadata.get("workflow_adjudication_handoff")
+        if execution_handoff is not None and not isinstance(execution_handoff, dict):
+            raise ValidationError(
+                f"package run {run.run_id} execution_handoff must be an object"
+            )
+        if adjudication_handoff is not None and not isinstance(
+            adjudication_handoff, dict
+        ):
+            raise ValidationError(
+                f"package run {run.run_id} workflow_adjudication_handoff must be an object"
+            )
+        if execution_handoff is not None and adjudication_handoff is not None:
+            raise ValidationError(
+                f"package run {run.run_id} cannot retain both execution and adjudication handoffs"
+            )
+        information_check = (
+            execution_handoff.get("receipt", {}).get("registered_information_check")
+            if isinstance(execution_handoff, dict)
+            else adjudication_handoff.get("adjudication", {})
+            .get("primary_estimate", {})
+            .get("registered_information_check")
+            if isinstance(adjudication_handoff, dict)
+            else None
+        )
+        observed_minimum = (
+            information_check.get("observed_minimum_analyzable_units")
+            if isinstance(information_check, dict)
+            else None
+        )
+        execution_bound = bool(
+            protocol.analysis_contract is not None
+            and protocol.analysis_contract.minimum_analyzable_units
+            == expected_analyzable
+            and isinstance(information_check, dict)
+            and information_check.get("status") == "passed"
+            and information_check.get("registered_minimum_analyzable_units")
+            == expected_analyzable
+            and not isinstance(observed_minimum, bool)
+            and isinstance(observed_minimum, (int, float))
+            and observed_minimum >= expected_analyzable
+        )
+        primary_uncertainty = (
+            _resolve_json_pointer(
+                execution_handoff["result"],
+                protocol.analysis_contract.uncertainty_path,
+                f"package run {run.run_id} analysis_contract.uncertainty_path",
+            )
+            if isinstance(execution_handoff, dict)
+            and protocol.analysis_contract is not None
+            and isinstance(
+                execution_handoff.get("receipt", {}).get(
+                    "registered_result_selection"
+                ),
+                dict,
+            )
+            else adjudication_handoff.get("adjudication", {})
+            .get("primary_estimate", {})
+            .get("uncertainty")
+            if isinstance(adjudication_handoff, dict)
+            else None
+        )
+        observed_standard_deviation = (
+            execution_handoff.get("result", {})
+            .get("result", {})
+            .get("pooled_within_group_standard_deviation")
+            if isinstance(execution_handoff, dict)
+            else adjudication_handoff.get("adjudication", {})
+            .get("primary_estimate", {})
+            .get("observed_pooled_standard_deviation")
+            if isinstance(adjudication_handoff, dict)
+            else None
+        )
+        expected = {
+            "status": "passed" if execution_bound else "unbound",
+            "strategy": protocol.sample_size_plan["strategy"],
+            "target_hypothesis_id": protocol.sample_size_plan.get(
+                "target_hypothesis_id"
+            ),
+            "target_measurement_id": protocol.sample_size_plan.get(
+                "target_measurement_id"
+            ),
+            "measurement_unit": protocol.sample_size_plan.get("measurement_unit"),
+            "planning_target_sha256": protocol.sample_size_plan.get(
+                "planning_target_sha256"
+            ),
+            "specification_sha256": protocol.sample_size_plan[
+                "specification_sha256"
+            ],
+            "required_analyzable_units_per_group": expected_analyzable,
+            "observed_minimum_analyzable_units_per_group": observed_minimum,
+            "anticipated_attrition_fraction": anticipated_attrition,
+            "registered_maximum_excluded_fraction": (
+                protocol.analysis_contract.maximum_excluded_fraction
+                if protocol.analysis_contract is not None
+                else None
+            ),
+            "observed_excluded_fraction": (
+                information_check.get("observed_excluded_fraction")
+                if isinstance(information_check, dict)
+                else None
+            ),
+            "precision_achievement": assess_precision_achievement(
+                protocol.sample_size_plan, primary_uncertainty
+            ),
+            "attrition_achievement": assess_attrition_achievement(
+                protocol.sample_size_plan, information_check
+            ),
+            "variance_assumption": assess_variance_assumption(
+                protocol.sample_size_plan, observed_standard_deviation
+            ),
+            "execution_information_check_verified": execution_bound,
+            "scientific_interpretation_verified": False,
+        }
+    except KeyError as exc:
+        raise ValidationError(
+            f"package run {run.run_id} sample_size_plan_check cannot be replayed"
+        ) from exc
+    if check != expected:
+        raise ValidationError(
+            f"package run {run.run_id} sample_size_plan_check no longer matches the protocol-bound calculation"
+        )
+    return check
+
+
 def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any]:
     """Verify packaged bytes against an independently retained export commitment."""
     expected_manifest_sha256 = require_sha256(
@@ -1234,6 +1469,10 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     metadata=run.metadata,
                     output_artifacts=run.output_artifacts,
                 )
+                sample_size_plan_check = _validate_sample_size_plan_check_metadata(
+                    protocol=protocol,
+                    run=run,
+                )
                 invalid = bool(
                     missing_gates
                     or protocol_gate_failure
@@ -1256,13 +1495,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     and artifact_integrity.get("status") == "passed"
                     and (
                         not protocol.sample_size_plan
-                        or (
-                            isinstance(
-                                run.metadata.get("sample_size_plan_check"), dict
-                            )
-                            and run.metadata["sample_size_plan_check"].get("status")
-                            == "passed"
-                        )
+                        or sample_size_plan_check.get("status") == "passed"
                     )
                 )
                 if run.scientific_evidence_eligible is not expected_eligible:

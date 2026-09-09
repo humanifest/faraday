@@ -1296,6 +1296,155 @@ def test_replication_package_verifies_protocol_deviation_disclosure(
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
+        ("missing_check", "requires sample_size_plan_check"),
+        ("stripped_to_status", "fields are invalid"),
+        ("forged_pass", "no longer matches"),
+        ("altered_required_count", "no longer matches"),
+        ("altered_observed_attrition", "no longer matches"),
+        ("rewritten_attrition_result", "no longer matches"),
+        ("rewritten_precision_result", "no longer matches"),
+        ("rewritten_variance_result", "no longer matches"),
+        ("padded_strategy", "strategy must be canonical"),
+        ("bad_specification_hash", "specification_sha256 must be 64 lowercase"),
+        ("claims_interpretation_verified", "must not verify scientific interpretation"),
+    ],
+)
+def test_replication_package_verifies_sample_size_plan_check_metadata(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement",
+        observable_prediction="Prediction",
+        null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    planning_input = {
+        "strategy": "power",
+        "specification": {
+            "study_design": "independent_groups",
+            "smallest_effect_size_of_interest": 0.5,
+            "assumed_standard_deviation": 1.0,
+            "alpha": 0.05,
+            "target_power": 0.8,
+            "alternative": "two_sided",
+            "anticipated_attrition_fraction": 0.1,
+        },
+        "justification": (
+            "Synthetic fixture planning receipt for package verification."
+        ),
+    }
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test",
+        title="Test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id],
+        primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL,
+        methodology="Method",
+        quality_requirements=["integrity"],
+        controls=["control"],
+        expected_outputs=["output"],
+        success_conditions=["success"],
+        environment_requirements=["environment"],
+        sample_size_or_stopping_rule=(
+            "Enroll according to the machine-recomputed planning receipt."
+        ),
+        sample_size_plan=planning_input,
+        failure_conditions=["failure"],
+        safety_constraints=["safe"],
+        analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    output = tmp_path / "sample-plan-output.json"
+    output.write_text('{"result":"complete"}\n', encoding="utf-8")
+    output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            output.name,
+            output_hash,
+            output.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "integrity",
+            QualityGateStatus.PASSED,
+            "Synthetic package fixture passed.",
+            details={"evidence_sha256": output_hash},
+        )],
+        summary="Synthetic package fixture with an unbound planning check.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared",
+            "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    check = runs[0]["metadata"]["sample_size_plan_check"]
+    if mutation == "missing_check":
+        del runs[0]["metadata"]["sample_size_plan_check"]
+    elif mutation == "stripped_to_status":
+        runs[0]["metadata"]["sample_size_plan_check"] = {"status": "passed"}
+    elif mutation == "forged_pass":
+        check["status"] = "passed"
+        check["execution_information_check_verified"] = True
+        runs[0]["scientific_evidence_eligible"] = True
+    elif mutation == "altered_required_count":
+        check["required_analyzable_units_per_group"] += 1
+    elif mutation == "altered_observed_attrition":
+        check["observed_excluded_fraction"] = 0.0
+    elif mutation == "rewritten_attrition_result":
+        check["attrition_achievement"] = {
+            "status": "within_assumption",
+            "anticipated_attrition_fraction": 0.1,
+            "observed_excluded_fraction": 0.0,
+            "scientific_interpretation_verified": True,
+        }
+    elif mutation == "rewritten_precision_result":
+        check["precision_achievement"]["reason"] = (
+            "Planning precision was achieved."
+        )
+    elif mutation == "rewritten_variance_result":
+        check["variance_assumption"]["status"] = (
+            "observed_no_preregistered_tolerance"
+        )
+    elif mutation == "padded_strategy":
+        check["strategy"] = f" {check['strategy']}"
+    elif mutation == "bad_specification_hash":
+        check["specification_sha256"] = "A" * 64
+    elif mutation == "claims_interpretation_verified":
+        check["scientific_interpretation_verified"] = True
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
         ("missing_results", "requires exact evaluations"),
         ("missing_control", "requires exact evaluations"),
         ("extra_control", "requires exact evaluations"),
