@@ -388,6 +388,10 @@ plan, and failure response. It
 rejects malformed edge syntax and unknown adjustment variables before producing
 the review artifact; users may decline and leave causal identification visibly
 unresolved instead of accepting an invented graph.
+Free-text answers and measurement parameter bindings are preserved as entered
+for the scaffold audit; the interview uses trimming only for blank detection,
+menu choices, and semicolon separators. Padded commitments therefore become
+visible blocking findings instead of silently cleaner draft text.
 It is not yet a graphical conversational application or a substitute for method review.
 
 Research Machine is a headless, provenance-first engine for turning curiosity
@@ -470,7 +474,9 @@ Guided primary, secondary, control, and causal measurement contracts reject
 surrounding whitespace in scientific text, parameter keys and values, units,
 columns, admissible observed values, and missing-value codes before emitting
 review drafts, so later exact protocol commitments do not inherit a handle that
-was only apparently valid after trimming.
+was only apparently valid after trimming. The provider-free interview preserves
+free-text and `name=value` binding padding for this audit instead of silently
+normalizing it away.
 Confirmatory work must also define at least one structured prospective validity
 check with its evidence type, validity claim, assessment procedure, acceptance
 criterion, failure response, and dedicated quality gate. These checks are

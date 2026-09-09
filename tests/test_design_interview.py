@@ -170,6 +170,57 @@ def test_interview_collects_prospective_measurement_validity_check() -> None:
     }
 
 
+def test_interview_preserves_noncanonical_free_text_for_scaffold_audit() -> None:
+    def ask(prompt: str) -> str:
+        responses = {
+            "What is the study's working title?": " Padded interview ",
+            "What question do you want to investigate?": "Question",
+            "What practical decision would the findings inform?": "Decision",
+            "What exactly will you measure as the primary outcome?": "Score",
+            "What does one data row represent, such as one pot-day?": "unit",
+            "What kind of claim are you investigating?": "correlational",
+            "Does this involve people or data about people?": "no",
+            "What effect, uncertainty calculation, exclusions, and multiplicity policy will you commit to?": " Estimate the registered contrast ",
+            "What exact observable or recorded quantity defines the primary outcome?": " Mean score ",
+        }
+        return next((value for key, value in responses.items() if prompt.startswith(key)), "")
+
+    result = interview_design(ask)
+
+    assert result["brief"]["title"] == " Padded interview "
+    assert result["brief"]["analysis_commitment"] == " Estimate the registered contrast "
+    assert result["brief"]["measurement_observable"] == " Mean score "
+    codes = {item["code"] for item in result["scaffold"]["findings"]}
+    assert {
+        "CORE_BRIEF_FIELD_NONCANONICAL",
+        "PROSPECTIVE_COMMITMENT_NONCANONICAL",
+        "MEASUREMENT_CONTRACT_NONCANONICAL",
+    } <= codes
+    assert result["scaffold"]["status"] == "blocked"
+
+
+def test_interview_preserves_noncanonical_measurement_parameter_bindings() -> None:
+    def ask(prompt: str) -> str:
+        responses = {
+            "What is the study's working title?": "Parameter interview",
+            "What question do you want to investigate?": "Question",
+            "What practical decision would the findings inform?": "Decision",
+            "What exactly will you measure as the primary outcome?": "Score",
+            "What does one data row represent, such as one pot-day?": "unit",
+            "What kind of claim are you investigating?": "correlational",
+            "Does this involve people or data about people?": "no",
+            "List fixed measurement parameters as name=value pairs separated by semicolons": " window = 10 minutes ",
+        }
+        return next((value for key, value in responses.items() if prompt.startswith(key)), "")
+
+    result = interview_design(ask)
+
+    assert result["brief"]["measurement_parameter_values"] == {"window ": " 10 minutes"}
+    assert "MEASUREMENT_CONTRACT_NONCANONICAL" in {
+        item["code"] for item in result["scaffold"]["findings"]
+    }
+
+
 def test_interview_collects_numeric_information_thresholds() -> None:
     def ask(prompt: str) -> str:
         responses = {

@@ -538,6 +538,10 @@ flags unresolved causal comparisons, measurement units, calibration, controls,
 confounds, analysis commitments, and stopping rules. `research design interview`
 now collects plain-language answers without JSON authoring or an LLM, including
 predictions, alternatives, falsifiers, dependence, controls, and human-data scope.
+It preserves raw free-text answers and `name=value` measurement-parameter
+bindings for the scaffold audit, using trimming only for blank detection, menu
+choices, and semicolon separators, so noncanonical commitments become visible
+findings instead of being silently cleaned before draft creation.
 Required title, question, decision, outcome, and unit-of-observation fields now
 receive blocking findings when surrounding whitespace would otherwise be
 preserved as inquiry, hypothesis, protocol, or collection draft text.
@@ -578,7 +582,8 @@ Guided measurement canonicalization delivery: primary, secondary, control, and
 causal measurement contracts now emit blocking findings for surrounding
 whitespace in scientific text, parameter keys and values, units, executable
 columns, admissible observed values, and missing-value codes before draft
-artifacts are treated as review-ready.
+artifacts are treated as review-ready. The provider-free interview no longer
+pre-trims those free-text and parameter-binding commitments before this audit.
 Prospective measurement-validity delivery: confirmatory guided designs now
 require at least one structured validity check with a stable ID, evidence type,
 specific validity claim, assessment procedure, acceptance criterion, failure

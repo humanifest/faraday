@@ -17,11 +17,15 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
     def answer(key: str, prompt: str, *, required: bool = False, choices: tuple[str, ...] = ()) -> None:
         while True:
             hint = f" ({', '.join(choices)})" if choices else ""
-            value = ask(prompt + hint + (" [required]" if required else " [blank = unresolved]")).strip()
-            if not value and not required:
+            raw_value = ask(prompt + hint + (" [required]" if required else " [blank = unresolved]"))
+            choice_value = raw_value.strip()
+            if not choice_value and not required:
                 return
-            if value and (not choices or value in choices):
-                brief[key] = value
+            if not choices and choice_value:
+                brief[key] = raw_value
+                return
+            if choice_value and choice_value in choices:
+                brief[key] = choice_value
                 return
 
     def answer_number(key: str, prompt: str, *, integer: bool = False) -> None:
@@ -432,14 +436,14 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
     answer("measurement_observable", "What exact observable or recorded quantity defines the primary outcome?")
     answer("measurement_input_condition", "Under what exact input condition or dataset slice is the primary measurement defined?")
     while True:
-        raw_parameters = ask("List fixed measurement parameters as name=value pairs separated by semicolons [blank = unresolved]").strip()
-        if not raw_parameters:
+        raw_parameters = ask("List fixed measurement parameters as name=value pairs separated by semicolons [blank = unresolved]")
+        if not raw_parameters.strip():
             break
         parameter_values: dict[str, str] = {}
         valid_parameters = True
-        for item in raw_parameters.split(";"):
-            parts = [part.strip() for part in item.split("=", 1)]
-            if len(parts) != 2 or not all(parts) or parts[0] in parameter_values:
+        for item in (part.strip() for part in raw_parameters.split(";")):
+            parts = item.split("=", 1)
+            if len(parts) != 2 or not all(part.strip() for part in parts) or parts[0] in parameter_values:
                 valid_parameters = False
                 break
             parameter_values[parts[0]] = parts[1]
@@ -493,15 +497,15 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             answer("_secondary_value", prompt)
             draft[key] = brief.pop("_secondary_value", "")
         while True:
-            raw = ask(f"List fixed parameters for secondary outcome '{outcome}' as name=value pairs separated by semicolons [blank = unresolved]").strip()
-            if not raw:
+            raw = ask(f"List fixed parameters for secondary outcome '{outcome}' as name=value pairs separated by semicolons [blank = unresolved]")
+            if not raw.strip():
                 draft["parameter_values"] = {}
                 break
             values: dict[str, str] = {}
             valid = True
-            for item in raw.split(";"):
-                parts = [part.strip() for part in item.split("=", 1)]
-                if len(parts) != 2 or not all(parts) or parts[0] in values:
+            for item in (part.strip() for part in raw.split(";")):
+                parts = item.split("=", 1)
+                if len(parts) != 2 or not all(part.strip() for part in parts) or parts[0] in values:
                     valid = False
                     break
                 values[parts[0]] = parts[1]
@@ -567,15 +571,15 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
                 answer("_causal_value", prompt)
                 draft[key] = brief.pop("_causal_value", "")
             while True:
-                raw = ask(f"List fixed parameters for causal {role} '{variable}' as name=value pairs separated by semicolons [blank = unresolved]").strip()
-                if not raw:
+                raw = ask(f"List fixed parameters for causal {role} '{variable}' as name=value pairs separated by semicolons [blank = unresolved]")
+                if not raw.strip():
                     draft["parameter_values"] = {}
                     break
                 values: dict[str, str] = {}
                 valid = True
-                for item in raw.split(";"):
-                    parts = [part.strip() for part in item.split("=", 1)]
-                    if len(parts) != 2 or not all(parts) or parts[0] in values:
+                for item in (part.strip() for part in raw.split(";")):
+                    parts = item.split("=", 1)
+                    if len(parts) != 2 or not all(part.strip() for part in parts) or parts[0] in values:
                         valid = False
                         break
                     values[parts[0]] = parts[1]
@@ -627,15 +631,15 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             answer("_control_value", prompt)
             draft[key] = brief.pop("_control_value", "")
         while True:
-            raw = ask(f"List fixed parameters for control '{control}' as name=value pairs separated by semicolons [blank = unresolved]").strip()
-            if not raw:
+            raw = ask(f"List fixed parameters for control '{control}' as name=value pairs separated by semicolons [blank = unresolved]")
+            if not raw.strip():
                 draft["parameter_values"] = {}
                 break
             values: dict[str, str] = {}
             valid = True
-            for item in raw.split(";"):
-                parts = [part.strip() for part in item.split("=", 1)]
-                if len(parts) != 2 or not all(parts) or parts[0] in values:
+            for item in (part.strip() for part in raw.split(";")):
+                parts = item.split("=", 1)
+                if len(parts) != 2 or not all(part.strip() for part in parts) or parts[0] in values:
                     valid = False
                     break
                 values[parts[0]] = parts[1]
