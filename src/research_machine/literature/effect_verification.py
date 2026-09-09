@@ -35,6 +35,14 @@ def _source_anchor(value: object, field: str) -> str:
 
 def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -> None:
     """Replay effect-verification non-authority, independence, and mismatch status."""
+    if effect_verification.get("effect_verification_version") != 1:
+        raise ValidationError("effect verification version is invalid")
+    require_sha256(
+        effect_verification.get("effect_records_sha256"),
+        "effect verification effect_records_sha256",
+    )
+    _canonical_text(effect_verification.get("plan_id"), "effect verification plan_id")
+    _canonical_text(effect_verification.get("snapshot_id"), "effect verification snapshot_id")
     if effect_verification.get("scientific_evidence_eligible") is not False:
         raise ValidationError("effect verification must remain scientifically ineligible")
     if effect_verification.get("conclusion_authorized") is not False:
@@ -63,9 +71,26 @@ def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -
     if not isinstance(assessments, list) or not assessments:
         raise ValidationError("effect verification requires retained assessments")
     seen = set()
+    required_assessment = {
+        "study_id",
+        "effect_status",
+        "source_values_match",
+        "calculation_matches",
+        "retained_source_summary_sha256",
+        "claim_source_provenance",
+        "checked_location",
+        "rationale",
+    }
+    required_claim = {
+        "extraction_id",
+        "extraction_claim_sha256",
+        "source_id",
+        "source_retained_file_sha256",
+        "citation_checked_location",
+    }
     mismatches = []
     for assessment in assessments:
-        if not isinstance(assessment, dict):
+        if not isinstance(assessment, dict) or set(assessment) != required_assessment:
             raise ValidationError("effect-verification assessment is malformed")
         study_id = _canonical_text(
             assessment.get("study_id"), "effect-verification assessment study_id"
@@ -85,6 +110,44 @@ def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -
                 mismatches.append(study_id)
         elif source_values_match is not None or calculation_matches is not None:
             raise ValidationError("unavailable effects require not-applicable verification checks")
+        require_sha256(
+            assessment.get("retained_source_summary_sha256"),
+            "effect-verification retained_source_summary_sha256",
+        )
+        claims = assessment.get("claim_source_provenance")
+        if not isinstance(claims, list) or not claims:
+            raise ValidationError("effect-verification assessment requires retained claim source provenance")
+        seen_claims = set()
+        for claim in claims:
+            if not isinstance(claim, dict) or set(claim) != required_claim:
+                raise ValidationError("effect-verification claim source provenance is malformed")
+            extraction_id = _canonical_text(
+                claim.get("extraction_id"), "effect-verification claim extraction_id"
+            )
+            if extraction_id in seen_claims:
+                raise ValidationError("effect-verification claim source provenance requires unique extraction IDs")
+            seen_claims.add(extraction_id)
+            require_sha256(
+                claim.get("extraction_claim_sha256"),
+                "effect-verification claim extraction_claim_sha256",
+            )
+            _canonical_text(claim.get("source_id"), "effect-verification claim source_id")
+            _source_anchor(
+                claim.get("source_retained_file_sha256", _LEGACY_SOURCE_ANCHOR),
+                "effect-verification claim source_retained_file_sha256",
+            )
+            _canonical_text(
+                claim.get("citation_checked_location"),
+                "effect-verification claim citation_checked_location",
+            )
+        _canonical_text(
+            assessment.get("checked_location"),
+            "effect-verification assessment checked_location",
+        )
+        _canonical_text(
+            assessment.get("rationale"),
+            "effect-verification assessment rationale",
+        )
     mismatch_study_ids = effect_verification.get("mismatch_study_ids")
     if mismatch_study_ids != sorted(mismatches):
         raise ValidationError("effect-verification mismatch_study_ids do not replay from assessments")
@@ -211,6 +274,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
             "Retained claim source anchors bind verification to the prepared-effect artifact; they do not prove that the cited source supports the claim.",
             "Mismatches remain visible and prevent quantitative pooling through the verified workflow.",
         ]}
+    validate_effect_verification_boundary(result)
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("effect-verification output already exists")

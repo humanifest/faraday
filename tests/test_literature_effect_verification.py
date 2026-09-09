@@ -1,4 +1,5 @@
 """Synthetic second review protects against transcribed or calculated errors."""
+import copy
 import hashlib
 import json
 
@@ -6,7 +7,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.effect_verification import create_effect_verification
+from research_machine.literature.effect_verification import (
+    create_effect_verification,
+    validate_effect_verification_boundary,
+)
 
 
 def mapped_claim(study):
@@ -111,6 +115,65 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     assert result["assessments"][0]["checked_location"] == "table 1"
     assert result["assessments"][0]["claim_source_provenance"] == [verification_claim_source("s1")]
     assert result["assessments"][0]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s1"))
+
+
+@pytest.mark.parametrize("tamper", [
+    "version",
+    "effects-hash",
+    "plan-id",
+    "snapshot-id",
+    "independent-review",
+    "same-reviewer",
+    "assessment-extra",
+    "summary-digest",
+    "missing-claim-source",
+    "duplicate-claim-source",
+    "padded-claim-location",
+    "padded-rationale",
+    "availability-bool",
+    "mismatch-drift",
+    "status-drift",
+])
+def test_effect_verification_boundary_replays_retained_assessments(tmp_path, tamper):
+    effects, digest = effects_file(tmp_path)
+    result = create_effect_verification(effects, digest, review(), tmp_path / "verification")
+    candidate = copy.deepcopy(result)
+    if tamper == "version":
+        candidate["effect_verification_version"] = 2
+    elif tamper == "effects-hash":
+        candidate["effect_records_sha256"] = "A" * 64
+    elif tamper == "plan-id":
+        candidate["plan_id"] = " p1 "
+    elif tamper == "snapshot-id":
+        candidate["snapshot_id"] = " snap "
+    elif tamper == "independent-review":
+        candidate["independent_review"] = False
+    elif tamper == "same-reviewer":
+        candidate["verification_reviewer"] = candidate["effect_reviewer"].upper()
+    elif tamper == "assessment-extra":
+        candidate["assessments"][0]["extra"] = "not retained"
+    elif tamper == "summary-digest":
+        candidate["assessments"][0]["retained_source_summary_sha256"] = "A" * 64
+    elif tamper == "missing-claim-source":
+        candidate["assessments"][0]["claim_source_provenance"] = []
+    elif tamper == "duplicate-claim-source":
+        candidate["assessments"][0]["claim_source_provenance"].append(
+            verification_claim_source("s1")
+        )
+    elif tamper == "padded-claim-location":
+        candidate["assessments"][0]["claim_source_provenance"][0][
+            "citation_checked_location"
+        ] = " page 1 "
+    elif tamper == "padded-rationale":
+        candidate["assessments"][0]["rationale"] = " Checked source and arithmetic "
+    elif tamper == "availability-bool":
+        candidate["assessments"][1]["source_values_match"] = False
+    elif tamper == "mismatch-drift":
+        candidate["assessments"][0]["calculation_matches"] = False
+    elif tamper == "status-drift":
+        candidate["status"] = "review_required"
+    with pytest.raises(ValidationError):
+        validate_effect_verification_boundary(candidate)
 
 
 @pytest.mark.parametrize("failure", [

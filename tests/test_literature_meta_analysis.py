@@ -98,6 +98,7 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
     effects = tmp_path / "effects.json"
     effects_sha = write_json(effects, {"effect_records_version": 1, "status": "effects_ready",
         "inputs": {"synthesis_plan_sha256": plan_sha}, "effect_measure": "mean_difference",
+        "plan_id": "p1", "snapshot_id": "snap",
         "derivation_scope": "recomputed_from_source_reported_arm_summaries",
         "source_summaries": source_summaries, "records": records,
         "study_count": len(records), "available_effect_count": count,
@@ -111,6 +112,7 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
     verification = tmp_path / "effect-verification.json"
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
+        "plan_id": "p1", "snapshot_id": "snap",
         "effect_reviewer": "Effect reviewer", "verification_reviewer": "Independent checker",
         "independent_review": True, "mismatch_study_ids": [],
         "scientific_evidence_eligible": False, "conclusion_authorized": False,
@@ -124,13 +126,15 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
              "source_values_match": True, "calculation_matches": True,
              "retained_source_summary_sha256": source_summary_digest(source_summary(f"s{i}")),
              "claim_source_provenance": claim_source_provenance(records[i - 1]),
-             "checked_location": f"table {i}"}
+             "checked_location": f"table {i}",
+             "rationale": "Checked retained source summary and arithmetic"}
             for i in range(1, count + 1)
         ] + [{"study_id": "missing", "effect_status": "unavailable",
               "source_values_match": None, "calculation_matches": None,
               "retained_source_summary_sha256": source_summary_digest(source_summary("missing", "unavailable")),
               "claim_source_provenance": claim_source_provenance(records[-1]),
-              "checked_location": "results"}]})
+              "checked_location": "results",
+              "rationale": "Confirmed no compatible statistics"}]})
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
         "synthesis_plan_sha256": plan_sha, "status": "no_deviations_declared", "deviations": [],
@@ -251,6 +255,7 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
     effects_sha = write_json(effects, value)
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
+        "plan_id": "p1", "snapshot_id": "snap",
         "effect_reviewer": "Effect reviewer", "verification_reviewer": "Independent checker",
         "independent_review": True, "mismatch_study_ids": [],
         "scientific_evidence_eligible": False, "conclusion_authorized": False,
@@ -263,8 +268,9 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
              "retained_source_summary_sha256": source_summary_digest(source_summary(f"s{i}")),
-             "claim_source_provenance": [mapped_claim(f"s{i}")],
-             "checked_location": f"table {i}"} for i in range(10)
+             "claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim(f"s{i}")]}),
+             "checked_location": f"table {i}",
+             "rationale": "Checked retained source summary and arithmetic"} for i in range(10)
         ]})
     result = execute_meta_analysis(plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha, tmp_path / "meta")
     diagnostic = result["small_study_effects"]
@@ -292,6 +298,7 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
     effects_sha = write_json(effects, value)
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
+        "plan_id": "p1", "snapshot_id": "snap",
         "effect_reviewer": "Effect reviewer", "verification_reviewer": "Independent checker",
         "independent_review": True, "mismatch_study_ids": [],
         "scientific_evidence_eligible": False, "conclusion_authorized": False,
@@ -304,8 +311,9 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
             {"study_id": f"s{i}", "effect_status": "available",
              "source_values_match": True, "calculation_matches": True,
              "retained_source_summary_sha256": source_summary_digest(source_summary(f"s{i}")),
-             "claim_source_provenance": [mapped_claim(f"s{i}")],
-             "checked_location": f"table {i}"} for i in range(10)
+             "claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim(f"s{i}")]}),
+             "checked_location": f"table {i}",
+             "rationale": "Checked retained source summary and arithmetic"} for i in range(10)
         ]})
     result = execute_meta_analysis(plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha, tmp_path / "meta")
     assert result["small_study_effects"]["status"] == "not_estimable"

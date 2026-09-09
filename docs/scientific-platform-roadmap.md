@@ -1503,6 +1503,12 @@ and readiness-status counts must replay from the retained records. The
 verification artifact carries the same explicit false authority flags and
 retained limitations, plus service-derived independent-review and mismatch
 summaries.
+The verification artifact now also replays its own retained boundary before it
+is written: version and trusted effect-record hash, plan and snapshot handles,
+independent reviewer separation, exact assessment shape, retained source-summary
+digests, reduced claim source-provenance anchors, canonical checked locations
+and rationales, mismatch IDs, and status must all derive from retained
+assessments while evidence, conclusion, and publication authority remain false.
 `research literature pool-effects` performs deterministic inverse-variance
 pooling only after the quantitative plan, prepared-effect, effect-verification,
 and deviation hashes are canonical lowercase digests and agree. It

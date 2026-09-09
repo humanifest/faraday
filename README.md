@@ -1150,6 +1150,12 @@ effect verification also requires canonical effect reviewer, retained study IDs,
 verification reviewer, checked locations, rationales, and service-derived claim
 source anchors before coverage checks. Each verification assessment also carries
 the service-derived digest of the exact retained source summary it checked.
+The effect-verification artifact now replays its own retained boundary before it
+is written: version and trusted effect-record hash, plan and snapshot handles,
+independent reviewer separation, exact assessment shape, retained source-summary
+digests, reduced claim source-provenance anchors, canonical checked locations
+and rationales, mismatch IDs, and status must all derive from retained
+assessments while evidence, conclusion, and publication authority remain false.
 Meta-analysis replays those verifier-retained anchors and summary digests
 against the prepared effect records before pooling, so an independent
 verification artifact cannot silently drop, substitute, or rewrite the retained
