@@ -92,12 +92,13 @@ the registered controls exactly with canonical, unique identities and link to
 required quality gates; surrounding whitespace in registered control names,
 control IDs, target names, families, purposes, expected behaviors, or
 evaluation-gate handles now fails at freeze before
-coverage is checked. Guided scaffolding now emits the same blocking finding
-before those structured definitions become protocol-review drafts. Expected
-scientific behavior is not itself a quality-gate pass condition. Definitions are
-hash-bound; absent definitions preserve legacy commitments without retroactively
-claiming a control audit. The provider-free interview collects family, purpose,
-and expected behavior for each named control and emits review-only definitions.
+coverage is checked. Guided scaffolding now blocks named controls that lack
+structured definitions and emits the same canonicality finding before those
+definitions become protocol-review drafts. Expected scientific behavior is not
+itself a quality-gate pass condition. Definitions are hash-bound; absent
+definitions preserve legacy commitments without retroactively claiming a control
+audit. The provider-free interview collects family, purpose, and expected
+behavior for each named control and emits review-only definitions.
 For a passed evaluation gate, run intake
 requires exact `details.control_results` coverage for every control mapped to the
 gate. Each result contains `observed_behavior`, `interpretation`, boolean

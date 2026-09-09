@@ -762,7 +762,15 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
     if study_type in {"causal", "correlational"} and support_rule == "point_direction":
         add("CONFIRMATORY_POINT_RULE_TOO_WEAK", "error", "The confirmatory conclusion would rely on point direction without uncertainty separation.", "Use a prespecified confidence-interval decision rule; a point estimate alone cannot support the bounded conclusion contract.")
 
+    controls = _text_list(brief, "controls")
     definitions = brief.get("control_definitions", [])
+    if controls and not definitions:
+        add(
+            "CONTROL_DEFINITION_MISSING",
+            "error",
+            "Registered controls lack structured control definitions.",
+            "For every named control, declare its stable ID, family, purpose, expected behavior, and dedicated evaluation gate before protocol review.",
+        )
     if definitions:
         targets = [item["registered_control"] for item in definitions]
         ids = [item["control_id"] for item in definitions]

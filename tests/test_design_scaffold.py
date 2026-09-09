@@ -805,6 +805,14 @@ def test_controls_and_confounds_must_have_unique_scientific_labels():
     assert "CONFOUND_LABEL_NONCANONICAL" in {
         item["code"] for item in duplicated_confounds["findings"]
     }
+    undefined_control = scaffold_design({
+        **base,
+        "controls": ["Blank sample"],
+    })
+    assert "CONTROL_DEFINITION_MISSING" in {
+        item["code"] for item in undefined_control["findings"]
+    }
+    assert undefined_control["status"] == "blocked"
     padded_definition = scaffold_design({
         **base,
         "controls": ["Blank sample"],
@@ -1399,6 +1407,14 @@ def test_complete_nonhuman_scaffold_remains_review_only(tmp_path: Path, capsys) 
         "support_rule": "interval_excludes_null", "confidence_level": 0.95,
         "unit_of_observation": "independent pot", "sampling_plan": "Randomly sample pots from one tray.", "randomization_plan": "Randomize pots to light.",
         "controls": ["White-light control"], "confounds": ["Tray position"], "calibration_plan": "Verify light meter against a reference.",
+            "control_definitions": [{
+                "control_id": "white-light-control",
+                "registered_control": "White-light control",
+                "family": "reference",
+                "purpose": "Bound ordinary growth under the comparison light condition.",
+                "expected_behavior": "White-light seedlings remain measurable under the same endpoint procedure.",
+                "evaluation_gate_id": "white-light-control-evaluated",
+            }],
             "control_measurements": [_control_measurement("White-light control")],
             "measurement_validity": "Measure a marked stem with a calibrated ruler.", "analysis_commitment": "Estimate mean difference with a confidence interval.", "stopping_rule": "20 pots per arm.", "exclusions": [],
             "measurement_validity_checks": [_validity_check()],

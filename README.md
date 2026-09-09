@@ -169,8 +169,10 @@ evaluated as required; it does not mean the scientific outcome was favorable.
 Protocol freeze rejects noncanonical registered control names and
 control-definition IDs, targets, families, purposes, expected behaviors, and
 gate handles before checking coverage, so a padded control cannot become a
-different evidence-partition target. The guided scaffold now emits the same
-blocking signal before those structured controls can populate a review draft.
+different evidence-partition target. The guided scaffold now also blocks a
+brief that names controls without defining their structured family, purpose,
+expected behavior, and dedicated gate, and emits the same canonicality signal
+before those structured controls can populate a review draft.
 Evidence derived from that run must then account for the complete frozen control
 set: each registered control appears exactly once in `controls_passed` or
 `controls_failed`, as determined by its structured result. Omissions, duplicates,
