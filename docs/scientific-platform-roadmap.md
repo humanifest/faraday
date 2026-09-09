@@ -1384,7 +1384,11 @@ verifies canonical lowercase trusted hashes for the plan, evidence map, and
 deviation declaration before checking extraction and full evidence-map lineage;
 enforces the frozen included-source set and minimum independent-study count; and
 retains every null, adverse, mixed, hypothesis-only, and high-bias claim while
-reporting directional and ceiling counts. The synthesis artifact also preserves
+reporting directional and ceiling counts. It replays extraction non-authority
+flags, retained limitations, `record_count`, and every mapped claim's compact
+extraction-payload digest against the supplied extraction bytes before trusting
+an evidence-map claim, so a rewritten extraction cannot be laundered by updating
+only the evidence-map input hash. The synthesis artifact also preserves
 the retained citation and bias-domain provenance for each claim, preventing a
 later reader from seeing only an unsupported ceiling label. It requires canonical
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source

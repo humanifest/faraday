@@ -14,6 +14,16 @@ from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
+_EXTRACTION_RECORD_FIELDS = {
+    "extraction_id",
+    "study_id",
+    "claim_text",
+    "evidence_location",
+    "epistemic_layer",
+    "result_direction",
+    "uncertainty",
+    "notes",
+}
 
 
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
@@ -38,6 +48,83 @@ def _source_anchor(value: object, field: str) -> str:
     if value == _LEGACY_SOURCE_ANCHOR:
         return _LEGACY_SOURCE_ANCHOR
     return require_sha256(value, field)
+
+
+def _extraction_claim_payload_sha256(
+    source_id: str,
+    record: dict[str, Any],
+    source_retained_file_sha256: str = _LEGACY_SOURCE_ANCHOR,
+) -> str:
+    payload = {
+        "source_id": source_id,
+        "extraction_id": record["extraction_id"],
+        "study_id": record["study_id"],
+        "claim_text": record["claim_text"],
+        "evidence_location": record["evidence_location"],
+        "epistemic_layer": record["epistemic_layer"],
+        "result_direction": record["result_direction"],
+        "uncertainty": record["uncertainty"],
+        "notes": record["notes"],
+    }
+    if source_retained_file_sha256 != _LEGACY_SOURCE_ANCHOR:
+        payload["source_retained_file_sha256"] = source_retained_file_sha256
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _validate_extraction_boundary_and_records(
+    extraction: dict[str, Any],
+) -> tuple[list[str], dict[str, dict[str, str]]]:
+    if extraction.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("extraction record must remain scientifically ineligible")
+    limitations = extraction.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("extraction record requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"extraction limitation {index + 1}")
+    source_reviews = extraction.get("source_reviews")
+    if not isinstance(source_reviews, list):
+        raise ValidationError("extraction source_reviews must be an array")
+
+    source_ids: list[str] = []
+    extracted_claims: dict[str, dict[str, str]] = {}
+    for source_review in source_reviews:
+        if not isinstance(source_review, dict):
+            raise ValidationError("extraction source review must be an object")
+        source_id = _canonical_text(source_review.get("source_id"), "extraction source_id")
+        source_ids.append(source_id)
+        source_retained_file_sha256 = _source_anchor(
+            source_review.get("source_retained_file_sha256", _LEGACY_SOURCE_ANCHOR),
+            "extraction source_retained_file_sha256",
+        )
+        records = source_review.get("records")
+        if not isinstance(records, list):
+            raise ValidationError("extraction records must be an array")
+        for record in records:
+            if not isinstance(record, dict) or set(record) != _EXTRACTION_RECORD_FIELDS:
+                raise ValidationError("extraction record fields do not match the synthesis contract")
+            normalized_record = {
+                field: _canonical_text(record.get(field), f"extraction {field}")
+                for field in _EXTRACTION_RECORD_FIELDS
+            }
+            extraction_id = normalized_record["extraction_id"]
+            if extraction_id in extracted_claims:
+                raise ValidationError("extraction records contain duplicate extraction_id")
+            extracted_claims[extraction_id] = {
+                "source_id": source_id,
+                "study_id": normalized_record["study_id"],
+                "source_retained_file_sha256": source_retained_file_sha256,
+                "extraction_claim_sha256": _extraction_claim_payload_sha256(
+                    source_id, normalized_record, source_retained_file_sha256
+                ),
+            }
+    if extraction.get("record_count") != len(extracted_claims):
+        raise ValidationError("extraction record_count does not replay from extracted claims")
+    if not extracted_claims:
+        raise ValidationError("qualitative synthesis requires extracted claim records")
+    return source_ids, extracted_claims
 
 
 def execute_qualitative_synthesis(
@@ -88,19 +175,13 @@ def execute_qualitative_synthesis(
         raise ValidationError("qualitative synthesis requires a completed version 1 extraction")
     if extraction.get("screening_sha256") != plan.get("screening_sha256"):
         raise ValidationError("synthesis plan and extraction do not bind the same screening artifact")
+    extraction_sources, extracted_claims = _validate_extraction_boundary_and_records(extraction)
     plan_sources = plan.get("included_source_ids_at_freeze")
     if (not isinstance(plan_sources, list)
             or any(not isinstance(item, str) or not item.strip() or item != item.strip()
                    for item in plan_sources)
             or len(set(plan_sources)) != len(plan_sources)):
         raise ValidationError("qualitative synthesis requires frozen included source IDs from the plan")
-    extraction_sources = [
-        item.get("source_id") for item in extraction.get("source_reviews", [])
-        if isinstance(item, dict)
-    ]
-    if any(not isinstance(item, str) or not item.strip() or item != item.strip()
-           for item in extraction_sources):
-        raise ValidationError("qualitative synthesis extraction contains invalid source IDs")
     if len(extraction_sources) != len(set(extraction_sources)):
         raise ValidationError("qualitative synthesis extraction contains duplicate source IDs")
     if sorted(plan_sources) != sorted(extraction_sources):
@@ -190,6 +271,15 @@ def execute_qualitative_synthesis(
                 for domain in bias_domains
             ],
         })
+        extracted = extracted_claims.get(extraction_id)
+        if (extracted is None
+                or extracted["source_id"] != source_id
+                or extracted["study_id"] != study_id
+                or extracted["source_retained_file_sha256"] != source_retained_file_sha256
+                or extracted["extraction_claim_sha256"] != extraction_claim_sha256):
+            raise ValidationError("evidence-map claim does not replay from the exact extraction payload")
+    if set(extracted_claims) != seen:
+        raise ValidationError("qualitative synthesis requires exact extraction-to-map claim coverage")
     validate_evidence_map_boundary(evidence_map, normalized_claims)
     study_ids = {claim["study_id"] for claim in normalized_claims}
     minimum = plan.get("minimum_independent_studies")

@@ -15,6 +15,27 @@ def write_json(path, value):
     return hashlib.sha256(encoded).hexdigest()
 
 
+def claim_digest(source_id, record, source_retained_file_sha256="legacy_missing"):
+    payload = {
+        "source_id": source_id,
+        "extraction_id": record["extraction_id"],
+        "study_id": record["study_id"],
+        "claim_text": record["claim_text"],
+        "evidence_location": record["evidence_location"],
+        "epistemic_layer": record["epistemic_layer"],
+        "result_direction": record["result_direction"],
+        "uncertainty": record["uncertainty"],
+        "notes": record["notes"],
+    }
+    if source_retained_file_sha256 != "legacy_missing":
+        payload["source_retained_file_sha256"] = source_retained_file_sha256
+    return hashlib.sha256(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
     screening_sha = "1" * 64
     plan = tmp_path / "plan.json"
@@ -24,12 +45,21 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
         "conclusion_rule": "Bound all wording", "minimum_independent_studies": minimum,
         "included_source_ids_at_freeze": ["s1"]})
     extraction = tmp_path / "extraction.json"
+    extraction_record = {"extraction_id": "e1", "study_id": "study-1",
+        "claim_text": "Synthetic null result", "evidence_location": "page 1",
+        "epistemic_layer": "inferred", "result_direction": "null",
+        "uncertainty": "Wide", "notes": "fixture notes"}
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded",
-        "screening_sha256": screening_sha, "snapshot_id": "snap",
-        "source_reviews": [{"source_id": "s1"}]})
+        "screening_sha256": screening_sha, "snapshot_id": "snap", "record_count": 1,
+        "scientific_evidence_eligible": False,
+        "limitations": [
+            "Records are reviewer assertions bound to source IDs and locations; the machine has not verified that source text supports them.",
+            "Extraction does not perform risk-of-bias assessment, resolve disagreements, accept claims as facts, or conduct synthesis.",
+        ],
+        "source_reviews": [{"source_id": "s1", "records": [extraction_record]}]})
     claim = {"extraction_id": "e1", "study_id": "study-1", "source_id": "s1",
         "extracted_evidence_location": "page 1", "claim_text": "Synthetic null result",
-        "extraction_claim_sha256": "a" * 64,
+        "extraction_claim_sha256": claim_digest("s1", extraction_record),
         "epistemic_layer": "inferred", "result_direction": "null",
         "uncertainty": "Wide", "citation_checked_location": "page 1",
         "citation_rationale": "fixture reviewer check", "citation_verdict": "supported", "risk_of_bias": "high",
@@ -70,7 +100,8 @@ def test_qualitative_synthesis_cli_preserves_null_high_bias_claim_and_is_write_o
     assert result["result_direction_counts"]["null"] == 1
     assert result["interpretive_ceiling_counts"]["insufficient_for_conclusion"] == 1
     assert result["claims"][0]["citation_checked_location"] == "page 1"
-    assert result["claims"][0]["extraction_claim_sha256"] == "a" * 64
+    extraction_record = json.loads(extraction.read_text())["source_reviews"][0]["records"][0]
+    assert result["claims"][0]["extraction_claim_sha256"] == claim_digest("s1", extraction_record)
     assert result["claims"][0]["bias_domain_judgments"][0]["judgment"] == "high"
     assert result["deviation_plan_commitments"]["synthesis_type"] == "qualitative"
     assert result["publication_authorized"] is False
@@ -121,6 +152,12 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
     "map-hash",
     "quantitative",
     "screening",
+    "extraction-authority",
+    "extraction-count-drift",
+    "extraction-limitations-missing",
+    "extraction-padded-limitation",
+    "extraction-claim-payload",
+    "extraction-extra-claim",
     "source-drift",
     "padded-plan-source",
     "padded-source-duplicate",
@@ -150,6 +187,32 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
     elif failure == "map-hash": map_sha = "0" * 64
     elif failure == "screening":
         value = json.loads(extraction.read_text()); value["screening_sha256"] = "2" * 64; write_json(extraction, value)
+    elif failure in {
+        "extraction-authority",
+        "extraction-count-drift",
+        "extraction-limitations-missing",
+        "extraction-padded-limitation",
+        "extraction-claim-payload",
+        "extraction-extra-claim",
+    }:
+        value = json.loads(extraction.read_text())
+        if failure == "extraction-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "extraction-count-drift":
+            value["record_count"] = 2
+        elif failure == "extraction-limitations-missing":
+            value["limitations"] = []
+        elif failure == "extraction-padded-limitation":
+            value["limitations"][0] = " " + value["limitations"][0]
+        elif failure == "extraction-claim-payload":
+            value["source_reviews"][0]["records"][0]["notes"] = "changed notes"
+        elif failure == "extraction-extra-claim":
+            duplicate = dict(value["source_reviews"][0]["records"][0])
+            duplicate["extraction_id"] = "e2"
+            value["source_reviews"][0]["records"].append(duplicate)
+            value["record_count"] = 2
+        extraction_sha = write_json(extraction, value)
+        value = json.loads(evidence_map.read_text()); value["inputs"]["extraction_sha256"] = extraction_sha; map_sha = write_json(evidence_map, value)
     elif failure == "source-drift":
         value = json.loads(plan.read_text()); value["included_source_ids_at_freeze"] = ["other-source"]; plan_sha = write_json(plan, value)
     elif failure == "padded-plan-source":

@@ -1081,6 +1081,10 @@ artifact, so a clean hash chain cannot hide rewritten boundary summaries.
 Qualitative synthesis also requires canonical
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims.
+It replays extraction non-authority flags, retained limitations, `record_count`,
+and every mapped claim's compact extraction-payload digest against the supplied
+extraction bytes before trusting an evidence-map claim, so a rewritten
+extraction cannot be laundered by updating only the evidence-map input hash.
 Qualitative synthesis and quantitative effect preparation also replay the
 evidence map's non-authority flags, retained limitations, claim count, and
 interpretive-ceiling counts before using it as an input. This makes the review trail
