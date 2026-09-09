@@ -845,7 +845,10 @@ separate context lanes, and pending hypotheses retain their unapproved workflow
 state when cited for review. When the frozen context has citable records, every
 proposal suggestion must cite at least one typed, prefix-checked, body-backed
 handle, so an optional collaborator cannot smuggle uncited external claims
-across the provider boundary. Context and proposal purpose bindings, context handles, proposal IDs,
+across the provider boundary. The proposal body's competing explanations,
+disconfirming evidence, and limitations must also use item-level context
+references when citable records exist; proposal and review records retain a
+hash-based grounding receipt for those body claims. Context and proposal purpose bindings, context handles, proposal IDs,
 generator provider/model handles, suggestion IDs, evidence references, review
 IDs, reviewer handles, review-decision suggestion IDs, proposal summaries,
 uncertainty statements, suggestion statements, suggestion rationales, suggestion

@@ -45,6 +45,7 @@ _SUGGESTION_FIELDS = {
     "next_test",
     "authority",
 }
+_GROUNDED_CLAIM_FIELDS = {"statement", "context_refs"}
 _GENERATOR_KINDS = {"human", "llm", "hybrid"}
 _SUGGESTION_KINDS = {
     "question",
@@ -85,6 +86,7 @@ _PROPOSAL_RECORD_FIELDS = {
     "context_reference_index",
     "context_scientific_constraints",
     "proposal_input",
+    "proposal_body_grounding",
     "proposal",
     "status",
     "canonical_writes_performed",
@@ -98,6 +100,7 @@ _REVIEW_RECORD_FIELDS = {
     "proposal_record_input",
     "context_reference_index",
     "context_scientific_constraints",
+    "proposal_body_grounding",
     "review_input",
     "review",
     "reviewed_suggestions",
@@ -123,6 +126,7 @@ _REVIEWED_SUGGESTION_FIELDS = {
 }
 _INPUT_FIELDS = {"sha256", "size_bytes"}
 _CONTEXT_REFERENCE_FIELDS = {"ref", "kind"}
+_BODY_GROUNDING_RECEIPT_FIELDS = {"section", "statement_sha256", "context_refs"}
 _CONTEXT_REFERENCE_PREFIXES = {
     "inquiry": "inquiry:",
     "open_question": "question:",
@@ -229,6 +233,127 @@ def _string_array(value: Any, field: str, *, nonempty: bool = True) -> list[str]
     return _canonical_string_array(
         value, field, label="collaborator proposal", nonempty=nonempty
     )
+
+
+def _validate_refs(
+    refs: Any,
+    field: str,
+    allowed_refs: set[str] | None,
+    *,
+    nonempty: bool,
+    missing_label: str,
+) -> list[str]:
+    checked = _string_array(refs, field, nonempty=nonempty)
+    if allowed_refs is not None:
+        unknown_refs = sorted(set(checked) - allowed_refs)
+        if unknown_refs:
+            raise ValidationError(
+                f"{missing_label} references are not present in the frozen context: "
+                + ", ".join(unknown_refs)
+            )
+    return checked
+
+
+def _validate_body_claims(
+    proposal: dict[str, Any], allowed_refs: set[str] | None
+) -> list[dict[str, Any]]:
+    grounding: list[dict[str, Any]] = []
+    require_grounding = bool(allowed_refs)
+    for field in ("competing_explanations", "disconfirming_evidence", "limitations"):
+        value = proposal[field]
+        if not isinstance(value, list) or not value:
+            raise ValidationError(
+                f"collaborator proposal {field} must be a non-empty array"
+            )
+        statements: set[str] = set()
+        for index, item in enumerate(value):
+            item_label = f"{field}[{index}]"
+            if isinstance(item, str):
+                if require_grounding:
+                    raise ValidationError(
+                        f"collaborator proposal {item_label} must cite frozen context"
+                    )
+                statement = _canonical_text(item, item_label)
+                context_refs: list[str] = []
+            elif isinstance(item, dict):
+                _exact_fields(
+                    item,
+                    _GROUNDED_CLAIM_FIELDS,
+                    f"collaborator proposal {item_label}",
+                )
+                statement = _canonical_text(item["statement"], f"{item_label}.statement")
+                context_refs = _validate_refs(
+                    item["context_refs"],
+                    f"{item_label}.context_refs",
+                    allowed_refs,
+                    nonempty=require_grounding,
+                    missing_label=f"collaborator proposal {item_label}",
+                )
+            else:
+                raise ValidationError(
+                    f"collaborator proposal {item_label} must be a string or object"
+                )
+            if statement in statements:
+                raise ValidationError(f"collaborator proposal {field} must be unique")
+            statements.add(statement)
+            grounding.append(
+                {
+                    "section": field,
+                    "statement_sha256": hashlib.sha256(
+                        statement.encode("utf-8")
+                    ).hexdigest(),
+                    "context_refs": context_refs,
+                }
+            )
+    return grounding
+
+
+def _validate_body_grounding_receipt(
+    value: Any,
+    allowed_refs: set[str] | None,
+    *,
+    require_grounding: bool,
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        raise ValidationError(
+            "collaborator proposal body grounding must be a non-empty array"
+        )
+    seen: set[tuple[str, str]] = set()
+    checked: list[dict[str, Any]] = []
+    for index, item in enumerate(value):
+        label = f"collaborator proposal body grounding[{index}]"
+        if not isinstance(item, dict):
+            raise ValidationError(f"{label} must be an object")
+        _exact_fields(item, _BODY_GROUNDING_RECEIPT_FIELDS, label)
+        section = _canonical_text(item["section"], f"body_grounding[{index}].section")
+        if section not in {
+            "competing_explanations",
+            "disconfirming_evidence",
+            "limitations",
+        }:
+            raise ValidationError(f"{label}.section is unsupported")
+        digest = item["statement_sha256"]
+        if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+            raise ValidationError(f"{label}.statement_sha256 is invalid")
+        context_refs = _validate_refs(
+            item["context_refs"],
+            f"body_grounding[{index}].context_refs",
+            allowed_refs,
+            nonempty=require_grounding,
+            missing_label=label,
+        )
+        key = (section, digest)
+        if key in seen:
+            raise ValidationError(f"duplicate collaborator proposal body grounding: {section}")
+        seen.add(key)
+        checked.append(
+            {
+                "section": section,
+                "statement_sha256": digest,
+                "context_refs": context_refs,
+            }
+        )
+    return checked
 
 
 def _context_scientific_constraints(context: dict[str, Any]) -> list[str]:
@@ -435,7 +560,9 @@ def create_context_snapshot(context: dict[str, Any], output: Path) -> dict[str, 
     }
 
 
-def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest: str) -> None:
+def _validate_proposal(
+    proposal: dict[str, Any], context: dict[str, Any], digest: str
+) -> list[dict[str, Any]]:
     _exact_fields(proposal, _PROPOSAL_FIELDS, "collaborator proposal")
     if proposal["proposal_version"] != 1:
         raise ValidationError("collaborator proposal_version must be 1")
@@ -448,9 +575,8 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
     _canonical_text(proposal["purpose"], "purpose")
     for field in ("summary", "uncertainty"):
         _canonical_text(proposal[field], field)
-    for field in ("competing_explanations", "disconfirming_evidence", "limitations"):
-        _string_array(proposal[field], field)
     allowed_evidence_refs = _context_reference_ids(context)
+    proposal_body_grounding = _validate_body_claims(proposal, allowed_evidence_refs)
 
     generated_by = proposal["generated_by"]
     if not isinstance(generated_by, dict):
@@ -499,6 +625,7 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
         _string_array(
             suggestion["falsification_conditions"], "falsification_conditions"
         )
+    return proposal_body_grounding
 
 
 def validate_collaborator_proposal(
@@ -517,7 +644,7 @@ def validate_collaborator_proposal(
     context_scientific_constraints = _validate_context_snapshot(context)
 
     proposal, proposal_content = _load_object(proposal_file, "collaborator proposal")
-    _validate_proposal(proposal, context, context_digest)
+    proposal_body_grounding = _validate_proposal(proposal, context, context_digest)
     context_reference_index = context.get("context_reference_index", [])
     record = {
         "collaborator_proposal_record_version": 1,
@@ -531,6 +658,7 @@ def validate_collaborator_proposal(
             "sha256": hashlib.sha256(proposal_content).hexdigest(),
             "size_bytes": len(proposal_content),
         },
+        "proposal_body_grounding": proposal_body_grounding,
         "proposal": proposal,
         "status": "pending_human_review",
         "canonical_writes_performed": False,
@@ -629,7 +757,13 @@ def adjudicate_collaborator_proposal(
         "purpose": proposal.get("purpose"),
         "context_reference_index": record.get("context_reference_index", []),
     }
-    _validate_proposal(proposal, replay_context, context_input.get("sha256", ""))
+    proposal_body_grounding = _validate_proposal(
+        proposal, replay_context, context_input.get("sha256", "")
+    )
+    if record["proposal_body_grounding"] != proposal_body_grounding:
+        raise ValidationError(
+            "collaborator proposal body grounding disagrees with retained proposal"
+        )
 
     review, review_content = _load_object(review_file, "collaborator proposal review")
     _exact_fields(review, _REVIEW_FIELDS, "collaborator proposal review")
@@ -717,6 +851,7 @@ def adjudicate_collaborator_proposal(
         },
         "context_reference_index": record["context_reference_index"],
         "context_scientific_constraints": record["context_scientific_constraints"],
+        "proposal_body_grounding": record["proposal_body_grounding"],
         "review_input": {
             "sha256": hashlib.sha256(review_content).hexdigest(),
             "size_bytes": len(review_content),
@@ -823,6 +958,11 @@ def verify_collaborator_review_record(
         )
         if context_reference_status == "verified"
         else None
+    )
+    _validate_body_grounding_receipt(
+        record["proposal_body_grounding"],
+        allowed_evidence_refs,
+        require_grounding=bool(allowed_evidence_refs),
     )
 
     review = record["review"]

@@ -1055,7 +1055,12 @@ evidence records they qualify. The reference index is checked against the frozen
 context body, so every citable handle must correspond to visible read-only
 record content and every visible citable record must appear in the index. When
 that index is nonempty, every proposal suggestion must cite at least one retained
-context handle rather than relying on uncited external assertions. The trusted
+context handle rather than relying on uncited external assertions. The proposal
+body's competing explanations, disconfirmers, and limitations must also carry
+item-level retained context references when the index is nonempty; validation
+derives a hash-based grounding receipt for those claims, adjudication replays it
+against the retained proposal, and review verification checks the copied receipt
+against the retained context index. The trusted
 context must also include canonical, nonempty
 scientific constraints with explicit inferential-boundary and
 authorization-boundary warnings; proposal validation replays them from the

@@ -302,9 +302,45 @@ def test_context_snapshot_requires_scientific_constraints(
     assert not (tmp_path / "context").exists()
 
 
+def _grounded(value: str, refs: list[str]) -> dict:
+    return {"statement": value, "context_refs": refs}
+
+
 def _proposal(context_sha256: str, *, evidence_refs: list[str] | None = None) -> dict:
     if evidence_refs is None:
         evidence_refs = []
+    competing_explanations: list[str | dict[str, list[str] | str]]
+    disconfirming_evidence: list[str | dict[str, list[str] | str]]
+    limitations: list[str | dict[str, list[str] | str]]
+    if evidence_refs:
+        competing_explanations = [
+            _grounded(
+                "Selection into exposure groups could create the contrast.",
+                evidence_refs,
+            ),
+            _grounded(
+                "Differential measurement error could create the contrast.",
+                evidence_refs,
+            ),
+        ]
+        disconfirming_evidence = [
+            _grounded(
+                "A negative-control outcome showing the same contrast would weaken the claim.",
+                evidence_refs,
+            )
+        ]
+        limitations = [
+            _grounded("This review used only the frozen context payload.", evidence_refs)
+        ]
+    else:
+        competing_explanations = [
+            "Selection into exposure groups could create the contrast.",
+            "Differential measurement error could create the contrast.",
+        ]
+        disconfirming_evidence = [
+            "A negative-control outcome showing the same contrast would weaken the claim."
+        ]
+        limitations = ["This review used only the frozen context payload."]
     return {
         "proposal_version": 1,
         "proposal_id": "proposal-1",
@@ -317,14 +353,9 @@ def _proposal(context_sha256: str, *, evidence_refs: list[str] | None = None) ->
         "purpose": "Stress-test the design.",
         "summary": "The observed contrast may not identify the proposed cause.",
         "uncertainty": "No data or protocol details establish effect identification.",
-        "competing_explanations": [
-            "Selection into exposure groups could create the contrast.",
-            "Differential measurement error could create the contrast.",
-        ],
-        "disconfirming_evidence": [
-            "A negative-control outcome showing the same contrast would weaken the claim."
-        ],
-        "limitations": ["This review used only the frozen context payload."],
+        "competing_explanations": competing_explanations,
+        "disconfirming_evidence": disconfirming_evidence,
+        "limitations": limitations,
         "suggestions": [
             {
                 "suggestion_id": "suggestion-1",
@@ -368,6 +399,28 @@ def _canonical_json_sha256(value: dict) -> str:
             value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
         ).encode("utf-8")
     ).hexdigest()
+
+
+def _proposal_body_grounding(proposal: dict) -> list[dict]:
+    result = []
+    for section in ("competing_explanations", "disconfirming_evidence", "limitations"):
+        for item in proposal[section]:
+            if isinstance(item, dict):
+                statement = item["statement"]
+                refs = item["context_refs"]
+            else:
+                statement = item
+                refs = []
+            result.append(
+                {
+                    "section": section,
+                    "statement_sha256": hashlib.sha256(
+                        statement.encode("utf-8")
+                    ).hexdigest(),
+                    "context_refs": refs,
+                }
+            )
+    return result
 
 
 def _pad_retained_suggestion_statement(record: dict) -> None:
@@ -429,6 +482,9 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
     assert record["status"] == "pending_human_review"
     assert record["context_reference_index"] == context["context_reference_index"]
     assert record["context_scientific_constraints"] == context["scientific_constraints"]
+    assert record["proposal_body_grounding"] == _proposal_body_grounding(
+        record["proposal"]
+    )
     assert record["proposal"]["suggestions"][0]["evidence_refs"] == cited_refs
     assert record["canonical_writes_performed"] is False
     assert record["model_invoked_by_faraday"] is False
@@ -526,13 +582,67 @@ def test_proposal_requires_a_citation_when_context_has_references(
         context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
     )
     snapshot = create_context_snapshot(context, tmp_path / "context")
-    proposal_path = tmp_path / "proposal.json"
-    proposal_path.write_text(
-        json.dumps(_proposal(snapshot["context_sha256"], evidence_refs=[])),
-        encoding="utf-8",
+    proposal = _proposal(
+        snapshot["context_sha256"],
+        evidence_refs=["claim:claim-1"],
     )
+    proposal["suggestions"][0]["evidence_refs"] = []
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
 
     with pytest.raises(ValidationError, match="evidence_refs must be a non-empty"):
+        validate_collaborator_proposal(
+            Path(snapshot["context_file"]),
+            snapshot["context_sha256"],
+            proposal_path,
+            tmp_path / "validated",
+        )
+    assert not (tmp_path / "validated").exists()
+
+
+def test_proposal_requires_grounded_body_claims_when_context_has_references(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(
+        snapshot["context_sha256"],
+        evidence_refs=["claim:claim-1"],
+    )
+    proposal["competing_explanations"] = [
+        "Selection into exposure groups could create the contrast."
+    ]
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="must cite frozen context"):
+        validate_collaborator_proposal(
+            Path(snapshot["context_file"]),
+            snapshot["context_sha256"],
+            proposal_path,
+            tmp_path / "validated",
+        )
+    assert not (tmp_path / "validated").exists()
+
+
+def test_proposal_rejects_body_grounding_outside_frozen_context(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(
+        snapshot["context_sha256"],
+        evidence_refs=["claim:claim-1"],
+    )
+    proposal["limitations"][0]["context_refs"] = ["claim:not-in-context"]
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="references are not present"):
         validate_collaborator_proposal(
             Path(snapshot["context_file"]),
             snapshot["context_sha256"],
@@ -581,6 +691,50 @@ def test_collaborator_review_prose_must_be_canonical(
         adjudicate_collaborator_proposal(
             Path(validated["record_file"]),
             validated["record_sha256"],
+            review_path,
+            tmp_path / "reviewed",
+        )
+    assert not (tmp_path / "reviewed").exists()
+
+
+def test_proposal_adjudication_replays_retained_body_grounding(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(
+            _proposal(
+                snapshot["context_sha256"],
+                evidence_refs=["claim:claim-1"],
+            )
+        ),
+        encoding="utf-8",
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    record_path = Path(validated["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["proposal_body_grounding"][0]["context_refs"] = ["claim:not-in-context"]
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(_review(trusted_hash)), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="body grounding disagrees"):
+        adjudicate_collaborator_proposal(
+            record_path,
+            trusted_hash,
             review_path,
             tmp_path / "reviewed",
         )
@@ -877,6 +1031,7 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
         {"suggestion_id": "suggestion-1", "domain_route": "design.revise"}
     ]
     assert record["context_reference_index"] == []
+    assert record["proposal_body_grounding"] == _proposal_body_grounding(proposal)
     expected_suggestions = proposal["suggestions"]
     reviewed = record["reviewed_suggestions"]
     assert reviewed == [
@@ -1017,6 +1172,52 @@ def test_verify_collaborator_review_replays_retained_context_references(
         ValidationError,
         match="evidence_refs are not present in the retained context",
     ):
+        verify_collaborator_review_record(record_path, trusted_hash)
+
+
+def test_verify_collaborator_review_replays_proposal_body_grounding_refs(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(
+            _proposal(
+                snapshot["context_sha256"],
+                evidence_refs=["claim:claim-1"],
+            )
+        ),
+        encoding="utf-8",
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(
+        json.dumps(_review(validated["record_sha256"])), encoding="utf-8"
+    )
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["proposal_body_grounding"][0]["context_refs"] = ["claim:not-in-context"]
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="references are not present"):
         verify_collaborator_review_record(record_path, trusted_hash)
 
 
