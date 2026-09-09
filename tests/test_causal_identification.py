@@ -680,6 +680,73 @@ def test_causal_evidence_authority_requires_claim_protocol_handoff_and_method_ce
         )
 
 
+def test_execution_method_inference_ceiling_limits_supporting_claim_level() -> None:
+    from research_machine.application.policies import validate_validation_tag_context
+    from research_machine.domain.models import (
+        AnalysisMode, Claim, ClaimLevel, EvidenceDirection, Hypothesis,
+        HypothesisWorkflowState, ResearchRun, ValidationTag,
+    )
+
+    hypothesis = Hypothesis(
+        "h1", "The registered statistic differs from baseline.",
+        "2026-09-01T00:00:00Z", "researcher",
+        workflow_state=HypothesisWorkflowState.ACTIVE,
+    )
+    association_claim = Claim(
+        "claim-association",
+        "The registered condition is associated with the measured outcome.",
+        ClaimLevel.STATISTICAL_ASSOCIATION,
+        "2026-09-01T00:00:00Z",
+    )
+    measurement_claim = Claim(
+        "claim-measurement",
+        "The instrument records the registered observable.",
+        ClaimLevel.MEASUREMENT_VALIDITY,
+        "2026-09-01T00:00:00Z",
+    )
+    run = ResearchRun(
+        "run", "protocol", "p" * 64, AnalysisMode.CONFIRMATORY,
+        "2026-09-02T01:00:00Z", "2026-09-02T02:00:00Z", "analyst",
+        "a" * 64, "b" * 64,
+        scientific_evidence_eligible=True,
+    )
+    tags = [ValidationTag.INTERNAL_CONSISTENCY]
+
+    validate_validation_tag_context(
+        tags=tags, hypothesis=hypothesis, exploratory=False, protocol=None,
+        run=run, datasets=[], controls_passed=[], replicated_run=None,
+        claim=measurement_claim, direction=EvidenceDirection.SUPPORTS,
+        method_maximum_inference_level="descriptive",
+    )
+    with pytest.raises(ValidationError, match="inference ceiling"):
+        validate_validation_tag_context(
+            tags=tags, hypothesis=hypothesis, exploratory=False, protocol=None,
+            run=run, datasets=[], controls_passed=[], replicated_run=None,
+            claim=association_claim, direction=EvidenceDirection.SUPPORTS,
+            method_maximum_inference_level="descriptive",
+        )
+    validate_validation_tag_context(
+        tags=tags, hypothesis=hypothesis, exploratory=False, protocol=None,
+        run=run, datasets=[], controls_passed=[], replicated_run=None,
+        claim=association_claim, direction=EvidenceDirection.WEAKENS,
+        method_maximum_inference_level="descriptive",
+    )
+    with pytest.raises(ValidationError, match="requires an exact claim"):
+        validate_validation_tag_context(
+            tags=tags, hypothesis=hypothesis, exploratory=False, protocol=None,
+            run=run, datasets=[], controls_passed=[], replicated_run=None,
+            claim=None, direction=EvidenceDirection.SUPPORTS,
+            method_maximum_inference_level="association",
+        )
+    with pytest.raises(ValidationError, match="permits no scientific claim"):
+        validate_validation_tag_context(
+            tags=tags, hypothesis=hypothesis, exploratory=False, protocol=None,
+            run=run, datasets=[], controls_passed=[], replicated_run=None,
+            claim=measurement_claim, direction=EvidenceDirection.SUPPORTS,
+            method_maximum_inference_level="computation_only",
+        )
+
+
 def test_observational_causal_adjustment_executes_the_exact_frozen_covariates(
     tmp_path, capsys
 ) -> None:

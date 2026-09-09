@@ -301,6 +301,12 @@ tag requires an exact causal-direction claim node, the accompanying
 causal protocol and analysis contract, the registered target hypothesis, a
 verified execution handoff, and a method capped at `design_conditional_effect`.
 Descriptive and associational methods cannot be promoted to causal evidence.
+For any execution-backed `supports` evidence attached to a claim, Faraday also
+maps the typed method level to the strongest claim level it may support:
+`computation_only` supports no scientific claim, `descriptive` reaches only
+`measurement_validity`, `association` reaches `statistical_association`, and
+`design_conditional_effect` reaches `causal_direction`. Stronger claims require
+future dedicated authority instead of borrowing the method's numerical result.
 Even the highest method level is conditional on the design and assumptions; it
 does not authorize mechanism, generalization beyond scope, or causal proof.
 For protocol-bound execution, the resolved add-on supplies this level directly

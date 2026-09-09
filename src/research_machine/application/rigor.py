@@ -524,6 +524,14 @@ def audit_research_state(
                 run.metadata.get("replicates_run_id"), str
             ):
                 replicated_run = run_by_id.get(run.metadata["replicates_run_id"])
+            method_maximum_inference_level = None
+            if run is not None:
+                handoff = run.metadata.get("execution_handoff")
+                result = handoff.get("result") if isinstance(handoff, dict) else None
+                if isinstance(result, dict) and isinstance(
+                    result.get("maximum_inference_level"), str
+                ):
+                    method_maximum_inference_level = result["maximum_inference_level"]
             try:
                 validate_validation_tag_context(
                     tags=record.validation_tags,
@@ -536,6 +544,7 @@ def audit_research_state(
                     controls_passed=record.controls_passed,
                     replicated_run=replicated_run,
                     claim=(claims_by_id.get(record.claim_id) if record.claim_id else None),
+                    method_maximum_inference_level=method_maximum_inference_level,
                 )
             except ResearchMachineError as exc:
                 add(

@@ -4,6 +4,7 @@ import math
 import re
 from typing import Any
 
+from research_machine.application.claim_integrity import claim_level_rank
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     ActionCandidate,
@@ -45,6 +46,12 @@ _REPORT_OVERCLAIM = re.compile(
     re.IGNORECASE,
 )
 _INDEPENDENT_REVIEW_DECISIONS = {"approved", "approved_with_conditions"}
+_METHOD_INFERENCE_CLAIM_CEILINGS: dict[str, ClaimLevel | None] = {
+    "computation_only": None,
+    "descriptive": ClaimLevel.MEASUREMENT_VALIDITY,
+    "association": ClaimLevel.STATISTICAL_ASSOCIATION,
+    "design_conditional_effect": ClaimLevel.CAUSAL_DIRECTION,
+}
 
 
 def require_sha256(value: str, field_name: str) -> str:
@@ -458,8 +465,38 @@ def validate_validation_tag_context(
     replicated_run: ResearchRun | None,
     claim: Claim | None = None,
     direction: EvidenceDirection = EvidenceDirection.INCONCLUSIVE,
+    method_maximum_inference_level: str | None = None,
 ) -> None:
     tag_set = set(tags)
+
+    if (
+        method_maximum_inference_level is not None
+        and direction is EvidenceDirection.SUPPORTS
+    ):
+        ceiling = _METHOD_INFERENCE_CLAIM_CEILINGS.get(method_maximum_inference_level)
+        if method_maximum_inference_level not in _METHOD_INFERENCE_CLAIM_CEILINGS:
+            raise ValidationError(
+                "execution-backed evidence has an unsupported maximum_inference_level"
+            )
+        if claim is None:
+            raise ValidationError(
+                "execution-backed supporting evidence requires an exact claim so "
+                "the method inference ceiling can be enforced"
+            )
+        claim_rank = claim_level_rank(claim.level)
+        ceiling_rank = claim_level_rank(ceiling) if ceiling is not None else None
+        if claim_rank is not None and (
+            ceiling_rank is None or claim_rank > ceiling_rank
+        ):
+            ceiling_label = (
+                "no scientific claim"
+                if ceiling is None else ceiling.value
+            )
+            raise ValidationError(
+                "supporting evidence claim level exceeds the executed method "
+                f"inference ceiling: {method_maximum_inference_level} permits "
+                f"{ceiling_label}, not {claim.level.value}"
+            )
 
     if (
         claim is not None

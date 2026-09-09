@@ -4456,6 +4456,7 @@ class ResearchService:
         effect_estimate_path = normalize_text(command.effect_estimate_path, "effect_estimate_path")
         uncertainty_path = normalize_text(command.uncertainty_path, "uncertainty_path")
         analysis_claim_ceiling = ""
+        method_maximum_inference_level: str | None = None
         result_direction_check = "not_applicable"
         evidence_created_at = self.clock()
         admission_checks: dict[str, Any] = {}
@@ -4569,6 +4570,10 @@ class ResearchService:
                 uncertainty_input = selected_uncertainty
                 analysis_claim_ceiling = require_text(
                     verified_result.get("claim_ceiling"), "verified analysis claim_ceiling"
+                )
+                method_maximum_inference_level = require_text(
+                    verified_result.get("maximum_inference_level"),
+                    "verified analysis maximum_inference_level",
                 )
                 result_direction_check = validate_result_direction(
                     expected_direction=hypothesis.expected_effect_direction,
@@ -4899,6 +4904,7 @@ class ResearchService:
             controls_passed=controls_passed,
             replicated_run=replicated_run,
             claim=claim,
+            method_maximum_inference_level=method_maximum_inference_level,
         )
         evidence = EvidenceRecord(
             evidence_id=f"evd-{self.token()}",

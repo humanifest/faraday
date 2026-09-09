@@ -350,6 +350,51 @@ def test_rigor_flags_legacy_support_for_explanatory_claim_levels(
     assert "supporting evidence cannot target mechanism" in finding.message
 
 
+def test_rigor_replays_execution_method_inference_ceiling_for_legacy_evidence(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path / "workspace")
+    claim = service.add_claim(
+        AddClaim(
+            statement="The registered condition is associated with the measured outcome.",
+            level=ClaimLevel.STATISTICAL_ASSOCIATION,
+        )
+    )
+    evidence = service.record_evidence(
+        _classified_evidence(hypothesis.hypothesis_id, run.run_id)
+    )
+    legacy_evidence = replace(evidence, claim_id=claim.claim_id)
+    legacy_run = replace(
+        run,
+        metadata={
+            **run.metadata,
+            "execution_handoff": {
+                "result": {"maximum_inference_level": "descriptive"}
+            },
+        },
+    )
+    repository = service.repository
+    inquiry_id = repository.resolve_inquiry_id(None)
+
+    audit = audit_research_state(
+        inquiry=repository.load_inquiry(inquiry_id),
+        claims=[claim],
+        hypotheses=[hypothesis],
+        evidence=[legacy_evidence],
+        datasets=repository.list_datasets(inquiry_id),
+        protocols=repository.list_protocols(inquiry_id),
+        runs=[legacy_run],
+    )
+
+    finding = next(
+        item for item in audit.findings
+        if item.code == "VALIDATION_TAG_UNSUPPORTED"
+    )
+    assert finding.entity_id == legacy_evidence.evidence_id
+    assert "executed method inference ceiling" in finding.message
+    assert "descriptive permits measurement_validity" in finding.message
+
+
 def test_rigor_flags_legacy_unresolved_multi_factor_protocol(
     tmp_path: Path,
 ) -> None:

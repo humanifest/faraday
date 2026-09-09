@@ -353,6 +353,14 @@ eligible run, matching causal estimand target, frozen analysis contract, verifie
 execution handoff, and a `design_conditional_effect` method. Lower method classes
 cannot cross that boundary. This prevents prose-only ceiling bypass while still
 treating the estimator as only one component of causal identification.
+Evidence admission and rigor now replay that typed ceiling for all
+execution-backed `supports` evidence with an exact claim. The current ladder is
+conservative: `computation_only` supports no scientific claim, `descriptive`
+supports only measurement-validity claims, `association` supports at most
+statistical association, and `design_conditional_effect` supports at most causal
+direction. Robustness, mechanism, adaptation, attribution, and intent remain
+outside add-on method authority until Faraday has dedicated gates for those
+levels.
 Protocol-bound execution now passes the resolved method ceiling into the
 canonical design validator before analysis. A causal primary analysis requires
 `design_conditional_effect`; the decision and both levels are recorded in a

@@ -44,6 +44,14 @@ analyses require `design_conditional_effect`. The resulting
 `method_inference_check` is recomputed at handoff and run intake. This is a
 machine-enforced capability boundary, not proof that a third-party declaration
 is scientifically correct or that a compatible estimator establishes causality.
+Evidence admission and rigor replay use the same typed value for all
+execution-backed `supports` evidence attached to a claim: `computation_only`
+supports no scientific claim, `descriptive` can support only
+`measurement_validity`, `association` can support at most
+`statistical_association`, and `design_conditional_effect` can support at most
+`causal_direction`. Mechanism, robustness, adaptation, attribution, intent, and
+other stronger propositions need separate future authority rather than a wider
+prose claim ceiling.
 Methods also expose a machine-readable `randomness_control`:
 `deterministic` or `seeded`. A seeded method must list `seed` in
 `required_spec_fields`, and execution rejects non-integer seeds before the
