@@ -63,6 +63,30 @@ _STRUCTURED_RESULT_DETAIL_KEYS = {
     "stream_timing_assessment",
     "temporal_order_assessment",
 }
+_WORKFLOW_ADJUDICATION_FIELDS = {
+    "adjudication_version",
+    "status",
+    "protocol_id",
+    "protocol_hash",
+    "observation_dataset_id",
+    "primary_estimate",
+    "confirmatory_family",
+    "conclusion",
+    "quality_gate_adjudication",
+    "provenance",
+    "scientific_evidence_eligible",
+    "canonical_status",
+    "claim_ceiling",
+}
+_WORKFLOW_ADJUDICATION_CLAIM_CEILING = (
+    "Study-level estimate and multiplicity-adjusted decisions under the frozen "
+    "protocol and passed recorded gates; no proof, mechanism, unrestricted "
+    "causality, or external validity."
+)
+_WORKFLOW_ADJUDICATION_NOTICE = (
+    "Local composite verification only. Record and review a dedicated canonical "
+    "composite run before creating evidence."
+)
 
 
 _V2_INSTRUCTIONS = (
@@ -841,6 +865,42 @@ def _verified_handoff_results_by_output_sha(run: ResearchRun) -> dict[str, Any]:
         if not isinstance(receipt, dict) or not isinstance(adjudication, dict):
             raise ValidationError(
                 f"package run {run.run_id} workflow_adjudication_handoff receipt and adjudication must be objects"
+            )
+        if set(receipt) != {
+            "adjudication_receipt_version",
+            "status",
+            "manifest",
+            "output",
+            "scientific_evidence_eligible",
+            "notice",
+        }:
+            raise ValidationError(
+                f"package run {run.run_id} workflow_adjudication_handoff receipt fields are invalid"
+            )
+        if (
+            receipt.get("adjudication_receipt_version") != 1
+            or receipt.get("status") != "completed"
+            or receipt.get("scientific_evidence_eligible") is not False
+            or receipt.get("notice") != _WORKFLOW_ADJUDICATION_NOTICE
+        ):
+            raise ValidationError(
+                f"package run {run.run_id} workflow_adjudication_handoff receipt semantics are invalid"
+            )
+        if set(adjudication) != _WORKFLOW_ADJUDICATION_FIELDS:
+            raise ValidationError(
+                f"package run {run.run_id} workflow_adjudication_handoff adjudication fields are invalid"
+            )
+        if (
+            adjudication.get("adjudication_version") != 1
+            or adjudication.get("status") != "passed"
+            or adjudication.get("scientific_evidence_eligible") is not False
+            or adjudication.get("canonical_status")
+            != "reviewed_composite_run_required"
+            or adjudication.get("claim_ceiling")
+            != _WORKFLOW_ADJUDICATION_CLAIM_CEILING
+        ):
+            raise ValidationError(
+                f"package run {run.run_id} workflow_adjudication_handoff adjudication authority boundary is invalid"
             )
         output = receipt.get("output")
         if not isinstance(output, dict):

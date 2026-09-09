@@ -817,7 +817,10 @@ analysis-result body must also keep the closed version-2 execution envelope and
 receipt-matching authority identity: unsupported inference levels, extra
 authority fields, rewritten method-enforced ceiling status, altered
 non-authority missing-data scope, or receipt/result identity drift reject before
-any packaged gate can rely on that body. When a structured
+any packaged gate can rely on that body. Retained workflow-adjudication handoffs
+similarly must keep their exact completed receipt semantics, false evidence
+eligibility, `reviewed_composite_run_required` status, and bounded composite
+claim ceiling before package gates may cite the adjudication body. When a structured
 gate cites that retained Faraday analysis result, the package verifier also
 requires an absolute JSON Pointer that resolves in the retained result body; a
 matching output hash cannot excuse a fabricated internal location. Structured

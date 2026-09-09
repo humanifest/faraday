@@ -1567,6 +1567,57 @@ def test_holm_execution_binds_frozen_workflow_family_and_registered_input(tmp_pa
         if isinstance(gate["details"].get("control_results"), dict)
     )
     control_result = next(iter(control_gate["details"]["control_results"].values()))
+    for mutate_handoff, message in (
+        (
+            lambda handoff: handoff["adjudication"].__setitem__(
+                "scientific_evidence_eligible", True
+            ),
+            "adjudication authority boundary is invalid",
+        ),
+        (
+            lambda handoff: handoff["adjudication"].__setitem__(
+                "canonical_status", "scientific_evidence_ready"
+            ),
+            "adjudication authority boundary is invalid",
+        ),
+        (
+            lambda handoff: handoff["adjudication"].__setitem__(
+                "claim_ceiling", "Composite confirms the hypothesis."
+            ),
+            "adjudication authority boundary is invalid",
+        ),
+        (
+            lambda handoff: handoff["receipt"].__setitem__(
+                "scientific_evidence_eligible", True
+            ),
+            "receipt semantics are invalid",
+        ),
+    ):
+        tampered_runs = json.loads(json.dumps(packaged_runs))
+        tampered_composite = next(
+            run for run in tampered_runs
+            if run["run_id"] == completed_composite["run_id"]
+        )
+        mutate_handoff(
+            tampered_composite["metadata"]["workflow_adjudication_handoff"]
+        )
+        runs_path.write_text(
+            json.dumps(tampered_runs, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["runs.json"] = hashlib.sha256(
+            runs_path.read_bytes()
+        ).hexdigest()
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        tampered_commitment = hashlib.sha256(
+            manifest_path.read_bytes()
+        ).hexdigest()
+        with pytest.raises(ValidationError, match=message):
+            verify_replication_package(package, tampered_commitment)
     for bad_location, message in (
         ("quality_gate_adjudication/0", "absolute JSON Pointer"),
         ("/quality_gate_adjudication/missing", "does not resolve"),

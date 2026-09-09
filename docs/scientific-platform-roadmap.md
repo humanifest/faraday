@@ -1138,7 +1138,10 @@ closed version-2 analysis-result envelope and receipt/result authority identity:
 unsupported inference levels, extra authority fields, rewritten method-enforced
 ceiling status, altered non-authority missing-data scope, or identity drift
 reject before a packaged gate can use the retained result body for JSON Pointer
-resolution.
+resolution. Retained workflow-adjudication handoffs now replay the same
+non-evidence boundary at the composite layer: completed receipt semantics, false
+evidence eligibility, `reviewed_composite_run_required` status, and the bounded
+claim ceiling must match before package gates can cite adjudication content.
 When a package includes locators, verification also recomputes the packaged
 protocol, dataset, and run frozen hash commitments from the unredacted bytes;
 redacted packages preserve but cannot independently replay locator-bearing
