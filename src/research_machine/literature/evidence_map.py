@@ -12,6 +12,7 @@ from research_machine.domain.errors import ValidationError
 from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
+from research_machine.literature.verification import validate_citation_verification_boundary
 
 
 _EXTRACTION_RECORD_FIELDS = {
@@ -31,7 +32,6 @@ _INTERPRETIVE_CEILINGS = {
     "source_hypothesis_only",
     "insufficient_for_conclusion",
 }
-_VERDICTS = {"supported", "partially_supported", "unsupported", "unclear"}
 _BIAS_JUDGMENTS = {"low", "some_concerns", "high", "unclear"}
 _RELATIONSHIPS = {"independent", "overlapping_cohort", "duplicate_report", "unclear"}
 
@@ -97,21 +97,9 @@ def _validate_citation_verification_boundary(
     verification: dict[str, Any],
     assessments: list[dict[str, Any]],
 ) -> None:
-    if verification.get("independent_review") is not True:
-        raise ValidationError("citation verification must retain independent-review status")
-    if verification.get("scientific_evidence_eligible") is not False:
-        raise ValidationError("citation verification must remain scientifically ineligible")
-    _validate_limitations(verification, "citation verification")
-    counts = {verdict: 0 for verdict in sorted(_VERDICTS)}
-    for item in assessments:
-        verdict = item.get("verdict")
-        if verdict not in _VERDICTS:
-            raise ValidationError("citation assessment verdict is invalid")
-        counts[verdict] += 1
-    if verification.get("verdict_counts") != counts:
-        raise ValidationError("citation verification verdict_counts do not replay from assessments")
-    if counts["unsupported"] or counts["unclear"]:
-        raise ValidationError("evidence map requires citation-reviewed claims without unsupported or unclear verdicts")
+    validate_citation_verification_boundary(
+        verification, assessments, require_clean_verdicts=True
+    )
 
 
 def _validate_bias_assessment_boundary(

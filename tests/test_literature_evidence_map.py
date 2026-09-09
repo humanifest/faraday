@@ -64,6 +64,8 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
         "extraction_sha256": extraction_sha, "independent_review": True,
         "verdict_counts": {"partially_supported": 0, "supported": 1, "unclear": 0, "unsupported": 0},
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "The machine binds an independent review to extraction bytes but does not interpret source text or authenticate either reviewer.",
             "A supported verdict is a reviewer judgment, not proof that a claim is true, unbiased, reproducible, or applicable.",
@@ -159,8 +161,10 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
     "extraction-authority", "extraction-conclusion-authority",
     "extraction-publication-authority", "extraction-count-drift",
     "extraction-limitations-missing", "extraction-padded-limitation",
-    "verification-authority", "verification-not-independent",
-    "verification-count-drift", "verification-limitations-missing", "verification-padded-limitation",
+    "verification-authority", "verification-conclusion-authority",
+    "verification-publication-authority", "verification-not-independent",
+    "verification-count-drift", "verification-limitations-missing",
+    "verification-padded-limitation",
     "bias-authority", "bias-not-independent", "bias-count-drift",
     "bias-limitations-missing", "bias-padded-limitation", "reconciliation-authority",
     "reconciliation-not-independent", "reconciliation-count-drift",
@@ -208,12 +212,17 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
     elif failure in {
-        "verification-authority", "verification-not-independent", "verification-count-drift",
+        "verification-authority", "verification-conclusion-authority",
+        "verification-publication-authority", "verification-not-independent", "verification-count-drift",
         "verification-limitations-missing", "verification-padded-limitation",
     }:
         value = json.loads(verification.read_text())
         if failure == "verification-authority":
             value["scientific_evidence_eligible"] = True
+        elif failure == "verification-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "verification-publication-authority":
+            value["publication_authorized"] = True
         elif failure == "verification-not-independent":
             value["independent_review"] = False
         elif failure == "verification-count-drift":

@@ -76,6 +76,8 @@ def test_citation_verification_cli_is_exhaustive_independent_and_write_once(tmp_
     assert result["status"] == "citation_review_recorded"
     assert result["independent_review"] is True
     assert result["scientific_evidence_eligible"] is False
+    assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_citation_verification(extraction, digest, review(), output)
 

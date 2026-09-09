@@ -19,6 +19,8 @@ def verification_file(tmp_path, status="citation_review_recorded"):
         "independent_review": True,
         "verdict_counts": {"partially_supported": 1, "supported": 1, "unclear": 0, "unsupported": 0},
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "The machine binds an independent review to extraction bytes but does not interpret source text or authenticate either reviewer.",
             "A supported verdict is a reviewer judgment, not proof that a claim is true, unbiased, reproducible, or applicable.",
@@ -72,6 +74,8 @@ def test_bias_assessment_preserves_canonical_study_and_source_handles(tmp_path):
     "padded-reviewer",
     "padded-prior-reviewer",
     "citation-authority",
+    "citation-conclusion-authority",
+    "citation-publication-authority",
     "citation-not-independent",
     "citation-count-drift",
     "citation-limitations-missing",
@@ -104,6 +108,8 @@ def test_invalid_bias_assessment_never_publishes(tmp_path, failure):
     elif failure in {
         "padded-prior-reviewer",
         "citation-authority",
+        "citation-conclusion-authority",
+        "citation-publication-authority",
         "citation-not-independent",
         "citation-count-drift",
         "citation-limitations-missing",
@@ -119,6 +125,10 @@ def test_invalid_bias_assessment_never_publishes(tmp_path, failure):
             value["citation_reviewer"] = " Citation verifier "
         elif failure == "citation-authority":
             value["scientific_evidence_eligible"] = True
+        elif failure == "citation-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "citation-publication-authority":
+            value["publication_authorized"] = True
         elif failure == "citation-not-independent":
             value["independent_review"] = False
         elif failure == "citation-count-drift":

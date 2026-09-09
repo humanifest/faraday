@@ -1049,11 +1049,12 @@ retained limitations, and `record_count` against the extracted claim records
 before creating the review artifact, so a rewritten extraction summary cannot
 imply evidence eligibility, conclusion authority, publication authority, or a
 different claim set. Bias assessment now replays the
-citation-verification artifact's independent-review flag, non-authority
-boundary, retained limitations, and `verdict_counts` against the reviewed claim
-records before accepting study-level judgments, so unsupported or unclear
-source-claim judgments cannot be laundered into a clean risk-of-bias artifact
-by rewriting only summary fields. Study reconciliation now replays the
+citation-verification artifact's independent-review flag, non-evidence,
+non-conclusion, non-publication boundary, retained limitations, and
+`verdict_counts` against the reviewed claim records before accepting
+study-level judgments, so unsupported or unclear source-claim judgments cannot
+be laundered into a clean risk-of-bias artifact by rewriting only summary
+fields. Study reconciliation now replays the
 bias-assessment artifact's independent-review flag, non-authority boundary,
 retained limitations, and `overall_judgment_counts` against the bias-assessed
 study records before accepting identity metadata, so a study-identity review

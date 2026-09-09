@@ -1323,7 +1323,9 @@ different claim set. Unsupported and
 unclear claims remain in the artifact and force `review_required`; they are
 never silently dropped. This records independent human citation checking but
 does not make a claim true, authenticate reviewer identities, assess study bias,
-or create scientific evidence.
+or create scientific evidence. Citation-verification artifacts carry explicit
+false scientific-evidence, conclusion-authorization, and
+publication-authorization boundaries with retained limitations.
 Citation verification requires canonical extraction reviewer, source, study,
 claim, evidence-location, citation-reviewer, checked-location, and rationale
 text before coverage and duplicate checks, so a second review cannot trim a
@@ -1332,14 +1334,15 @@ different apparent assessment or rewrite the pinned extraction trail.
 a third reviewer distinct from both extraction and citation reviewers. The
 expected citation-verification hash must be canonical lowercase SHA-256 before
 it can pin the reviewed extraction claims. Bias assessment also replays the
-citation-verification artifact's independent-review flag, non-authority
-boundary, retained limitations, and `verdict_counts` from the reviewed claim
-records, and it rejects unsupported or unclear citation verdicts even when a
-stale summary still claims a clean review. Every reviewed study must cover all
-seven documented bias domains, cite locations for each applicable judgment, and
-exactly identify all source reports grouped under that study. Overall judgments
-are computed conservatively from the domain judgments; high risk dominates,
-followed by some concerns and unclear. This is a
+citation-verification artifact's independent-review flag, non-evidence,
+non-conclusion, non-publication boundary, retained limitations, and
+`verdict_counts` from the reviewed claim records, and it rejects unsupported or
+unclear citation verdicts even when a stale summary still claims a clean review.
+Every reviewed study must cover all seven documented bias domains, cite
+locations for each applicable judgment, and exactly identify all source reports
+grouped under that study. Overall judgments are computed conservatively from
+the domain judgments; high risk dominates, followed by some concerns and
+unclear. This is a
 generic audit scaffold, not a substitute for a design-specific validated bias
 instrument, proof of reviewer expertise, or permission to synthesize effects.
 `research literature reconcile-studies` then requires identity metadata for every

@@ -65,6 +65,46 @@ def _extraction_claim_payload_sha256(
     return hashlib.sha256(encoded).hexdigest()
 
 
+def validate_citation_verification_boundary(
+    verification: dict[str, Any],
+    assessments: list[dict[str, Any]],
+    *,
+    require_clean_verdicts: bool = False,
+) -> None:
+    """Replay citation-review authority, independence, status, and counts."""
+    if verification.get("independent_review") is not True:
+        raise ValidationError("citation verification must retain independent-review status")
+    if verification.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("citation verification must remain scientifically ineligible")
+    if verification.get("conclusion_authorized") is not False:
+        raise ValidationError("citation verification must not authorize conclusions")
+    if verification.get("publication_authorized") is not False:
+        raise ValidationError("citation verification must not authorize publication claims")
+    limitations = verification.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("citation verification requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"citation verification limitation {index + 1}")
+
+    counts: dict[str, int] = {verdict: 0 for verdict in sorted(_VERDICTS)}
+    for item in assessments:
+        verdict = item.get("verdict") if isinstance(item, dict) else None
+        if verdict not in _VERDICTS:
+            raise ValidationError("citation assessment verdict is invalid")
+        counts[verdict] += 1
+    if verification.get("verdict_counts") != counts:
+        raise ValidationError("citation verification verdict_counts do not replay from assessments")
+    expected_status = (
+        "review_required"
+        if counts["unsupported"] or counts["unclear"]
+        else "citation_review_recorded"
+    )
+    if verification.get("status") != expected_status:
+        raise ValidationError("citation verification status does not replay from verdicts")
+    if require_clean_verdicts and (counts["unsupported"] or counts["unclear"]):
+        raise ValidationError("downstream review requires citation-reviewed claims without unsupported or unclear verdicts")
+
+
 def create_citation_verification(
     extraction_path: Path,
     expected_sha256: str,
@@ -176,12 +216,15 @@ def create_citation_verification(
         "verdict_counts": counts,
         "status": "review_required" if requires_review else "citation_review_recorded",
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "The machine binds an independent review to extraction bytes but does not interpret source text or authenticate either reviewer.",
             "A supported verdict is a reviewer judgment, not proof that a claim is true, unbiased, reproducible, or applicable.",
             "Risk-of-bias assessment, study-identity reconciliation, and quantitative synthesis remain separate gates.",
         ],
     }
+    validate_citation_verification_boundary(result, result["assessments"])
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("citation verification output already exists")
