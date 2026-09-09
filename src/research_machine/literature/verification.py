@@ -9,6 +9,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
@@ -62,20 +63,6 @@ def _extraction_claim_payload_sha256(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
-
-
-def _validate_extraction_boundary(
-    extraction: dict[str, Any], extracted_record_count: int
-) -> None:
-    if extraction.get("scientific_evidence_eligible") is not False:
-        raise ValidationError("extraction record must remain scientifically ineligible")
-    limitations = extraction.get("limitations")
-    if not isinstance(limitations, list) or not limitations:
-        raise ValidationError("extraction record requires retained boundary limitations")
-    for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"extraction limitation {index + 1}")
-    if extraction.get("record_count") != extracted_record_count:
-        raise ValidationError("extraction record_count does not replay from extracted claims")
 
 
 def create_citation_verification(
@@ -140,7 +127,7 @@ def create_citation_verification(
             }
     if not records:
         raise ValidationError("citation verification requires at least one extracted claim")
-    _validate_extraction_boundary(extraction, len(records))
+    validate_extraction_boundary(extraction, len(records))
     if not isinstance(review, dict) or set(review) != {"reviewer", "assessments"}:
         raise ValidationError("citation review requires exactly reviewer and assessments")
     reviewer = _canonical_text(review["reviewer"], "citation reviewer")

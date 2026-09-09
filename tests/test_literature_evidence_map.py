@@ -47,6 +47,7 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
         source_review["source_retained_file_sha256"] = source_sha
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded", "snapshot_id": "snap",
         "record_count": 1, "scientific_evidence_eligible": False,
+        "conclusion_authorized": False, "publication_authorized": False,
         "limitations": [
             "Records are reviewer assertions bound to source IDs and locations; the machine has not verified that source text supports them.",
             "Extraction does not perform risk-of-bias assessment, resolve disagreements, accept claims as facts, or conduct synthesis.",
@@ -155,8 +156,10 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
 
 @pytest.mark.parametrize("failure", [
     "terminal-hash", "extraction-link", "verification-link", "bias-link", "unresolved",
-    "extraction-authority", "extraction-count-drift", "extraction-limitations-missing",
-    "extraction-padded-limitation", "verification-authority", "verification-not-independent",
+    "extraction-authority", "extraction-conclusion-authority",
+    "extraction-publication-authority", "extraction-count-drift",
+    "extraction-limitations-missing", "extraction-padded-limitation",
+    "verification-authority", "verification-not-independent",
     "verification-count-drift", "verification-limitations-missing", "verification-padded-limitation",
     "bias-authority", "bias-not-independent", "bias-count-drift",
     "bias-limitations-missing", "bias-padded-limitation", "reconciliation-authority",
@@ -183,12 +186,17 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
     elif failure == "unresolved":
         value = json.loads(reconciliation.read_text()); value["status"] = "review_required"; digest = write_json(reconciliation, value)
     elif failure in {
-        "extraction-authority", "extraction-count-drift", "extraction-limitations-missing",
-        "extraction-padded-limitation",
+        "extraction-authority", "extraction-conclusion-authority",
+        "extraction-publication-authority", "extraction-count-drift",
+        "extraction-limitations-missing", "extraction-padded-limitation",
     }:
         value = json.loads(extraction.read_text())
         if failure == "extraction-authority":
             value["scientific_evidence_eligible"] = True
+        elif failure == "extraction-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "extraction-publication-authority":
+            value["publication_authorized"] = True
         elif failure == "extraction-count-drift":
             value["record_count"] = 2
         elif failure == "extraction-limitations-missing":

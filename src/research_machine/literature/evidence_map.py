@@ -9,6 +9,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
@@ -78,9 +79,6 @@ def _validate_limitations(record: dict[str, Any], label: str) -> None:
 
 
 def _validate_extraction_boundary(extraction: dict[str, Any]) -> None:
-    if extraction.get("scientific_evidence_eligible") is not False:
-        raise ValidationError("extraction record must remain scientifically ineligible")
-    _validate_limitations(extraction, "extraction record")
     source_reviews = extraction.get("source_reviews")
     if not isinstance(source_reviews, list):
         raise ValidationError("extraction source_reviews must be an array")
@@ -92,8 +90,7 @@ def _validate_extraction_boundary(extraction: dict[str, Any]) -> None:
         if not isinstance(records, list):
             raise ValidationError("extraction records must be an array")
         record_count += len(records)
-    if extraction.get("record_count") != record_count:
-        raise ValidationError("extraction record_count does not replay from extracted claims")
+    validate_extraction_boundary(extraction, record_count)
 
 
 def _validate_citation_verification_boundary(

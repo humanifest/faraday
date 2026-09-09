@@ -58,6 +58,8 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded",
         "screening_sha256": screening_sha, "snapshot_id": "snap", "record_count": 1,
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "Records are reviewer assertions bound to source IDs and locations; the machine has not verified that source text supports them.",
             "Extraction does not perform risk-of-bias assessment, resolve disagreements, accept claims as facts, or conduct synthesis.",
@@ -191,6 +193,8 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
     "quantitative",
     "screening",
     "extraction-authority",
+    "extraction-conclusion-authority",
+    "extraction-publication-authority",
     "extraction-count-drift",
     "extraction-limitations-missing",
     "extraction-padded-limitation",
@@ -251,6 +255,8 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
         value = json.loads(extraction.read_text()); value["screening_sha256"] = "2" * 64; write_json(extraction, value)
     elif failure in {
         "extraction-authority",
+        "extraction-conclusion-authority",
+        "extraction-publication-authority",
         "extraction-count-drift",
         "extraction-limitations-missing",
         "extraction-padded-limitation",
@@ -260,6 +266,10 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
         value = json.loads(extraction.read_text())
         if failure == "extraction-authority":
             value["scientific_evidence_eligible"] = True
+        elif failure == "extraction-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "extraction-publication-authority":
+            value["publication_authorized"] = True
         elif failure == "extraction-count-drift":
             value["record_count"] = 2
         elif failure == "extraction-limitations-missing":

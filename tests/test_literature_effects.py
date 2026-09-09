@@ -62,6 +62,8 @@ def artifacts(tmp_path, minimum=1):
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded",
         "screening_sha256": screening_sha, "snapshot_id": "snap", "record_count": 2,
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "Records are reviewer assertions bound to source IDs and locations; the machine has not verified that source text supports them.",
             "Extraction does not perform risk-of-bias assessment, resolve disagreements, accept claims as facts, or conduct synthesis.",
@@ -147,8 +149,10 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     "plan-publication-authority", "plan-limitations-missing",
     "map-hash", "measure", "missing", "duplicate", "padded-duplicate",
     "extraction-source-duplicate", "nan", "se", "bool-n", "unavailable-value",
-    "extraction-authority", "extraction-count-drift", "extraction-limitations-missing",
-    "extraction-padded-limitation", "extraction-claim-payload", "extraction-extra-claim",
+    "extraction-authority", "extraction-conclusion-authority",
+    "extraction-publication-authority", "extraction-count-drift",
+    "extraction-limitations-missing", "extraction-padded-limitation",
+    "extraction-claim-payload", "extraction-extra-claim",
     "plan-source-missing", "plan-source-drift", "padded-plan-source",
     "padded-extraction-source", "padded-map-study", "padded-map-source",
     "padded-map-extraction", "padded-map-citation-location", "map-provenance",
@@ -184,6 +188,8 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
         write_json(extraction, value)
     elif failure in {
         "extraction-authority",
+        "extraction-conclusion-authority",
+        "extraction-publication-authority",
         "extraction-count-drift",
         "extraction-limitations-missing",
         "extraction-padded-limitation",
@@ -193,6 +199,10 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
         value = json.loads(extraction.read_text())
         if failure == "extraction-authority":
             value["scientific_evidence_eligible"] = True
+        elif failure == "extraction-conclusion-authority":
+            value["conclusion_authorized"] = True
+        elif failure == "extraction-publication-authority":
+            value["publication_authorized"] = True
         elif failure == "extraction-count-drift":
             value["record_count"] = 1
         elif failure == "extraction-limitations-missing":

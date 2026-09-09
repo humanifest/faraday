@@ -24,6 +24,26 @@ def _canonical_text(value: Any, field: str) -> str:
     return text
 
 
+def validate_extraction_boundary(
+    extraction: dict[str, Any],
+    extracted_record_count: int | None = None,
+) -> None:
+    """Replay extraction non-authority and retained record-count boundaries."""
+    if extraction.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("extraction record must remain scientifically ineligible")
+    if extraction.get("conclusion_authorized") is not False:
+        raise ValidationError("extraction record must not authorize conclusions")
+    if extraction.get("publication_authorized") is not False:
+        raise ValidationError("extraction record must not authorize publication claims")
+    limitations = extraction.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("extraction record requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"extraction limitation {index + 1}")
+    if extracted_record_count is not None and extraction.get("record_count") != extracted_record_count:
+        raise ValidationError("extraction record_count does not replay from extracted claims")
+
+
 def create_extraction(screening_path: Path, expected_sha256: str,
                       review: dict[str, Any], output: Path) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_screening_sha256")
@@ -120,12 +140,15 @@ def create_extraction(screening_path: Path, expected_sha256: str,
         "source_reviews": [by_source[source_id] for source_id in sorted(by_source)],
         "record_count": len(extraction_ids), "status": "extraction_recorded",
         "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
         "limitations": [
             "Records are reviewer assertions bound to source IDs and locations; the machine has not verified that source text supports them.",
             "Shared study_id values group reports only by reviewer declaration and do not establish independent studies.",
             "Extraction does not perform risk-of-bias assessment, resolve disagreements, accept claims as facts, or conduct synthesis.",
         ],
     }
+    validate_extraction_boundary(result, len(extraction_ids))
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("extraction output already exists")

@@ -11,6 +11,7 @@ from typing import Any
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.deviations import validate_synthesis_deviations_boundary
 from research_machine.literature.evidence_map import validate_evidence_map_boundary
+from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
@@ -79,13 +80,6 @@ def _extraction_claim_payload_sha256(
 def _validate_extraction_boundary_and_records(
     extraction: dict[str, Any],
 ) -> tuple[list[str], dict[str, dict[str, str]]]:
-    if extraction.get("scientific_evidence_eligible") is not False:
-        raise ValidationError("extraction record must remain scientifically ineligible")
-    limitations = extraction.get("limitations")
-    if not isinstance(limitations, list) or not limitations:
-        raise ValidationError("extraction record requires retained boundary limitations")
-    for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"extraction limitation {index + 1}")
     source_reviews = extraction.get("source_reviews")
     if not isinstance(source_reviews, list):
         raise ValidationError("extraction source_reviews must be an array")
@@ -122,8 +116,7 @@ def _validate_extraction_boundary_and_records(
                     source_id, normalized_record, source_retained_file_sha256
                 ),
             }
-    if extraction.get("record_count") != len(extracted_claims):
-        raise ValidationError("extraction record_count does not replay from extracted claims")
+    validate_extraction_boundary(extraction, len(extracted_claims))
     if not extracted_claims:
         raise ValidationError("qualitative synthesis requires extracted claim records")
     return source_ids, extracted_claims

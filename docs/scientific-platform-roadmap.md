@@ -1298,6 +1298,9 @@ screening bytes are hash-pinned and excluded sources cannot enter extraction.
 These records are reviewer assertions, not accepted facts or scientific evidence.
 The machine has not yet verified the cited passage, authenticated the reviewer,
 assessed risk of bias, reconciled independent extractors, or synthesized effects.
+Extraction artifacts carry explicit false scientific-evidence,
+conclusion-authorization, and publication-authorization boundaries with retained
+limitations.
 Extraction reviewer text, pinned screening source IDs, extraction source IDs,
 study IDs, claim IDs, evidence locations, uncertainty, and notes must be
 canonical without surrounding whitespace before coverage and duplicate checks,
@@ -1312,10 +1315,11 @@ verdict. Each assessment also binds a compact SHA-256 over the exact extracted
 claim payload: source, retained source-file hash when available, extraction ID,
 study ID, claim text, evidence location, epistemic layer, result direction,
 uncertainty, and notes. Citation verification also replays the extraction
-artifact's non-authority boundary, retained limitations, and `record_count`
-against the extracted claim records before creating the review artifact, so a
-rewritten extraction summary cannot imply evidence eligibility or a different
-claim set. Unsupported and
+artifact's non-evidence, non-conclusion, non-publication boundary, retained
+limitations, and `record_count` against the extracted claim records before
+creating the review artifact, so a rewritten extraction summary cannot imply
+evidence eligibility, conclusion authority, publication authority, or a
+different claim set. Unsupported and
 unclear claims remain in the artifact and force `review_required`; they are
 never silently dropped. This records independent human citation checking but
 does not make a claim true, authenticate reviewer identities, assess study bias,
@@ -1394,7 +1398,8 @@ deviation declaration before checking extraction and full evidence-map lineage;
 enforces the frozen included-source set and minimum independent-study count; and
 retains every null, adverse, mixed, hypothesis-only, and high-bias claim while
 reporting directional and ceiling counts. It replays extraction non-authority
-flags, retained limitations, `record_count`, and every mapped claim's compact
+flags, including the explicit non-conclusion and non-publication boundaries,
+retained limitations, `record_count`, and every mapped claim's compact
 extraction-payload digest against the supplied extraction bytes before trusting
 an evidence-map claim, so a rewritten extraction cannot be laundered by updating
 only the evidence-map input hash. The synthesis artifact also preserves
@@ -1420,7 +1425,8 @@ retains the mapped claim IDs, citation verdicts, citation-check locations, and
 interpretive ceilings that brought the study across the evidence-map boundary,
 plus the retained source-file hashes for those mapped claims, and preparation
 rejects extraction source sets that do not match the plan's frozen included
-sources. It replays extraction non-authority flags, retained limitations,
+sources. It replays extraction non-authority flags, including the explicit
+non-conclusion and non-publication boundaries, retained limitations,
 `record_count`, and every mapped claim's compact extraction-payload digest
 against the supplied extraction bytes before trusting evidence-map claims. It
 also replays the same evidence-map non-authority boundary and summary

@@ -53,6 +53,8 @@ def test_extraction_cli_is_write_once_and_non_evidentiary(tmp_path, capsys):
     assert result["record_count"] == 1
     assert result["source_reviews"][0]["records"][0]["evidence_location"] == "page 2, table 1"
     assert result["scientific_evidence_eligible"] is False
+    assert result["conclusion_authorized"] is False
+    assert result["publication_authorized"] is False
     assert json.loads(screening.read_text())["conclusion_authorized"] is False
     assert screening.read_bytes() == original
     with pytest.raises(ValidationError, match="already exists"):

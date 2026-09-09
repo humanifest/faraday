@@ -1044,10 +1044,11 @@ also binds a compact SHA-256 over each exact extracted claim payload, including
 the retained source-file hash for new anchored records, and evidence maps replay
 that payload digest before preserving it for qualitative synthesis and
 quantitative effect preparation. Citation verification also replays the
-extraction artifact's non-authority boundary, retained limitations, and
-`record_count` against the extracted claim records before creating the review
-artifact, so a rewritten extraction summary cannot imply evidence eligibility
-or a different claim set. Bias assessment now replays the
+extraction artifact's non-evidence, non-conclusion, non-publication boundary,
+retained limitations, and `record_count` against the extracted claim records
+before creating the review artifact, so a rewritten extraction summary cannot
+imply evidence eligibility, conclusion authority, publication authority, or a
+different claim set. Bias assessment now replays the
 citation-verification artifact's independent-review flag, non-authority
 boundary, retained limitations, and `verdict_counts` against the reviewed claim
 records before accepting study-level judgments, so unsupported or unclear
@@ -1084,7 +1085,8 @@ artifact, so a clean hash chain cannot hide rewritten boundary summaries.
 Qualitative synthesis also requires canonical
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims.
-It replays extraction non-authority flags, retained limitations, `record_count`,
+It replays extraction non-authority flags, including the explicit non-conclusion
+and non-publication boundaries, retained limitations, `record_count`,
 and every mapped claim's compact extraction-payload digest against the supplied
 extraction bytes before trusting an evidence-map claim, so a rewritten
 extraction cannot be laundered by updating only the evidence-map input hash.
@@ -1108,7 +1110,8 @@ Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim
 IDs, citation-review anchors, and retained source-file hashes, after checking
 the extraction source set against the synthesis plan's frozen included sources
-and replaying extraction non-authority flags, retained limitations,
+and replaying extraction non-authority flags, including the explicit
+non-conclusion and non-publication boundaries, retained limitations,
 `record_count`, and every mapped claim's compact extraction-payload digest
 against the supplied extraction bytes. It also replays the evidence map's
 non-authority boundary and summary counts.
