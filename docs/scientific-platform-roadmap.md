@@ -84,6 +84,12 @@ the complete frozen control set into `controls_passed` and `controls_failed`
 according to those structured results; omissions, duplicates, invented controls,
 and contradictory classifications fail closed. Existing synthetic-evidence
 restrictions still apply.
+Replication-package verification now replays passed control-gate metadata against
+the frozen control definitions: every mapped control must have exactly one
+evaluation, no invented controls may appear, `matches_expected` must remain a
+boolean scientific outcome, and each evaluation must cite a packaged run output.
+This prevents exported packages from hiding failed controls, adding convenient
+controls, or detaching control results from output-bound evidence.
 All passed quality gates now require `details.evidence_sha256` referencing an
 artifact emitted by that exact run. Optional `prerequisite_gate_ids` are checked
 against the same run: every named gate must be canonical without surrounding

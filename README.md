@@ -679,6 +679,12 @@ run validity, and final scientific-evidence eligibility. Gate IDs and
 prerequisite references must also be nonblank, unique, and canonical without
 surrounding whitespace before package verification accepts the run, so malformed
 package metadata cannot survive independent verification. Structured
+control-evaluation metadata is replayed for passed control gates: each frozen
+control mapped to the gate must have exactly one evaluation, no extra controls
+may appear, `matches_expected` must remain boolean, and the evaluation evidence
+hash must reference a packaged run output. This keeps failed or unexpected
+controls visible as scientific outcomes without treating expected behavior as
+proof that the study is valid. Structured
 canary-target gate metadata is replayed against the packaged protocol and run:
 the gate must be the frozen canary assessment gate, the plan and hidden
 assignment hashes must agree with `canary_target_plan`, the revealed and

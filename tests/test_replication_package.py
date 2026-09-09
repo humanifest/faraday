@@ -18,6 +18,7 @@ from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.domain.models import (
     AnalysisMode,
     CanaryTargetPlan,
+    ControlDefinition,
     DatasetArtifact,
     DatasetManifest,
     DatasetRole,
@@ -1128,6 +1129,134 @@ def test_replication_package_verifies_canary_target_gate_metadata(
         })
     elif mutation == "wrong_gate":
         gate["gate_id"] = "other-gate"
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing_results", "requires exact evaluations"),
+        ("missing_control", "requires exact evaluations"),
+        ("extra_control", "requires exact evaluations"),
+        ("missing_field", "requires an exact evaluation"),
+        ("non_boolean_match", "matches_expected must be a boolean"),
+        ("unbound_evidence", "must reference a run output artifact"),
+        ("blank_location", "evidence_location must be nonempty text"),
+    ],
+)
+def test_replication_package_verifies_control_gate_metadata(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service = ResearchService(FileSystemRepository(workspace), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    control = ControlDefinition(
+        "negative-1",
+        "Negative control",
+        "negative",
+        "Detect false acceptance.",
+        "No effect estimate should clear the fixture rule.",
+        "control-gate",
+    )
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL, methodology="Method",
+        quality_requirements=["control-gate"],
+        controls=["Negative control"], control_definitions=[control],
+        expected_outputs=["output"], success_conditions=["success"],
+        environment_requirements=["environment"], sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    record_path = tmp_path / "control-output.json"
+    record_sha256 = _write_json(
+        record_path,
+        {"controls": {"negative-1": {"matches_expected": True}}},
+    )
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        output_artifacts=[DatasetArtifact(
+            record_path.name,
+            record_sha256,
+            record_path.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "control-gate",
+            QualityGateStatus.PASSED,
+            "Synthetic control fixture was evaluated.",
+            details={
+                "evidence_sha256": record_sha256,
+                "control_results": {
+                    "negative-1": {
+                        "observed_behavior": "The synthetic negative control did not clear the fixture rule.",
+                        "interpretation": "Fixture-only control interpretation.",
+                        "matches_expected": True,
+                        "evidence_sha256": record_sha256,
+                        "evidence_location": "/controls/negative-1",
+                    }
+                },
+            },
+        )],
+        summary="Synthetic package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    gate = runs[0]["quality_gates"][0]
+    results = gate["details"]["control_results"]
+    if mutation == "missing_results":
+        del gate["details"]["control_results"]
+    elif mutation == "missing_control":
+        del results["negative-1"]
+    elif mutation == "extra_control":
+        results["unregistered-control"] = dict(results["negative-1"])
+    elif mutation == "missing_field":
+        del results["negative-1"]["interpretation"]
+    elif mutation == "non_boolean_match":
+        results["negative-1"]["matches_expected"] = "true"
+    elif mutation == "unbound_evidence":
+        results["negative-1"]["evidence_sha256"] = "f" * 64
+    elif mutation == "blank_location":
+        results["negative-1"]["evidence_location"] = ""
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 

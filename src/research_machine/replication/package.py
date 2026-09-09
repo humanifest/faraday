@@ -446,6 +446,66 @@ def _validate_canary_target_assessment_gate_metadata(
     require_canonical_text(assessment["evidence_location"], f"{prefix}.evidence_location")
 
 
+def _validate_control_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    run_id: str,
+    gate: QualityGateResult,
+    output_artifacts: list[DatasetArtifact],
+) -> None:
+    controls = [
+        control
+        for control in protocol.control_definitions
+        if control.evaluation_gate_id == gate.gate_id
+    ]
+    if not controls or gate.status is not QualityGateStatus.PASSED:
+        return
+    results = gate.details.get("control_results")
+    expected_ids = {control.control_id for control in controls}
+    if not isinstance(results, dict) or set(results) != expected_ids:
+        raise ValidationError(
+            f"package run {run_id} passed control gate {gate.gate_id} requires exact evaluations for: "
+            + ", ".join(sorted(expected_ids))
+        )
+    output_hashes = {artifact.sha256 for artifact in output_artifacts}
+    for control in controls:
+        result = results[control.control_id]
+        required_fields = {
+            "observed_behavior",
+            "interpretation",
+            "matches_expected",
+            "evidence_sha256",
+            "evidence_location",
+        }
+        if not isinstance(result, dict) or set(result) != required_fields:
+            raise ValidationError(
+                f"package run {run_id} passed control gate {gate.gate_id} requires an exact evaluation for {control.control_id}"
+            )
+        prefix = (
+            f"package run {run_id} gate {gate.gate_id} control_results "
+            f"{control.control_id}"
+        )
+        if not isinstance(result["observed_behavior"], str) or not result[
+            "observed_behavior"
+        ].strip():
+            raise ValidationError(f"{prefix}.observed_behavior must be nonempty text")
+        if not isinstance(result["interpretation"], str) or not result[
+            "interpretation"
+        ].strip():
+            raise ValidationError(f"{prefix}.interpretation must be nonempty text")
+        if type(result["matches_expected"]) is not bool:
+            raise ValidationError(f"{prefix}.matches_expected must be a boolean")
+        digest = require_sha256(result["evidence_sha256"], f"{prefix}.evidence_sha256")
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"package run {run_id} gate {gate.gate_id} control evaluation evidence must reference a run output artifact"
+            )
+        if not isinstance(result["evidence_location"], str) or not result[
+            "evidence_location"
+        ].strip():
+            raise ValidationError(f"{prefix}.evidence_location must be nonempty text")
+
+
 def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any]:
     """Verify packaged bytes against an independently retained export commitment."""
     expected_manifest_sha256 = require_sha256(
@@ -704,6 +764,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         output_artifacts=run.output_artifacts,
                     )
                     _validate_canary_target_assessment_gate_metadata(
+                        protocol=protocol,
+                        run_id=run.run_id,
+                        gate=gate,
+                        output_artifacts=run.output_artifacts,
+                    )
+                    _validate_control_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
