@@ -105,7 +105,10 @@ family that can demonstrate known-effect sensitivity, or lack a falsifying
 family (`negative`, `sham`, `replay`, `random_time`, or `adversarial`) capable
 of exposing contamination, leakage, timing artifacts, or misleading procedure
 success. These remain maturity warnings rather than proof that any particular
-control passed.
+control passed. Rigor also flags legacy frozen protected empirical protocols
+that name controls without structured definitions, preserving those prose
+commitments without retroactively claiming family, expected-behavior, or
+gate-binding coverage.
 For a passed evaluation gate, run intake
 requires exact `details.control_results` coverage for every control mapped to the
 gate. Each result contains `observed_behavior`, `interpretation`, boolean

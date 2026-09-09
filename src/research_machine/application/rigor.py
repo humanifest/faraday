@@ -612,35 +612,48 @@ def audit_research_state(
                 entity_type="protocol",
                 entity_id=protocol.protocol_id,
             )
-        if _protected_empirical(protocol) and protocol.control_definitions:
-            control_families = {
-                control.family for control in protocol.control_definitions
-            }
-            if "positive" not in control_families:
+        if _protected_empirical(protocol):
+            if protocol.controls and not protocol.control_definitions:
                 add(
-                    "PROTECTED_PROTOCOL_WITHOUT_POSITIVE_CONTROL",
+                    "PROTECTED_PROTOCOL_CONTROLS_UNSTRUCTURED",
                     RigorSeverity.WARNING,
-                    "Protected empirical protocol has no structured positive control.",
+                    "Protected empirical protocol names controls but lacks structured control definitions.",
                     entity_type="protocol",
                     entity_id=protocol.protocol_id,
                     remediation=(
-                        "Treat measurement sensitivity as unproven by controls; "
-                        "freeze a future protocol with a known-effect positive control "
-                        "or an explicit justification."
+                        "Treat legacy controls as prose commitments only; they do not "
+                        "establish family, expected-behavior, or gate-binding coverage."
                     ),
                 )
-            if not control_families.intersection(_FALSIFYING_CONTROL_FAMILIES):
-                add(
-                    "PROTECTED_PROTOCOL_WITHOUT_FALSIFYING_CONTROL",
-                    RigorSeverity.WARNING,
-                    "Protected empirical protocol has no negative, sham, replay, random-time, or adversarial control family.",
-                    entity_type="protocol",
-                    entity_id=protocol.protocol_id,
-                    remediation=(
-                        "Treat favorable direction as weak against mundane alternatives; "
-                        "freeze a future protocol with a falsifying control family."
-                    ),
-                )
+            if protocol.control_definitions:
+                control_families = {
+                    control.family for control in protocol.control_definitions
+                }
+                if "positive" not in control_families:
+                    add(
+                        "PROTECTED_PROTOCOL_WITHOUT_POSITIVE_CONTROL",
+                        RigorSeverity.WARNING,
+                        "Protected empirical protocol has no structured positive control.",
+                        entity_type="protocol",
+                        entity_id=protocol.protocol_id,
+                        remediation=(
+                            "Treat measurement sensitivity as unproven by controls; "
+                            "freeze a future protocol with a known-effect positive control "
+                            "or an explicit justification."
+                        ),
+                    )
+                if not control_families.intersection(_FALSIFYING_CONTROL_FAMILIES):
+                    add(
+                        "PROTECTED_PROTOCOL_WITHOUT_FALSIFYING_CONTROL",
+                        RigorSeverity.WARNING,
+                        "Protected empirical protocol has no negative, sham, replay, random-time, or adversarial control family.",
+                        entity_type="protocol",
+                        entity_id=protocol.protocol_id,
+                        remediation=(
+                            "Treat favorable direction as weak against mundane alternatives; "
+                            "freeze a future protocol with a falsifying control family."
+                        ),
+                    )
         factor_state = _factor_interpretability_state(protocol)
         if factor_state == "invalid":
             add(

@@ -824,6 +824,35 @@ def test_rigor_warns_when_protected_protocol_lacks_discriminating_control_famili
     assert "PROTECTED_PROTOCOL_WITHOUT_FALSIFYING_CONTROL" not in balanced_codes
 
 
+def test_rigor_flags_legacy_protected_controls_without_structured_definitions():
+    from test_ethics_gate import _human_protocol
+
+    legacy = replace(
+        _human_protocol(human_subjects=False),
+        control_definitions=[],
+        status=ProtocolStatus.FROZEN,
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Legacy control audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[legacy],
+        runs=[],
+    )
+    codes = {finding.code for finding in audit.findings}
+    assert "PROTECTED_PROTOCOL_CONTROLS_UNSTRUCTURED" in codes
+    assert "PROTECTED_PROTOCOL_WITHOUT_POSITIVE_CONTROL" not in codes
+    assert "PROTECTED_PROTOCOL_WITHOUT_FALSIFYING_CONTROL" not in codes
+
+
 def test_typed_measurement_contract_rejects_omitted_control_time(
     tmp_path: Path,
 ) -> None:

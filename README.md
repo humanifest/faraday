@@ -594,7 +594,10 @@ For protected empirical work, rigor now warns when frozen structured controls do
 not include both a positive family and at least one falsifying family
 (`negative`, `sham`, `replay`, `random_time`, or `adversarial`); this keeps
 measurement sensitivity and disconfirmation limits visible without treating a
-control label as proof of validity.
+control label as proof of validity. It also flags legacy frozen protocols that
+name controls without structured definitions, preserving those prose
+commitments without retroactively claiming family, expected-behavior, or
+gate-binding coverage.
 
 Guided JSON briefs may also carry a supported `sample_size_plan`. Faraday
 recomputes the deterministic receipt and embeds the review copy in the protocol
