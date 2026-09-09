@@ -919,7 +919,7 @@ def _finding(
     return finding
 
 
-def _validate_retained_finding(value: Any, label: str) -> str:
+def _validate_retained_finding(value: Any, label: str) -> tuple[str, str]:
     if not isinstance(value, dict):
         raise ValidationError(f"{label} must be an object")
     has_stream = "stream_id" in value
@@ -936,13 +936,13 @@ def _validate_retained_finding(value: Any, label: str) -> str:
     severity = _text(value["severity"], f"{label}.severity")
     if severity not in {"warning", "error"}:
         raise ValidationError("instrument inspection finding severity is unsupported")
-    _text(value["code"], f"{label}.code")
+    code = _text(value["code"], f"{label}.code")
     _text(value["message"], f"{label}.message")
     if has_stream:
         _stable_identifier(value["stream_id"], f"{label}.stream_id")
     if has_event:
         _stable_identifier(value["event_id"], f"{label}.event_id")
-    return severity
+    return severity, code
 
 
 def assess_temporal_order(
@@ -1172,6 +1172,10 @@ def verify_temporal_order_assessment_record(
     check_statuses: list[str] = []
     derived_failed_checks = 0
     derived_warning_checks = 0
+    required_error_codes: set[str] = set()
+    required_warning_codes: set[str] = set()
+    if timing_status != "timing_feasibility_passed":
+        required_error_codes.add("UPSTREAM_TIMING_FEASIBILITY_NOT_PASSED")
     seen_checks: set[str] = set()
     for index, check in enumerate(order_checks):
         if not isinstance(check, dict):
@@ -1218,9 +1222,11 @@ def verify_temporal_order_assessment_record(
             raise ValidationError("temporal order assessment check status is unsupported")
         check_statuses.append(status)
         derived_status = "failed"
+        required_code = "ORDER_CONTRADICTS_EXPECTATION"
         if observed_relation == expected_relation:
             if observed_relation == "indeterminate_within_uncertainty":
                 derived_status = "warning"
+                required_code = "ORDER_INDETERMINATE_WITHIN_UNCERTAINTY"
             elif observed_relation != "not_assessed":
                 point_delta = _finite_number(
                     check.get("point_delta_seconds"),
@@ -1240,24 +1246,49 @@ def verify_temporal_order_assessment_record(
                     and float(conservative_gap) >= minimum_seconds
                 ):
                     derived_status = "passed"
+                    required_code = ""
+                elif abs(float(point_delta)) > maximum_seconds:
+                    required_code = "ORDER_OUTSIDE_REGISTERED_WINDOW"
+                elif observed_relation != "indeterminate_within_uncertainty":
+                    required_code = "ORDER_INDETERMINATE_WITHIN_UNCERTAINTY"
+        elif observed_relation == "not_assessed":
+            required_code = ""
+        elif observed_relation == "indeterminate_within_uncertainty":
+            required_code = "ORDER_INDETERMINATE_WITHIN_UNCERTAINTY"
+        else:
+            point_delta = _finite_number(
+                check.get("point_delta_seconds"),
+                f"temporal_order order_checks[{index}].point_delta_seconds",
+            )
+            if abs(float(point_delta)) > maximum_seconds:
+                required_code = "ORDER_OUTSIDE_REGISTERED_WINDOW"
         if status != derived_status:
             raise ValidationError(
                 "temporal order assessment check status disagrees with retained order"
             )
         if derived_status == "failed":
             derived_failed_checks += 1
+            if required_code:
+                required_error_codes.add(required_code)
         elif derived_status == "warning":
             derived_warning_checks += 1
+            if required_code:
+                required_warning_codes.add(required_code)
     findings = record["findings"]
     if not isinstance(findings, list):
         raise ValidationError("temporal order assessment findings must be an array")
     error_findings = 0
+    retained_error_codes: set[str] = set()
+    retained_warning_codes: set[str] = set()
     for index, finding in enumerate(findings):
-        severity = _validate_retained_finding(
+        severity, code = _validate_retained_finding(
             finding, f"temporal_order findings[{index}]"
         )
         if severity == "error":
             error_findings += 1
+            retained_error_codes.add(code)
+        else:
+            retained_warning_codes.add(code)
     status = _text(record["status"], "temporal_order record status")
     if status not in {"temporal_order_passed", "temporal_order_failed"}:
         raise ValidationError("temporal order assessment status is unsupported")
@@ -1274,6 +1305,22 @@ def verify_temporal_order_assessment_record(
         error_findings or derived_failed_checks
     ):
         raise ValidationError("temporal order failed record lacks failed checks")
+    if derived_failed_checks and not error_findings:
+        raise ValidationError(
+            "temporal order assessment record omits required failure findings"
+        )
+    missing_error_codes = sorted(required_error_codes - retained_error_codes)
+    if missing_error_codes:
+        raise ValidationError(
+            "temporal order assessment record omits required failure findings: "
+            + ", ".join(missing_error_codes)
+        )
+    missing_warning_codes = sorted(required_warning_codes - retained_warning_codes)
+    if missing_warning_codes:
+        raise ValidationError(
+            "temporal order assessment record omits required warning findings: "
+            + ", ".join(missing_warning_codes)
+        )
     return {
         "status": "temporal_order_assessment_record_verified",
         "record_sha256": retained_sha256,
@@ -1588,6 +1635,11 @@ def verify_stream_timing_assessment_record(
     )
     if maximum_uncertainty_fraction > 1:
         raise ValidationError("stream timing assessment maximum_uncertainty_fraction must be at most 1")
+    required_error_codes: set[str] = set()
+    if temporal_status != "proposed_unverified":
+        required_error_codes.add("STREAM_METADATA_NOT_PROVIDED")
+    if inspection["stream_count"] == 0:
+        required_error_codes.add("NO_STREAMS_AVAILABLE")
     required_streams = record["required_streams"]
     if not isinstance(required_streams, list):
         raise ValidationError("stream timing assessment required_streams must be an array")
@@ -1618,6 +1670,11 @@ def verify_stream_timing_assessment_record(
             raise ValidationError("stream timing assessment required stream status is unsupported")
         if status in {"absent", "channel_mismatch"}:
             required_stream_failures += 1
+            required_error_codes.add(
+                "REQUIRED_STREAM_ABSENT"
+                if status == "absent"
+                else "REQUIRED_CHANNEL_MISMATCH"
+            )
         if status != "absent":
             _text(
                 stream.get("observed_channel"),
@@ -1655,6 +1712,10 @@ def verify_stream_timing_assessment_record(
         }:
             raise ValidationError("stream timing assessment event status is unsupported")
         event_statuses.append(status)
+        if status == "stream_absent":
+            required_error_codes.add("EVENT_STREAM_ABSENT")
+        if status == "unsupported_uncertainty_unit":
+            required_error_codes.add("CLOCK_UNCERTAINTY_UNIT_NOT_ABSOLUTE")
         if status == "assessed":
             _nonnegative_number(
                 event.get("clock_uncertainty_seconds"),
@@ -1666,21 +1727,25 @@ def verify_stream_timing_assessment_record(
             )
             if uncertainty_fraction >= maximum_uncertainty_fraction:
                 event_condition_failures += 1
+                required_error_codes.add("CLOCK_UNCERTAINTY_APPROACHES_LAG_WINDOW")
             overlaps = event.get("overlapping_missing_intervals")
             if not isinstance(overlaps, list):
                 raise ValidationError("stream timing assessment overlapping_missing_intervals must be an array")
             if overlaps:
                 event_condition_failures += 1
+                required_error_codes.add("EVENT_UNCERTAINTY_OVERLAPS_MISSING_INTERVAL")
     findings = record["findings"]
     if not isinstance(findings, list):
         raise ValidationError("stream timing assessment findings must be an array")
     error_findings = 0
+    retained_error_codes: set[str] = set()
     for index, finding in enumerate(findings):
-        severity = _validate_retained_finding(
+        severity, code = _validate_retained_finding(
             finding, f"stream_timing findings[{index}]"
         )
         if severity == "error":
             error_findings += 1
+            retained_error_codes.add(code)
     status = _text(record["status"], "stream_timing record status")
     if status not in {"timing_feasibility_passed", "timing_feasibility_failed"}:
         raise ValidationError("stream timing assessment status is unsupported")
@@ -1707,6 +1772,12 @@ def verify_stream_timing_assessment_record(
         or event_condition_failures
     ):
         raise ValidationError("failed stream timing assessment record lacks failed checks")
+    missing_error_codes = sorted(required_error_codes - retained_error_codes)
+    if missing_error_codes:
+        raise ValidationError(
+            "stream timing assessment record omits required failure findings: "
+            + ", ".join(missing_error_codes)
+        )
     return {
         "status": "stream_timing_assessment_record_verified",
         "record_sha256": retained_sha256,
