@@ -1217,6 +1217,40 @@ def test_replication_package_verifies_stream_timing_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
+    original_runs_text = json.dumps(runs, indent=2, sort_keys=True) + "\n"
+    assessment_metadata = runs[0]["quality_gates"][0]["details"][
+        "stream_timing_assessment"
+    ]
+    assert assessment_metadata["required_stream_count"] == 1
+    assert assessment_metadata["required_stream_failure_count"] == 0
+    assert assessment_metadata["event_count"] == 1
+    assert assessment_metadata["event_failure_count"] == 0
+    assert assessment_metadata["finding_count"] == 0
+
+    runs[0]["quality_gates"][0]["details"]["stream_timing_assessment"][
+        "event_failure_count"
+    ] = 1
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match="retains stream or event failures"):
+        verify_replication_package(package, commitment)
+
+    runs_path.write_text(original_runs_text)
+    _refresh_packaged_file(package, "runs.json")
+    runs = json.loads(runs_path.read_text())
+    del runs[0]["quality_gates"][0]["details"]["stream_timing_assessment"][
+        "event_count"
+    ]
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match="fields are invalid"):
+        verify_replication_package(package, commitment)
+
+    runs_path.write_text(original_runs_text)
+    _refresh_packaged_file(package, "runs.json")
+    runs = json.loads(runs_path.read_text())
     _add_packaged_decoy_output(runs)
     runs[0]["quality_gates"][0]["details"]["evidence_sha256"] = "f" * 64
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")

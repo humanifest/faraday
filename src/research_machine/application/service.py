@@ -763,9 +763,17 @@ def _validate_stream_timing_assessment_gate(
         "inspection_sha256",
         "specification_sha256",
     }
-    if set(assessment) != required_fields:
+    derived_fields = {
+        "required_stream_count",
+        "required_stream_failure_count",
+        "event_count",
+        "event_failure_count",
+        "finding_count",
+    }
+    allowed_fields = required_fields | derived_fields
+    if set(assessment) - allowed_fields or not required_fields <= set(assessment):
         raise ValidationError(
-            f"quality gate {gate.gate_id} stream_timing_assessment must contain exactly: "
+            f"quality gate {gate.gate_id} stream_timing_assessment must contain at least: "
             + ", ".join(sorted(required_fields))
         )
     prefix = f"quality gate {gate.gate_id} stream_timing_assessment"
@@ -819,6 +827,15 @@ def _validate_stream_timing_assessment_gate(
         raise ValidationError(
             f"quality gate {gate.gate_id} stream_timing_assessment status does not match the verified record"
         )
+    for field in derived_fields:
+        expected = verified[field]
+        supplied = assessment.get(field)
+        if supplied is not None and supplied != expected:
+            raise ValidationError(
+                f"quality gate {gate.gate_id} stream_timing_assessment {field} "
+                "does not match the verified record"
+            )
+        assessment[field] = expected
     if gate.status is QualityGateStatus.PASSED:
         if verified["record_status"] != "timing_feasibility_passed":
             raise ValidationError(

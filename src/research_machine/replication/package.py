@@ -476,7 +476,15 @@ def _validate_stream_timing_assessment_gate_metadata(
         "inspection_sha256",
         "specification_sha256",
     }
-    if set(assessment) != required_fields:
+    derived_fields = {
+        "required_stream_count",
+        "required_stream_failure_count",
+        "event_count",
+        "event_failure_count",
+        "finding_count",
+    }
+    allowed_fields = required_fields | derived_fields
+    if set(assessment) != allowed_fields:
         raise ValidationError(
             f"package run {run_id} gate {gate.gate_id} stream_timing_assessment fields are invalid"
         )
@@ -512,15 +520,46 @@ def _validate_stream_timing_assessment_gate_metadata(
         raise ValidationError(
             f"package run {run_id} gate {gate.gate_id} stream-timing assessment record is not a declared output artifact"
         )
+    counts: dict[str, int] = {}
+    for field in derived_fields:
+        value = assessment[field]
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise ValidationError(
+                f"package run {run_id} gate {gate.gate_id} stream_timing_assessment {field} must be a non-negative integer"
+            )
+        counts[field] = value
+    if counts["required_stream_failure_count"] > counts["required_stream_count"]:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} stream_timing_assessment required_stream_failure_count exceeds required_stream_count"
+        )
+    if counts["event_failure_count"] > counts["event_count"]:
+        raise ValidationError(
+            f"package run {run_id} gate {gate.gate_id} stream_timing_assessment event_failure_count exceeds event_count"
+        )
     if gate.status is QualityGateStatus.PASSED:
         if declared_status != "timing_feasibility_passed":
             raise ValidationError(
                 f"package run {run_id} passed stream-timing gate {gate.gate_id} lacks passed assessment metadata"
             )
+        if (
+            counts["required_stream_failure_count"] != 0
+            or counts["event_failure_count"] != 0
+        ):
+            raise ValidationError(
+                f"package run {run_id} passed stream-timing gate {gate.gate_id} retains stream or event failures"
+            )
     elif gate.status is QualityGateStatus.FAILED:
         if declared_status != "timing_feasibility_failed":
             raise ValidationError(
                 f"package run {run_id} failed stream-timing gate {gate.gate_id} lacks failed assessment metadata"
+            )
+        if (
+            counts["required_stream_failure_count"] == 0
+            and counts["event_failure_count"] == 0
+            and counts["finding_count"] == 0
+        ):
+            raise ValidationError(
+                f"package run {run_id} failed stream-timing gate {gate.gate_id} lacks failure summary"
             )
     else:
         raise ValidationError(

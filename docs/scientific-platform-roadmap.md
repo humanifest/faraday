@@ -1681,7 +1681,8 @@ missing stream metadata, channel mismatches, unusable uncertainty units, and
 missing-interval overlaps without allowing a favorable summary to overwrite
 them. Rigor, deterministic synthesis, and replication-package verification now
 carry those gates with their exact artifact locator, record hash, inspection
-hash, specification hash, and bounded status.
+hash, specification hash, bounded status, and replay-derived counts of required
+streams, stream failures, events, event failures, and findings.
 Temporal-order classification delivery: `measurement assess-temporal-order` now
 binds an independently trusted timing-assessment hash plus a registered
 event-order specification. It compares uncertainty intervals instead of point

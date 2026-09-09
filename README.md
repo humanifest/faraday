@@ -1382,8 +1382,11 @@ Failed stream-timing assessments may only be retained as failed gates, preservin
 missing stream metadata, channel mismatches, unusable uncertainty units, and
 missing-interval overlaps while blocking required-gate evidence eligibility.
 Rigor, synthesis, and replication-package verification expose the record
-locator, assessment hash, inspection hash, specification hash, and bounded
-status.
+locator, assessment hash, inspection hash, specification hash, bounded status,
+and replay-derived counts of required streams, stream failures, events, event
+failures, and findings. Caller-supplied stream-timing summaries are rejected
+when they disagree with the verified record, and packages must retain the full
+summary rather than reducing timing feasibility to a bare pass/fail label.
 
 Use `measurement assess-temporal-order --timing-assessment-file FILE
 --expected-timing-assessment-sha256 HASH --spec-file SPEC --output DIRECTORY`

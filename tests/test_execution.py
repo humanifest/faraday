@@ -1134,13 +1134,20 @@ def test_run_replays_passed_stream_timing_assessment_gate(tmp_path: Path) -> Non
     assert run.quality_gates[0].details["stream_timing_assessment"]["status"] == (
         "timing_feasibility_passed"
     )
+    assert run.quality_gates[0].details["stream_timing_assessment"]["required_stream_count"] == 1
+    assert run.quality_gates[0].details["stream_timing_assessment"]["required_stream_failure_count"] == 0
+    assert run.quality_gates[0].details["stream_timing_assessment"]["event_count"] == 1
+    assert run.quality_gates[0].details["stream_timing_assessment"]["event_failure_count"] == 0
+    assert run.quality_gates[0].details["stream_timing_assessment"]["finding_count"] == 0
     assert run.quality_gates[0].details["evidence_sha256"] == result["assessment_sha256"]
     synthesis = service.build_synthesis()["content"]
     assert "Stream timing provenance" in synthesis
     assert result["assessment_sha256"] in synthesis
+    assert "Required streams: 1; stream failures: 0; events: 1; event failures: 0; findings: 0." in synthesis
     assert "does not authenticate acquisition" in synthesis
     assert any(
         finding.code == "RUN_STREAM_TIMING_ASSESSMENT_REPLAYED"
+        and "1 required streams" in finding.message
         for finding in service.audit_rigor().findings
     )
 
@@ -1217,14 +1224,41 @@ def test_run_preserves_failed_stream_timing_assessment_gate(tmp_path: Path) -> N
     assert run.quality_gates[0].details["stream_timing_assessment"]["status"] == (
         "timing_feasibility_failed"
     )
+    assert run.quality_gates[0].details["stream_timing_assessment"]["required_stream_count"] == 1
+    assert run.quality_gates[0].details["stream_timing_assessment"]["required_stream_failure_count"] == 0
+    assert run.quality_gates[0].details["stream_timing_assessment"]["event_count"] == 1
+    assert run.quality_gates[0].details["stream_timing_assessment"]["event_failure_count"] == 0
+    assert run.quality_gates[0].details["stream_timing_assessment"]["finding_count"] == 1
     assert run.scientific_evidence_eligible is False
     synthesis = service.build_synthesis()["content"]
     assert "record status: timing_feasibility_failed" in synthesis
+    assert "Required streams: 1; stream failures: 0; events: 1; event failures: 0; findings: 1." in synthesis
     assert any(
         finding.code == "RUN_STREAM_TIMING_ASSESSMENT_FAILED"
         and finding.entity_id == run.run_id
+        and "0 event failures of 1 events" in finding.message
         for finding in service.audit_rigor().findings
     )
+
+
+def test_run_rejects_stream_timing_assessment_summary_drift(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _stream_timing_assessment_gate_fixture(
+        tmp_path
+    )
+    quality_gates[0].details["stream_timing_assessment"]["event_failure_count"] = 1
+
+    with pytest.raises(ValidationError, match="event_failure_count.*verified record"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
 
 
 def test_run_rejects_stream_timing_assessment_upstream_hash_drift(

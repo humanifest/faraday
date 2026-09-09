@@ -849,7 +849,12 @@ def audit_research_state(
                     add(
                         "RUN_STREAM_TIMING_ASSESSMENT_FAILED",
                         RigorSeverity.ERROR,
-                        "Run retains a failed stream-timing assessment; event-timing interpretation must stay bounded.",
+                        "Run retains a failed stream-timing assessment "
+                        f"({stream_timing.get('required_stream_failure_count', 'unknown')} stream failures of "
+                        f"{stream_timing.get('required_stream_count', 'unknown')} required streams; "
+                        f"{stream_timing.get('event_failure_count', 'unknown')} event failures of "
+                        f"{stream_timing.get('event_count', 'unknown')} events). "
+                        "Event-timing interpretation must stay bounded.",
                         entity_type="run",
                         entity_id=run.run_id,
                         remediation=(
@@ -860,7 +865,10 @@ def audit_research_state(
                     add(
                         "RUN_STREAM_TIMING_ASSESSMENT_REPLAYED",
                         RigorSeverity.INFO,
-                        "Run exposes an artifact-bound stream-timing assessment; the pass is a feasibility check, not acquisition or calibration proof.",
+                        "Run exposes an artifact-bound stream-timing assessment "
+                        f"({stream_timing.get('required_stream_count', 'unknown')} required streams; "
+                        f"{stream_timing.get('event_count', 'unknown')} events). "
+                        "The pass is a feasibility check, not acquisition or calibration proof.",
                         entity_type="run",
                         entity_id=run.run_id,
                     )

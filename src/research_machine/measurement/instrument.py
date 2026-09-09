@@ -1704,6 +1704,7 @@ def verify_stream_timing_assessment_record(
     if not isinstance(events, list):
         raise ValidationError("stream timing assessment events must be an array")
     event_statuses: list[str] = []
+    event_failures = 0
     event_condition_failures = 0
     seen_events: set[str] = set()
     for index, event in enumerate(events):
@@ -1733,10 +1734,13 @@ def verify_stream_timing_assessment_record(
             raise ValidationError("stream timing assessment event status is unsupported")
         event_statuses.append(status)
         if status == "stream_absent":
+            event_failures += 1
             required_error_codes.add("EVENT_STREAM_ABSENT")
         if status == "unsupported_uncertainty_unit":
+            event_failures += 1
             required_error_codes.add("CLOCK_UNCERTAINTY_UNIT_NOT_ABSOLUTE")
         if status == "assessed":
+            event_failed = False
             uncertainty_seconds = _nonnegative_number(
                 event.get("clock_uncertainty_seconds"),
                 f"stream_timing events[{index}].clock_uncertainty_seconds",
@@ -1758,6 +1762,7 @@ def verify_stream_timing_assessment_record(
                 )
             if uncertainty_fraction >= maximum_uncertainty_fraction:
                 event_condition_failures += 1
+                event_failed = True
                 required_error_codes.add("CLOCK_UNCERTAINTY_APPROACHES_LAG_WINDOW")
             overlaps = event.get("overlapping_missing_intervals")
             if not isinstance(overlaps, list):
@@ -1786,7 +1791,10 @@ def verify_stream_timing_assessment_record(
                 _text(overlap["reason"], f"{overlap_label}.reason")
             if overlaps:
                 event_condition_failures += 1
+                event_failed = True
                 required_error_codes.add("EVENT_UNCERTAINTY_OVERLAPS_MISSING_INTERVAL")
+            if event_failed:
+                event_failures += 1
     findings = record["findings"]
     if not isinstance(findings, list):
         raise ValidationError("stream timing assessment findings must be an array")
@@ -1840,7 +1848,9 @@ def verify_stream_timing_assessment_record(
         "inspection_sha256": inspection_sha256,
         "specification_sha256": specification_sha256,
         "required_stream_count": len(required_streams),
+        "required_stream_failure_count": required_stream_failures,
         "event_count": len(events),
+        "event_failure_count": event_failures,
         "finding_count": len(findings),
         "scientific_evidence_eligible": False,
     }

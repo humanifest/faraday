@@ -498,6 +498,15 @@ def build_synthesis(
                     f"`{assessment.get('specification_sha256', 'unavailable')}`. "
                     "This checks timing feasibility from proposed stream metadata; it does not authenticate acquisition or calibration truth."
                 )
+                if "required_stream_count" in assessment:
+                    lines.append(
+                        "  - Required streams: "
+                        f"{assessment.get('required_stream_count', 'unavailable')}; stream failures: "
+                        f"{assessment.get('required_stream_failure_count', 'unavailable')}; events: "
+                        f"{assessment.get('event_count', 'unavailable')}; event failures: "
+                        f"{assessment.get('event_failure_count', 'unavailable')}; findings: "
+                        f"{assessment.get('finding_count', 'unavailable')}."
+                    )
     temporal_order_runs = [
         run for run in runs
         if any(
