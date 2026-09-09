@@ -23,6 +23,7 @@ _DOMAINS = (
     "selective_reporting",
 )
 _JUDGMENTS = {"low", "some_concerns", "high", "unclear", "not_applicable"}
+_VERDICTS = {"supported", "partially_supported", "unsupported", "unclear"}
 
 
 def _canonical_text(value: Any, field: str) -> str:
@@ -41,6 +42,32 @@ def _overall(domains: list[dict[str, Any]]) -> str:
     if "unclear" in values:
         return "unclear"
     return "low" if "low" in values else "unclear"
+
+
+def _validate_citation_verification_boundary(
+    verification: dict[str, Any],
+    claims: list[dict[str, Any]],
+) -> None:
+    if verification.get("independent_review") is not True:
+        raise ValidationError("citation verification must retain independent-review status")
+    if verification.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("citation verification must remain scientifically ineligible")
+    limitations = verification.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("citation verification requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"citation verification limitation {index + 1}")
+
+    counts: dict[str, int] = {verdict: 0 for verdict in sorted(_VERDICTS)}
+    for claim in claims:
+        verdict = claim.get("verdict")
+        if verdict not in _VERDICTS:
+            raise ValidationError("citation assessment verdict is invalid")
+        counts[verdict] += 1
+    if verification.get("verdict_counts") != counts:
+        raise ValidationError("citation verification verdict_counts do not replay from assessments")
+    if counts["unsupported"] or counts["unclear"]:
+        raise ValidationError("bias assessment requires citation-reviewed claims without unsupported or unclear verdicts")
 
 
 def create_bias_assessment(
@@ -70,6 +97,7 @@ def create_bias_assessment(
     claims = verification.get("assessments")
     if not isinstance(claims, list) or not claims:
         raise ValidationError("bias assessment requires citation-reviewed claims")
+    _validate_citation_verification_boundary(verification, claims)
     studies: dict[str, set[str]] = {}
     for claim in claims:
         if not isinstance(claim, dict):

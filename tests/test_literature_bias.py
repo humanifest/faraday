@@ -16,9 +16,17 @@ DOMAINS = ["selection", "confounding", "exposure_or_intervention_classification"
 def verification_file(tmp_path, status="citation_review_recorded"):
     value = {"citation_verification_version": 1, "status": status, "snapshot_id": "snap",
         "extraction_reviewer": "Extractor", "citation_reviewer": "Citation verifier",
+        "independent_review": True,
+        "verdict_counts": {"partially_supported": 1, "supported": 1, "unclear": 0, "unsupported": 0},
+        "scientific_evidence_eligible": False,
+        "limitations": [
+            "The machine binds an independent review to extraction bytes but does not interpret source text or authenticate either reviewer.",
+            "A supported verdict is a reviewer judgment, not proof that a claim is true, unbiased, reproducible, or applicable.",
+            "Risk-of-bias assessment, study-identity reconciliation, and quantitative synthesis remain separate gates.",
+        ],
         "assessments": [
-            {"extraction_id": "e1", "study_id": "study-1", "source_id": "s1"},
-            {"extraction_id": "e2", "study_id": "study-1", "source_id": "s2"},
+            {"extraction_id": "e1", "study_id": "study-1", "source_id": "s1", "verdict": "supported"},
+            {"extraction_id": "e2", "study_id": "study-1", "source_id": "s2", "verdict": "partially_supported"},
         ]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
     path = tmp_path / "citation-verification.json"
@@ -63,6 +71,14 @@ def test_bias_assessment_preserves_canonical_study_and_source_handles(tmp_path):
     "same-reviewer",
     "padded-reviewer",
     "padded-prior-reviewer",
+    "citation-authority",
+    "citation-not-independent",
+    "citation-count-drift",
+    "citation-limitations-missing",
+    "citation-padded-limitation",
+    "citation-unsupported-verdict",
+    "citation-unclear-count",
+    "citation-bad-verdict",
     "padded-citation-study",
     "padded-citation-source",
     "missing-study",
@@ -85,10 +101,42 @@ def test_invalid_bias_assessment_never_publishes(tmp_path, failure):
     if failure == "hash": digest = "0" * 64
     elif failure == "same-reviewer": candidate["reviewer"] = "Citation verifier"
     elif failure == "padded-reviewer": candidate["reviewer"] = " Bias reviewer "
-    elif failure in {"padded-prior-reviewer", "padded-citation-study", "padded-citation-source"}:
+    elif failure in {
+        "padded-prior-reviewer",
+        "citation-authority",
+        "citation-not-independent",
+        "citation-count-drift",
+        "citation-limitations-missing",
+        "citation-padded-limitation",
+        "citation-unsupported-verdict",
+        "citation-unclear-count",
+        "citation-bad-verdict",
+        "padded-citation-study",
+        "padded-citation-source",
+    }:
         value = json.loads(verification.read_text())
         if failure == "padded-prior-reviewer":
             value["citation_reviewer"] = " Citation verifier "
+        elif failure == "citation-authority":
+            value["scientific_evidence_eligible"] = True
+        elif failure == "citation-not-independent":
+            value["independent_review"] = False
+        elif failure == "citation-count-drift":
+            value["verdict_counts"]["supported"] = 2
+            value["verdict_counts"]["partially_supported"] = 0
+        elif failure == "citation-limitations-missing":
+            value["limitations"] = []
+        elif failure == "citation-padded-limitation":
+            value["limitations"][0] = " " + value["limitations"][0]
+        elif failure == "citation-unsupported-verdict":
+            value["assessments"][0]["verdict"] = "unsupported"
+            value["verdict_counts"] = {
+                "partially_supported": 1, "supported": 0, "unclear": 0, "unsupported": 1
+            }
+        elif failure == "citation-unclear-count":
+            value["verdict_counts"]["unclear"] = 1
+        elif failure == "citation-bad-verdict":
+            value["assessments"][0]["verdict"] = "true"
         elif failure == "padded-citation-study":
             value["assessments"][0]["study_id"] = " study-1 "
         elif failure == "padded-citation-source":

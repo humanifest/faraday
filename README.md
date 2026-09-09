@@ -1044,7 +1044,12 @@ quantitative effect preparation. Citation verification also replays the
 extraction artifact's non-authority boundary, retained limitations, and
 `record_count` against the extracted claim records before creating the review
 artifact, so a rewritten extraction summary cannot imply evidence eligibility
-or a different claim set. Qualitative synthesis now requires the
+or a different claim set. Bias assessment now replays the
+citation-verification artifact's independent-review flag, non-authority
+boundary, retained limitations, and `verdict_counts` against the reviewed claim
+records before accepting study-level judgments, so unsupported or unclear
+source-claim judgments cannot be laundered into a clean risk-of-bias artifact
+by rewriting only summary fields. Qualitative synthesis now requires the
 extraction source set to match the synthesis plan's frozen included sources, and
 preserves those provenance anchors instead of carrying only a ceiling label.
 Trusted extraction, citation-verification, bias-assessment, and

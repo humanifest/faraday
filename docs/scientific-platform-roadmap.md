@@ -1322,7 +1322,11 @@ different apparent assessment or rewrite the pinned extraction trail.
 `research literature assess-bias` requires a clean citation-review artifact and
 a third reviewer distinct from both extraction and citation reviewers. The
 expected citation-verification hash must be canonical lowercase SHA-256 before
-it can pin the reviewed extraction claims. Every reviewed study must cover all
+it can pin the reviewed extraction claims. Bias assessment also replays the
+citation-verification artifact's independent-review flag, non-authority
+boundary, retained limitations, and `verdict_counts` from the reviewed claim
+records, and it rejects unsupported or unclear citation verdicts even when a
+stale summary still claims a clean review. Every reviewed study must cover all
 seven documented bias domains, cite locations for each applicable judgment, and
 exactly identify all source reports grouped under that study. Overall judgments
 are computed conservatively from the domain judgments; high risk dominates,
