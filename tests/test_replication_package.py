@@ -70,6 +70,43 @@ def _after_registration_times(registration_timestamp: str) -> tuple[str, str]:
     )
 
 
+def _execution_handoff_for_result(output_sha256: str, result: dict) -> dict:
+    return {
+        "receipt": {
+            "addon": {"addon_id": "general_science", "version": "fixture"},
+            "method": "descriptive_summary",
+            "maximum_inference_level": "descriptive",
+            "randomness_control": "deterministic",
+            "randomness_binding": {"control": "deterministic"},
+            "output": {"sha256": output_sha256},
+        },
+        "result": {
+            "result_contract_version": 2,
+            "analysis_id": "synthetic-package-fixture",
+            "addon_id": "general_science",
+            "addon_version": "fixture",
+            "method": "descriptive_summary",
+            "purpose": "",
+            "estimand": "",
+            "contrast_definition": "",
+            "contrast_groups": [],
+            "claim_ceiling": "Synthetic package fixture only.",
+            "maximum_inference_level": "descriptive",
+            "randomness_control": "deterministic",
+            "randomness_binding": {"control": "deterministic"},
+            "declared_claim_ceiling": "Synthetic package fixture only.",
+            "claim_ceiling_status": (
+                "method_enforced_maximum; the researcher declaration is retained but cannot widen it"
+            ),
+            "missing_data_policy": None,
+            "missing_data_policy_scope": (
+                "Declared specification setting only; consult method results for actual exclusions or rejection rules."
+            ),
+            "result": result,
+        },
+    }
+
+
 def _pipeline(*, smoothing_window: int = 5) -> dict:
     return {
         "pipeline_id": "registered-pipeline",
@@ -1692,9 +1729,9 @@ def test_replication_package_verifies_canary_target_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
-    runs[0]["metadata"]["execution_handoff"] = {
-        "receipt": {"output": {"sha256": record_sha256}},
-        "result": {
+    runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
+        record_sha256,
+        {
             "canary": {
                 "comparison": {
                     "revealed_target_id": "actual-state",
@@ -1702,7 +1739,10 @@ def test_replication_package_verifies_canary_target_gate_metadata(
                 }
             }
         },
-    }
+    )
+    runs[0]["quality_gates"][0]["details"]["canary_target_assessment"][
+        "evidence_location"
+    ] = "/result/canary/comparison"
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
     verify_replication_package(package, commitment)
@@ -1729,7 +1769,7 @@ def test_replication_package_verifies_canary_target_gate_metadata(
     elif mutation == "relative_analysis_location":
         assessment["evidence_location"] = "canary/comparison"
     elif mutation == "missing_analysis_location":
-        assessment["evidence_location"] = "/canary/missing-comparison"
+        assessment["evidence_location"] = "/result/canary/missing-comparison"
     elif mutation == "skipped_gate_with_assessment":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"
@@ -2051,6 +2091,8 @@ def test_replication_package_verifies_sample_size_plan_check_metadata(
         ("blank_location", "evidence_location must be nonempty text"),
         ("relative_analysis_location", "requires an absolute JSON Pointer"),
         ("missing_analysis_location", "does not resolve"),
+        ("extra_handoff_authority", "result contract is invalid"),
+        ("handoff_identity_mismatch", "authority identity disagrees"),
     ],
 )
 def test_replication_package_verifies_control_gate_metadata(
@@ -2146,10 +2188,13 @@ def test_replication_package_verifies_control_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
-    runs[0]["metadata"]["execution_handoff"] = {
-        "receipt": {"output": {"sha256": record_sha256}},
-        "result": {"controls": {"negative-1": {"matches_expected": True}}},
-    }
+    runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
+        record_sha256,
+        {"controls": {"negative-1": {"matches_expected": True}}},
+    )
+    runs[0]["quality_gates"][0]["details"]["control_results"]["negative-1"][
+        "evidence_location"
+    ] = "/result/controls/negative-1"
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
     verify_replication_package(package, commitment)
@@ -2172,7 +2217,15 @@ def test_replication_package_verifies_control_gate_metadata(
     elif mutation == "relative_analysis_location":
         results["negative-1"]["evidence_location"] = "controls/negative-1"
     elif mutation == "missing_analysis_location":
-        results["negative-1"]["evidence_location"] = "/controls/missing-control"
+        results["negative-1"]["evidence_location"] = "/result/controls/missing-control"
+    elif mutation == "extra_handoff_authority":
+        runs[0]["metadata"]["execution_handoff"]["result"][
+            "scientific_evidence_eligible"
+        ] = True
+    elif mutation == "handoff_identity_mismatch":
+        runs[0]["metadata"]["execution_handoff"]["receipt"][
+            "maximum_inference_level"
+        ] = "association"
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 
@@ -2335,14 +2388,21 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
-    runs[0]["metadata"]["execution_handoff"] = {
-        "receipt": {"output": {"sha256": record_sha256}},
-        "result": {
+    runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
+        record_sha256,
+        {
             "validity": {
                 "checker-reference-agreement": {"acceptance": 1}
             }
         },
-    }
+    )
+    validity_gate = next(
+        item for item in runs[0]["quality_gates"]
+        if item["gate_id"] == "measurement-validity-assessed"
+    )
+    validity_gate["details"]["measurement_validity_results"][
+        "checker-reference-agreement"
+    ]["evidence_location"] = "/result/validity/checker-reference-agreement"
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
     verify_replication_package(package, commitment)
@@ -2373,7 +2433,7 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
     elif mutation == "relative_analysis_location":
         result["evidence_location"] = "validity/checker-reference-agreement"
     elif mutation == "missing_analysis_location":
-        result["evidence_location"] = "/validity/missing-check"
+        result["evidence_location"] = "/result/validity/missing-check"
     elif mutation == "skipped_gate_with_results":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"
@@ -2614,13 +2674,22 @@ def test_replication_package_verifies_missingness_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
-    runs[0]["metadata"]["execution_handoff"] = {
-        "receipt": {"output": {"sha256": record_sha256}},
-        "result": {
+    runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
+        record_sha256,
+        {
             "controls": {"reference-1": {"matches_expected": True}},
             "missingness": {"exclusion_report": {"excluded_fraction": 0.0}},
         },
-    }
+    )
+    for item in runs[0]["quality_gates"]:
+        if item["gate_id"] == "control-gate":
+            item["details"]["control_results"]["reference-1"][
+                "evidence_location"
+            ] = "/result/controls/reference-1"
+        if item["gate_id"] == "missingness-assessed":
+            item["details"]["missingness_assessment_result"][
+                "evidence_location"
+            ] = "/result/missingness/exclusion_report"
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
     verify_replication_package(package, commitment)
@@ -2648,7 +2717,7 @@ def test_replication_package_verifies_missingness_gate_metadata(
     elif mutation == "relative_analysis_location":
         result["evidence_location"] = "missingness/exclusion_report"
     elif mutation == "missing_analysis_location":
-        result["evidence_location"] = "/missingness/missing-report"
+        result["evidence_location"] = "/result/missingness/missing-report"
     elif mutation == "skipped_gate_with_result":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"
@@ -3028,9 +3097,9 @@ def test_replication_package_verifies_causal_assumption_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
-    runs[0]["metadata"]["execution_handoff"] = {
-        "receipt": {"output": {"sha256": record_sha256}},
-        "result": {
+    runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
+        record_sha256,
+        {
             "controls": {"reference-1": {"matches_expected": True}},
             "diagnostics": {
                 category: {"status": "consistent_with_assumption"}
@@ -3046,7 +3115,21 @@ def test_replication_package_verifies_causal_assumption_gate_metadata(
             },
             "missingness": {"excluded_fraction": 0.0},
         },
-    }
+    )
+    for item in runs[0]["quality_gates"]:
+        if item["gate_id"] == "control-gate":
+            item["details"]["control_results"]["reference-1"][
+                "evidence_location"
+            ] = "/result/controls/reference-1"
+        if item["gate_id"] == "missingness-assessed":
+            item["details"]["missingness_assessment_result"][
+                "evidence_location"
+            ] = "/result/missingness"
+        if item["gate_id"] == "causal-assumptions-assessed":
+            for result in item["details"]["causal_assumption_results"].values():
+                result["evidence_location"] = (
+                    "/result" + result["evidence_location"]
+                )
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
     verify_replication_package(package, commitment)
@@ -3083,7 +3166,7 @@ def test_replication_package_verifies_causal_assumption_gate_metadata(
     elif mutation == "relative_analysis_location":
         positivity["evidence_location"] = "diagnostics/positivity"
     elif mutation == "missing_analysis_location":
-        positivity["evidence_location"] = "/diagnostics/missing-assumption"
+        positivity["evidence_location"] = "/result/diagnostics/missing-assumption"
     elif mutation == "skipped_gate_with_results":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"

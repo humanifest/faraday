@@ -812,7 +812,12 @@ run output. Consistency remains a bounded diagnostic, not proof of construct
 validity. Retained execution handoffs also replay the measurement-value check
 against the frozen measurement contracts: the package verifier recomputes the
 value-domain digest, checks exact ordered coverage, and conserves the recorded
-input row count before trusting the redacted receipt metadata. When a structured
+input row count before trusting the redacted receipt metadata. The retained
+analysis-result body must also keep the closed version-2 execution envelope and
+receipt-matching authority identity: unsupported inference levels, extra
+authority fields, rewritten method-enforced ceiling status, altered
+non-authority missing-data scope, or receipt/result identity drift reject before
+any packaged gate can rely on that body. When a structured
 gate cites that retained Faraday analysis result, the package verifier also
 requires an absolute JSON Pointer that resolves in the retained result body; a
 matching output hash cannot excuse a fabricated internal location. Structured

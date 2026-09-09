@@ -1133,7 +1133,12 @@ have exactly one result, assessment kinds must match the frozen register, gate
 status must agree with the retained constrained dispositions, and every cited
 diagnostic hash must be a packaged run output. This prevents exported packages
 from hiding contradicted causal assumptions or upgrading inconclusive diagnostics
-into identification support.
+into identification support. Retained execution handoffs now also replay the
+closed version-2 analysis-result envelope and receipt/result authority identity:
+unsupported inference levels, extra authority fields, rewritten method-enforced
+ceiling status, altered non-authority missing-data scope, or identity drift
+reject before a packaged gate can use the retained result body for JSON Pointer
+resolution.
 When a package includes locators, verification also recomputes the packaged
 protocol, dataset, and run frozen hash commitments from the unredacted bytes;
 redacted packages preserve but cannot independently replay locator-bearing

@@ -38,6 +38,7 @@ from research_machine.application.dataset_integrity import (
     validate_protected_dataset_lineage_closure,
 )
 from research_machine.application.run_integrity import validate_run_payload_commitment
+from research_machine.addons.result_contract import validate_analysis_result_contract
 
 
 _V2_LIMITATIONS = [
@@ -859,6 +860,27 @@ def _verified_handoff_results_by_output_sha(run: ResearchRun) -> dict[str, Any]:
     if not isinstance(receipt, dict) or not isinstance(result, dict):
         raise ValidationError(
             f"package run {run.run_id} execution_handoff receipt and result must be objects"
+        )
+    try:
+        validate_analysis_result_contract(result)
+    except ValidationError as exc:
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff result contract is invalid: {exc}"
+        ) from exc
+    addon = receipt.get("addon")
+    if (
+        not isinstance(addon, dict)
+        or not isinstance(receipt.get("method"), str)
+        or receipt["method"] != result.get("method")
+        or receipt.get("maximum_inference_level")
+        != result.get("maximum_inference_level")
+        or addon.get("addon_id") != result.get("addon_id")
+        or addon.get("version") != result.get("addon_version")
+        or receipt.get("randomness_control") != result.get("randomness_control")
+        or receipt.get("randomness_binding") != result.get("randomness_binding")
+    ):
+        raise ValidationError(
+            f"package run {run.run_id} execution_handoff receipt/result authority identity disagrees"
         )
     output = receipt.get("output")
     if not isinstance(output, dict):
