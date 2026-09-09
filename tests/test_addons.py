@@ -1169,29 +1169,82 @@ def test_stream_timing_assessment_rejects_untrusted_inspection_hash(
 
 
 @pytest.mark.parametrize(
-    "mutation",
+    ("mutation", "message"),
     [
-        lambda record: record["required_streams"][0].update(
-            {"status": "channel_mismatch", "observed_channel": "other-channel"}
+        (
+            lambda record: record["required_streams"][0].update(
+                {"status": "channel_mismatch", "observed_channel": "other-channel"}
+            ),
+            "contains failures",
         ),
-        lambda record: record["events"][0].update(
-            {"uncertainty_fraction_of_lag_window": 0.25}
+        (
+            lambda record: record["events"][0].update(
+                {
+                    "clock_uncertainty_seconds": 0.00025,
+                    "uncertainty_fraction_of_lag_window": 0.25,
+                }
+            ),
+            "contains failures",
         ),
-        lambda record: record["events"][0].update(
-            {
-                "overlapping_missing_intervals": [
-                    {
-                        "start_time": "2026-09-06T12:00:02Z",
-                        "end_time": "2026-09-06T12:00:04Z",
-                        "reason": "Tampered retained missing interval.",
-                    }
-                ]
-            }
+        (
+            lambda record: record["events"][0].update(
+                {
+                    "overlapping_missing_intervals": [
+                        {
+                            "start_time": "2026-09-06T12:00:02Z",
+                            "end_time": "2026-09-06T12:00:04Z",
+                            "reason": "Tampered retained missing interval.",
+                        }
+                    ]
+                }
+            ),
+            "contains failures",
+        ),
+        (
+            lambda record: record["events"][0].update(
+                {"uncertainty_fraction_of_lag_window": 0.01}
+            ),
+            "uncertainty_fraction_of_lag_window disagrees",
+        ),
+        (
+            lambda record: record["specification"]["lag_window"].update(
+                {"seconds": 1.0}
+            ),
+            "lag_window.seconds disagrees",
+        ),
+        (
+            lambda record: record["events"][0].update(
+                {
+                    "overlapping_missing_intervals": [
+                        {
+                            "start_time": "2026-09-06T12:00:04Z",
+                            "end_time": "2026-09-06T12:00:02Z",
+                            "reason": "Tampered retained missing interval.",
+                        }
+                    ]
+                }
+            ),
+            "end_time must be after start_time",
+        ),
+        (
+            lambda record: record["events"][0].update(
+                {
+                    "overlapping_missing_intervals": [
+                        {
+                            "start_time": "2026-09-06T12:00:02Z",
+                            "end_time": "2026-09-06T12:00:04Z",
+                            "reason": "Tampered retained missing interval.",
+                            "hidden": "field",
+                        }
+                    ]
+                }
+            ),
+            "has unknown fields",
         ),
     ],
 )
 def test_stream_timing_verifier_replays_hidden_failure_conditions(
-    tmp_path: Path, mutation
+    tmp_path: Path, mutation, message: str
 ) -> None:
     from research_machine.measurement.instrument import (
         assess_stream_timing,
@@ -1217,7 +1270,7 @@ def test_stream_timing_verifier_replays_hidden_failure_conditions(
     )
     trusted_hash = hashlib.sha256(timing_record.read_bytes()).hexdigest()
 
-    with pytest.raises(ValidationError, match="contains failures"):
+    with pytest.raises(ValidationError, match=message):
         verify_stream_timing_assessment_record(timing_record, trusted_hash)
 
 

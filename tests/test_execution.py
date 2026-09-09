@@ -1164,6 +1164,46 @@ def test_run_rejects_stream_timing_assessment_upstream_hash_drift(
         ))
 
 
+def test_run_rejects_stream_timing_assessment_arithmetic_drift(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output_artifacts, quality_gates, _ = _stream_timing_assessment_gate_fixture(
+        tmp_path
+    )
+    record_path = tmp_path / output_artifacts[0].locator
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["events"][0]["uncertainty_fraction_of_lag_window"] = 0.01
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    tampered_sha256 = hashlib.sha256(record_path.read_bytes()).hexdigest()
+    output_artifacts = [
+        DatasetArtifact(
+            output_artifacts[0].locator,
+            tampered_sha256,
+            size_bytes=record_path.stat().st_size,
+            media_type="application/json",
+        )
+    ]
+    quality_gates[0].details["evidence_sha256"] = tampered_sha256
+    quality_gates[0].details["stream_timing_assessment"]["sha256"] = tampered_sha256
+
+    with pytest.raises(
+        ValidationError,
+        match="uncertainty_fraction_of_lag_window disagrees",
+    ):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=output_artifacts,
+            quality_gates=quality_gates,
+        ))
+
+
 def test_run_replays_passed_temporal_order_assessment_gate(tmp_path: Path) -> None:
     service, hypothesis_id = prepared_service(tmp_path)
     protocol = frozen_formal_protocol(service, hypothesis_id)

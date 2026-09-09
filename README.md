@@ -1267,14 +1267,15 @@ register a dataset, or authorize evidence. When a run quality gate declares
 record as a byte-verified output artifact under `artifact_root`, replays its
 retained record hash, source inspection hash, timing specification hash, and
 status, and rejects a passed gate unless the verified record itself passed. The
-independent verifier now derives retained channel mismatches, absent streams,
+independent verifier now recomputes retained lag-window seconds and event
+uncertainty fractions, and derives retained channel mismatches, absent streams,
 unsupported uncertainty units, excessive uncertainty fractions, and
-missing-interval overlaps from the structured record rather than trusting a
-copied findings list or status label. Any retained record whose structured
-contents imply a failure must also preserve the exact machine finding code that
-explains it. It also rejects status-incompatible, missing, or hidden extra fields
-in retained stream, event, and finding entries, so downstream tools receive one
-exact machine-readable timing shape.
+missing-interval overlaps from the structured record rather than trusting copied
+arithmetic, copied findings, or a status label. Any retained record whose
+structured contents imply a failure must also preserve the exact machine finding
+code that explains it. It also rejects status-incompatible, missing, or hidden
+extra fields in retained stream, event, overlap, and finding entries, so
+canonical run replay receives one exact machine-readable timing shape.
 Failed stream-timing assessments may only be retained as failed gates, preserving
 missing stream metadata, channel mismatches, unusable uncertainty units, and
 missing-interval overlaps while blocking required-gate evidence eligibility.

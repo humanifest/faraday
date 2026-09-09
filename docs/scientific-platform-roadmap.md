@@ -1532,14 +1532,15 @@ the gate must cite the assessment record as a declared output artifact under a
 passed artifact-integrity receipt, the retained record hash, source inspection
 hash, timing specification hash, and status are replayed from current bytes, and
 a passed gate requires a verified `timing_feasibility_passed` record. Replay now
+recomputes retained lag-window seconds and event uncertainty fractions, and
 derives retained channel mismatches, missing streams, unsupported uncertainty
 units, excessive uncertainty fractions, and missing-interval overlaps from the
-structured record, so a tampered status label or copied findings list cannot
-hide timing infeasibility. Retained records whose structured contents imply a
-failure must also preserve the exact machine finding code that explains it.
-Retained stream, event, and finding entries must now match one exact
-status-dependent shape, preventing hidden annotations or omitted
-machine-checkable fields from flowing into run or package replay. Failed
+structured record, so tampered copied arithmetic, a tampered status label, or a
+copied findings list cannot hide timing infeasibility. Retained records whose
+structured contents imply a failure must also preserve the exact machine finding
+code that explains it. Retained stream, event, overlap, and finding entries must
+now match one exact status-dependent shape, preventing hidden annotations or
+omitted machine-checkable fields from flowing into canonical run replay. Failed
 stream-timing assessments remain recordable only as failed gates, preserving
 missing stream metadata, channel mismatches, unusable uncertainty units, and
 missing-interval overlaps without allowing a favorable summary to overwrite

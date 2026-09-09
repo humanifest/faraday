@@ -1624,10 +1624,30 @@ def verify_stream_timing_assessment_record(
     lag_window = specification["lag_window"]
     if not isinstance(lag_window, dict):
         raise ValidationError("stream timing assessment lag_window must be an object")
-    _exact_fields(lag_window, {"duration", "unit", "seconds", "basis"}, "stream_timing lag_window")
-    _positive_number(lag_window["duration"], "stream_timing lag_window.duration")
-    _positive_number(lag_window["seconds"], "stream_timing lag_window.seconds")
-    _text(lag_window["unit"], "stream_timing lag_window.unit")
+    _exact_fields(
+        lag_window,
+        {"duration", "unit", "seconds", "basis"},
+        "stream_timing lag_window",
+    )
+    lag_duration = _positive_number(
+        lag_window["duration"], "stream_timing lag_window.duration"
+    )
+    lag_unit = _text(lag_window["unit"], "stream_timing lag_window.unit")
+    lag_seconds = _positive_number(
+        lag_window["seconds"], "stream_timing lag_window.seconds"
+    )
+    recomputed_lag_seconds = float(lag_duration) * _time_unit_seconds(
+        lag_unit, "stream_timing lag_window.unit"
+    )
+    if not math.isclose(
+        float(lag_seconds),
+        recomputed_lag_seconds,
+        rel_tol=1e-12,
+        abs_tol=1e-15,
+    ):
+        raise ValidationError(
+            "stream timing assessment lag_window.seconds disagrees with duration and unit"
+        )
     _text(lag_window["basis"], "stream_timing lag_window.basis")
     maximum_uncertainty_fraction = _positive_number(
         specification["maximum_uncertainty_fraction"],
@@ -1717,7 +1737,7 @@ def verify_stream_timing_assessment_record(
         if status == "unsupported_uncertainty_unit":
             required_error_codes.add("CLOCK_UNCERTAINTY_UNIT_NOT_ABSOLUTE")
         if status == "assessed":
-            _nonnegative_number(
+            uncertainty_seconds = _nonnegative_number(
                 event.get("clock_uncertainty_seconds"),
                 f"stream_timing events[{index}].clock_uncertainty_seconds",
             )
@@ -1725,12 +1745,45 @@ def verify_stream_timing_assessment_record(
                 event.get("uncertainty_fraction_of_lag_window"),
                 f"stream_timing events[{index}].uncertainty_fraction_of_lag_window",
             )
+            recomputed_fraction = float(uncertainty_seconds) / lag_seconds
+            if not math.isclose(
+                float(uncertainty_fraction),
+                recomputed_fraction,
+                rel_tol=1e-12,
+                abs_tol=1e-15,
+            ):
+                raise ValidationError(
+                    "stream timing assessment uncertainty_fraction_of_lag_window "
+                    "disagrees with retained uncertainty and lag window"
+                )
             if uncertainty_fraction >= maximum_uncertainty_fraction:
                 event_condition_failures += 1
                 required_error_codes.add("CLOCK_UNCERTAINTY_APPROACHES_LAG_WINDOW")
             overlaps = event.get("overlapping_missing_intervals")
             if not isinstance(overlaps, list):
                 raise ValidationError("stream timing assessment overlapping_missing_intervals must be an array")
+            for overlap_index, overlap in enumerate(overlaps):
+                if not isinstance(overlap, dict):
+                    raise ValidationError(
+                        "stream timing assessment overlapping_missing_intervals entries must be objects"
+                    )
+                overlap_label = (
+                    f"stream_timing events[{index}].overlapping_missing_intervals"
+                    f"[{overlap_index}]"
+                )
+                _exact_fields(overlap, _MISSING_INTERVAL_FIELDS, overlap_label)
+                _, parsed_overlap_start = _parse_time(
+                    overlap["start_time"], f"{overlap_label}.start_time"
+                )
+                _, parsed_overlap_end = _parse_time(
+                    overlap["end_time"], f"{overlap_label}.end_time"
+                )
+                if parsed_overlap_end <= parsed_overlap_start:
+                    raise ValidationError(
+                        "stream timing assessment overlapping missing interval "
+                        "end_time must be after start_time"
+                    )
+                _text(overlap["reason"], f"{overlap_label}.reason")
             if overlaps:
                 event_condition_failures += 1
                 required_error_codes.add("EVENT_UNCERTAINTY_OVERLAPS_MISSING_INTERVAL")
