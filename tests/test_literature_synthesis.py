@@ -38,8 +38,15 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
         ],
         "interpretive_ceiling": "insufficient_for_conclusion"}
     evidence_map = tmp_path / "map.json"
+    limitations = [
+        "This deterministic map joins reviewed assertions without authorizing conclusions."
+    ]
     map_sha = write_json(evidence_map, {"evidence_map_version": 1, "status": "evidence_map_recorded",
-        "snapshot_id": "snap", "inputs": {"extraction_sha256": extraction_sha}, "claims": [claim]})
+        "snapshot_id": "snap", "inputs": {"extraction_sha256": extraction_sha}, "claims": [claim],
+        "claim_count": 1, "study_count": 1,
+        "interpretive_ceiling_counts": {"insufficient_for_conclusion": 1},
+        "scientific_evidence_eligible": False, "conclusion_authorized": False,
+        "limitations": limitations})
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
         "synthesis_plan_sha256": plan_sha, "status": "no_deviations_declared", "deviations": [],
@@ -119,6 +126,10 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
     "padded-source-duplicate",
     "padded-extraction-source",
     "map-link",
+    "map-authority",
+    "map-claim-count",
+    "map-ceiling-count",
+    "map-boundary-limitations",
     "snapshot",
     "claim",
     "padded-claim-id",
@@ -153,6 +164,16 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
         value = json.loads(evidence_map.read_text()); value["inputs"]["extraction_sha256"] = extraction_sha; map_sha = write_json(evidence_map, value)
     elif failure == "map-link":
         value = json.loads(evidence_map.read_text()); value["inputs"]["extraction_sha256"] = "0" * 64; map_sha = write_json(evidence_map, value)
+    elif failure == "map-authority":
+        value = json.loads(evidence_map.read_text()); value["conclusion_authorized"] = True; map_sha = write_json(evidence_map, value)
+    elif failure == "map-claim-count":
+        value = json.loads(evidence_map.read_text()); value["claim_count"] = 2; map_sha = write_json(evidence_map, value)
+    elif failure == "map-ceiling-count":
+        value = json.loads(evidence_map.read_text())
+        value["interpretive_ceiling_counts"] = {"reviewed_source_claim": 1}
+        map_sha = write_json(evidence_map, value)
+    elif failure == "map-boundary-limitations":
+        value = json.loads(evidence_map.read_text()); value["limitations"] = []; map_sha = write_json(evidence_map, value)
     elif failure == "snapshot":
         value = json.loads(evidence_map.read_text()); value["snapshot_id"] = "other"; map_sha = write_json(evidence_map, value)
     elif failure == "claim":

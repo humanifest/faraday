@@ -24,6 +24,12 @@ _EXTRACTION_RECORD_FIELDS = {
     "notes",
 }
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
+_INTERPRETIVE_CEILINGS = {
+    "reviewed_source_claim",
+    "qualified_source_claim",
+    "source_hypothesis_only",
+    "insufficient_for_conclusion",
+}
 
 
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
@@ -58,6 +64,49 @@ def _source_anchor(value: Any, field: str) -> str:
     if value == _LEGACY_SOURCE_ANCHOR:
         return _LEGACY_SOURCE_ANCHOR
     return require_sha256(value, field)
+
+
+def validate_evidence_map_boundary(
+    evidence_map: dict[str, Any],
+    claims: list[dict[str, Any]],
+) -> None:
+    """Replay evidence-map non-authority and summary counts."""
+    if evidence_map.get("scientific_evidence_eligible") is not False:
+        raise ValidationError("evidence map must remain scientifically ineligible")
+    if evidence_map.get("conclusion_authorized") is not False:
+        raise ValidationError("evidence map must not authorize conclusions")
+    limitations = evidence_map.get("limitations")
+    if not isinstance(limitations, list) or not limitations:
+        raise ValidationError("evidence map requires retained boundary limitations")
+    for index, limitation in enumerate(limitations):
+        _canonical_text(limitation, f"evidence map limitation {index + 1}")
+
+    claim_count = evidence_map.get("claim_count")
+    if isinstance(claim_count, bool) or claim_count != len(claims):
+        raise ValidationError("evidence map claim_count does not replay from claims")
+    ceilings = evidence_map.get("interpretive_ceiling_counts")
+    if not isinstance(ceilings, dict):
+        raise ValidationError("evidence map interpretive_ceiling_counts must be an object")
+    unknown_ceilings = sorted(
+        {
+            str(claim.get("interpretive_ceiling"))
+            for claim in claims
+            if claim.get("interpretive_ceiling") not in _INTERPRETIVE_CEILINGS
+        }
+    )
+    if unknown_ceilings:
+        raise ValidationError(
+            "evidence map claim interpretive ceiling is invalid: "
+            + ", ".join(unknown_ceilings)
+        )
+    expected = {
+        ceiling: sum(claim.get("interpretive_ceiling") == ceiling for claim in claims)
+        for ceiling in sorted({claim["interpretive_ceiling"] for claim in claims})
+    }
+    if ceilings != expected:
+        raise ValidationError(
+            "evidence map interpretive_ceiling_counts does not replay from claims"
+        )
 
 
 def _extraction_claim_payload_sha256(

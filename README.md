@@ -1048,7 +1048,10 @@ requires canonical extraction, study, source, citation-review, and bias-domain
 handles before joining or counting claims, so the final map cannot reintroduce
 hidden duplicate identities. Qualitative synthesis also requires canonical
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
-IDs, citation provenance, and bias-domain provenance before joining claims. This makes the review trail
+IDs, citation provenance, and bias-domain provenance before joining claims.
+Qualitative synthesis and quantitative effect preparation also replay the
+evidence map's non-authority flags, retained limitations, claim count, and
+interpretive-ceiling counts before using it as an input. This makes the review trail
 inspectable while still refusing to turn retrieved or reviewer-entered source
 claims into Faraday scientific evidence.
 Synthesis-plan freezing likewise rejects padded plan IDs, reviewer text,
@@ -1061,7 +1064,8 @@ analysis rule text.
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim
 IDs, citation-review anchors, and retained source-file hashes, after checking
-the extraction source set against the synthesis plan's frozen included sources.
+the extraction source set against the synthesis plan's frozen included sources
+and replaying the evidence map's non-authority boundary and summary counts.
 Trusted plan, evidence-map,
 effect-record, effect-verification, and deviation hashes must be canonical
 lowercase SHA-256 digests before later synthesis commands can bind those

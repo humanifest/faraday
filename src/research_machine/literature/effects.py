@@ -10,6 +10,7 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.evidence_map import validate_evidence_map_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
@@ -251,6 +252,7 @@ def create_effect_records(
         study_claims.setdefault(study_id, []).append(
             dict(claim_summary)
         )
+    validate_evidence_map_boundary(evidence_map, claims)
 
     if not isinstance(review, dict) or set(review) != {"reviewer", "records"}:
         raise ValidationError("effect review requires exactly reviewer and records")

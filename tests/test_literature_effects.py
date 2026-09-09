@@ -39,7 +39,13 @@ def artifacts(tmp_path, minimum=1):
         "claims": [{"study_id": "study-1", "risk_of_bias": "low",
                     "extraction_id": "claim-1", **claim_template},
                    {"study_id": "study-2", "risk_of_bias": "high",
-                    "extraction_id": "claim-2", **claim_template}]})
+                    "extraction_id": "claim-2", **claim_template}],
+        "claim_count": 2, "study_count": 2,
+        "interpretive_ceiling_counts": {"reviewed_source_claim": 2},
+        "scientific_evidence_eligible": False, "conclusion_authorized": False,
+        "limitations": [
+            "This deterministic map joins reviewed assertions without authorizing conclusions."
+        ]})
     return plan, plan_sha, extraction, evidence_map, map_sha
 
 
@@ -93,7 +99,8 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     "plan-source-missing", "plan-source-drift", "padded-plan-source",
     "padded-extraction-source", "padded-map-study", "padded-map-source",
     "padded-map-extraction", "padded-map-citation-location", "map-provenance",
-    "map-claim-digest",
+    "map-claim-digest", "map-authority", "map-claim-count", "map-ceiling-count",
+    "map-boundary-limitations",
     "padded-reviewer", "padded-reason", "padded-location", "padded-derivation",
     "padded-derivation-scope",
 ])
@@ -151,6 +158,22 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     elif failure == "map-claim-digest":
         value = json.loads(evidence_map.read_text())
         value["claims"][0]["extraction_claim_sha256"] = "A" * 64
+        map_sha = write_json(evidence_map, value)
+    elif failure == "map-authority":
+        value = json.loads(evidence_map.read_text())
+        value["scientific_evidence_eligible"] = True
+        map_sha = write_json(evidence_map, value)
+    elif failure == "map-claim-count":
+        value = json.loads(evidence_map.read_text())
+        value["claim_count"] = 1
+        map_sha = write_json(evidence_map, value)
+    elif failure == "map-ceiling-count":
+        value = json.loads(evidence_map.read_text())
+        value["interpretive_ceiling_counts"] = {"qualified_source_claim": 2}
+        map_sha = write_json(evidence_map, value)
+    elif failure == "map-boundary-limitations":
+        value = json.loads(evidence_map.read_text())
+        value["limitations"] = []
         map_sha = write_json(evidence_map, value)
     elif failure == "padded-reviewer": candidate["reviewer"] = " Effect reviewer "
     elif failure == "padded-reason": candidate["records"][0]["reason"] = " Fixture record "

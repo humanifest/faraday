@@ -1357,7 +1357,10 @@ later reader from seeing only an unsupported ceiling label. It requires canonica
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims or
 publishing the qualitative artifact, so padded map artifacts cannot be silently
-rewritten into a synthesis. It never treats claim counts as effect
+rewritten into a synthesis. It also replays the evidence map's non-authority
+flags, retained limitations, claim count, and interpretive-ceiling counts before
+using the map, so an internally rewritten map cannot authorize or sanitize later
+synthesis. It never treats claim counts as effect
 sizes or authors a substantive conclusion. Quantitative plans fail closed until
 effect-size extraction, variance checks, heterogeneity diagnostics, and validated
 pooling are available.
@@ -1369,7 +1372,8 @@ retains the mapped claim IDs, citation verdicts, citation-check locations, and
 interpretive ceilings that brought the study across the evidence-map boundary,
 plus the retained source-file hashes for those mapped claims, and preparation
 rejects extraction source sets that do not match the plan's frozen included
-sources. Unavailable statistics must remain explicit null records and count
+sources. It replays the same evidence-map non-authority boundary and summary
+counts before preserving study-level effects. Unavailable statistics must remain explicit null records and count
 against the frozen minimum-study requirement. This validates finite values,
 positive variance, coverage, review provenance, source-byte continuity, and plan
 consistency, but does not reproduce source calculations, prove outcome
