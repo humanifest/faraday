@@ -796,6 +796,14 @@ inconclusive, and contradicted results. Verified analysis-result citations use a
 resolving absolute JSON Pointer. Deterministic synthesis exposes the frozen
 assumption and every recorded disposition. This closes an accountability gap but
 does not make any diagnostic sufficient to establish ignorability.
+Replication-package verification now replays that performed missingness gate
+against the frozen analysis contract: the result must be exact, the assessment
+kind must match, passed/warning/failed gate status must agree with
+`consistent_with_assumption`, `inconclusive`, or
+`contradicted_assumption`, and the cited assessment hash must be a packaged run
+output. Exported packages therefore retain missingness warnings and
+contradictions without converting them into proof that complete-case analysis
+was unbiased.
 The bundled descriptive summary, Pearson correlation, two-group estimators,
 adjusted model, and missingness report require requested diagnostic columns,
 comparison labels, covariates, unit or pair handles, family names, and row group
@@ -931,7 +939,13 @@ output, registered and observed pipeline hashes must be canonical, and passed or
 failed gate status must agree with the retained conformance status. Redacted
 packages cannot independently reopen local conformance artifacts, but they can
 still reject internally consistent metadata rewrites that make failed
-preprocessing look passed.
+preprocessing look passed. Missingness-assessment gate
+metadata is now also replayed against the frozen complete-case analysis
+contract: retained assessment kind and status must match the registered gate
+semantics, and the assessment evidence must cite a packaged run output. This
+keeps exclusions, inconclusive diagnostics, and contradicted missingness
+assumptions attached to exported runs without treating them as proof that
+missingness was ignorable.
 When a package includes locators, verification also recomputes the packaged
 protocol, dataset, and run frozen hash commitments from the unredacted bytes;
 redacted packages preserve but cannot independently replay locator-bearing

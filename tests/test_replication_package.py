@@ -17,11 +17,15 @@ from research_machine.application.service import ResearchService
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.domain.models import (
     AnalysisMode,
+    AnalysisContract,
     CanaryTargetPlan,
+    ClaimLevel,
+    ConclusionContract,
     ControlDefinition,
     DatasetArtifact,
     DatasetManifest,
     DatasetRole,
+    EvidenceDirection,
     MeasurementDefinition,
     MeasurementRole,
     MeasurementValidityCheck,
@@ -1442,6 +1446,255 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
         result["evidence_sha256"] = "f" * 64
     elif mutation == "blank_diagnostic":
         result["observed_diagnostic"] = ""
+    runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "runs.json")
+
+    with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing_result", "requires one exact result"),
+        ("missing_field", "requires one exact result"),
+        ("wrong_kind", "assessment_kind does not match"),
+        ("wrong_status", "passed missingness assessment gate requires"),
+        ("padded_status", "assessment_status must be canonical"),
+        ("bad_status", "unsupported assessment_status"),
+        ("unbound_evidence", "must reference a run output artifact"),
+        ("blank_interpretation", "interpretation must be nonempty text"),
+    ],
+)
+def test_replication_package_verifies_missingness_gate_metadata(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service = ResearchService(FileSystemRepository(workspace), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        primary_estimand="Mean outcome difference, group a minus group b.",
+        contrast_definition="group a minus group b",
+        contrast_groups=["a", "b"],
+        expected_effect_direction="positive",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    measurement = MeasurementDefinition(
+        measurement_id="primary-measurement",
+        role=MeasurementRole.PRIMARY,
+        registered_target="Outcome",
+        observable="Synthetic outcome value",
+        input_condition="Synthetic fixture input.",
+        parameter_values={"parser": "fixture"},
+        evaluation_point="Registered fixture endpoint.",
+        convention="Higher is larger.",
+        aggregation="Mean by registered group.",
+        tolerance="Exact JSON value.",
+        expected_behavior="Retain the fixture outcome.",
+        data_column="outcome",
+        temporal_role="not_applicable",
+        scale_type="interval",
+        unit="fixture units",
+        valid_min=0.0,
+        valid_max=100.0,
+        missing_value_codes=["<blank>"],
+    )
+    control_measurement = MeasurementDefinition(
+        measurement_id="control-measurement",
+        role=MeasurementRole.CONTROL,
+        registered_target="Control",
+        observable="Synthetic control transcript",
+        input_condition="Synthetic control input.",
+        parameter_values={"parser": "fixture"},
+        evaluation_point="During fixture replay.",
+        convention="Retain the control transcript.",
+        aggregation="One transcript.",
+        tolerance="Exact retained text.",
+        expected_behavior="The control transcript is retained.",
+    )
+    control = ControlDefinition(
+        "reference-1",
+        "Control",
+        "reference",
+        "Keep a control measurement visible.",
+        "The control transcript is retained.",
+        "control-gate",
+    )
+    analysis = AnalysisContract(
+        primary_hypothesis_id=hypothesis.hypothesis_id,
+        primary_measurement_id="primary-measurement",
+        method="independent_mean_difference_ci",
+        outcome_column="outcome",
+        group_column="group",
+        groups=["a", "b"],
+        estimand="Mean outcome difference, group a minus group b.",
+        missing_data_policy="complete_case",
+        assignment_type="observational",
+        effect_estimate_path="/result/mean_difference_first_minus_second",
+        uncertainty_path="/result/confidence_interval",
+        null_value=0.0,
+        support_rule="interval_excludes_null",
+        minimum_analyzable_units=2,
+        maximum_excluded_fraction=0.25,
+        maximum_group_excluded_fraction_difference=0.25,
+        missingness_assumption="Excluded records do not materially distort the contrast.",
+        missingness_assessment_plan="Inspect total and group-specific exclusions before interpretation.",
+        missingness_failure_response="Stop primary interpretation.",
+        missingness_assessment_kind="empirical_diagnostic",
+        missingness_assessment_gate_id="missingness-assessed",
+        confidence_level=0.95,
+        contrast_definition="group a minus group b",
+        contrast_groups=["a", "b"],
+    )
+    conclusion = ConclusionContract(
+        primary_hypothesis_id=hypothesis.hypothesis_id,
+        decision_rule="interval_and_practical_significance",
+        smallest_effect_size_of_interest=1.0,
+        effect_scale="mean_difference_first_minus_second",
+        effect_unit="fixture units",
+        population="Synthetic package fixture units.",
+        setting="Synthetic package fixture setting.",
+        time_window="Registered fixture endpoint.",
+        non_supporting_direction=EvidenceDirection.INCONCLUSIVE,
+        permitted_claim_level=ClaimLevel.STATISTICAL_ASSOCIATION,
+        higher_level_conclusions_unsupported=[
+            "No mechanism, causal direction, or out-of-scope generalization."
+        ],
+    )
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.OBSERVATIONAL, methodology="Method",
+        quality_requirements=["proof-check", "control-gate", "missingness-assessed"],
+        controls=["Control"], control_definitions=[control],
+        expected_outputs=["output"], success_conditions=["success"],
+        environment_requirements=["environment"], sample_size_or_stopping_rule="one",
+        sampling_unit="synthetic participant",
+        independent_unit="synthetic participant",
+        repeated_measures=False,
+        analysis_design="independent_groups",
+        unit_id_column="participant_id",
+        preprocessing_pipeline="Parse the synthetic fixture table without exclusions beyond complete-case handling.",
+        statistical_model="Independent mean-difference confidence interval over the registered fixture groups.",
+        multiple_testing_policy="Single registered primary contrast; no multiplicity adjustment.",
+        missing_data_policy="Complete-case handling with registered missingness assessment gate.",
+        failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+        measurement_definitions=[measurement, control_measurement],
+        analysis_contract=analysis,
+        conclusion_contract=conclusion,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    dataset = service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    record_path = tmp_path / "missingness-output.json"
+    record_sha256 = _write_json(
+        record_path,
+        {"missingness": {"exclusion_report": {"excluded_fraction": 0.0}}},
+    )
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        dataset_ids=[dataset.dataset_id],
+        output_artifacts=[DatasetArtifact(
+            record_path.name,
+            record_sha256,
+            record_path.stat().st_size,
+            "application/json",
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[
+            QualityGateResult(
+                "proof-check",
+                QualityGateStatus.PASSED,
+                "Synthetic proof fixture passed.",
+                details={"evidence_sha256": record_sha256},
+            ),
+            QualityGateResult(
+                "control-gate",
+                QualityGateStatus.PASSED,
+                "Synthetic control fixture was retained.",
+                details={
+                    "evidence_sha256": record_sha256,
+                    "control_results": {
+                        "reference-1": {
+                            "observed_behavior": "The synthetic control transcript was retained.",
+                            "interpretation": "Fixture-only control interpretation.",
+                            "matches_expected": True,
+                            "evidence_sha256": record_sha256,
+                            "evidence_location": "/controls/reference-1",
+                        }
+                    },
+                },
+            ),
+            QualityGateResult(
+                "missingness-assessed",
+                QualityGateStatus.PASSED,
+                "Synthetic missingness fixture passed.",
+                details={
+                    "evidence_sha256": record_sha256,
+                    "missingness_assessment_result": {
+                        "observed_diagnostic": "Synthetic exclusion report reviewed.",
+                        "interpretation": "No fixture contradiction to the assumption was encoded.",
+                        "assessment_status": "consistent_with_assumption",
+                        "assessment_kind": "empirical_diagnostic",
+                        "evidence_sha256": record_sha256,
+                        "evidence_location": "/missingness/exclusion_report",
+                    },
+                },
+            ),
+        ],
+        summary="Synthetic package fixture.",
+        metadata={"protocol_deviation_disclosure": {
+            "status": "no_deviations_declared", "deviations": [],
+        }},
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    runs_path = package / "runs.json"
+    runs = json.loads(runs_path.read_text())
+    gate = next(
+        item for item in runs[0]["quality_gates"]
+        if item["gate_id"] == "missingness-assessed"
+    )
+    result = gate["details"]["missingness_assessment_result"]
+    if mutation == "missing_result":
+        del gate["details"]["missingness_assessment_result"]
+    elif mutation == "missing_field":
+        del result["interpretation"]
+    elif mutation == "wrong_kind":
+        result["assessment_kind"] = "substantive_judgment"
+    elif mutation == "wrong_status":
+        result["assessment_status"] = "inconclusive"
+    elif mutation == "padded_status":
+        result["assessment_status"] = " consistent_with_assumption"
+    elif mutation == "bad_status":
+        result["assessment_status"] = "proven_ignorable"
+    elif mutation == "unbound_evidence":
+        result["evidence_sha256"] = "f" * 64
+    elif mutation == "blank_interpretation":
+        result["interpretation"] = ""
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 

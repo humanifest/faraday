@@ -690,8 +690,15 @@ one result, the evidence type must match the protocol, passed/warning/failed
 gates must retain `consistent_with_validity_claim`, `inconclusive`, or
 `contradicted_validity_claim` respectively, and each result must cite a packaged
 run output. Consistency remains a bounded diagnostic, not proof of construct
-validity. Structured
-canary-target gate metadata is replayed against the packaged protocol and run:
+validity. Structured missingness-assessment metadata is replayed for the frozen
+complete-case gate: the retained assessment kind must match the analysis
+contract, passed/warning/failed gates must retain
+`consistent_with_assumption`, `inconclusive`, or
+`contradicted_assumption` respectively, and the assessment evidence must cite a
+packaged run output. This preserves missingness ambiguity and contradictions in
+the handoff without treating a diagnostic as proof that exclusions were
+ignorable. Structured canary-target gate metadata is replayed against the
+packaged protocol and run:
 the gate must be the frozen canary assessment gate, the plan and hidden
 assignment hashes must agree with `canary_target_plan`, the revealed and
 comparator targets must come from the frozen candidate set without overlap, and

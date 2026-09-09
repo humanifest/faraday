@@ -584,6 +584,75 @@ def _validate_measurement_validity_gate_metadata(
             )
 
 
+def _validate_missingness_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    run_id: str,
+    gate: QualityGateResult,
+    output_artifacts: list[DatasetArtifact],
+) -> None:
+    contract = protocol.analysis_contract
+    if (
+        contract is None
+        or not contract.missingness_assessment_gate_id
+        or gate.gate_id != contract.missingness_assessment_gate_id
+        or gate.status is QualityGateStatus.SKIPPED
+    ):
+        return
+    result = gate.details.get("missingness_assessment_result")
+    required_fields = {
+        "observed_diagnostic",
+        "interpretation",
+        "assessment_status",
+        "assessment_kind",
+        "evidence_sha256",
+        "evidence_location",
+    }
+    if not isinstance(result, dict) or set(result) != required_fields:
+        raise ValidationError(
+            f"package run {run_id} performed missingness assessment gate {gate.gate_id} requires one exact result"
+        )
+    prefix = f"package run {run_id} gate {gate.gate_id} missingness_assessment_result"
+    for field in ("observed_diagnostic", "interpretation", "evidence_location"):
+        if not isinstance(result[field], str) or not result[field].strip():
+            raise ValidationError(f"{prefix}.{field} must be nonempty text")
+    if result["assessment_kind"] != contract.missingness_assessment_kind:
+        raise ValidationError(
+            f"package run {run_id} missingness assessment_kind does not match the frozen analysis contract"
+        )
+    status = require_canonical_text(
+        result["assessment_status"], f"{prefix}.assessment_status"
+    )
+    if status not in {
+        "consistent_with_assumption",
+        "contradicted_assumption",
+        "inconclusive",
+    }:
+        raise ValidationError(
+            f"package run {run_id} missingness assessment has an unsupported assessment_status"
+        )
+    expected_status = {
+        QualityGateStatus.PASSED: "consistent_with_assumption",
+        QualityGateStatus.WARNING: "inconclusive",
+        QualityGateStatus.FAILED: "contradicted_assumption",
+    }.get(gate.status)
+    if expected_status is None:
+        raise ValidationError(
+            f"package run {run_id} missingness gate {gate.gate_id} must be passed, warning, failed, or skipped"
+        )
+    if status != expected_status:
+        raise ValidationError(
+            f"package run {run_id} {gate.status.value} missingness assessment gate requires {expected_status}"
+        )
+    digest = require_sha256(
+        result["evidence_sha256"], f"{prefix}.evidence_sha256"
+    )
+    if not any(artifact.sha256 == digest for artifact in output_artifacts):
+        raise ValidationError(
+            f"package run {run_id} missingness assessment evidence must reference a run output artifact"
+        )
+
+
 def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any]:
     """Verify packaged bytes against an independently retained export commitment."""
     expected_manifest_sha256 = require_sha256(
@@ -854,6 +923,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         output_artifacts=run.output_artifacts,
                     )
                     _validate_measurement_validity_gate_metadata(
+                        protocol=protocol,
+                        run_id=run.run_id,
+                        gate=gate,
+                        output_artifacts=run.output_artifacts,
+                    )
+                    _validate_missingness_gate_metadata(
                         protocol=protocol,
                         run_id=run.run_id,
                         gate=gate,
