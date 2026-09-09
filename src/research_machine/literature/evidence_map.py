@@ -13,6 +13,18 @@ from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 
+_EXTRACTION_RECORD_FIELDS = {
+    "extraction_id",
+    "study_id",
+    "claim_text",
+    "evidence_location",
+    "epistemic_layer",
+    "result_direction",
+    "uncertainty",
+    "notes",
+}
+
+
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
     try:
         content = path.read_bytes()
@@ -39,6 +51,24 @@ def _ceiling(citation_verdict: str, bias_judgment: str, epistemic_layer: str) ->
     if epistemic_layer in {"hypothesized", "speculative"}:
         return "source_hypothesis_only"
     return "reviewed_source_claim"
+
+
+def _extraction_claim_payload_sha256(source_id: str, record: dict[str, Any]) -> str:
+    payload = {
+        "source_id": source_id,
+        "extraction_id": record["extraction_id"],
+        "study_id": record["study_id"],
+        "claim_text": record["claim_text"],
+        "evidence_location": record["evidence_location"],
+        "epistemic_layer": record["epistemic_layer"],
+        "result_direction": record["result_direction"],
+        "uncertainty": record["uncertainty"],
+        "notes": record["notes"],
+    }
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def create_evidence_map(
@@ -107,10 +137,16 @@ def create_evidence_map(
         for record in source_review.get("records", []):
             if not isinstance(record, dict):
                 raise ValidationError("extraction records are malformed")
+            if set(record) != _EXTRACTION_RECORD_FIELDS:
+                raise ValidationError("extraction record fields do not match the documented contract")
             extraction_id = _canonical_text(record.get("extraction_id"), "extraction_id")
             if extraction_id in seen:
                 raise ValidationError("extraction records contain invalid or duplicate extraction_id")
             study_id = _canonical_text(record.get("study_id"), "extraction study_id")
+            normalized_record = {
+                field: _canonical_text(record.get(field), f"extraction {field}")
+                for field in _EXTRACTION_RECORD_FIELDS
+            }
             seen.add(extraction_id)
             citation = citation_by_id.get(extraction_id)
             study_bias = bias_by_study.get(study_id)
@@ -118,13 +154,18 @@ def create_evidence_map(
                     or _canonical_text(citation.get("source_id"), "citation source_id") != source_id
                     or _canonical_text(citation.get("study_id"), "citation study_id") != study_id):
                 raise ValidationError("literature artifacts do not provide consistent claim, source, and study coverage")
+            citation_claim_sha = require_sha256(
+                citation.get("extraction_claim_sha256"), "citation extraction_claim_sha256"
+            )
+            if citation_claim_sha != _extraction_claim_payload_sha256(source_id, normalized_record):
+                raise ValidationError("citation verification does not bind the exact extracted claim payload")
             verdict, overall = citation.get("verdict"), study_bias.get("overall_judgment")
-            layer = record.get("epistemic_layer")
+            layer = normalized_record["epistemic_layer"]
             if verdict not in {"supported", "partially_supported"}:
                 raise ValidationError("evidence map cannot include unsupported or unclear citations")
             if overall not in {"low", "some_concerns", "high", "unclear"}:
                 raise ValidationError("evidence map bias judgment is invalid")
-            extracted_location = record.get("evidence_location")
+            extracted_location = normalized_record["evidence_location"]
             checked_location = citation.get("checked_location")
             citation_rationale = citation.get("rationale")
             if any(not isinstance(value, str) or not value.strip()
@@ -161,8 +202,9 @@ def create_evidence_map(
             claims.append({
                 "extraction_id": extraction_id, "study_id": study_id, "source_id": source_id,
                 "extracted_evidence_location": extracted_location,
-                "claim_text": record.get("claim_text"), "epistemic_layer": layer,
-                "result_direction": record.get("result_direction"), "uncertainty": record.get("uncertainty"),
+                "extraction_claim_sha256": citation_claim_sha,
+                "claim_text": normalized_record["claim_text"], "epistemic_layer": layer,
+                "result_direction": normalized_record["result_direction"], "uncertainty": normalized_record["uncertainty"],
                 "citation_checked_location": checked_location,
                 "citation_rationale": citation_rationale,
                 "citation_verdict": verdict, "risk_of_bias": overall,

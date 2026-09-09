@@ -889,10 +889,13 @@ contract when they pin a screening record.
 
 Downstream literature evidence maps retain the extraction location, independent
 citation-review location and rationale, and study-level bias-domain judgments
-with their cited locations for every mapped claim. Qualitative synthesis now
-requires the extraction source set to match the synthesis plan's frozen included
-sources, and preserves those provenance anchors instead of carrying only a ceiling
-label. Trusted extraction, citation-verification, bias-assessment, and
+with their cited locations for every mapped claim. Citation verification also
+binds a compact SHA-256 over each exact extracted claim payload, and evidence
+maps replay that payload digest before preserving it for qualitative synthesis
+and quantitative effect preparation. Qualitative synthesis now requires the
+extraction source set to match the synthesis plan's frozen included sources, and
+preserves those provenance anchors instead of carrying only a ceiling label.
+Trusted extraction, citation-verification, bias-assessment, and
 study-reconciliation hashes must also be canonical lowercase SHA-256 digests
 before they can bind downstream review artifacts. Extraction reviewer text,
 pinned screening source IDs, extraction source IDs, study IDs, claim IDs,

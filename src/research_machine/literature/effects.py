@@ -97,8 +97,12 @@ def create_effect_records(
         prior = study_biases.setdefault(study_id, claim["risk_of_bias"])
         if prior != claim["risk_of_bias"]:
             raise ValidationError("mapped claims disagree on study risk_of_bias")
+        extraction_claim_sha256 = require_sha256(
+            claim.get("extraction_claim_sha256"), "mapped claim extraction_claim_sha256"
+        )
         claim_summary = {
             "extraction_id": claim.get("extraction_id"),
+            "extraction_claim_sha256": extraction_claim_sha256,
             "source_id": claim.get("source_id"),
             "result_direction": claim.get("result_direction"),
             "interpretive_ceiling": claim.get("interpretive_ceiling"),

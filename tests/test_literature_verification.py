@@ -1,4 +1,5 @@
 """Synthetic citation reviews; no fixture claim is scientific evidence."""
+import hashlib
 import json
 
 import pytest
@@ -25,8 +26,26 @@ def extraction_file(tmp_path):
     path = tmp_path / "extraction.json"
     encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
     path.write_bytes(encoded)
-    import hashlib
     return path, hashlib.sha256(encoded).hexdigest()
+
+
+def claim_digest(source_id, record):
+    payload = {
+        "source_id": source_id,
+        "extraction_id": record["extraction_id"],
+        "study_id": record["study_id"],
+        "claim_text": record["claim_text"],
+        "evidence_location": record["evidence_location"],
+        "epistemic_layer": record["epistemic_layer"],
+        "result_direction": record["result_direction"],
+        "uncertainty": record["uncertainty"],
+        "notes": record["notes"],
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def review(verdict="supported"):
@@ -61,11 +80,15 @@ def test_unsupported_claim_is_preserved_and_requires_review(tmp_path):
 
 def test_citation_verification_preserves_canonical_extraction_handles(tmp_path):
     extraction, digest = extraction_file(tmp_path)
+    extraction_record = json.loads(extraction.read_text())["source_reviews"][0]["records"][0]
     result = create_citation_verification(
         extraction, digest, review(), tmp_path / "verification"
     )
     assert result["assessments"][0]["extraction_id"] == "claim-1"
     assert result["assessments"][0]["checked_location"] == "page 1"
+    assert result["assessments"][0]["extraction_claim_sha256"] == claim_digest(
+        "source-1", extraction_record
+    )
 
 
 @pytest.mark.parametrize("failure", [
@@ -86,6 +109,7 @@ def test_citation_verification_preserves_canonical_extraction_handles(tmp_path):
     "padded-location",
     "padded-rationale",
     "verdict",
+    "missing-claim-field",
 ])
 def test_invalid_citation_review_never_publishes(tmp_path, failure):
     extraction, digest = extraction_file(tmp_path)
@@ -103,6 +127,7 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
         "padded-study",
         "padded-claim-text",
         "padded-evidence-location",
+        "missing-claim-field",
     }:
         value = json.loads(extraction.read_text())
         if failure == "padded_extraction_duplicate":
@@ -119,9 +144,10 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
             value["source_reviews"][0]["records"][0]["claim_text"] = " Synthetic claim one "
         elif failure == "padded-evidence-location":
             value["source_reviews"][0]["records"][0]["evidence_location"] = " page 1 "
+        elif failure == "missing-claim-field":
+            del value["source_reviews"][0]["records"][0]["notes"]
         encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
         extraction.write_bytes(encoded)
-        import hashlib
         digest = hashlib.sha256(encoded).hexdigest()
     elif failure == "unknown": candidate["assessments"][0]["extraction_id"] = "claim-x"
     elif failure == "location": candidate["assessments"][0]["checked_location"] = ""

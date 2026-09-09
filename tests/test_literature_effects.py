@@ -28,6 +28,7 @@ def artifacts(tmp_path, minimum=1):
     evidence_map = tmp_path / "map.json"
     claim_template = {
         "source_id": "source-fixture",
+        "extraction_claim_sha256": "a" * 64,
         "result_direction": "mixed",
         "interpretive_ceiling": "reviewed_source_claim",
         "citation_verdict": "supported",
@@ -65,6 +66,7 @@ def test_effect_cli_preserves_unavailable_study_and_is_write_once(tmp_path, caps
     assert result["records"][0]["variance"] == pytest.approx(0.01)
     assert result["records"][1]["risk_of_bias"] == "high"
     assert result["records"][0]["mapped_claims"][0]["extraction_id"] == "claim-1"
+    assert result["records"][0]["mapped_claims"][0]["extraction_claim_sha256"] == "a" * 64
     assert result["records"][0]["mapped_claims"][0]["citation_checked_location"] == "page fixture"
     assert result["scientific_evidence_eligible"] is False
     with pytest.raises(ValidationError, match="already exists"):
@@ -91,6 +93,7 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     "plan-source-missing", "plan-source-drift", "padded-plan-source",
     "padded-extraction-source", "padded-map-study", "padded-map-source",
     "padded-map-extraction", "padded-map-citation-location", "map-provenance",
+    "map-claim-digest",
     "padded-reviewer", "padded-reason", "padded-location", "padded-derivation",
     "padded-derivation-scope",
 ])
@@ -144,6 +147,10 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     elif failure == "map-provenance":
         value = json.loads(evidence_map.read_text())
         value["claims"][0]["citation_checked_location"] = ""
+        map_sha = write_json(evidence_map, value)
+    elif failure == "map-claim-digest":
+        value = json.loads(evidence_map.read_text())
+        value["claims"][0]["extraction_claim_sha256"] = "A" * 64
         map_sha = write_json(evidence_map, value)
     elif failure == "padded-reviewer": candidate["reviewer"] = " Effect reviewer "
     elif failure == "padded-reason": candidate["records"][0]["reason"] = " Fixture record "

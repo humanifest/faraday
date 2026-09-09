@@ -110,9 +110,10 @@ def execute_qualitative_synthesis(
         raise ValidationError("qualitative synthesis requires mapped claims")
     required_claim_fields = {
         "extraction_id", "study_id", "source_id", "extracted_evidence_location",
-        "claim_text", "epistemic_layer", "result_direction", "uncertainty",
-        "citation_checked_location", "citation_rationale", "citation_verdict",
-        "risk_of_bias", "bias_domain_judgments", "interpretive_ceiling",
+        "extraction_claim_sha256", "claim_text", "epistemic_layer",
+        "result_direction", "uncertainty", "citation_checked_location",
+        "citation_rationale", "citation_verdict", "risk_of_bias",
+        "bias_domain_judgments", "interpretive_ceiling",
     }
     seen = set()
     normalized_claims = []
@@ -125,6 +126,9 @@ def execute_qualitative_synthesis(
         seen.add(extraction_id)
         study_id = _canonical_text(claim["study_id"], "evidence-map study_id")
         source_id = _canonical_text(claim["source_id"], "evidence-map source_id")
+        extraction_claim_sha256 = require_sha256(
+            claim["extraction_claim_sha256"], "evidence-map extraction_claim_sha256"
+        )
         if claim["result_direction"] not in {"supports", "weakens", "mixed", "null", "not_applicable"}:
             raise ValidationError("evidence-map result direction is invalid")
         if claim["interpretive_ceiling"] not in {
@@ -160,6 +164,7 @@ def execute_qualitative_synthesis(
             "extraction_id": extraction_id,
             "study_id": study_id,
             "source_id": source_id,
+            "extraction_claim_sha256": extraction_claim_sha256,
             "bias_domain_judgments": [
                 {**domain, "domain": domain["domain"],
                  "evidence_locations": domain["evidence_locations"]}

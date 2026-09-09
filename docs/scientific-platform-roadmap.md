@@ -1093,10 +1093,13 @@ every extracted claim. The expected extraction hash must be canonical lowercase
 SHA-256 before it can pin the extraction bytes. The citation reviewer must
 differ from the extraction reviewer and must record the checked location,
 rationale, and a supported, partially-supported, unsupported, or unclear
-verdict. Unsupported and unclear claims remain in the artifact and force
-`review_required`; they are never silently dropped. This records independent
-human citation checking but does not make a claim true, authenticate reviewer
-identities, assess study bias, or create scientific evidence.
+verdict. Each assessment also binds a compact SHA-256 over the exact extracted
+claim payload: source, extraction ID, study ID, claim text, evidence location,
+epistemic layer, result direction, uncertainty, and notes. Unsupported and
+unclear claims remain in the artifact and force `review_required`; they are
+never silently dropped. This records independent human citation checking but
+does not make a claim true, authenticate reviewer identities, assess study bias,
+or create scientific evidence.
 Citation verification requires canonical extraction reviewer, source, study,
 claim, evidence-location, citation-reviewer, checked-location, and rationale
 text before coverage and duplicate checks, so a second review cannot trim a
@@ -1130,12 +1133,14 @@ through citation review, bias assessment, and reconciled study identities before
 joining claims. The expected study-reconciliation hash must be canonical
 lowercase SHA-256 before the map can bind the terminal review artifact. It
 assigns deterministic, conservative interpretive ceilings from citation support,
-epistemic layer, and study bias. Each mapped claim carries
-the extraction location, citation-check location and rationale, and retained
-bias-domain judgments with their cited locations, so the ceiling remains tied to
-inspectable review anchors. The write-once map cannot authorize a conclusion,
-pooled estimate, causal claim, recommendation, or publication; it is the
-inspectable input boundary for later registered synthesis.
+epistemic layer, and study bias. Each mapped claim replays the citation
+assessment's extracted-claim digest against the current extraction bytes and
+carries that digest forward with the extraction location, citation-check
+location and rationale, and retained bias-domain judgments with their cited
+locations, so the ceiling remains tied to inspectable review anchors rather
+than only matching mutable-looking IDs. The write-once map cannot authorize a
+conclusion, pooled estimate, causal claim, recommendation, or publication; it is
+the inspectable input boundary for later registered synthesis.
 Evidence-map construction requires canonical extraction, study, source,
 citation-review, and bias-domain handles before every provenance join,
 preventing padded upstream artifacts from creating apparent new claims or

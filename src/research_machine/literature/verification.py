@@ -14,6 +14,16 @@ from research_machine.literature.snapshot import _text
 
 
 _VERDICTS = {"supported", "partially_supported", "unsupported", "unclear"}
+_EXTRACTION_RECORD_FIELDS = {
+    "extraction_id",
+    "study_id",
+    "claim_text",
+    "evidence_location",
+    "epistemic_layer",
+    "result_direction",
+    "uncertainty",
+    "notes",
+}
 
 
 def _canonical_text(value: Any, field: str) -> str:
@@ -21,6 +31,24 @@ def _canonical_text(value: Any, field: str) -> str:
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
     return text
+
+
+def _extraction_claim_payload_sha256(source_id: str, record: dict[str, Any]) -> str:
+    payload = {
+        "source_id": source_id,
+        "extraction_id": record["extraction_id"],
+        "study_id": record["study_id"],
+        "claim_text": record["claim_text"],
+        "evidence_location": record["evidence_location"],
+        "epistemic_layer": record["epistemic_layer"],
+        "result_direction": record["result_direction"],
+        "uncertainty": record["uncertainty"],
+        "notes": record["notes"],
+    }
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def create_citation_verification(
@@ -58,15 +86,22 @@ def create_citation_verification(
         for record in source_records:
             if not isinstance(record, dict):
                 raise ValidationError("extraction record must be an object")
+            if set(record) != _EXTRACTION_RECORD_FIELDS:
+                raise ValidationError("extraction record fields do not match the documented contract")
             extraction_id = _canonical_text(record.get("extraction_id"), "extraction_id")
             if extraction_id in records:
                 raise ValidationError("extraction contains duplicate extraction_id")
+            normalized_record = {
+                field: _canonical_text(record.get(field), field)
+                for field in _EXTRACTION_RECORD_FIELDS
+            }
             records[extraction_id] = {
                 "source_id": source_id,
-                "study_id": _canonical_text(record.get("study_id"), "study_id"),
-                "claim_text": _canonical_text(record.get("claim_text"), "claim_text"),
-                "extracted_evidence_location": _canonical_text(
-                    record.get("evidence_location"), "extracted evidence_location"
+                "study_id": normalized_record["study_id"],
+                "claim_text": normalized_record["claim_text"],
+                "extracted_evidence_location": normalized_record["evidence_location"],
+                "extraction_claim_sha256": _extraction_claim_payload_sha256(
+                    source_id, normalized_record
                 ),
             }
     if not records:

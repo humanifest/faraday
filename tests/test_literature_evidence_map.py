@@ -15,17 +15,39 @@ def write_json(path, value):
     return hashlib.sha256(encoded).hexdigest()
 
 
+def claim_digest(source_id, record):
+    payload = {
+        "source_id": source_id,
+        "extraction_id": record["extraction_id"],
+        "study_id": record["study_id"],
+        "claim_text": record["claim_text"],
+        "evidence_location": record["evidence_location"],
+        "epistemic_layer": record["epistemic_layer"],
+        "result_direction": record["result_direction"],
+        "uncertainty": record["uncertainty"],
+        "notes": record["notes"],
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def chain(tmp_path, bias_judgment="some_concerns"):
     extraction = tmp_path / "extraction.json"
+    extraction_record = {"extraction_id": "e1", "study_id": "study-1",
+        "claim_text": "Synthetic claim", "evidence_location": "page fixture",
+        "epistemic_layer": "inferred", "result_direction": "mixed",
+        "uncertainty": "fixture", "notes": "fixture notes"}
     extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded", "snapshot_id": "snap",
-        "source_reviews": [{"source_id": "s1", "records": [{"extraction_id": "e1", "study_id": "study-1",
-            "claim_text": "Synthetic claim", "evidence_location": "page fixture",
-            "epistemic_layer": "inferred", "result_direction": "mixed", "uncertainty": "fixture"}]}]})
+        "source_reviews": [{"source_id": "s1", "records": [extraction_record]}]})
     verification = tmp_path / "verification.json"
     verification_sha = write_json(verification, {"citation_verification_version": 1, "status": "citation_review_recorded",
         "extraction_sha256": extraction_sha, "assessments": [{"extraction_id": "e1", "study_id": "study-1",
             "source_id": "s1", "verdict": "supported", "checked_location": "page 4",
-            "rationale": "fixture citation check"}]})
+            "rationale": "fixture citation check",
+            "extraction_claim_sha256": claim_digest("s1", extraction_record)}]})
     bias = tmp_path / "bias.json"
     domains = [
         {"domain": name, "judgment": bias_judgment, "evidence_locations": ["table 1"]}
@@ -56,6 +78,9 @@ def test_evidence_map_cli_verifies_chain_and_bounds_claim(tmp_path, capsys):
     result = json.loads(capsys.readouterr().out)["result"]
     assert result["claims"][0]["interpretive_ceiling"] == "qualified_source_claim"
     assert result["claims"][0]["extracted_evidence_location"] == "page fixture"
+    assert result["claims"][0]["extraction_claim_sha256"] == claim_digest(
+        "s1", json.loads(extraction.read_text())["source_reviews"][0]["records"][0]
+    )
     assert result["claims"][0]["citation_checked_location"] == "page 4"
     assert result["claims"][0]["bias_domain_judgments"][0]["evidence_locations"] == ["table 1"]
     assert result["conclusion_authorized"] is False
@@ -70,6 +95,9 @@ def test_evidence_map_preserves_canonical_join_handles(tmp_path):
     assert result["claims"][0]["extraction_id"] == "e1"
     assert result["claims"][0]["study_id"] == "study-1"
     assert result["claims"][0]["source_id"] == "s1"
+    assert result["claims"][0]["extraction_claim_sha256"] == claim_digest(
+        "s1", json.loads(extraction.read_text())["source_reviews"][0]["records"][0]
+    )
     assert result["claims"][0]["bias_domain_judgments"][0]["domain"] == "selection"
     assert result["claims"][0]["bias_domain_judgments"][0]["evidence_locations"] == ["table 1"]
 
@@ -82,7 +110,7 @@ def test_evidence_map_preserves_canonical_join_handles(tmp_path):
     "padded-citation-id", "padded-citation-source", "padded-citation-study",
     "padded-citation-location", "padded-citation-rationale", "padded-bias-study",
     "padded-bias-domain", "padded-bias-location", "padded-reconciliation-study",
-    "citation-provenance", "bias-provenance",
+    "citation-provenance", "bias-provenance", "claim-digest", "claim-payload",
 ])
 def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
     extraction, verification, bias, reconciliation, digest = chain(tmp_path)
@@ -97,6 +125,21 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         value = json.loads(reconciliation.read_text()); value["status"] = "review_required"; digest = write_json(reconciliation, value)
     elif failure == "coverage":
         value = json.loads(verification.read_text()); value["assessments"] = []; verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure == "claim-digest":
+        value = json.loads(verification.read_text())
+        value["assessments"][0]["extraction_claim_sha256"] = "0" * 64
+        verification_sha = write_json(verification, value)
+        value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
+        value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
+    elif failure == "claim-payload":
+        value = json.loads(extraction.read_text())
+        value["source_reviews"][0]["records"][0]["notes"] = "changed fixture notes"
+        extraction_sha = write_json(extraction, value)
+        value = json.loads(verification.read_text())
+        value["extraction_sha256"] = extraction_sha
+        verification_sha = write_json(verification, value)
         value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
     elif failure == "padded-extraction-duplicate":

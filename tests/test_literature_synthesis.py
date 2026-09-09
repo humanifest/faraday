@@ -29,6 +29,7 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
         "source_reviews": [{"source_id": "s1"}]})
     claim = {"extraction_id": "e1", "study_id": "study-1", "source_id": "s1",
         "extracted_evidence_location": "page 1", "claim_text": "Synthetic null result",
+        "extraction_claim_sha256": "a" * 64,
         "epistemic_layer": "inferred", "result_direction": "null",
         "uncertainty": "Wide", "citation_checked_location": "page 1",
         "citation_rationale": "fixture reviewer check", "citation_verdict": "supported", "risk_of_bias": "high",
@@ -62,6 +63,7 @@ def test_qualitative_synthesis_cli_preserves_null_high_bias_claim_and_is_write_o
     assert result["result_direction_counts"]["null"] == 1
     assert result["interpretive_ceiling_counts"]["insufficient_for_conclusion"] == 1
     assert result["claims"][0]["citation_checked_location"] == "page 1"
+    assert result["claims"][0]["extraction_claim_sha256"] == "a" * 64
     assert result["claims"][0]["bias_domain_judgments"][0]["judgment"] == "high"
     assert result["deviation_plan_commitments"]["synthesis_type"] == "qualitative"
     assert result["publication_authorized"] is False
@@ -126,6 +128,7 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
     "padded-extracted-location",
     "padded-citation-location",
     "padded-citation-rationale",
+    "claim-digest",
     "padded-domain",
     "padded-domain-location",
     "deviation-plan",
@@ -154,6 +157,10 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
         value = json.loads(evidence_map.read_text()); value["snapshot_id"] = "other"; map_sha = write_json(evidence_map, value)
     elif failure == "claim":
         value = json.loads(evidence_map.read_text()); del value["claims"][0]["uncertainty"]; map_sha = write_json(evidence_map, value)
+    elif failure == "claim-digest":
+        value = json.loads(evidence_map.read_text())
+        value["claims"][0]["extraction_claim_sha256"] = "A" * 64
+        map_sha = write_json(evidence_map, value)
     elif failure in {
         "padded-claim-id",
         "padded-claim-study",
