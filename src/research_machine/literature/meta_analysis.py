@@ -109,6 +109,32 @@ def _claim_source_provenance(claims: list[object], field_prefix: str) -> list[di
     return sorted(retained, key=lambda claim: claim["extraction_id"])
 
 
+def _finite_float(value: Any, field: str, *, positive: bool = False, non_negative: bool = False) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValidationError(f"{field} must be finite numeric data")
+    result = float(value)
+    if positive and result <= 0:
+        raise ValidationError(f"{field} must be positive")
+    if non_negative and result < 0:
+        raise ValidationError(f"{field} must be non-negative")
+    return result
+
+
+def _finite_interval(value: Any, field: str) -> list[float]:
+    if not isinstance(value, list) or len(value) != 2:
+        raise ValidationError(f"{field} must be a two-value interval")
+    lower = _finite_float(value[0], f"{field} lower")
+    upper = _finite_float(value[1], f"{field} upper")
+    if lower > upper:
+        raise ValidationError(f"{field} bounds must be ordered")
+    return [lower, upper]
+
+
+def _assert_close(value: float, expected: float, field: str) -> None:
+    if not math.isclose(value, expected, rel_tol=1e-9, abs_tol=1e-12):
+        raise ValidationError(f"{field} does not replay from retained numeric fields")
+
+
 def _weighted(records: list[dict[str, Any]], tau_squared: float = 0.0) -> tuple[float, float]:
     weights = [1.0 / (item["variance"] + tau_squared) for item in records]
     total = sum(weights)
@@ -149,6 +175,21 @@ def validate_meta_analysis_boundary(
     planned_sensitivity_analyses: list[str] | None = None,
 ) -> None:
     """Replay meta-analysis non-authority, study-count, and sensitivity boundaries."""
+    if meta_analysis.get("meta_analysis_version") != 1:
+        raise ValidationError("meta-analysis version is invalid")
+    inputs = meta_analysis.get("inputs")
+    required_inputs = {
+        "synthesis_plan_sha256",
+        "effect_records_sha256",
+        "effect_verification_sha256",
+        "synthesis_deviations_sha256",
+    }
+    if not isinstance(inputs, dict) or set(inputs) != required_inputs:
+        raise ValidationError("meta-analysis inputs do not match the documented contract")
+    for key in sorted(required_inputs):
+        require_sha256(inputs.get(key), f"meta-analysis input {key}")
+    _canonical_text(meta_analysis.get("plan_id"), "meta-analysis plan_id")
+    _canonical_text(meta_analysis.get("snapshot_id"), "meta-analysis snapshot_id")
     if meta_analysis.get("scientific_evidence_eligible") is not False:
         raise ValidationError("meta-analysis must remain scientifically ineligible")
     if meta_analysis.get("conclusion_authorized") is not False:
@@ -258,6 +299,49 @@ def validate_meta_analysis_boundary(
     if unavailable_seen != unavailable_ids:
         raise ValidationError("meta-analysis unavailable_studies do not replay from provenance")
 
+    model = meta_analysis.get("statistical_model")
+    if model not in {"fixed_effect", "random_effects"}:
+        raise ValidationError("meta-analysis statistical_model is invalid")
+    pooled_estimate = _finite_float(meta_analysis.get("pooled_estimate"), "meta-analysis pooled_estimate")
+    standard_error = _finite_float(
+        meta_analysis.get("standard_error"), "meta-analysis standard_error", positive=True
+    )
+    conventional_standard_error = _finite_float(
+        meta_analysis.get("conventional_standard_error"),
+        "meta-analysis conventional_standard_error",
+        positive=True,
+    )
+    critical_value = _finite_float(
+        meta_analysis.get("critical_value_95"), "meta-analysis critical_value_95", positive=True
+    )
+    confidence_interval = _finite_interval(
+        meta_analysis.get("confidence_interval_95"), "meta-analysis confidence_interval_95"
+    )
+    _assert_close(
+        confidence_interval[0],
+        pooled_estimate - critical_value * standard_error,
+        "meta-analysis confidence_interval_95 lower",
+    )
+    _assert_close(
+        confidence_interval[1],
+        pooled_estimate + critical_value * standard_error,
+        "meta-analysis confidence_interval_95 upper",
+    )
+    hartung_knapp = meta_analysis.get("hartung_knapp_standard_error")
+    inference_method = meta_analysis.get("inference_method")
+    if model == "fixed_effect":
+        if hartung_knapp is not None or inference_method != "fixed_effect_normal_95":
+            raise ValidationError("fixed-effect meta-analysis must retain the fixed-effect inference method")
+        _assert_close(
+            standard_error,
+            conventional_standard_error,
+            "fixed-effect meta-analysis standard_error",
+        )
+    else:
+        _finite_float(hartung_knapp, "meta-analysis hartung_knapp_standard_error", positive=True)
+        if inference_method != "modified_hartung_knapp_student_t_95":
+            raise ValidationError("random-effects meta-analysis must retain the Hartung-Knapp inference method")
+
     retained_source_summaries = validate_retained_source_summaries(
         meta_analysis.get("retained_source_summaries"),
         expected_statuses=effect_statuses,
@@ -272,6 +356,77 @@ def validate_meta_analysis_boundary(
         if item["retained_source_summary_sha256"] != summary_digests[study_id]:
             raise ValidationError("meta-analysis retained source summaries do not match study provenance")
 
+    heterogeneity = meta_analysis.get("heterogeneity")
+    required_heterogeneity = {
+        "q",
+        "degrees_of_freedom",
+        "i_squared_percent",
+        "tau_squared_der_simonian_laird",
+    }
+    if not isinstance(heterogeneity, dict) or set(heterogeneity) != required_heterogeneity:
+        raise ValidationError("meta-analysis heterogeneity fields do not match the documented contract")
+    _finite_float(heterogeneity.get("q"), "meta-analysis heterogeneity q", non_negative=True)
+    degrees_of_freedom = heterogeneity.get("degrees_of_freedom")
+    if (isinstance(degrees_of_freedom, bool) or not isinstance(degrees_of_freedom, int)
+            or degrees_of_freedom != len(available_ids) - 1):
+        raise ValidationError("meta-analysis heterogeneity degrees_of_freedom does not replay from available studies")
+    _finite_float(
+        heterogeneity.get("i_squared_percent"),
+        "meta-analysis heterogeneity i_squared_percent",
+        non_negative=True,
+    )
+    _finite_float(
+        heterogeneity.get("tau_squared_der_simonian_laird"),
+        "meta-analysis heterogeneity tau_squared_der_simonian_laird",
+        non_negative=True,
+    )
+    prediction_interval = meta_analysis.get("prediction_interval_95")
+    if prediction_interval is None:
+        if model == "random_effects" and len(available_ids) >= 3:
+            raise ValidationError("random-effects meta-analysis requires a prediction interval for three or more studies")
+    else:
+        if model != "random_effects" or len(available_ids) < 3:
+            raise ValidationError("meta-analysis prediction interval is not allowed for this model or study count")
+        _finite_interval(prediction_interval, "meta-analysis prediction_interval_95")
+
+    leave_one_out = meta_analysis.get("leave_one_study_out")
+    if not isinstance(leave_one_out, list):
+        raise ValidationError("meta-analysis leave_one_study_out must be an array")
+    excluded_seen = set()
+    normal_critical = NormalDist().inv_cdf(0.975)
+    for item in leave_one_out:
+        if not isinstance(item, dict) or set(item) != {
+            "excluded_study_id",
+            "estimate",
+            "standard_error",
+            "confidence_interval_95_normal_approximation",
+        }:
+            raise ValidationError("meta-analysis leave-one-out fields do not match the documented contract")
+        excluded = _canonical_text(item.get("excluded_study_id"), "meta-analysis excluded_study_id")
+        if excluded not in available_ids or excluded in excluded_seen:
+            raise ValidationError("meta-analysis leave-one-out coverage does not match available studies")
+        excluded_seen.add(excluded)
+        loo_estimate = _finite_float(item.get("estimate"), "meta-analysis leave-one-out estimate")
+        loo_se = _finite_float(
+            item.get("standard_error"), "meta-analysis leave-one-out standard_error", positive=True
+        )
+        loo_interval = _finite_interval(
+            item.get("confidence_interval_95_normal_approximation"),
+            "meta-analysis leave-one-out confidence_interval_95_normal_approximation",
+        )
+        _assert_close(
+            loo_interval[0],
+            loo_estimate - normal_critical * loo_se,
+            "meta-analysis leave-one-out confidence interval lower",
+        )
+        _assert_close(
+            loo_interval[1],
+            loo_estimate + normal_critical * loo_se,
+            "meta-analysis leave-one-out confidence interval upper",
+        )
+    if excluded_seen != available_ids:
+        raise ValidationError("meta-analysis leave-one-out results must cover every available study")
+
     sensitivity_results = meta_analysis.get("planned_sensitivity_results")
     if not isinstance(sensitivity_results, list) or not sensitivity_results:
         raise ValidationError("meta-analysis requires retained planned sensitivity results")
@@ -285,6 +440,33 @@ def validate_meta_analysis_boundary(
         sensitivity_names.append(name)
         if item.get("status") not in {"completed", "not_estimable"}:
             raise ValidationError("meta-analysis sensitivity status is invalid")
+        status = item["status"]
+        if name == "leave_one_study_out":
+            if status != "completed" or item.get("results") != leave_one_out:
+                raise ValidationError("meta-analysis leave-one-study-out sensitivity must replay from retained diagnostics")
+        elif status == "completed":
+            _finite_float(
+                item.get("estimate"),
+                f"meta-analysis sensitivity {name} estimate",
+            )
+            _finite_float(
+                item.get("standard_error_normal_approximation"),
+                f"meta-analysis sensitivity {name} standard_error_normal_approximation",
+                positive=True,
+            )
+            if "remaining_study_count" in item:
+                remaining = item["remaining_study_count"]
+                if isinstance(remaining, bool) or not isinstance(remaining, int) or remaining < 2:
+                    raise ValidationError("meta-analysis completed sensitivity remaining_study_count is invalid")
+        else:
+            _canonical_text(
+                item.get("reason"),
+                f"meta-analysis sensitivity {name} reason",
+            )
+            remaining = item.get("remaining_study_count")
+            if (remaining is not None
+                    and (isinstance(remaining, bool) or not isinstance(remaining, int) or remaining < 0)):
+                raise ValidationError("meta-analysis not-estimable sensitivity remaining_study_count is invalid")
     if planned_sensitivity_analyses is not None and sensitivity_names != planned_sensitivity_analyses:
         raise ValidationError("meta-analysis sensitivity results do not cover the frozen plan exactly")
 
@@ -296,10 +478,64 @@ def validate_meta_analysis_boundary(
     if small_study_effects.get("publication_bias_conclusion") is not False:
         raise ValidationError("meta-analysis small-study diagnostic must not authorize publication-bias conclusions")
     if small_study_effects.get("status") == "estimated":
+        required_egger = {
+            "status",
+            "method",
+            "study_count",
+            "intercept",
+            "slope",
+            "intercept_standard_error",
+            "intercept_confidence_interval_95",
+            "degrees_of_freedom",
+            "critical_value_95",
+            "publication_bias_conclusion",
+            "interpretation_boundary",
+        }
+        if set(small_study_effects) != required_egger:
+            raise ValidationError("estimated small-study diagnostic fields do not match the documented contract")
+        if small_study_effects.get("method") != "egger_standardized_effect_on_precision_ols":
+            raise ValidationError("estimated small-study diagnostic method is invalid")
+        if small_study_effects.get("study_count") != len(available_ids):
+            raise ValidationError("small-study diagnostic count does not replay from available studies")
+        intercept = _finite_float(small_study_effects.get("intercept"), "small-study intercept")
+        _finite_float(small_study_effects.get("slope"), "small-study slope")
+        egger_se = _finite_float(
+            small_study_effects.get("intercept_standard_error"),
+            "small-study intercept_standard_error",
+            positive=True,
+        )
+        egger_critical = _finite_float(
+            small_study_effects.get("critical_value_95"),
+            "small-study critical_value_95",
+            positive=True,
+        )
+        egger_interval = _finite_interval(
+            small_study_effects.get("intercept_confidence_interval_95"),
+            "small-study intercept_confidence_interval_95",
+        )
+        _assert_close(
+            egger_interval[0],
+            intercept - egger_critical * egger_se,
+            "small-study confidence interval lower",
+        )
+        _assert_close(
+            egger_interval[1],
+            intercept + egger_critical * egger_se,
+            "small-study confidence interval upper",
+        )
+        if small_study_effects.get("degrees_of_freedom") != len(available_ids) - 2:
+            raise ValidationError("small-study diagnostic degrees_of_freedom does not replay from available studies")
         _canonical_text(
             small_study_effects.get("interpretation_boundary"),
             "meta-analysis small-study interpretation boundary",
         )
+    else:
+        required_not_estimable = {"status", "reason", "study_count", "publication_bias_conclusion"}
+        if set(small_study_effects) != required_not_estimable:
+            raise ValidationError("not-estimable small-study diagnostic fields do not match the documented contract")
+        _canonical_text(small_study_effects.get("reason"), "small-study not-estimable reason")
+        if small_study_effects.get("study_count") != len(available_ids):
+            raise ValidationError("small-study diagnostic count does not replay from available studies")
 
 
 def execute_meta_analysis(

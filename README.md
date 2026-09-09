@@ -1188,6 +1188,12 @@ false; deviation status must derive the meta-analysis review status; available
 study counts, unavailable-study disclosures, retained source-summary digests,
 planned sensitivity coverage, and small-study diagnostic non-conclusion status
 must all replay from the artifact's retained provenance.
+It also replays retained numeric-result shape: trusted input hashes, plan and
+snapshot handles, finite pooled estimates and uncertainty, confidence-interval
+arithmetic, heterogeneity degrees of freedom, prediction-interval eligibility,
+leave-one-study-out coverage and normal-approximation intervals, sensitivity
+result fields, and small-study diagnostic arithmetic must remain internally
+consistent.
 Literature deviation declarations retain a compact snapshot of the frozen
 synthesis-plan commitments, and qualitative synthesis or quantitative pooling
 must match that snapshot before recording a result. Each declared departure

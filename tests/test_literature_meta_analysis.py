@@ -355,17 +355,29 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
 
 
 @pytest.mark.parametrize("tamper", [
+    "version",
+    "input-hash",
+    "plan-id",
     "scientific-authority",
     "conclusion-authority",
     "publication-authority",
     "limitations-missing",
     "deviation-status",
     "status-drift",
+    "model-drift",
     "available-count",
     "unavailable-studies",
+    "pooled-ci-drift",
+    "heterogeneity-df",
+    "fixed-hk-se",
+    "prediction-for-fixed",
+    "loo-missing",
+    "loo-ci-drift",
     "retained-summary-digest",
     "sensitivity-missing",
+    "sensitivity-result-drift",
     "small-study-conclusion",
+    "small-study-count",
 ])
 def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
@@ -375,7 +387,13 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
     )
     candidate = copy.deepcopy(result)
     planned = json.loads(plan.read_text())["sensitivity_analyses"]
-    if tamper == "scientific-authority":
+    if tamper == "version":
+        candidate["meta_analysis_version"] = 2
+    elif tamper == "input-hash":
+        candidate["inputs"]["effect_records_sha256"] = "A" * 64
+    elif tamper == "plan-id":
+        candidate["plan_id"] = " p1 "
+    elif tamper == "scientific-authority":
         candidate["scientific_evidence_eligible"] = True
     elif tamper == "conclusion-authority":
         candidate["conclusion_authorized"] = True
@@ -388,16 +406,34 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
     elif tamper == "status-drift":
         candidate["status"] = "meta_analysis_recorded"
         candidate["deviation_status"] = "retrospective_or_uncertain_deviation_review_required"
+    elif tamper == "model-drift":
+        candidate["statistical_model"] = "vote_count"
     elif tamper == "available-count":
         candidate["available_study_count"] = 99
     elif tamper == "unavailable-studies":
         candidate["unavailable_studies"] = []
+    elif tamper == "pooled-ci-drift":
+        candidate["confidence_interval_95"][0] = candidate["confidence_interval_95"][0] - 1.0
+    elif tamper == "heterogeneity-df":
+        candidate["heterogeneity"]["degrees_of_freedom"] = 99
+    elif tamper == "fixed-hk-se":
+        candidate["hartung_knapp_standard_error"] = candidate["standard_error"]
+    elif tamper == "prediction-for-fixed":
+        candidate["prediction_interval_95"] = candidate["confidence_interval_95"]
+    elif tamper == "loo-missing":
+        candidate["leave_one_study_out"].pop()
+    elif tamper == "loo-ci-drift":
+        candidate["leave_one_study_out"][0]["confidence_interval_95_normal_approximation"][1] += 1.0
     elif tamper == "retained-summary-digest":
         candidate["study_provenance"][0]["retained_source_summary_sha256"] = "c" * 64
     elif tamper == "sensitivity-missing":
         candidate["planned_sensitivity_results"].pop()
+    elif tamper == "sensitivity-result-drift":
+        candidate["planned_sensitivity_results"][0]["results"] = []
     elif tamper == "small-study-conclusion":
         candidate["small_study_effects"]["publication_bias_conclusion"] = True
+    elif tamper == "small-study-count":
+        candidate["small_study_effects"]["study_count"] = 99
     with pytest.raises(ValidationError):
         validate_meta_analysis_boundary(
             candidate,

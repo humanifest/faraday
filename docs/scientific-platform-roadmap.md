@@ -1565,6 +1565,12 @@ exact frozen sensitivity-result coverage; and the small-study diagnostic's
 explicit refusal to conclude publication bias. This keeps the pooled arithmetic
 inspectable without turning the result into evidence, a conclusion, or
 publication clearance.
+It also replays retained numeric-result shape: trusted input hashes, plan and
+snapshot handles, finite pooled estimates and uncertainty, confidence-interval
+arithmetic, heterogeneity degrees of freedom, prediction-interval eligibility,
+leave-one-study-out coverage and normal-approximation intervals, sensitivity
+result fields, and small-study diagnostic arithmetic must remain internally
+consistent.
 Small-study-effect diagnostics are now thresholded: Egger regression is attempted
 only with at least ten available effects and varying precision. It reports the
 intercept, standard error, Student-t interval, and degrees of freedom without a
