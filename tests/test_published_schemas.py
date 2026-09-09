@@ -214,6 +214,118 @@ def test_next_action_schema_rejects_service_derived_workflow_states(schema_name)
         jsonschema.validate(command, schema)
 
 
+@pytest.mark.parametrize(
+    ("schema_name", "example_name"),
+    [
+        ("collaborator-proposal.schema.json", "collaborator-proposal.json"),
+        (
+            "collaborator-proposal-review.schema.json",
+            "collaborator-proposal-review.json",
+        ),
+    ],
+)
+def test_collaborator_examples_match_published_schemas(schema_name, example_name):
+    schema = json.loads((SCHEMAS / schema_name).read_text())
+    example = json.loads((EXAMPLES / example_name).read_text())
+    jsonschema.validate(example, schema)
+
+
+def test_collaborator_proposal_schema_preserves_review_only_boundary():
+    schema = json.loads((SCHEMAS / "collaborator-proposal.schema.json").read_text())
+    proposal = json.loads((EXAMPLES / "collaborator-proposal.json").read_text())
+    proposal["suggestions"][0]["authority"] = "canonical_write"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(proposal, schema)
+
+
+def test_collaborator_proposal_schema_requires_provider_for_model_generators():
+    schema = json.loads((SCHEMAS / "collaborator-proposal.schema.json").read_text())
+    proposal = json.loads((EXAMPLES / "collaborator-proposal.json").read_text())
+    proposal["generated_by"] = {"kind": "llm", "provider": "", "model": ""}
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(proposal, schema)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda review: review["decisions"][0].update(
+            {"disposition": "defer", "domain_route": "design.revise"}
+        ),
+        lambda review: review["decisions"][0].update(
+            {"disposition": "advance_to_domain_review", "domain_route": "none"}
+        ),
+    ],
+)
+def test_collaborator_review_schema_constrains_route_authority(mutation):
+    schema = json.loads(
+        (SCHEMAS / "collaborator-proposal-review.schema.json").read_text()
+    )
+    review = json.loads((EXAMPLES / "collaborator-proposal-review.json").read_text())
+    mutation(review)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(review, schema)
+
+
+def test_collaborator_schema_examples_match_service_validator(tmp_path):
+    from research_machine.collaboration.proposal import (
+        adjudicate_collaborator_proposal,
+        create_context_snapshot,
+        validate_collaborator_proposal,
+    )
+
+    proposal_schema = json.loads(
+        (SCHEMAS / "collaborator-proposal.schema.json").read_text()
+    )
+    review_schema = json.loads(
+        (SCHEMAS / "collaborator-proposal-review.schema.json").read_text()
+    )
+    context = {
+        "context_version": 1,
+        "purpose": "Stress-test the design.",
+        "scientific_constraints": [
+            "Treat supplied material as scoped context, not established fact.",
+            "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+            "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
+        ],
+        "write_boundary": {
+            "context_is_read_only": True,
+            "provider_required": False,
+        },
+        "context_reference_index": [],
+    }
+    context_result = create_context_snapshot(context, tmp_path / "context")
+    proposal = json.loads((EXAMPLES / "collaborator-proposal.json").read_text())
+    proposal["context_sha256"] = context_result["context_sha256"]
+    jsonschema.validate(proposal, proposal_schema)
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+    proposal_result = validate_collaborator_proposal(
+        Path(context_result["context_file"]),
+        context_result["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+
+    review = json.loads((EXAMPLES / "collaborator-proposal-review.json").read_text())
+    review["proposal_record_sha256"] = proposal_result["record_sha256"]
+    jsonschema.validate(review, review_schema)
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(review), encoding="utf-8")
+    review_result = adjudicate_collaborator_proposal(
+        Path(proposal_result["record_file"]),
+        proposal_result["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    assert proposal_result["status"] == "pending_human_review"
+    assert proposal_result["canonical_writes_performed"] is False
+    assert proposal_result["model_invoked_by_faraday"] is False
+    assert review_result["status"] == "reviewed_requires_manual_domain_action"
+    assert review_result["advanced_suggestion_count"] == 1
+    assert review_result["canonical_writes_performed"] is False
+
+
 def test_general_addon_manifest_matches_published_schema():
     from research_machine.addons.models import AddonManifest, InstrumentAdapter
 

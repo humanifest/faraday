@@ -1,0 +1,37 @@
+{
+  "proposal_version": 1,
+  "proposal_id": "proposal-1",
+  "context_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "generated_by": {
+    "kind": "human",
+    "provider": "",
+    "model": ""
+  },
+  "purpose": "Stress-test the design.",
+  "summary": "The current design needs a control that could expose a mundane alternative explanation.",
+  "uncertainty": "The proposal is review-only and depends on the frozen context.",
+  "competing_explanations": [
+    "The observed pattern may be caused by an untested control failure."
+  ],
+  "disconfirming_evidence": [
+    "A negative control showing the same pattern would weaken the target interpretation."
+  ],
+  "limitations": [
+    "This proposal does not authorize collection, protocol freeze, analysis, or evidence recording."
+  ],
+  "suggestions": [
+    {
+      "suggestion_id": "suggestion-1",
+      "kind": "design_revision",
+      "statement": "Add a prespecified negative-control outcome.",
+      "rationale": "A negative control can separate the target interpretation from a measurement or procedure artifact.",
+      "uncertainty": "The control choice still needs domain review.",
+      "evidence_refs": [],
+      "falsification_conditions": [
+        "The negative control reproduces the target pattern."
+      ],
+      "next_test": "Review whether the proposed control is measured before freezing a protocol.",
+      "authority": "review_only"
+    }
+  ]
+}

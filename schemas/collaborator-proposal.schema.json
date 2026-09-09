@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/collaborator-proposal.schema.json",
+  "title": "Provider-neutral collaborator proposal",
+  "type": "object",
+  "required": [
+    "proposal_version",
+    "proposal_id",
+    "context_sha256",
+    "generated_by",
+    "purpose",
+    "summary",
+    "uncertainty",
+    "competing_explanations",
+    "disconfirming_evidence",
+    "limitations",
+    "suggestions"
+  ],
+  "properties": {
+    "proposal_version": {"const": 1},
+    "proposal_id": {"$ref": "#/$defs/canonicalNonEmptyText"},
+    "context_sha256": {"$ref": "#/$defs/sha256"},
+    "generated_by": {
+      "type": "object",
+      "required": ["kind", "provider", "model"],
+      "properties": {
+        "kind": {"enum": ["human", "llm", "hybrid"]},
+        "provider": {"$ref": "#/$defs/canonicalText"},
+        "model": {"$ref": "#/$defs/canonicalText"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"enum": ["llm", "hybrid"]}}, "required": ["kind"]},
+          "then": {
+            "properties": {
+              "provider": {"$ref": "#/$defs/canonicalNonEmptyText"},
+              "model": {"$ref": "#/$defs/canonicalNonEmptyText"}
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "purpose": {"$ref": "#/$defs/canonicalNonEmptyText"},
+    "summary": {"$ref": "#/$defs/canonicalNonEmptyText"},
+    "uncertainty": {"$ref": "#/$defs/canonicalNonEmptyText"},
+    "competing_explanations": {"$ref": "#/$defs/groundedClaimList"},
+    "disconfirming_evidence": {"$ref": "#/$defs/groundedClaimList"},
+    "limitations": {"$ref": "#/$defs/groundedClaimList"},
+    "suggestions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "suggestion_id",
+          "kind",
+          "statement",
+          "rationale",
+          "uncertainty",
+          "evidence_refs",
+          "falsification_conditions",
+          "next_test",
+          "authority"
+        ],
+        "properties": {
+          "suggestion_id": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "kind": {
+            "enum": [
+              "question",
+              "hypothesis",
+              "design_revision",
+              "analysis_interpretation",
+              "next_action"
+            ]
+          },
+          "statement": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "rationale": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "uncertainty": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "evidence_refs": {
+            "type": "array",
+            "items": {"$ref": "#/$defs/contextRef"},
+            "uniqueItems": true
+          },
+          "falsification_conditions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/canonicalNonEmptyText"},
+            "uniqueItems": true
+          },
+          "next_test": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "authority": {"const": "review_only"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "canonicalText": {
+      "type": "string",
+      "pattern": "^(?:$|\\S|\\S.*\\S)$"
+    },
+    "canonicalNonEmptyText": {
+      "type": "string",
+      "pattern": "^(?:\\S|\\S.*\\S)$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "contextRef": {
+      "type": "string",
+      "pattern": "^(inquiry|question|claim|hypothesis|evidence|dataset|protocol|run|evidence_status_event|ethics_review_event):(?:\\S|\\S.*\\S)$"
+    },
+    "groundedClaim": {
+      "anyOf": [
+        {"$ref": "#/$defs/canonicalNonEmptyText"},
+        {
+          "type": "object",
+          "required": ["statement", "context_refs"],
+          "properties": {
+            "statement": {"$ref": "#/$defs/canonicalNonEmptyText"},
+            "context_refs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/contextRef"},
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "groundedClaimList": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/groundedClaim"}
+    }
+  }
+}

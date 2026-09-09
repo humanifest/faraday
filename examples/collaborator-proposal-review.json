@@ -1,0 +1,19 @@
+{
+  "review_version": 1,
+  "review_id": "review-1",
+  "proposal_record_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "reviewer": {
+    "reviewer_id": "reviewer-1",
+    "role": "domain reviewer"
+  },
+  "reviewed_at": "2026-09-09T12:00:00+00:00",
+  "overall_assessment": "Advance only as a separate manual design review.",
+  "decisions": [
+    {
+      "suggestion_id": "suggestion-1",
+      "disposition": "advance_to_domain_review",
+      "rationale": "The proposed control could discriminate an alternative explanation.",
+      "domain_route": "design.revise"
+    }
+  ]
+}

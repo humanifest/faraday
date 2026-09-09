@@ -1203,7 +1203,14 @@ IDs, compatible routes, and advanced-suggestion summary without performing
 canonical writes or authenticating the reviewer. Legacy review records without a
 retained context index, proposal-record replay digest, or ordered suggestion-ID
 anchor remain visible with `legacy_missing` replay rather than being silently
-upgraded.
+upgraded. The collaborator proposal and review input contracts are now published
+as provider-neutral JSON Schemas with synthetic examples, so apps and plugins can
+preflight required uncertainty, alternatives, disconfirmers, falsification
+conditions, review-only authority, and manual route decisions before Faraday's
+service repeats the trusted-hash, grounding, and compatibility checks. The
+schemas are only caller-facing shape contracts; they do not validate scientific
+adequacy, authenticate reviewers, invoke a provider, or authorize any canonical
+write.
 
 Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally

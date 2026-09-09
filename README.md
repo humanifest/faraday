@@ -918,7 +918,13 @@ uncertainty statements, suggestion statements, suggestion rationales, suggestion
 uncertainty, next-test prose, review assessments, and review-decision rationales
 must be canonical without surrounding whitespace before coverage or duplicate
 checks, so whitespace padding cannot be silently rewritten into a task purpose,
-citation, source identity, review obligation, or scientific prose. It does not
+citation, source identity, review obligation, or scientific prose. Published
+JSON Schemas for collaborator proposal and review inputs live in
+`schemas/collaborator-proposal.schema.json` and
+`schemas/collaborator-proposal-review.schema.json`, with synthetic examples in
+`examples/`. They let future plugins and apps preflight the provider-neutral
+shape and review-only authority boundary before the application service repeats
+hash, reference, and route validation. It does not
 call a provider, modify the inquiry,
 accept a finding, create evidence, or authorize an action. Any accepted idea
 must still be translated deliberately through the normal question, hypothesis,
