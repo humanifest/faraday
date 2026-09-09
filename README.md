@@ -842,9 +842,10 @@ becoming a citable but unseen authority. Evidence correction, qualification,
 withdrawal, and retraction events are therefore independently citable alongside
 the evidence they qualify. Active and `pending_review` hypotheses are exposed in
 separate context lanes, and pending hypotheses retain their unapproved workflow
-state when cited for review; proposal `evidence_refs` must cite only those
-typed, prefix-checked, body-backed handles, so an optional collaborator cannot
-smuggle uncited external claims across the provider boundary. Context and proposal purpose bindings, context handles, proposal IDs,
+state when cited for review. When the frozen context has citable records, every
+proposal suggestion must cite at least one typed, prefix-checked, body-backed
+handle, so an optional collaborator cannot smuggle uncited external claims
+across the provider boundary. Context and proposal purpose bindings, context handles, proposal IDs,
 generator provider/model handles, suggestion IDs, evidence references, review
 IDs, reviewer handles, review-decision suggestion IDs, proposal summaries,
 uncertainty statements, suggestion statements, suggestion rationales, suggestion

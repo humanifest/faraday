@@ -486,7 +486,9 @@ def _validate_proposal(proposal: dict[str, Any], context: dict[str, Any], digest
         for field in ("statement", "rationale", "uncertainty", "next_test"):
             _canonical_text(suggestion[field], field)
         evidence_refs = _string_array(
-            suggestion["evidence_refs"], "evidence_refs", nonempty=False
+            suggestion["evidence_refs"],
+            "evidence_refs",
+            nonempty=bool(allowed_evidence_refs),
         )
         unknown_refs = sorted(set(evidence_refs) - allowed_evidence_refs)
         if unknown_refs:

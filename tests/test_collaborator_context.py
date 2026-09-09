@@ -502,11 +502,37 @@ def test_proposal_fails_closed_on_missing_scientific_boundaries(
         context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
     )
     snapshot = create_context_snapshot(context, tmp_path / "context")
-    proposal = _proposal(snapshot["context_sha256"])
+    proposal = _proposal(
+        snapshot["context_sha256"],
+        evidence_refs=["claim:claim-1"],
+    )
     mutation(proposal)
     proposal_path = tmp_path / "proposal.json"
     proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
     with pytest.raises(ValidationError, match=message):
+        validate_collaborator_proposal(
+            Path(snapshot["context_file"]),
+            snapshot["context_sha256"],
+            proposal_path,
+            tmp_path / "validated",
+        )
+    assert not (tmp_path / "validated").exists()
+
+
+def test_proposal_requires_a_citation_when_context_has_references(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(_proposal(snapshot["context_sha256"], evidence_refs=[])),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="evidence_refs must be a non-empty"):
         validate_collaborator_proposal(
             Path(snapshot["context_file"]),
             snapshot["context_sha256"],
@@ -739,9 +765,16 @@ def test_cli_exports_context_and_validates_proposal_without_a_provider(
         ]
     ) == 0
     context_result = json.loads(capsys.readouterr().out)["result"]
+    context_payload = json.loads(
+        Path(context_result["context_file"]).read_text(encoding="utf-8")
+    )
+    inquiry_ref = context_payload["context_reference_index"][0]["ref"]
     proposal_path = tmp_path / "proposal.json"
     proposal_path.write_text(
-        json.dumps(_proposal(context_result["context_sha256"])), encoding="utf-8"
+        json.dumps(
+            _proposal(context_result["context_sha256"], evidence_refs=[inquiry_ref])
+        ),
+        encoding="utf-8",
     )
     output = tmp_path / "validated"
     assert main(
