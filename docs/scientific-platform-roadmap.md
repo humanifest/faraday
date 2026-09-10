@@ -687,9 +687,13 @@ canonical brief content and design-audit findings. The scaffold also emits a
 `design initialize` carries that receipt into `experiment-machine.json`, replays
 the staged draft bytes against the manifest before publishing the local
 experiment directory, records the review-artifact index, and exposes whether the
-canary-target draft is absent or review-required. This preserves the draft chain
-of custody for human review without treating the scaffold as approval, protocol
-freeze, hidden-assignment authentication, evidence, or reviewer authentication.
+canary-target draft is absent or review-required. It now also replays the
+preprocessing-conformance draft against the protocol draft before publication:
+a hash-bound preprocessing pipeline must retain a review-required draft carrying
+the same registered digest and a required protocol quality gate. This preserves
+the draft chain of custody for human review without treating the scaffold as
+approval, protocol freeze, hidden-assignment authentication, preprocessing
+adherence evidence, or reviewer authentication.
 Required title, question, decision, outcome, and unit-of-observation fields now
 receive blocking findings when surrounding whitespace would otherwise be
 preserved as inquiry, hypothesis, protocol, or collection draft text.

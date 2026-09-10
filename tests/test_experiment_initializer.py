@@ -62,6 +62,11 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
     assert state["review_artifacts"] == result["review_artifacts"]
     assert state["canary_target_plan_status"] == "absent"
     assert state["canary_target_plan_artifact"] == "drafts/canary-target-plan-draft.json"
+    assert state["preprocessing_conformance_plan_status"] == "absent"
+    assert (
+        state["preprocessing_conformance_plan_artifact"]
+        == "drafts/preprocessing-conformance-plan-draft.json"
+    )
     assert (destination / "drafts" / "protocol-draft.json").is_file()
     manifest = json.loads((destination / "drafts" / "design-scaffold-provenance.json").read_text())
     assert manifest["artifact_manifest_sha256"] == result["scaffold_provenance"]["artifact_manifest_sha256"]
@@ -132,6 +137,65 @@ def test_initializer_replays_canary_target_review_artifact(tmp_path: Path, capsy
     )
 
 
+def test_initializer_replays_preprocessing_conformance_review_artifact(
+    tmp_path: Path, capsys
+) -> None:
+    brief_payload = {
+        **_basic_brief(),
+        "preprocessing_pipeline": "3" * 64,
+        "preprocessing_conformance_gate_id": "preprocessing-conformance-assessed",
+    }
+    brief = tmp_path / "brief.json"
+    brief.write_text(json.dumps(brief_payload), encoding="utf-8")
+    destination = tmp_path / "light-trial"
+
+    assert (
+        main(
+            [
+                "--json",
+                "design",
+                "initialize",
+                "--brief-file",
+                str(brief),
+                "--output",
+                str(destination),
+                "--no-git",
+            ]
+        )
+        == 0
+    )
+
+    result = json.loads(capsys.readouterr().out)["result"]
+    assert result["preprocessing_conformance_plan_status"] == "review_required"
+    state = json.loads((destination / "experiment-machine.json").read_text())
+    assert state["preprocessing_conformance_plan_status"] == "review_required"
+    assert state["git_initialized"] is False
+    artifact_names = {entry["name"] for entry in state["review_artifacts"]}
+    assert "preprocessing-conformance-plan-draft.json" in artifact_names
+    protocol = json.loads((destination / "drafts" / "protocol-draft.json").read_text())
+    preprocessing = json.loads(
+        (destination / "drafts" / "preprocessing-conformance-plan-draft.json").read_text()
+    )
+    assert protocol["preprocessing_pipeline"] == brief_payload["preprocessing_pipeline"]
+    assert brief_payload["preprocessing_conformance_gate_id"] in protocol["quality_requirements"]
+    assert (
+        preprocessing["registered_pipeline_sha256"]
+        == brief_payload["preprocessing_pipeline"]
+    )
+    assert (
+        preprocessing["required_gate_id"]
+        == brief_payload["preprocessing_conformance_gate_id"]
+    )
+    assert (
+        preprocessing["required_run_assessment"]["details_key"]
+        == "preprocessing_conformance"
+    )
+    assert (
+        preprocessing["required_run_assessment"]["result_shape"]["registered_pipeline_sha256"]
+        == brief_payload["preprocessing_pipeline"]
+    )
+
+
 def test_initializer_rejects_divergent_canary_draft_before_publication(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -172,6 +236,64 @@ def test_initializer_rejects_divergent_canary_draft_before_publication(
     monkeypatch.setattr(initializer, "scaffold_design", divergent_scaffold)
 
     with pytest.raises(ValidationError, match="canary target draft"):
+        initializer.initialize_experiment_repository(
+            brief_payload,
+            tmp_path / "light-trial",
+            actor="test",
+            initialize_git=False,
+        )
+    assert not (tmp_path / "light-trial").exists()
+
+
+def test_initializer_rejects_divergent_preprocessing_draft_before_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    brief_payload = {
+        **_basic_brief(),
+        "preprocessing_pipeline": "3" * 64,
+        "preprocessing_conformance_gate_id": "preprocessing-conformance-assessed",
+    }
+
+    original_scaffold = initializer.scaffold_design
+
+    def divergent_scaffold(brief: dict[str, object]) -> dict[str, object]:
+        scaffold = original_scaffold(brief)
+        preprocessing_artifact = dict(
+            scaffold["artifacts"]["preprocessing-conformance-plan-draft.json"]
+        )
+        preprocessing_artifact["registered_pipeline_sha256"] = "4" * 64
+        preprocessing_artifact["required_run_assessment"] = {
+            **preprocessing_artifact["required_run_assessment"],
+            "result_shape": {
+                **preprocessing_artifact["required_run_assessment"]["result_shape"],
+                "registered_pipeline_sha256": "4" * 64,
+            },
+        }
+        scaffold["artifacts"]["preprocessing-conformance-plan-draft.json"] = (
+            preprocessing_artifact
+        )
+        manifest = dict(scaffold["artifacts"]["design-scaffold-provenance.json"])
+        entries = [
+            {
+                "name": name,
+                "media_type": "text/markdown" if isinstance(content, str) else "application/json",
+                "content_sha256": scaffold_module._rendered_artifact_sha256(content),
+            }
+            for name, content in sorted(scaffold["artifacts"].items())
+            if name != "design-scaffold-provenance.json"
+        ]
+        manifest["artifact_manifest"] = entries
+        manifest["artifact_manifest_sha256"] = scaffold_module._content_sha256(entries)
+        scaffold["artifacts"]["design-scaffold-provenance.json"] = manifest
+        scaffold["provenance"] = {
+            **scaffold["provenance"],
+            "artifact_manifest_sha256": manifest["artifact_manifest_sha256"],
+        }
+        return scaffold
+
+    monkeypatch.setattr(initializer, "scaffold_design", divergent_scaffold)
+
+    with pytest.raises(ValidationError, match="preprocessing conformance draft"):
         initializer.initialize_experiment_repository(
             brief_payload,
             tmp_path / "light-trial",

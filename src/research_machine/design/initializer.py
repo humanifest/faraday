@@ -125,10 +125,52 @@ def _verify_initialized_scaffold(staging: Path, scaffold: dict[str, Any]) -> dic
             )
         canary_status = "review_required"
 
+    preprocessing = _read_json(staging / "drafts" / "preprocessing-conformance-plan-draft.json")
+    preprocessing_pipeline = protocol.get("preprocessing_pipeline")
+    if not preprocessing_pipeline:
+        if preprocessing.get("status") != "unresolved":
+            raise ValidationError(
+                "initialized preprocessing conformance draft must be unresolved when no pipeline is supplied"
+            )
+        preprocessing_status = "absent"
+    else:
+        if preprocessing.get("status") != "review_required":
+            raise ValidationError("initialized preprocessing conformance draft must require review")
+        if preprocessing.get("registered_pipeline_sha256") != preprocessing_pipeline:
+            raise ValidationError(
+                "initialized preprocessing conformance draft does not match protocol draft"
+            )
+        required_gate_id = preprocessing.get("required_gate_id")
+        if required_gate_id not in protocol.get("quality_requirements", []):
+            raise ValidationError(
+                "initialized preprocessing conformance gate does not match protocol draft"
+            )
+        required = preprocessing.get("required_run_assessment")
+        if not isinstance(required, dict):
+            raise ValidationError(
+                "initialized preprocessing conformance draft is missing required assessment metadata"
+            )
+        if required.get("details_key") != "preprocessing_conformance":
+            raise ValidationError(
+                "initialized preprocessing conformance draft uses the wrong assessment details key"
+            )
+        shape = required.get("result_shape")
+        if not isinstance(shape, dict):
+            raise ValidationError(
+                "initialized preprocessing conformance draft is missing result shape"
+            )
+        if shape.get("registered_pipeline_sha256") != preprocessing_pipeline:
+            raise ValidationError(
+                "initialized preprocessing conformance result shape has the wrong registered pipeline hash"
+            )
+        preprocessing_status = "review_required"
+
     return {
         "review_artifacts": review_artifacts,
         "canary_target_plan_status": canary_status,
         "canary_target_plan_artifact": "drafts/canary-target-plan-draft.json",
+        "preprocessing_conformance_plan_status": preprocessing_status,
+        "preprocessing_conformance_plan_artifact": "drafts/preprocessing-conformance-plan-draft.json",
     }
 
 

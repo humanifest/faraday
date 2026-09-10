@@ -729,8 +729,11 @@ future reviewer can tie the workspace back to the exact brief, findings, and
 draft artifact hashes. Initialization replays the staged draft bytes against the
 manifest before publishing the directory, records the review-artifact index, and
 marks the canary-target draft as absent or review-required without treating it as
-approval, authentication of the hidden assignment, or evidence. Pass `--no-git`
-only when Git is not desired for that experiment.
+approval, authentication of the hidden assignment, or evidence. It also replays
+the preprocessing-conformance draft against the protocol draft: a hash-bound
+preprocessing pipeline must remain review-required, carry the same registered
+pipeline digest, and name a required quality gate from the protocol. Pass
+`--no-git` only when Git is not desired for that experiment.
 
 ## Replication packages
 
