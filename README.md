@@ -2159,6 +2159,16 @@ python -m compileall -q src tests
 
 The package has no runtime dependencies. It supports Python 3.11 and newer.
 
+## Claim command integrity
+
+Claim commands keep inference level, epistemic layer, and project disposition as
+separate fields. Claim dependency, source, conflict, and falsifier handles must
+be canonical and duplicate-free before canonical writes. Accepted claims require
+a nonblank review time and decision owner; accepted documented facts and source
+claims also require at least one source reference. These schema checks are
+client-facing preflight only; the application service remains the canonical
+authority and also validates referenced claim existence and hierarchy direction.
+
 ## Epistemic validation tags
 
 Evidence is classified by what it actually tests: `source_assessment`,

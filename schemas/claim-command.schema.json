@@ -6,7 +6,7 @@
   "type": "object",
   "required": ["statement", "level"],
   "properties": {
-    "statement": {"type": "string", "minLength": 1},
+    "statement": {"$ref": "#/$defs/nonBlankText"},
     "level": {
       "enum": [
         "measurement_validity",
@@ -21,7 +21,7 @@
     },
     "parent_claims": {
       "type": "array",
-      "items": {"type": "string"},
+      "items": {"$ref": "#/$defs/canonicalHandle"},
       "uniqueItems": true,
       "default": []
     },
@@ -48,24 +48,62 @@
     },
     "source_refs": {
       "type": "array",
-      "items": {"type": "string", "minLength": 1},
+      "items": {"$ref": "#/$defs/canonicalHandle"},
       "uniqueItems": true,
       "default": []
     },
     "conflicts_with": {
       "type": "array",
-      "items": {"type": "string"},
+      "items": {"$ref": "#/$defs/canonicalHandle"},
       "uniqueItems": true,
       "default": []
     },
     "falsified_by": {
       "type": "array",
-      "items": {"type": "string", "minLength": 1},
+      "items": {"$ref": "#/$defs/canonicalHandle"},
       "uniqueItems": true,
       "default": []
     },
     "last_reviewed": {"type": ["string", "null"]},
     "decision_owner": {"type": "string", "default": ""}
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "nonBlankText": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "canonicalHandle": {
+      "type": "string",
+      "pattern": "^\\S(?:.*\\S)?$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"disposition": {"const": "accepted"}},
+        "required": ["disposition"]
+      },
+      "then": {
+        "required": ["last_reviewed", "decision_owner"],
+        "properties": {
+          "last_reviewed": {"$ref": "#/$defs/nonBlankText"},
+          "decision_owner": {"$ref": "#/$defs/nonBlankText"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "disposition": {"const": "accepted"},
+          "epistemic_layer": {"enum": ["documented_fact", "source_claim"]}
+        },
+        "required": ["disposition", "epistemic_layer"]
+      },
+      "then": {
+        "required": ["source_refs"],
+        "properties": {"source_refs": {"type": "array", "minItems": 1}}
+      }
+    }
+  ]
 }

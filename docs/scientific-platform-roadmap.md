@@ -348,6 +348,10 @@ owner. Source-grounded accepted claims continue to require source references.
 Claim dependency, source, conflict, and falsifier handles must be canonical
 before writing or review, so whitespace padding cannot silently rewrite the
 claim spine or provenance trail.
+The published claim-command schema now preflights those same handle and accepted-
+claim authority requirements for provider-neutral clients while leaving
+referenced-claim existence, conflict/dependency overlap, and inferential
+hierarchy checks to the canonical service.
 Legacy or externally corrupted records remain detectable through rigor findings,
 but the canonical service no longer records a bare accepted flag as if it were a
 reviewed scientific judgment.

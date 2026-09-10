@@ -8,7 +8,12 @@ jsonschema = pytest.importorskip("jsonschema")
 SCHEMAS = Path(__file__).resolve().parents[1] / "schemas"
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 from research_machine.addons.general_science import MANIFEST
-from research_machine.domain.models import ValidationTag
+from research_machine.domain.models import (
+    ClaimDisposition,
+    ClaimEpistemicLayer,
+    ClaimLevel,
+    ValidationTag,
+)
 
 
 @pytest.mark.parametrize("method", MANIFEST.methods, ids=lambda method: method.method_id)
@@ -88,6 +93,72 @@ def test_evidence_command_schema_validation_tags_match_domain_model():
     schema = json.loads((SCHEMAS / "evidence-command.schema.json").read_text())
     published_tags = set(schema["properties"]["validation_tags"]["items"]["enum"])
     assert published_tags == {tag.value for tag in ValidationTag}
+
+
+def test_claim_command_schema_enums_match_domain_model():
+    schema = json.loads((SCHEMAS / "claim-command.schema.json").read_text())
+    assert set(schema["properties"]["level"]["enum"]) == {
+        level.value for level in ClaimLevel
+    }
+    assert set(schema["properties"]["epistemic_layer"]["enum"]) == {
+        layer.value for layer in ClaimEpistemicLayer
+    }
+    assert set(schema["properties"]["disposition"]["enum"]) == {
+        disposition.value for disposition in ClaimDisposition
+    }
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("statement", " "),
+        ("parent_claims", [" clm-parent "]),
+        ("source_refs", [" source:record "]),
+        ("conflicts_with", [" clm-conflict "]),
+        ("falsified_by", [" falsifier:record "]),
+    ],
+)
+def test_claim_command_schema_rejects_blank_or_padded_scientific_handles(
+    field, value
+):
+    schema = json.loads((SCHEMAS / "claim-command.schema.json").read_text())
+    command = {
+        "statement": "The source makes a bounded claim.",
+        "level": "other",
+    }
+    command[field] = value
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda command: command.pop("last_reviewed"),
+        lambda command: command.update({"last_reviewed": " "}),
+        lambda command: command.pop("decision_owner"),
+        lambda command: command.update({"decision_owner": " "}),
+        lambda command: (
+            command.update({"epistemic_layer": "source_claim"}),
+            command.pop("source_refs"),
+        ),
+    ],
+)
+def test_claim_command_schema_preflights_accepted_claim_authority(mutation):
+    schema = json.loads((SCHEMAS / "claim-command.schema.json").read_text())
+    command = {
+        "statement": "The source reports the bounded observation.",
+        "level": "other",
+        "epistemic_layer": "documented_fact",
+        "disposition": "accepted",
+        "last_reviewed": "2026-09-03T12:00:00Z",
+        "decision_owner": "project-owner",
+        "source_refs": ["source:record"],
+    }
+    jsonschema.validate(command, schema)
+    mutation(command)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
 
 
 def test_evidence_command_schema_accepts_causal_estimate_tag_without_overclaiming():
