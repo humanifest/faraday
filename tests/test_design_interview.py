@@ -8,7 +8,7 @@ import pytest
 @pytest.mark.parametrize("complete", [True, False])
 def test_interview_emits_reviewable_control_definitions(complete):
     answers = iter(["Fixture", "Question", "Decision", "Height", "pot", "exploratory", "no"]
-        + [""] * 25 + ["Blank sample", ""]
+        + [""] * 26 + ["Blank sample", ""]
         + (["negative", "Detect background signal", "No signal"] if complete else ["", "", ""])
         + [""] * 35)
     result = interview_design(lambda prompt: next(answers))
@@ -27,6 +27,7 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
         + [""] * 14
         + [
             "Target 40 independent pots per group for a two-millimeter interval half-width under the stated variance assumption.",
+            "",
             *([""] * 12),
             "Higher mean height after 7 days",
             "No difference between conditions",
@@ -219,6 +220,37 @@ def test_interview_preserves_noncanonical_measurement_parameter_bindings() -> No
     assert "MEASUREMENT_CONTRACT_NONCANONICAL" in {
         item["code"] for item in result["scaffold"]["findings"]
     }
+
+
+def test_interview_collects_preprocessing_pipeline_commitment() -> None:
+    pipeline_sha256 = "3" * 64
+
+    def ask(prompt: str) -> str:
+        responses = {
+            "What is the study's working title?": "Preprocessing interview",
+            "What question do you want to investigate?": "Question",
+            "What practical decision would the findings inform?": "Decision",
+            "What exactly will you measure as the primary outcome?": "Score",
+            "What does one data row represent, such as one pot-day?": "unit",
+            "What kind of claim are you investigating?": "exploratory",
+            "Does this involve people or data about people?": "no",
+            "What lowercase SHA-256 commits to the registered preprocessing-pipeline declaration?": pipeline_sha256,
+            "What dedicated required gate ID will cite the preprocessing-conformance record?": "preprocessing-conformance-assessed",
+        }
+        return next((value for key, value in responses.items() if prompt.startswith(key)), "")
+
+    result = interview_design(ask)
+
+    assert result["brief"]["preprocessing_pipeline"] == pipeline_sha256
+    assert (
+        result["brief"]["preprocessing_conformance_gate_id"]
+        == "preprocessing-conformance-assessed"
+    )
+    protocol = result["scaffold"]["artifacts"]["protocol-draft.json"]
+    assert protocol["preprocessing_pipeline"] == pipeline_sha256
+    assert "preprocessing-conformance-assessed" in protocol["quality_requirements"]
+    plan = result["scaffold"]["artifacts"]["preprocessing-conformance-plan-draft.json"]
+    assert plan["registered_pipeline_sha256"] == pipeline_sha256
 
 
 def test_interview_preserves_noncanonical_list_commitments_for_scaffold_audit() -> None:
@@ -604,7 +636,7 @@ def test_provider_free_interview_collects_auditable_causal_design() -> None:
 
 def test_human_interview_retains_hold_and_retries_invalid_choice():
     answers = iter(["Fixture", "Question", "Decision", "Score", "participant-day",
-                    "invalid choice", "causal", "yes"] + [""] * 36 + ["no"] + [""] * 33)
+                    "invalid choice", "causal", "yes"] + [""] * 37 + ["no"] + [""] * 33)
     result = interview_design(lambda prompt: next(answers))
     assert result["brief"]["study_type"] == "causal"
     assert "BLINDING_UNRESOLVED" in {item["code"] for item in result["scaffold"]["findings"]}

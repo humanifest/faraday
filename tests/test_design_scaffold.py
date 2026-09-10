@@ -253,6 +253,64 @@ def test_prospective_text_commitments_must_be_canonical_before_drafting():
     assert padded["artifacts"]["protocol-draft.json"]["statistical_model"].startswith(" ")
 
 
+def test_guided_preprocessing_pipeline_hash_requires_conformance_gate():
+    pipeline_sha256 = "3" * 64
+    brief = {
+        "title": "Preprocessing fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "outcome": "Score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "preprocessing_pipeline": pipeline_sha256,
+        "preprocessing_conformance_gate_id": "preprocessing-conformance-assessed",
+    }
+
+    result = scaffold_design(brief)
+
+    codes = {item["code"] for item in result["findings"]}
+    assert "PREPROCESSING_PIPELINE_HASH_INVALID" not in codes
+    assert "PREPROCESSING_CONFORMANCE_GATE_MISSING" not in codes
+    protocol = result["artifacts"]["protocol-draft.json"]
+    assert protocol["preprocessing_pipeline"] == pipeline_sha256
+    assert "preprocessing-conformance-assessed" in protocol["quality_requirements"]
+    dictionary = result["artifacts"]["data-dictionary-draft.json"]
+    assert dictionary["preprocessing_pipeline"] == pipeline_sha256
+    assert (
+        dictionary["preprocessing_conformance_gate_id"]
+        == "preprocessing-conformance-assessed"
+    )
+    plan = result["artifacts"]["preprocessing-conformance-plan-draft.json"]
+    assert plan["status"] == "review_required"
+    assert plan["registered_pipeline_sha256"] == pipeline_sha256
+    assert plan["required_gate_id"] == "preprocessing-conformance-assessed"
+    assert (
+        plan["required_run_assessment"]["result_shape"]["registered_pipeline_sha256"]
+        == pipeline_sha256
+    )
+    assert pipeline_sha256 in result["artifacts"]["collection-plan.md"]
+
+    missing_gate = scaffold_design({
+        **brief,
+        "preprocessing_conformance_gate_id": "",
+    })
+    assert missing_gate["status"] == "blocked"
+    assert "PREPROCESSING_CONFORMANCE_GATE_MISSING" in {
+        item["code"] for item in missing_gate["findings"]
+    }
+
+    padded = scaffold_design({
+        **brief,
+        "preprocessing_pipeline": f" {pipeline_sha256}",
+        "preprocessing_conformance_gate_id": " preprocessing-conformance-assessed ",
+    })
+    assert padded["status"] == "blocked"
+    assert {
+        "PREPROCESSING_PIPELINE_HASH_NONCANONICAL",
+        "PREPROCESSING_CONFORMANCE_GATE_NONCANONICAL",
+    } <= {item["code"] for item in padded["findings"]}
+
+
 def test_confirmatory_measurement_requires_structured_validity_decision_rules():
     base = {
         "title": "Validity fixture", "question": "Question", "decision": "Decision",

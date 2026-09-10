@@ -125,6 +125,15 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
         ("sample_size_justification", "Why is that amount of information useful? State the precision or power target and assumptions, or explain the feasibility limit and resulting inferential limits. Count independent units, not rows."),
     ):
         answer(key, prompt)
+    answer(
+        "preprocessing_pipeline",
+        "What lowercase SHA-256 commits to the registered preprocessing-pipeline declaration?",
+    )
+    if brief.get("preprocessing_pipeline"):
+        answer(
+            "preprocessing_conformance_gate_id",
+            "What dedicated required gate ID will cite the preprocessing-conformance record?",
+        )
     raw_factors = ask(
         "Which factors will be deliberately changed? Separate exact factor names with semicolons [blank = none declared]"
     )

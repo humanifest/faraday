@@ -525,6 +525,15 @@ with the required run-assessment shape, keeping real, decoy, replay, sham, and
 no-target comparisons prospective without treating the hidden assignment as
 authenticated or the future canary result as mechanism, adaptation, attribution,
 or intent evidence.
+Guided briefs and the provider-free interview can also bind a reviewed
+registered preprocessing-pipeline declaration by lowercase SHA-256 plus a
+dedicated preprocessing-conformance gate. Noncanonical or malformed hashes,
+padded gate IDs, or a hash without a gate block the scaffold. The protocol
+draft, data dictionary, collection plan, and
+`preprocessing-conformance-plan-draft.json` carry the commitment and the
+required run-assessment shape. A later matching conformance record remains only
+declaration conformance; it does not prove implementation correctness,
+measurement validity, or scientific adequacy.
 
 The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,
@@ -1620,7 +1629,10 @@ self-contained comparison status, and declared gate status, and rejects a passed
 gate unless the verified record itself passed. If
 the frozen protocol records `preprocessing_pipeline` as a canonical SHA-256
 digest, the conformance record's registered-pipeline hash must match that exact
-protocol commitment at run intake and package verification. Prose preprocessing
+protocol commitment at run intake and package verification. A canonical
+preprocessing-pipeline hash with no performed structured conformance gate makes
+the run invalid and evidence-ineligible while retaining the record for review.
+Prose preprocessing
 commitments remain visible but are not treated as machine-bound pipeline hashes. A
 failed conformance record may only be retained as a failed gate, preserving the
 discrepancy while blocking required-gate evidence eligibility. Rigor and

@@ -3409,6 +3409,14 @@ class ResearchService:
                 verified_gate_result=verified_gate_result,
                 verified_gate_output_sha256=verified_gate_output_sha256,
             )
+        preprocessing_conformance_missing = bool(
+            is_canonical_sha256(protocol.preprocessing_pipeline)
+            and not any(
+                isinstance(gate.details.get("preprocessing_conformance"), dict)
+                for gate in gates
+                if gate.status is not QualityGateStatus.SKIPPED
+            )
+        )
         if protocol.canary_target_plan is not None:
             canary_gate = gates_by_id.get(protocol.canary_target_plan.assessment_gate_id)
             if (
@@ -3868,6 +3876,7 @@ class ResearchService:
             missing_gates
             or required_gate_failure
             or protocol_gate_failure
+            or preprocessing_conformance_missing
             or (
                 artifact_integrity is not None and artifact_integrity.status != "passed"
             )
@@ -4064,6 +4073,11 @@ class ResearchService:
                     else {}
                 ),
                 **({"missing_quality_gates": missing_gates} if missing_gates else {}),
+                **(
+                    {"preprocessing_conformance_missing": True}
+                    if preprocessing_conformance_missing
+                    else {}
+                ),
                 **(
                     {"artifact_integrity": artifact_integrity.to_dict()}
                     if artifact_integrity is not None

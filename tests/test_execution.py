@@ -2249,6 +2249,23 @@ def test_run_record_template_exposes_hash_bound_preprocessing_contract(
     ]
 
 
+def test_hash_bound_preprocessing_pipeline_requires_conformance_gate_for_run_completion(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(
+        service,
+        hypothesis_id,
+        preprocessing_pipeline="1" * 64,
+    )
+
+    run = service.record_run(run_command(protocol.protocol_id, QualityGateStatus.PASSED))
+
+    assert run.status is RunStatus.INVALID
+    assert run.scientific_evidence_eligible is False
+    assert run.metadata["preprocessing_conformance_missing"] is True
+
+
 def test_canary_target_plan_shapes_template_run_intake_and_synthesis(
     tmp_path: Path,
 ) -> None:

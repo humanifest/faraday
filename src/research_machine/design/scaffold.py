@@ -306,6 +306,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
         "measurement_aggregation", "measurement_tolerance",
         "measurement_expected_behavior", "measurement_temporal_role",
         "outcome_data_column",
+        "preprocessing_pipeline", "preprocessing_conformance_gate_id",
         "measurement_validity_checks",
         "secondary_measurements",
         "control_measurements",
@@ -1175,6 +1176,37 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "A prospective design commitment contains surrounding whitespace.",
             "Use exact unpadded intervention, exposure, comparison, sampling, blinding, calibration, analysis, stopping, prediction, and alternative-model text before review artifacts preserve those commitments.",
         )
+    preprocessing_pipeline = brief.get("preprocessing_pipeline", "")
+    preprocessing_gate_id = brief.get("preprocessing_conformance_gate_id", "")
+    if preprocessing_pipeline:
+        if preprocessing_pipeline != preprocessing_pipeline.strip():
+            add(
+                "PREPROCESSING_PIPELINE_HASH_NONCANONICAL",
+                "error",
+                "The guided preprocessing-pipeline commitment contains surrounding whitespace.",
+                "Use the exact lowercase SHA-256 digest of the reviewed registered pipeline declaration without padding.",
+            )
+        elif not _is_canonical_sha256(preprocessing_pipeline):
+            add(
+                "PREPROCESSING_PIPELINE_HASH_INVALID",
+                "error",
+                "The guided preprocessing-pipeline commitment is not a canonical SHA-256 digest.",
+                "Bind preprocessing to a reviewed registered-pipeline JSON artifact by recording its lowercase 64-character SHA-256 digest.",
+            )
+        if not preprocessing_gate_id:
+            add(
+                "PREPROCESSING_CONFORMANCE_GATE_MISSING",
+                "error",
+                "A hash-bound preprocessing pipeline lacks a dedicated conformance gate.",
+                "Name the exact required quality gate that will cite a byte-verified preprocessing-conformance record before analysis can become evidence.",
+            )
+    if preprocessing_gate_id and preprocessing_gate_id != preprocessing_gate_id.strip():
+        add(
+            "PREPROCESSING_CONFORMANCE_GATE_NONCANONICAL",
+            "error",
+            "The preprocessing-conformance gate ID contains surrounding whitespace.",
+            "Use an exact unpadded gate ID so run intake can bind preprocessing adherence to one required quality gate.",
+        )
     if not brief.get("independent_unit") or "repeated_measures" not in brief:
         add("INDEPENDENCE_UNRESOLVED", "warning", "The independent sampling unit and repeated-observation structure are not fully declared.", "Name the independently sampled participant, pot, site, or other unit; state whether each contributes repeated observations. Count independent units separately from rows.")
     if any(
@@ -1565,10 +1597,12 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         dedicated_gate_ids.append(brief["missingness_assessment_gate_id"])
     if isinstance(brief.get("canary_target_plan"), dict):
         dedicated_gate_ids.append(brief["canary_target_plan"]["assessment_gate_id"])
+    if str(brief.get("preprocessing_conformance_gate_id", "")).strip():
+        dedicated_gate_ids.append(brief["preprocessing_conformance_gate_id"])
     if len(set(dedicated_gate_ids)) != len(dedicated_gate_ids):
         add(
             "QUALITY_GATE_PURPOSE_COLLISION", "error",
-            "A quality gate is reused across control, measurement-validity, causal-assumption, missingness, or canary-target purposes.",
+            "A quality gate is reused across control, measurement-validity, causal-assumption, missingness, canary-target, or preprocessing-conformance purposes.",
             "Use dedicated gate IDs so one artifact-bound assessment cannot silently satisfy scientifically different obligations.",
         )
     return findings
@@ -1778,6 +1812,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             "component_bounds": [],
         }],
         "measurement_custody_requirements": ["[REVIEW REQUIRED] name the custody gate that demonstrates the calibration requirement was met"],
+        "preprocessing_pipeline": brief.get("preprocessing_pipeline", ""),
         "statistical_model": brief.get("analysis_commitment", "[REVIEW REQUIRED]"),
         "multiple_testing_policy": brief.get("multiple_testing_policy", "[REVIEW REQUIRED]"),
         "inclusion_rules": [brief.get("sampling_plan", "[REVIEW REQUIRED]")],
@@ -1839,6 +1874,8 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         ])
     if canary_target_plan is not None:
         add_quality_requirements([canary_target_plan["assessment_gate_id"]])
+    if brief.get("preprocessing_pipeline") and brief.get("preprocessing_conformance_gate_id"):
+        add_quality_requirements([brief["preprocessing_conformance_gate_id"]])
     if all(str(brief.get(field, "")).strip() for field in (
         "missingness_assumption", "missingness_assessment_plan",
         "missingness_failure_response", "missingness_assessment_kind",
@@ -1922,6 +1959,10 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "multiplicity_method": brief.get("multiplicity_method", ""),
                 "multiplicity_alpha": brief.get("multiplicity_alpha"),
                 "multiple_testing_policy": brief.get("multiple_testing_policy", "[REVIEW REQUIRED]"),
+                "preprocessing_pipeline": brief.get("preprocessing_pipeline", ""),
+                "preprocessing_conformance_gate_id": brief.get(
+                    "preprocessing_conformance_gate_id", "[REVIEW REQUIRED]"
+                ) if brief.get("preprocessing_pipeline") else "",
                 "causal_variable_measurement_requirements": ([
                     {
                         "variable": node["id"],
@@ -2051,6 +2092,32 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                     "notice": "No reproducible sample-size plan is available. Supply a supported strategy and explicit assumptions or document a feasibility-limited design and its inferential limits.",
                 }
             ),
+            "preprocessing-conformance-plan-draft.json": {
+                "status": (
+                    "review_required"
+                    if brief.get("preprocessing_pipeline")
+                    else "unresolved"
+                ),
+                "registered_pipeline_sha256": brief.get(
+                    "preprocessing_pipeline", ""
+                ) or "[REVIEW REQUIRED] lowercase SHA-256 of the registered preprocessing-pipeline declaration",
+                "required_gate_id": brief.get(
+                    "preprocessing_conformance_gate_id", ""
+                ) or "[REVIEW REQUIRED] dedicated preprocessing conformance gate",
+                "required_run_assessment": {
+                    "details_key": "preprocessing_conformance",
+                    "result_shape": {
+                        "locator": "[REVIEW REQUIRED] run output locator for preprocessing-conformance.json",
+                        "sha256": "[REVIEW REQUIRED] preprocessing conformance record SHA-256",
+                        "status": "preprocessing_conformance_passed | preprocessing_conformance_failed",
+                        "registered_pipeline_sha256": brief.get(
+                            "preprocessing_pipeline", ""
+                        ) or "[REVIEW REQUIRED] match the frozen protocol preprocessing_pipeline",
+                        "observed_pipeline_sha256": "[REVIEW REQUIRED] observed preprocessing-pipeline declaration SHA-256",
+                    },
+                },
+                "notice": "This is a review-only preprocessing adherence plan. A future run must cite a byte-verified conformance record; matching declarations do not prove implementation correctness or scientific validity.",
+            },
             "causal-identification-audit.json": causal_audit or {
                 "status": "unresolved",
                 "claim_ceiling": "No causal graph was supplied or audited.",
@@ -2108,6 +2175,10 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "\n"
                 f"Canary target plan: {canary_target_plan['plan_id'] if canary_target_plan else '[not supplied]'}. "
                 "If used, keep the hidden assignment artifact sealed until the protocol-specified reveal point and report comparator, decoy, no-target, mixed, or inconclusive outcomes without upgrading them into source or intent claims.\n"
+                "\n"
+                f"Registered preprocessing pipeline SHA-256: {brief.get('preprocessing_pipeline') or '[not supplied]'}. "
+                f"Preprocessing conformance gate: {brief.get('preprocessing_conformance_gate_id') or '[not supplied]'}. "
+                "A matching declaration proves only conformance of the observed preprocessing declaration to the registered declaration, not implementation correctness or scientific adequacy.\n"
             ),
     }
     _stamp_scaffold_provenance(artifacts, provenance)

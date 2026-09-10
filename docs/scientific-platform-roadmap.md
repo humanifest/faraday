@@ -704,6 +704,16 @@ protocol draft, data dictionary, and collection plan preserve the commitment.
 Canonical protocol freeze repeats the same check, so a copied draft cannot
 become a frozen protocol that changes person, location, apparatus, operator, or
 condition together without a prospective way to separate them.
+Guided preprocessing-commitment delivery: JSON briefs and the provider-free
+interview can now collect a lowercase SHA-256 commitment to the reviewed
+registered preprocessing-pipeline declaration and a dedicated
+preprocessing-conformance gate. The scaffold blocks noncanonical or malformed
+hashes, padded gate IDs, and hash-bound preprocessing commitments that lack a
+gate. It preserves the commitment in the protocol draft, data dictionary,
+collection plan, and a `preprocessing-conformance-plan-draft.json` artifact
+with the exact run-assessment shape, while explicitly keeping declaration
+conformance separate from implementation correctness, measurement validity, and
+scientific adequacy.
 For causal studies it can also collect the DAG and complete typed assumption
 register interactively, validate variable and edge references, and feed the same
 deterministic audit used by file-based and canonical workflows. Declining this
@@ -2010,7 +2020,10 @@ match the verified record. When `preprocessing_pipeline` is frozen as a
 canonical SHA-256 digest, run intake and replication-package verification also
 require the conformance record's registered-pipeline hash to equal that frozen
 protocol commitment; prose commitments remain disclosed as unbound text rather
-than silently promoted to hash-verified adherence. Failed preprocessing conformance remains
+than silently promoted to hash-verified adherence. A recorded run under a
+canonical preprocessing-pipeline hash now becomes invalid and evidence-ineligible
+when no performed gate carries structured preprocessing-conformance metadata,
+preserving the run while refusing to treat silence as adherence. Failed preprocessing conformance remains
 recordable only as a failed gate, preserving the discrepancy without allowing a
 favorable gate summary to overwrite it. Rigor and deterministic synthesis now
 carry those gates into the visible record with the exact artifact locator,
