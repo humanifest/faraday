@@ -19,7 +19,7 @@
     "direction": {
       "enum": ["supports", "weakens", "refutes", "inconclusive"]
     },
-    "summary": {"type": "string", "minLength": 1},
+    "summary": {"$ref": "#/$defs/boundedReportText"},
     "dataset_id": {"type": ["string", "null"], "minLength": 1},
     "run_id": {"type": ["string", "null"], "minLength": 1},
     "analysis_id": {"type": "string"},
@@ -53,6 +53,18 @@
     "exploratory": {"type": "boolean", "default": true}
   },
   "additionalProperties": false,
+  "$defs": {
+    "boundedReportText": {
+      "allOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "not": {
+            "pattern": "\\b(?:[Pp][Rr][Oo][Vv][Ee][Dd]|[Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd]|[Ee][Xx][Pp][Ll][Aa][Ii][Nn][Ee][Dd])\\b"
+          }
+        }
+      ]
+    }
+  },
   "allOf": [
     {
       "if": {"properties": {"exploratory": {"const": false}}, "required": ["exploratory"]},

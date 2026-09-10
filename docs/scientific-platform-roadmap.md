@@ -248,7 +248,9 @@ substitute for substantive scientific review. Rigor audit also flags legacy or
 imported evidence, run, and gate summaries that already use those
 report-prohibited verbs. The record remains visible and unedited, but the
 warning keeps current synthesis from silently treating historical prose as a
-calibrated conclusion.
+calibrated conclusion. The published evidence-command and run-record schemas
+preflight the same summary boundary for plugins, apps, and other
+provider-neutral clients before the service repeats the canonical check.
 
 Canonical run-payload delivery: after run preparation completes, the service now
 hashes the full immutable run outside the hash field itself. Caller-supplied

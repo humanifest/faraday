@@ -451,6 +451,9 @@ If imported or legacy evidence, run, or gate summaries already contain those
 verbs, rigor audit reports the exact record as a warning while preserving the
 original prose; qualify it through append-only status review, bounded gate
 details, or new scoped evidence rather than rewriting history.
+The published evidence and run-record JSON Schemas preflight the same summary
+boundary for plugins, apps, and other provider-neutral clients before the
+service repeats the check.
 
 ## Guided design scaffold
 

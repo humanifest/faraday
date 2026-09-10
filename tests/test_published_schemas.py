@@ -35,6 +35,54 @@ def test_published_schema_is_well_formed(path):
     jsonschema.Draft202012Validator.check_schema(json.loads(path.read_text()))
 
 
+@pytest.mark.parametrize(
+    ("schema_name", "mutation"),
+    [
+        (
+            "evidence-command.schema.json",
+            lambda command: command.update(
+                {"summary": "This confirmed the mechanism."}
+            ),
+        ),
+        (
+            "run-record.schema.json",
+            lambda command: command.update(
+                {"summary": "This proved the execution result."}
+            ),
+        ),
+        (
+            "run-record.schema.json",
+            lambda command: command["quality_gates"][0].update(
+                {"summary": "This explained the effect."}
+            ),
+        ),
+    ],
+)
+def test_report_command_schemas_reject_overclaiming_summaries(schema_name, mutation):
+    schema = json.loads((SCHEMAS / schema_name).read_text())
+    if schema_name == "evidence-command.schema.json":
+        command = {
+            "hypothesis_id": "hyp-bounded",
+            "direction": "inconclusive",
+            "summary": "The result remains inconclusive against registered alternatives.",
+            "dataset_id": "dataset-bounded",
+            "analysis_id": "analysis-bounded",
+            "uncertainty": "Synthetic fixture uncertainty remains large.",
+            "scope": "Synthetic schema fixture only.",
+            "higher_level_conclusions_unsupported": [
+                "Mechanism and causality remain unsupported."
+            ],
+            "validation_tags": ["calibration"],
+            "exploratory": True,
+        }
+    else:
+        command = json.loads((EXAMPLES / "run-record.json").read_text())
+    jsonschema.validate(command, schema)
+    mutation(command)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
 def test_empirical_protocol_command_matches_published_schema():
     from test_ethics_gate import _human_protocol
     from research_machine.interfaces.cli import _PROTOCOL_FIELDS

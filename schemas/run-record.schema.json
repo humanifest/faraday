@@ -34,16 +34,38 @@
         "properties": {
           "gate_id": {"type": "string", "minLength": 1},
           "status": {"enum": ["passed", "failed", "warning", "skipped"]},
-          "summary": {"type": "string", "minLength": 1},
+          "summary": {"$ref": "#/$defs/nonEmptyBoundedReportText"},
           "required": {"type": "boolean", "default": true},
           "details": {"type": "object"}
         },
         "additionalProperties": false
       }
     },
-    "summary": {"type": "string"},
+    "summary": {"$ref": "#/$defs/boundedReportText"},
     "synthetic": {"type": "boolean", "default": false},
     "metadata": {"type": "object"}
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "boundedReportText": {
+      "allOf": [
+        {"type": "string"},
+        {
+          "not": {
+            "pattern": "\\b(?:[Pp][Rr][Oo][Vv][Ee][Dd]|[Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd]|[Ee][Xx][Pp][Ll][Aa][Ii][Nn][Ee][Dd])\\b"
+          }
+        }
+      ]
+    },
+    "nonEmptyBoundedReportText": {
+      "allOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "not": {
+            "pattern": "\\b(?:[Pp][Rr][Oo][Vv][Ee][Dd]|[Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd]|[Ee][Xx][Pp][Ll][Aa][Ii][Nn][Ee][Dd])\\b"
+          }
+        }
+      ]
+    }
+  }
 }
