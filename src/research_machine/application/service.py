@@ -255,23 +255,36 @@ def _verify_json_artifact_location(
     field_name: str,
 ) -> bool:
     """Resolve a location when its already hash-verified artifact is JSON."""
+    return _resolve_json_artifact_location(
+        outputs, artifact_root, digest, location, field_name
+    )[0]
+
+
+def _resolve_json_artifact_location(
+    outputs: list[DatasetArtifact],
+    artifact_root: str | None,
+    digest: str,
+    location: str,
+    field_name: str,
+) -> tuple[bool, Any]:
+    """Return the selected JSON value when a verified artifact is machine-readable."""
     if artifact_root is None:
-        return False
+        return False, None
     artifact = next((item for item in outputs if item.sha256 == digest), None)
     if artifact is None:
-        return False
+        return False, None
     is_json = (
         artifact.media_type.lower().split(";", 1)[0].strip() == "application/json"
         or Path(artifact.locator).suffix.lower() == ".json"
     )
     if not is_json:
-        return False
-    _resolve_json_pointer(
+        return False, None
+    selected = _resolve_json_pointer(
         _strict_json_artifact(Path(artifact_root) / artifact.locator, field_name),
         location,
         field_name,
     )
-    return True
+    return True, selected
 
 
 _STRUCTURED_RESULT_DETAIL_KEYS = {
@@ -359,9 +372,14 @@ def _validate_canary_target_assessment_gate(
         "evidence_sha256",
         "evidence_location",
     }
-    if not isinstance(assessment, dict) or set(assessment) != required_fields:
+    derived_fields = {"selected_value_sha256"}
+    if (
+        not isinstance(assessment, dict)
+        or not required_fields <= set(assessment)
+        or set(assessment) - required_fields - derived_fields
+    ):
         raise ValidationError(
-            f"quality gate {gate.gate_id} canary_target_assessment must contain exactly: "
+            f"quality gate {gate.gate_id} canary_target_assessment must contain at least: "
             + ", ".join(sorted(required_fields))
         )
     prefix = f"quality gate {gate.gate_id} canary_target_assessment"
@@ -424,13 +442,23 @@ def _validate_canary_target_assessment_gate(
     location = require_canonical_text(
         assessment["evidence_location"], f"{prefix}.evidence_location"
     )
-    location_verified = _verify_json_artifact_location(
+    location_verified, selected_value = _resolve_json_artifact_location(
         outputs,
         artifact_root,
         evidence_sha256,
         location,
         f"{prefix}.evidence_location",
     )
+    if location_verified:
+        selected_value_sha256 = _result_selection_sha256(selected_value)
+        supplied = assessment.get("selected_value_sha256")
+        if supplied is not None and require_sha256(
+            supplied, f"{prefix}.selected_value_sha256"
+        ) != selected_value_sha256:
+            raise ValidationError(
+                "canary assessment selected_value_sha256 does not match the verified JSON value"
+            )
+        assessment["selected_value_sha256"] = selected_value_sha256
     if (
         not location_verified
         and verified_gate_result is not None
@@ -441,9 +469,18 @@ def _validate_canary_target_assessment_gate(
                 "canary assessment evidence in the verified analysis output "
                 "requires an absolute JSON Pointer evidence_location"
             )
-        _resolve_json_pointer(
+        selected_value = _resolve_json_pointer(
             verified_gate_result, location, f"{prefix}.evidence_location"
         )
+        selected_value_sha256 = _result_selection_sha256(selected_value)
+        supplied = assessment.get("selected_value_sha256")
+        if supplied is not None and require_sha256(
+            supplied, f"{prefix}.selected_value_sha256"
+        ) != selected_value_sha256:
+            raise ValidationError(
+                "canary assessment selected_value_sha256 does not match the verified analysis result value"
+            )
+        assessment["selected_value_sha256"] = selected_value_sha256
 
 
 def _validate_preprocessing_conformance_gate(
@@ -4169,6 +4206,7 @@ class ResearchService:
                                 "interpretation": "<bounded interpretation; do not infer mechanism or intent>",
                                 "evidence_sha256": "<hash of a listed run output artifact>",
                                 "evidence_location": "<exact table, figure, section, record range, or JSON Pointer within that artifact>",
+                                "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
                             }} if (
                                 canary_plan is not None
                                 and gate_id == canary_plan.assessment_gate_id

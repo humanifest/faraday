@@ -661,7 +661,8 @@ def _validate_canary_target_assessment_gate_metadata(
         "evidence_sha256",
         "evidence_location",
     }
-    if set(assessment) != required_fields:
+    optional_fields = {"selected_value_sha256"}
+    if not required_fields <= set(assessment) or set(assessment) - required_fields - optional_fields:
         raise ValidationError(
             f"package run {run_id} gate {gate.gate_id} canary_target_assessment fields are invalid"
         )
@@ -731,13 +732,28 @@ def _validate_canary_target_assessment_gate_metadata(
     location = require_canonical_text(
         assessment["evidence_location"], f"{prefix}.evidence_location"
     )
-    _validate_analysis_result_location(
+    selected_value_sha256 = assessment.get("selected_value_sha256")
+    if selected_value_sha256 is not None:
+        selected_value_sha256 = require_sha256(
+            selected_value_sha256, f"{prefix}.selected_value_sha256"
+        )
+    selected_value = _resolve_analysis_result_location(
         run_id=run_id,
         digest=evidence_sha256,
         location=location,
         field_name="canary assessment evidence_location",
         verified_results_by_sha=verified_results_by_sha,
     )
+    if selected_value is not None:
+        expected_selected_value_sha256 = _result_body_sha256(selected_value)
+        if selected_value_sha256 is None:
+            raise ValidationError(
+                f"package run {run_id} gate {gate.gate_id} canary assessment lacks selected_value_sha256"
+            )
+        if selected_value_sha256 != expected_selected_value_sha256:
+            raise ValidationError(
+                f"package run {run_id} gate {gate.gate_id} canary selected_value_sha256 disagrees with retained result body"
+            )
 
 
 def _measurement_value_domain_sha256(definition: dict[str, Any]) -> str:
@@ -1036,18 +1052,39 @@ def _validate_analysis_result_location(
     field_name: str,
     verified_results_by_sha: dict[str, Any],
 ) -> None:
+    _resolve_analysis_result_location(
+        run_id=run_id,
+        digest=digest,
+        location=location,
+        field_name=field_name,
+        verified_results_by_sha=verified_results_by_sha,
+    )
+
+
+def _resolve_analysis_result_location(
+    *,
+    run_id: str,
+    digest: str,
+    location: str,
+    field_name: str,
+    verified_results_by_sha: dict[str, Any],
+) -> Any | None:
     result = verified_results_by_sha.get(digest)
     if result is None:
-        return
+        return None
     if not location.startswith("/"):
         raise ValidationError(
             f"package run {run_id} {field_name} in the verified analysis output requires an absolute JSON Pointer"
         )
-    _resolve_json_pointer(
+    return _resolve_json_pointer(
         result,
         location,
         f"package run {run_id} {field_name}",
     )
+
+
+def _result_body_sha256(value: Any) -> str:
+    return hashlib.sha256(_bytes(value)).hexdigest()
 
 
 def _validate_control_gate_metadata(

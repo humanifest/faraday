@@ -1958,8 +1958,9 @@ canary gate with structured assessment metadata is rejected, because an exported
 package must not preserve canary observations under a skipped assessment label.
 When that evidence cites a retained Faraday analysis result, the package
 verifier requires an absolute JSON Pointer that resolves in the retained result
-body, so file-level package integrity cannot hide a fabricated canary evidence
-location.
+body and recomputes the retained `selected_value_sha256` for the exact selected
+JSON value, so file-level package integrity cannot hide a fabricated or drifted
+canary evidence location.
 This prevents an exported package from turning a comparator, decoy, no-target,
 mixed, or inconclusive observation into a cleaner-looking result while preserving
 the same non-proof limitation.

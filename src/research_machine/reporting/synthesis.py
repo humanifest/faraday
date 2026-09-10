@@ -580,7 +580,8 @@ def build_synthesis(
                         f"revealed target `{assessment.get('revealed_target_id', 'unavailable')}`; "
                         f"comparators {assessment.get('comparator_target_ids', [])}; "
                         f"artifact `{assessment.get('evidence_sha256', 'unavailable')}` at "
-                        f"`{assessment.get('evidence_location', 'unavailable')}`."
+                        f"`{assessment.get('evidence_location', 'unavailable')}`; "
+                        f"selected value `{assessment.get('selected_value_sha256', 'unavailable')}`."
                     )
                     lines.append(
                         "    - Observed pattern: "

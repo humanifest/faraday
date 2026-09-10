@@ -2274,17 +2274,44 @@ def test_canary_target_plan_shapes_template_run_intake_and_synthesis(
     ]
     assert canary_template["plan_id"] == "masked-canary-plan"
     assert canary_template["assignment_artifact_sha256"] == "2" * 64
+    proof_output = tmp_path / "proof-output.json"
+    proof_sha256 = _write_json_artifact(proof_output, {"proof": {"status": "passed"}})
+    canary_output = tmp_path / "canary-output.json"
+    canary_value = {
+        "revealed_target_id": "actual-state",
+        "status": "follows_comparator_or_decoy",
+    }
+    canary_sha256 = _write_json_artifact(
+        canary_output,
+        {"canary": {"comparison": canary_value}},
+    )
+    selected_value_sha256 = hashlib.sha256(
+        (json.dumps(
+            canary_value,
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+            allow_nan=False,
+        ) + "\n").encode()
+    ).hexdigest()
 
     run = service.record_run(
         run_command(
             protocol.protocol_id,
             QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
             output_artifacts=[
                 DatasetArtifact(
-                    "proof-output.json", "c" * 64, media_type="application/json"
+                    proof_output.name,
+                    proof_sha256,
+                    size_bytes=proof_output.stat().st_size,
+                    media_type="application/json",
                 ),
                 DatasetArtifact(
-                    "canary-output.json", "d" * 64, media_type="application/json"
+                    canary_output.name,
+                    canary_sha256,
+                    size_bytes=canary_output.stat().st_size,
+                    media_type="application/json",
                 ),
             ],
             quality_gates=[
@@ -2292,14 +2319,14 @@ def test_canary_target_plan_shapes_template_run_intake_and_synthesis(
                     gate_id="proof-check",
                     status=QualityGateStatus.PASSED,
                     summary="Independent proof-checker result.",
-                    details={"evidence_sha256": "c" * 64},
+                    details={"evidence_sha256": proof_sha256},
                 ),
                 QualityGateResult(
                     gate_id="canary-target-assessed",
                     status=QualityGateStatus.PASSED,
                     summary="Canary target comparison was performed.",
                     details={
-                        "evidence_sha256": "d" * 64,
+                        "evidence_sha256": canary_sha256,
                         "canary_target_assessment": {
                             "plan_id": "masked-canary-plan",
                             "assignment_artifact_sha256": "2" * 64,
@@ -2308,7 +2335,7 @@ def test_canary_target_plan_shapes_template_run_intake_and_synthesis(
                             "assessment_status": "follows_comparator_or_decoy",
                             "observed_pattern": "Events followed the delayed replay stream.",
                             "interpretation": "This weakens target-specific adaptation under this protocol.",
-                            "evidence_sha256": "d" * 64,
+                            "evidence_sha256": canary_sha256,
                             "evidence_location": "/canary/comparison",
                         },
                     },
@@ -2319,14 +2346,89 @@ def test_canary_target_plan_shapes_template_run_intake_and_synthesis(
     )
 
     assert run.status is RunStatus.COMPLETED
+    retained = run.quality_gates[1].details["canary_target_assessment"]
+    assert retained["selected_value_sha256"] == selected_value_sha256
     synthesis = service.build_synthesis("formal")["content"]
     assert "Canary target provenance" in synthesis
     assert "follows_comparator_or_decoy" in synthesis
+    assert selected_value_sha256 in synthesis
     assert "not proof of adaptation, mechanism, attribution, or intent" in synthesis
     assert any(
         finding.code == "RUN_CANARY_TARGET_FOLLOWED_COMPARATOR"
         for finding in service.audit_rigor("formal").findings
     )
+
+
+def test_run_rejects_canary_selected_value_digest_drift(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    plan = CanaryTargetPlan(
+        plan_id="masked-canary-plan",
+        candidate_target_ids=["actual-state", "delayed-replay"],
+        seed_commitment_sha256="1" * 64,
+        assignment_artifact_sha256="2" * 64,
+        masking_plan="Hold the selected target until analysis lock.",
+        ethical_disclosure="Masked target conditions are disclosed in consent.",
+        assessment_gate_id="canary-target-assessed",
+    )
+    protocol = frozen_formal_protocol(
+        service, hypothesis_id, canary_target_plan=plan
+    )
+    proof_output = tmp_path / "proof-output.json"
+    proof_sha256 = _write_json_artifact(proof_output, {"proof": {"status": "passed"}})
+    canary_output = tmp_path / "canary-output.json"
+    canary_sha256 = _write_json_artifact(
+        canary_output,
+        {"canary": {"comparison": {"status": "consistent_with_revealed_target"}}},
+    )
+
+    with pytest.raises(ValidationError, match="selected_value_sha256"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=[
+                DatasetArtifact(
+                    proof_output.name,
+                    proof_sha256,
+                    size_bytes=proof_output.stat().st_size,
+                    media_type="application/json",
+                ),
+                DatasetArtifact(
+                    canary_output.name,
+                    canary_sha256,
+                    size_bytes=canary_output.stat().st_size,
+                    media_type="application/json",
+                ),
+            ],
+            quality_gates=[
+                QualityGateResult(
+                    gate_id="proof-check",
+                    status=QualityGateStatus.PASSED,
+                    summary="Independent proof-checker result.",
+                    details={"evidence_sha256": proof_sha256},
+                ),
+                QualityGateResult(
+                    gate_id="canary-target-assessed",
+                    status=QualityGateStatus.PASSED,
+                    summary="Canary target comparison was performed.",
+                    details={
+                        "evidence_sha256": canary_sha256,
+                        "canary_target_assessment": {
+                            "plan_id": "masked-canary-plan",
+                            "assignment_artifact_sha256": "2" * 64,
+                            "revealed_target_id": "actual-state",
+                            "comparator_target_ids": ["delayed-replay"],
+                            "assessment_status": "consistent_with_revealed_target",
+                            "observed_pattern": "Events followed the revealed target.",
+                            "interpretation": "Bounded canary result only.",
+                            "evidence_sha256": canary_sha256,
+                            "evidence_location": "/canary/comparison",
+                            "selected_value_sha256": "0" * 64,
+                        },
+                    },
+                ),
+            ],
+        ))
 
 
 def test_performed_canary_gate_requires_structured_result(tmp_path: Path) -> None:

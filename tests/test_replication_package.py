@@ -1670,6 +1670,7 @@ def test_replication_package_verifies_temporal_order_gate_metadata(
         ("wrong_gate", "is not bound to the frozen canary gate"),
         ("relative_analysis_location", "requires an absolute JSON Pointer"),
         ("missing_analysis_location", "does not resolve"),
+        ("selected_value_mismatch", "selected_value_sha256 disagrees"),
         ("skipped_gate_with_assessment", "skipped quality gate"),
     ],
 )
@@ -1831,6 +1832,8 @@ def test_replication_package_verifies_canary_target_gate_metadata(
         assessment["evidence_location"] = "canary/comparison"
     elif mutation == "missing_analysis_location":
         assessment["evidence_location"] = "/result/canary/missing-comparison"
+    elif mutation == "selected_value_mismatch":
+        assessment["selected_value_sha256"] = "0" * 64
     elif mutation == "skipped_gate_with_assessment":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"
