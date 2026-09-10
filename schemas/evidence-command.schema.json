@@ -84,6 +84,18 @@
       "if": {"properties": {"exploratory": {"const": false}}, "required": ["exploratory"]},
       "then": {"required": ["run_id"]},
       "else": {"anyOf": [{"required": ["dataset_id"]}, {"required": ["run_id"]}]}
+    },
+    {
+      "if": {
+        "anyOf": [
+          {"not": {"required": ["run_id"]}},
+          {"properties": {"run_id": {"type": "null"}}, "required": ["run_id"]}
+        ]
+      },
+      "then": {
+        "required": ["analysis_id"],
+        "properties": {"analysis_id": {"$ref": "#/$defs/nonBlankText"}}
+      }
     }
   ]
 }

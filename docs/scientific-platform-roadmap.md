@@ -245,7 +245,9 @@ as if it were multiple independent scientific ceilings.
 The evidence command schema now preflights the same annotation floor for external
 clients: report summary, uncertainty, scope, controls, and unsupported ceilings
 must be nonblank, and exact duplicate control disclosures are rejected before the
-canonical service applies its stricter normalized and run-bound checks.
+canonical service applies its stricter normalized and run-bound checks. It also
+requires a nonblank `analysis_id` when evidence is not backed by a recorded run;
+run-backed evidence continues to derive the analysis identity from the run.
 Evidence and execution report-language delivery: new evidence summaries, run
 summaries, and quality-gate summaries now reject the overclaiming report verbs
 `proved`, `confirmed`, and `explained` before admission. Deterministic synthesis

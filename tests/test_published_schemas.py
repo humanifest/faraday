@@ -167,6 +167,52 @@ def test_evidence_command_schema_preflights_evidence_annotation_invariants(
         jsonschema.validate(command, schema)
 
 
+@pytest.mark.parametrize("bad_analysis_id", [None, " "])
+def test_evidence_command_schema_requires_dataset_only_analysis_identity(
+    bad_analysis_id,
+):
+    schema = json.loads((SCHEMAS / "evidence-command.schema.json").read_text())
+    command = {
+        "hypothesis_id": "hyp-dataset-analysis-fixture",
+        "direction": "inconclusive",
+        "summary": "The exploratory dataset-only note remains bounded.",
+        "dataset_id": "dataset-analysis-fixture",
+        "analysis_id": "analysis-dataset-fixture",
+        "uncertainty": "Synthetic fixture uncertainty.",
+        "scope": "Synthetic schema fixture only.",
+        "higher_level_conclusions_unsupported": [
+            "Confirmatory interpretation remains unsupported."
+        ],
+        "validation_tags": ["source_assessment"],
+        "exploratory": True,
+    }
+    jsonschema.validate(command, schema)
+    if bad_analysis_id is None:
+        del command["analysis_id"]
+    else:
+        command["analysis_id"] = bad_analysis_id
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
+def test_evidence_command_schema_allows_run_to_infer_analysis_identity():
+    schema = json.loads((SCHEMAS / "evidence-command.schema.json").read_text())
+    command = {
+        "hypothesis_id": "hyp-run-analysis-fixture",
+        "direction": "inconclusive",
+        "summary": "The run-backed note remains bounded.",
+        "run_id": "run-analysis-fixture",
+        "uncertainty": "Synthetic fixture uncertainty.",
+        "scope": "Synthetic schema fixture only.",
+        "higher_level_conclusions_unsupported": [
+            "Confirmatory interpretation remains unsupported."
+        ],
+        "validation_tags": ["source_assessment"],
+        "exploratory": True,
+    }
+    jsonschema.validate(command, schema)
+
+
 def test_empirical_protocol_command_matches_published_schema():
     from test_ethics_gate import _human_protocol
     from research_machine.interfaces.cli import _PROTOCOL_FIELDS
