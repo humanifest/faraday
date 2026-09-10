@@ -38,6 +38,7 @@ from research_machine.application.policies import (
     normalize_confidence,
     normalize_text,
     require_bounded_report_text,
+    require_canonical_bounded_report_text,
     require_bounded_evidence_summary,
     require_canonical_text,
     require_text,
@@ -472,8 +473,12 @@ def _validate_canary_target_assessment_gate(
         raise ValidationError(
             "failed canary assessment gate requires comparator, decoy, or no-target status"
         )
-    require_canonical_text(assessment["observed_pattern"], f"{prefix}.observed_pattern")
-    require_canonical_text(assessment["interpretation"], f"{prefix}.interpretation")
+    require_canonical_bounded_report_text(
+        assessment["observed_pattern"], f"{prefix}.observed_pattern"
+    )
+    require_canonical_bounded_report_text(
+        assessment["interpretation"], f"{prefix}.interpretation"
+    )
     evidence_sha256 = require_sha256(
         assessment["evidence_sha256"], f"{prefix}.evidence_sha256"
     )

@@ -2488,6 +2488,106 @@ def test_run_rejects_passed_canary_gate_for_comparator_or_decoy_result(
         ))
 
 
+@pytest.mark.parametrize(
+    ("field_name", "field_value", "message"),
+    [
+        (
+            "observed_pattern",
+            "This confirmed adaptation.",
+            "observed_pattern uses report-prohibited overclaiming language",
+        ),
+        (
+            "interpretation",
+            "This proved the mechanism.",
+            "interpretation uses report-prohibited overclaiming language",
+        ),
+    ],
+)
+def test_run_rejects_canary_assessment_overclaiming_prose(
+    tmp_path: Path,
+    field_name: str,
+    field_value: str,
+    message: str,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    plan = CanaryTargetPlan(
+        plan_id="masked-canary-plan",
+        candidate_target_ids=["actual-state", "delayed-replay"],
+        seed_commitment_sha256="1" * 64,
+        assignment_artifact_sha256="2" * 64,
+        masking_plan="Hold the selected target until analysis lock.",
+        ethical_disclosure="Masked target conditions are disclosed in consent.",
+        assessment_gate_id="canary-target-assessed",
+    )
+    protocol = frozen_formal_protocol(
+        service, hypothesis_id, canary_target_plan=plan
+    )
+    proof_output = tmp_path / "proof-output.json"
+    proof_sha256 = _write_json_artifact(proof_output, {"proof": {"status": "passed"}})
+    canary_output = tmp_path / "canary-output.json"
+    canary_sha256 = _write_json_artifact(
+        canary_output,
+        {
+            "canary": {
+                "comparison": {
+                    "revealed_target_id": "actual-state",
+                    "status": "consistent_with_revealed_target",
+                }
+            }
+        },
+    )
+    assessment = {
+        "plan_id": "masked-canary-plan",
+        "assignment_artifact_sha256": "2" * 64,
+        "revealed_target_id": "actual-state",
+        "comparator_target_ids": ["delayed-replay"],
+        "assessment_status": "consistent_with_revealed_target",
+        "observed_pattern": "Events followed the revealed target.",
+        "interpretation": "Bounded canary result only.",
+        "evidence_sha256": canary_sha256,
+        "evidence_location": "/canary/comparison",
+    }
+    assessment[field_name] = field_value
+
+    with pytest.raises(ValidationError, match=message):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=[
+                DatasetArtifact(
+                    proof_output.name,
+                    proof_sha256,
+                    size_bytes=proof_output.stat().st_size,
+                    media_type="application/json",
+                ),
+                DatasetArtifact(
+                    canary_output.name,
+                    canary_sha256,
+                    size_bytes=canary_output.stat().st_size,
+                    media_type="application/json",
+                ),
+            ],
+            quality_gates=[
+                QualityGateResult(
+                    gate_id="proof-check",
+                    status=QualityGateStatus.PASSED,
+                    summary="Independent proof-checker result.",
+                    details={"evidence_sha256": proof_sha256},
+                ),
+                QualityGateResult(
+                    gate_id="canary-target-assessed",
+                    status=QualityGateStatus.PASSED,
+                    summary="Canary target comparison was performed.",
+                    details={
+                        "evidence_sha256": canary_sha256,
+                        "canary_target_assessment": assessment,
+                    },
+                ),
+            ],
+        ))
+
+
 def test_run_rejects_canary_selected_value_digest_drift(tmp_path: Path) -> None:
     service, hypothesis_id = prepared_service(tmp_path)
     plan = CanaryTargetPlan(

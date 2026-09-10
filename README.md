@@ -541,7 +541,9 @@ rewritten into support for adaptation, mechanism, attribution, or intent. The
 gate disposition must also agree with the assessment: only
 `consistent_with_revealed_target` can pass, comparator/decoy or no-target
 outcomes must be failed gates, and mixed or inconclusive outcomes must be
-warning gates.
+warning gates. Observed-pattern and interpretation prose must be canonical and
+bounded; report-prohibited overclaim verbs such as proved, confirmed, or
+explained are rejected at run intake and package verification.
 When the assessment cites JSON bytes that Faraday can inspect, run intake derives
 a `selected_value_sha256` over the exact value at the cited JSON Pointer and
 rejects caller-supplied digest drift. Replication-package verification replays

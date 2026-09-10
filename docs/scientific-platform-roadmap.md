@@ -2117,9 +2117,12 @@ outcomes remain visible in rigor and deterministic synthesis instead of being
 rephrased as support. Run intake and replication-package verification now bind
 the quality-gate disposition to the assessment status: revealed-target
 consistency may pass, comparator/decoy or no-target outcomes must fail, and
-mixed or inconclusive outcomes must use warning gates. This is an adversarial
-design commitment for future domain add-ons; it does not prove adaptation,
-mechanism, attribution, intent, or ethical adequacy.
+mixed or inconclusive outcomes must use warning gates. Observed-pattern and
+interpretation prose must remain canonical and bounded; report-prohibited
+overclaim verbs such as proved, confirmed, or explained are rejected during run
+intake and package verification. This is an adversarial design commitment for
+future domain add-ons; it does not prove adaptation, mechanism, attribution,
+intent, or ethical adequacy.
 Rigor now also warns when a protected empirical protocol freezes such a canary
 target plan and recorded runs exist, but none carries a structured canary
 assessment on the frozen canary gate. The masked plan therefore cannot become

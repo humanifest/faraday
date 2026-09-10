@@ -93,6 +93,16 @@ def require_bounded_report_text(
         raise ValidationError(
             f"{field_name} uses report-prohibited overclaiming language; "
             "state bounded support, weakening, refutation, or inconclusiveness instead"
+    )
+    return summary
+
+
+def require_canonical_bounded_report_text(value: str, field_name: str) -> str:
+    summary = require_canonical_text(value, field_name)
+    if report_overclaim_terms(summary):
+        raise ValidationError(
+            f"{field_name} uses report-prohibited overclaiming language; "
+            "state bounded support, weakening, refutation, or inconclusiveness instead"
         )
     return summary
 
