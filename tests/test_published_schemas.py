@@ -371,6 +371,27 @@ def test_collaborator_review_schema_constrains_route_authority(mutation):
         jsonschema.validate(review, schema)
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda review: review.update(
+            {"overall_assessment": "This review approves the proposal."}
+        ),
+        lambda review: review["decisions"][0].update(
+            {"rationale": "The proposal confirms the result."}
+        ),
+    ],
+)
+def test_collaborator_review_schema_rejects_authority_claims(mutation):
+    schema = json.loads(
+        (SCHEMAS / "collaborator-proposal-review.schema.json").read_text()
+    )
+    review = json.loads((EXAMPLES / "collaborator-proposal-review.json").read_text())
+    mutation(review)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(review, schema)
+
+
 def test_collaborator_schema_examples_match_service_validator(tmp_path):
     from research_machine.collaboration.proposal import (
         adjudicate_collaborator_proposal,

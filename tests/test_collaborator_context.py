@@ -1052,6 +1052,55 @@ def test_collaborator_review_prose_must_be_canonical(
     assert not (tmp_path / "reviewed").exists()
 
 
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda review: review.update(
+                {
+                    "overall_assessment": (
+                        "This review approves the claim and authorizes evidence creation."
+                    )
+                }
+            ),
+            "must not claim acceptance",
+        ),
+        (
+            lambda review: review["decisions"][0].update(
+                {"rationale": "The proposal confirms the result."}
+            ),
+            "must not claim acceptance",
+        ),
+    ],
+)
+def test_collaborator_review_prose_must_remain_non_authority(
+    tmp_path: Path, mutation, message: str
+) -> None:
+    context = _context()
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(snapshot["context_sha256"])
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review = _review(validated["record_sha256"])
+    mutation(review)
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(review), encoding="utf-8")
+    with pytest.raises(ValidationError, match=message):
+        adjudicate_collaborator_proposal(
+            Path(validated["record_file"]),
+            validated["record_sha256"],
+            review_path,
+            tmp_path / "reviewed",
+        )
+    assert not (tmp_path / "reviewed").exists()
+
+
 def test_proposal_adjudication_replays_retained_body_grounding(
     tmp_path: Path,
 ) -> None:
@@ -1511,6 +1560,46 @@ def test_verify_collaborator_review_replays_conclusion_ceiling(
     trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
 
     with pytest.raises(ValidationError, match="conclusion ceiling has changed"):
+        verify_collaborator_review_record(record_path, trusted_hash)
+
+
+def test_verify_collaborator_review_replays_non_authority_review_prose(
+    tmp_path: Path,
+) -> None:
+    context = _context()
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(_proposal(snapshot["context_sha256"])), encoding="utf-8"
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(
+        json.dumps(_review(validated["record_sha256"])), encoding="utf-8"
+    )
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["review"]["overall_assessment"] = (
+        "This review accepted the proposal as a canonical action."
+    )
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="must not claim acceptance"):
         verify_collaborator_review_record(record_path, trusted_hash)
 
 

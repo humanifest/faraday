@@ -30,7 +30,7 @@
       "format": "date-time",
       "pattern": "^(?:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2}))$"
     },
-    "overall_assessment": {"$ref": "#/$defs/canonicalNonEmptyText"},
+    "overall_assessment": {"$ref": "#/$defs/boundedReviewText"},
     "decisions": {
       "type": "array",
       "minItems": 1,
@@ -47,7 +47,7 @@
           "disposition": {
             "enum": ["advance_to_domain_review", "reject", "defer"]
           },
-          "rationale": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "rationale": {"$ref": "#/$defs/boundedReviewText"},
           "domain_route": {
             "enum": [
               "none",
@@ -92,6 +92,16 @@
     "canonicalNonEmptyText": {
       "type": "string",
       "pattern": "^(?:\\S|\\S.*\\S)$"
+    },
+    "boundedReviewText": {
+      "allOf": [
+        {"$ref": "#/$defs/canonicalNonEmptyText"},
+        {
+          "not": {
+            "pattern": "\\b(?:accepts?|accepted|approves?|approved|authorizes?|authorized|confirms?|confirmed|proves?|proved|proof|validated)\\b|canonical write|canonical action|evidence creation|creates evidence|created evidence"
+          }
+        }
+      ]
     },
     "sha256": {
       "type": "string",

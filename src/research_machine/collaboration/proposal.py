@@ -97,6 +97,11 @@ _REVIEW_CONCLUSION_CEILING = (
     "Accountable triage only. Advancement requests a separate domain review; "
     "it does not accept a claim, amend a protocol, create evidence, or authorize action."
 )
+_REVIEW_AUTHORITY_CLAIM = re.compile(
+    r"\b(?:accepts?|accepted|approves?|approved|authorizes?|authorized|"
+    r"confirms?|confirmed|proves?|proved|proof|validated)\b|"
+    r"canonical write|canonical action|evidence creation|creates evidence|created evidence"
+)
 _PROPOSAL_RECORD_FIELDS = {
     "collaborator_proposal_record_version",
     "context_input",
@@ -454,6 +459,17 @@ def _context_write_boundary(context: dict[str, Any]) -> dict[str, Any]:
         "provider_required": False,
         "canonical_changes_require": canonical_changes_require,
     }
+
+
+def _review_boundary_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _REVIEW_AUTHORITY_CLAIM.search(text.casefold()):
+        raise ValidationError(
+            f"collaborator proposal {field} must not claim acceptance, approval, "
+            "authorization, proof, confirmation, validation, evidence creation, "
+            "or canonical action"
+        )
+    return text
 
 
 def _context_reference_ids(context: dict[str, Any]) -> set[str]:
@@ -1053,7 +1069,7 @@ def adjudicate_collaborator_proposal(
     if review["proposal_record_sha256"] != record_digest:
         raise ValidationError("collaborator proposal review is not bound to the exact proposal record")
     _rfc3339(review["reviewed_at"], "reviewed_at")
-    _canonical_text(review["overall_assessment"], "overall_assessment")
+    _review_boundary_text(review["overall_assessment"], "overall_assessment")
     reviewer = review["reviewer"]
     if not isinstance(reviewer, dict):
         raise ValidationError("collaborator proposal review reviewer must be an object")
@@ -1085,7 +1101,7 @@ def adjudicate_collaborator_proposal(
         disposition = decision["disposition"]
         if disposition not in _DISPOSITIONS:
             raise ValidationError(f"{label} disposition is invalid")
-        _canonical_text(decision["rationale"], "decision.rationale")
+        _review_boundary_text(decision["rationale"], "decision.rationale")
         route = decision["domain_route"]
         if disposition == "advance_to_domain_review":
             if route not in _DOMAIN_ROUTES:
@@ -1335,7 +1351,7 @@ def verify_collaborator_review_record(
         )
     _canonical_text(review["review_id"], "review_id")
     _rfc3339(review["reviewed_at"], "reviewed_at")
-    _canonical_text(review["overall_assessment"], "overall_assessment")
+    _review_boundary_text(review["overall_assessment"], "overall_assessment")
     reviewer = review["reviewer"]
     if not isinstance(reviewer, dict):
         raise ValidationError("collaborator proposal review reviewer must be an object")
@@ -1357,7 +1373,7 @@ def verify_collaborator_review_record(
         disposition = decision["disposition"]
         if disposition not in _DISPOSITIONS:
             raise ValidationError(f"{label} disposition is invalid")
-        _canonical_text(decision["rationale"], "decision.rationale")
+        _review_boundary_text(decision["rationale"], "decision.rationale")
         decisions_by_id[suggestion_id] = decision
 
     reviewed_suggestions = record["reviewed_suggestions"]

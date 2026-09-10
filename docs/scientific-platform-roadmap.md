@@ -1257,7 +1257,10 @@ review payload version, reviewed suggestion digests, the ordered
 proposal-suggestion snapshot anchor, reviewed-suggestion evidence-reference
 coverage, exact coverage of the retained ordered proposal suggestion IDs,
 compatible routes, and advanced-suggestion summary without performing canonical
-writes or authenticating the reviewer. When the retained
+writes or authenticating the reviewer. Review assessments and rationales now
+also fail closed when they claim acceptance, approval, authorization, proof,
+confirmation, validation, evidence creation, or canonical action, and the
+published review schema preflights the same non-authority prose boundary. When the retained
 context index is nonempty, reviewed suggestions must retain at least one
 context-backed citation during replay, so a copied review record cannot become
 self-consistent by dropping the proposal's grounding. Replay also requires the
