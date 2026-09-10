@@ -78,17 +78,30 @@ def require_text(value: str, field_name: str) -> str:
     return normalized
 
 
-def require_bounded_evidence_summary(value: str) -> str:
-    summary = require_text(value, "evidence summary")
-    if evidence_summary_overclaim_terms(summary):
+def require_bounded_report_text(
+    value: str,
+    field_name: str,
+    *,
+    allow_empty: bool = False,
+) -> str:
+    summary = normalize_text(value, field_name)
+    if not summary:
+        if allow_empty:
+            return summary
+        raise ValidationError(f"{field_name} must not be empty")
+    if report_overclaim_terms(summary):
         raise ValidationError(
-            "evidence summary uses report-prohibited overclaiming language; "
+            f"{field_name} uses report-prohibited overclaiming language; "
             "state bounded support, weakening, refutation, or inconclusiveness instead"
         )
     return summary
 
 
-def evidence_summary_overclaim_terms(value: str) -> list[str]:
+def require_bounded_evidence_summary(value: str) -> str:
+    return require_bounded_report_text(value, "evidence summary")
+
+
+def report_overclaim_terms(value: str) -> list[str]:
     if not isinstance(value, str):
         return []
     terms: list[str] = []
@@ -99,6 +112,10 @@ def evidence_summary_overclaim_terms(value: str) -> list[str]:
             seen.add(term)
             terms.append(term)
     return terms
+
+
+def evidence_summary_overclaim_terms(value: str) -> list[str]:
+    return report_overclaim_terms(value)
 
 
 def require_canonical_text(value: str, field_name: str) -> str:
@@ -2403,7 +2420,9 @@ def validate_quality_gates(
             QualityGateResult(
                 gate_id=gate_id,
                 status=gate.status,
-                summary=require_text(gate.summary, "quality gate summary"),
+                summary=require_bounded_report_text(
+                    gate.summary, "quality gate summary"
+                ),
                 required=gate.required,
                 details=dict(gate.details),
             )

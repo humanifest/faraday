@@ -36,6 +36,7 @@ from research_machine.application.policies import (
     is_canonical_sha256,
     normalize_confidence,
     normalize_text,
+    require_bounded_report_text,
     require_bounded_evidence_summary,
     require_canonical_text,
     require_text,
@@ -3882,7 +3883,9 @@ class ResearchService:
                 and artifact_integrity.status == "passed"
                 and sample_size_plan_allows_evidence
             ),
-            summary=normalize_text(command.summary, "run summary"),
+            summary=require_bounded_report_text(
+                command.summary, "run summary", allow_empty=True
+            ),
             synthetic=synthetic,
             metadata={
                 **dict(command.metadata),

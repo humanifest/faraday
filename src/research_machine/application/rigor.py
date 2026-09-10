@@ -6,6 +6,7 @@ from datetime import datetime
 from research_machine.application.policies import (
     evidence_summary_overclaim_terms,
     normalize_confidence,
+    report_overclaim_terms,
     validate_validation_tag_context,
 )
 from research_machine.application.claim_integrity import claim_level_rank
@@ -409,6 +410,39 @@ def audit_research_state(
                         "Do not use role equality or a derivative label to launder "
                         "observations across frozen protocols; collect or register "
                         "lineage under the exact same protected protocol."
+                    ),
+                )
+
+    for run in runs:
+        run_overclaim_terms = report_overclaim_terms(run.summary)
+        if run_overclaim_terms:
+            add(
+                "RUN_SUMMARY_OVERCLAIM_LANGUAGE",
+                RigorSeverity.WARNING,
+                "Run summary uses report-prohibited overclaiming language: "
+                + ", ".join(run_overclaim_terms)
+                + ". Treat the stored prose as a legacy execution assertion, not a scientific conclusion.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation=(
+                    "Do not rewrite the historical run record; retain the run and "
+                    "record bounded evidence or status review before drawing conclusions."
+                ),
+            )
+        for gate in run.quality_gates:
+            gate_overclaim_terms = report_overclaim_terms(gate.summary)
+            if gate_overclaim_terms:
+                add(
+                    "QUALITY_GATE_SUMMARY_OVERCLAIM_LANGUAGE",
+                    RigorSeverity.WARNING,
+                    "Quality gate summary uses report-prohibited overclaiming language: "
+                    + ", ".join(gate_overclaim_terms)
+                    + ". Treat the stored prose as a legacy gate assertion, not evidence of truth.",
+                    entity_type="run",
+                    entity_id=f"{run.run_id}:{gate.gate_id}",
+                    remediation=(
+                        "Do not rewrite the historical gate; preserve its status and "
+                        "use bounded artifact-backed gate details or evidence records."
                     ),
                 )
 

@@ -238,14 +238,15 @@ contract consistency, not execution truth or scientific interpretation. The
 receipt hashes the complete immutable evidence payload outside the receipt
 itself, making post-admission edits to conclusions, scope, uncertainty,
 classification, selectors, or claim linkage semantically detectable.
-Evidence-summary report-language delivery: new evidence summaries now reject
-the overclaiming report verbs `proved`, `confirmed`, and `explained` before
-admission. Deterministic synthesis can still quote bounded user summaries, but
-new reportable evidence must use scoped language such as supported against
-specified alternatives, weakened, refuted, or inconclusive. This is a lexical
-guardrail on new reports, not a substitute for substantive scientific review.
-Rigor audit also flags legacy or imported evidence summaries that already use
-those report-prohibited verbs. The record remains visible and unedited, but the
+Evidence and execution report-language delivery: new evidence summaries, run
+summaries, and quality-gate summaries now reject the overclaiming report verbs
+`proved`, `confirmed`, and `explained` before admission. Deterministic synthesis
+can still quote bounded user summaries, but new reportable records must use
+scoped language such as supported against specified alternatives, weakened,
+refuted, or inconclusive. This is a lexical guardrail on new reports, not a
+substitute for substantive scientific review. Rigor audit also flags legacy or
+imported evidence, run, and gate summaries that already use those
+report-prohibited verbs. The record remains visible and unedited, but the
 warning keeps current synthesis from silently treating historical prose as a
 calibrated conclusion.
 

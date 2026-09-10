@@ -55,7 +55,13 @@ def _service(root: Path, *, actor: str = "author") -> ResearchService:
     )
 
 
-def _prepared_run(root: Path, *, protocol_overrides: dict | None = None):
+def _prepared_run(
+    root: Path,
+    *,
+    protocol_overrides: dict | None = None,
+    run_summary: str = "",
+    gate_summary: str = "Candidate passed and invalid control failed.",
+):
     service = _service(root)
     service.init_workspace()
     service.create_inquiry(
@@ -110,10 +116,11 @@ def _prepared_run(root: Path, *, protocol_overrides: dict | None = None):
                 QualityGateResult(
                     gate_id="checker",
                     status=QualityGateStatus.PASSED,
-                    summary="Candidate passed and invalid control failed.",
+                    summary=gate_summary,
                     details={"evidence_sha256": output_sha256},
                 )
             ],
+            summary=run_summary,
             metadata={"protocol_deviation_disclosure": {
                 "status": "no_deviations_declared", "deviations": [],
             }},
@@ -510,6 +517,80 @@ def test_rigor_flags_legacy_overclaiming_evidence_summary_without_rewriting(
     )
     assert "This confirmed and explained the mechanism." in synthesis
     assert "EVIDENCE_SUMMARY_OVERCLAIM_LANGUAGE (1)" in synthesis
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("run", "This confirmed the execution result.", "run summary"),
+        ("gate", "This gate explained the mechanism.", "quality gate summary"),
+    ],
+)
+def test_new_run_and_gate_summaries_reject_report_overclaim_language(
+    tmp_path: Path,
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    kwargs = {"run_summary": value} if field == "run" else {"gate_summary": value}
+    with pytest.raises(ValidationError, match=message):
+        _prepared_run(tmp_path / field, **kwargs)
+
+
+def test_rigor_flags_legacy_overclaiming_run_and_gate_summaries_without_rewriting(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path / "workspace")
+    legacy_run = replace(
+        run,
+        summary="The run confirmed the model.",
+        quality_gates=[
+            replace(
+                run.quality_gates[0],
+                summary="The gate explained the effect.",
+            )
+        ],
+    )
+    repository = service.repository
+    inquiry_id = repository.resolve_inquiry_id(None)
+    audit = audit_research_state(
+        inquiry=repository.load_inquiry(inquiry_id),
+        claims=repository.load_claims(inquiry_id),
+        hypotheses=[hypothesis],
+        evidence=repository.list_evidence(inquiry_id),
+        datasets=repository.list_datasets(inquiry_id),
+        protocols=repository.list_protocols(inquiry_id),
+        runs=[legacy_run],
+    )
+
+    run_finding = next(
+        item for item in audit.findings
+        if item.code == "RUN_SUMMARY_OVERCLAIM_LANGUAGE"
+    )
+    gate_finding = next(
+        item for item in audit.findings
+        if item.code == "QUALITY_GATE_SUMMARY_OVERCLAIM_LANGUAGE"
+    )
+    assert run_finding.entity_id == run.run_id
+    assert "confirmed" in run_finding.message
+    assert gate_finding.entity_id == f"{run.run_id}:checker"
+    assert "explained" in gate_finding.message
+    synthesis = build_synthesis(
+        repository.load_inquiry(inquiry_id),
+        repository.load_questions(inquiry_id),
+        repository.load_claims(inquiry_id),
+        [hypothesis],
+        repository.list_evidence(inquiry_id),
+        repository.list_datasets(inquiry_id),
+        repository.list_protocols(inquiry_id),
+        [legacy_run],
+        [],
+        [],
+        audit,
+        [],
+    )
+    assert "RUN_SUMMARY_OVERCLAIM_LANGUAGE (1)" in synthesis
+    assert "QUALITY_GATE_SUMMARY_OVERCLAIM_LANGUAGE (1)" in synthesis
 
 
 def _status_command(

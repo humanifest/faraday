@@ -442,14 +442,15 @@ The machine is deliberately not a claim-confirmation engine. It keeps competing
 explanations alive, separates levels of inference, records scoped evidence, and
 preserves rejected hypotheses with the conditions under which they should be
 reconsidered.
-New evidence summaries are also kept inside that boundary: reportable evidence
-cannot use overclaiming verbs such as `proved`, `confirmed`, or `explained`.
-Use bounded language like "supported against these alternatives on this
-dataset," "weakened," "refuted," or "inconclusive."
-If imported or legacy evidence already contains those verbs, rigor audit reports
-the exact evidence ID as a warning while preserving the original prose; qualify
-it through append-only status review or new bounded evidence rather than
-rewriting history.
+New evidence and execution summaries are also kept inside that boundary:
+reportable evidence, run summaries, and quality-gate summaries cannot use
+overclaiming verbs such as `proved`, `confirmed`, or `explained`. Use bounded
+language like "supported against these alternatives on this dataset,"
+"weakened," "refuted," or "inconclusive."
+If imported or legacy evidence, run, or gate summaries already contain those
+verbs, rigor audit reports the exact record as a warning while preserving the
+original prose; qualify it through append-only status review, bounded gate
+details, or new scoped evidence rather than rewriting history.
 
 ## Guided design scaffold
 
