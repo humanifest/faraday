@@ -18,11 +18,20 @@ from research_machine.application.commands import (
     AddClaim,
     AddQuestion,
     CreateInquiry,
+    RecordEvidence,
+    RecordEvidenceStatusEvent,
+    RegisterDataset,
     ProposeHypothesis,
 )
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ValidationError
-from research_machine.domain.models import ClaimLevel
+from research_machine.domain.models import (
+    ClaimLevel,
+    DatasetArtifact,
+    DatasetRole,
+    EvidenceDirection,
+    ValidationTag,
+)
 from research_machine.interfaces.cli import main
 
 
@@ -241,6 +250,91 @@ def test_collaborator_context_purpose_must_be_canonical(tmp_path: Path) -> None:
         service.collaborator_context(purpose=" design review ")
     with pytest.raises(ValidationError, match="purpose must not be empty"):
         service.collaborator_context(purpose="")
+
+
+def test_collaborator_context_redacts_operational_review_roots(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(
+        FileSystemRepository(tmp_path / "workspace"),
+        actor="test",
+        clock=lambda: "2026-09-02T12:00:00Z",
+    )
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Question", "Statement", "question"))
+    hypothesis = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement="The exploratory source contains a signal.",
+            observable_prediction="The source audit can inspect the signal.",
+            null_model="The source audit is inconclusive.",
+            falsification_conditions=["The source audit contradicts the signal."],
+        )
+    )
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    dataset = service.register_dataset(
+        RegisterDataset(
+            name="Exploratory fixture",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[DatasetArtifact("source.json", "d" * 64)],
+            synthetic=True,
+            quality_attestations=["Synthetic collaborator-context fixture."],
+        )
+    )
+    evidence = service.record_evidence(
+        RecordEvidence(
+            hypothesis_id=hypothesis.hypothesis_id,
+            direction=EvidenceDirection.INCONCLUSIVE,
+            summary="The source audit is retained only as exploratory context.",
+            analysis_id="source-audit-1",
+            dataset_id=dataset.dataset_id,
+            uncertainty="Synthetic fixture; no scientific conclusion.",
+            scope="Exploratory source-audit fixture only.",
+            controls_passed=["Schema shape was inspected."],
+            higher_level_conclusions_unsupported=[
+                "The signal is real.",
+                "The result is replicated.",
+            ],
+            validation_tags=[ValidationTag.SOURCE_ASSESSMENT],
+            exploratory=True,
+        )
+    )
+    review_root = tmp_path / "private-review"
+    review_root.mkdir()
+    review_artifact = review_root / "qualified.txt"
+    review_artifact.write_text("qualified review", encoding="utf-8")
+    event = service.record_evidence_status_event(
+        RecordEvidenceStatusEvent(
+            evidence_id=evidence.evidence_id,
+            status="qualified",
+            effective_at="2026-09-02T12:00:00Z",
+            reason="Independent review qualified the exploratory source audit.",
+            review_artifact_locator=review_artifact.name,
+            review_artifact_sha256=hashlib.sha256(
+                review_artifact.read_bytes()
+            ).hexdigest(),
+            review_artifact_root=str(review_root),
+        )
+    )
+
+    context = service.collaborator_context(
+        purpose="Review the qualified source audit."
+    )
+
+    assert context["evidence_status_events"][0]["event_id"] == event.event_id
+    assert context["evidence_status_events"][0]["review_artifact_sha256"] == (
+        event.review_artifact_sha256
+    )
+    assert context["evidence_status_events"][0]["review_artifact_root"].startswith(
+        "[redacted:"
+    )
+    assert str(review_root) not in json.dumps(context)
+    assert {
+        "ref": f"evidence_status_event:{event.event_id}",
+        "kind": "evidence_status_event",
+    } in context["context_reference_index"]
+    assert service.show_inquiry()["evidence_status_events"][0][
+        "review_artifact_root"
+    ] == str(review_root.resolve())
 
 
 def test_collaborator_context_exposes_pending_review_hypotheses(

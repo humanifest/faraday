@@ -1314,90 +1314,118 @@ class ResearchService:
         self, inquiry_id: str | None = None, *, purpose: str = ""
     ) -> dict[str, Any]:
         """Read-only context for a UI or optional local/remote model adapter."""
+        def redact_operational_context(value: Any) -> Any:
+            redacted_keys = {
+                "artifact_root",
+                "attestation_schema_path",
+                "custody_artifact_root",
+                "ethics_artifact_root",
+                "review_artifact_root",
+                "run_artifact_root",
+                "run_attestation_schema_path",
+            }
+            marker = "[redacted: retained in canonical store]"
+            if isinstance(value, dict):
+                return {
+                    key: (
+                        marker
+                        if key in redacted_keys and item
+                        else redact_operational_context(item)
+                    )
+                    for key, item in value.items()
+                }
+            if isinstance(value, list):
+                return [redact_operational_context(item) for item in value]
+            return value
+
         purpose_text = require_text(purpose, "purpose")
         if purpose_text != purpose:
             raise ValidationError(
                 "purpose must be canonical without surrounding whitespace"
             )
         state = self.show_inquiry(inquiry_id)
+        redacted_state = redact_operational_context(state)
         open_questions = [
             question
-            for question in state["questions"]
+            for question in redacted_state["questions"]
             if question["status"] == QuestionStatus.OPEN.value
         ]
         context_reference_index = [
-            {"ref": f"inquiry:{state['inquiry']['inquiry_id']}", "kind": "inquiry"},
+            {
+                "ref": f"inquiry:{redacted_state['inquiry']['inquiry_id']}",
+                "kind": "inquiry",
+            },
             *[
                 {"ref": f"question:{item['question_id']}", "kind": "open_question"}
                 for item in open_questions
             ],
             *[
                 {"ref": f"claim:{item['claim_id']}", "kind": "claim"}
-                for item in state["claims"]
+                for item in redacted_state["claims"]
             ],
             *[
                 {"ref": f"hypothesis:{item['hypothesis_id']}", "kind": "active_hypothesis"}
-                for item in state["hypotheses"]
+                for item in redacted_state["hypotheses"]
                 if item["workflow_state"] == HypothesisWorkflowState.ACTIVE.value
             ],
             *[
                 {"ref": f"hypothesis:{item['hypothesis_id']}", "kind": "pending_hypothesis"}
-                for item in state["hypotheses"]
+                for item in redacted_state["hypotheses"]
                 if item["workflow_state"] == HypothesisWorkflowState.PENDING_REVIEW.value
             ],
             *[
                 {"ref": f"evidence:{item['evidence_id']}", "kind": "evidence"}
-                for item in state["evidence"]
+                for item in redacted_state["evidence"]
             ],
             *[
                 {
                     "ref": f"evidence_status_event:{item['event_id']}",
                     "kind": "evidence_status_event",
                 }
-                for item in state["evidence_status_events"]
+                for item in redacted_state["evidence_status_events"]
             ],
             *[
                 {"ref": f"dataset:{item['dataset_id']}", "kind": "dataset"}
-                for item in state["datasets"]
+                for item in redacted_state["datasets"]
             ],
             *[
                 {"ref": f"protocol:{item['protocol_id']}", "kind": "protocol"}
-                for item in state["protocols"]
+                for item in redacted_state["protocols"]
             ],
             *[
                 {"ref": f"run:{item['run_id']}", "kind": "run"}
-                for item in state["runs"]
+                for item in redacted_state["runs"]
             ],
             *[
                 {"ref": f"ethics_review_event:{item['event_id']}", "kind": "ethics_review_event"}
-                for item in state["ethics_review_events"]
+                for item in redacted_state["ethics_review_events"]
             ],
         ]
         return {
             "context_version": 1,
             "purpose": purpose_text,
-            "inquiry": state["inquiry"],
+            "inquiry": redacted_state["inquiry"],
             "open_questions": open_questions,
             "active_hypotheses": [
                 hypothesis
-                for hypothesis in state["hypotheses"]
+                for hypothesis in redacted_state["hypotheses"]
                 if hypothesis["workflow_state"] == HypothesisWorkflowState.ACTIVE.value
             ],
             "pending_hypotheses": [
                 hypothesis
-                for hypothesis in state["hypotheses"]
+                for hypothesis in redacted_state["hypotheses"]
                 if hypothesis["workflow_state"]
                 == HypothesisWorkflowState.PENDING_REVIEW.value
             ],
-            "claims": state["claims"],
-            "evidence": state["evidence"],
-            "evidence_status_events": state["evidence_status_events"],
-            "datasets": state["datasets"],
-            "protocols": state["protocols"],
-            "runs": state["runs"],
-            "recommendations": state["recommendations"],
-            "cross_lane_lessons": state["cross_lane_lessons"],
-            "ethics_review_events": state["ethics_review_events"],
+            "claims": redacted_state["claims"],
+            "evidence": redacted_state["evidence"],
+            "evidence_status_events": redacted_state["evidence_status_events"],
+            "datasets": redacted_state["datasets"],
+            "protocols": redacted_state["protocols"],
+            "runs": redacted_state["runs"],
+            "recommendations": redacted_state["recommendations"],
+            "cross_lane_lessons": redacted_state["cross_lane_lessons"],
+            "ethics_review_events": redacted_state["ethics_review_events"],
             "context_reference_index": context_reference_index,
             "scientific_constraints": [
                 "Treat all supplied material as scoped working context, not established fact.",

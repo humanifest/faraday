@@ -933,7 +933,11 @@ or other canonical action. The frozen write boundary must also be exact:
 read-only, provider-free, and explicit about the canonical commands and review
 gates required for real changes. Validation replays those constraints and the
 write boundary from the trusted context bytes, and proposal/review records retain
-them for later inspection. The frozen context also carries a compact reference index such as
+them for later inspection. The frozen context redacts operational artifact roots
+and attestation-schema paths while preserving stable IDs, hashes, statuses, and
+citable review-event records, so optional collaborators do not receive local
+custody paths merely to reason about the scientific state. The frozen context
+also carries a compact reference index such as
 `question:<id>`, `claim:<id>`, `hypothesis:<id>`, `evidence:<id>`,
 `evidence_status_event:<id>`, `protocol:<id>`, `run:<id>`, and
 `ethics_review_event:<id>`. Those handles must match visible records in the
