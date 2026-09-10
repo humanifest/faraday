@@ -24,6 +24,7 @@ from research_machine.reporting.synthesis import build_synthesis
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     AnalysisMode,
+    CanaryTargetPlan,
     Claim,
     ClaimLevel,
     ControlDefinition,
@@ -1551,6 +1552,104 @@ def test_audit_warns_when_causal_temporal_order_gate_is_unassessed() -> None:
         runs=[assessed_run],
     )
     assert "PROTECTED_CAUSAL_TEMPORAL_ORDER_UNASSESSED" not in {
+        finding.code for finding in assessed_audit.findings
+    }
+
+
+def test_audit_warns_when_canary_target_gate_is_unassessed() -> None:
+    from test_ethics_gate import _human_protocol
+
+    plan = CanaryTargetPlan(
+        plan_id="masked-canary-plan",
+        candidate_target_ids=["actual-state", "delayed-replay"],
+        seed_commitment_sha256="1" * 64,
+        assignment_artifact_sha256="2" * 64,
+        masking_plan="A custodian withholds the target until analysis lock.",
+        ethical_disclosure="Participants consent to masked target conditions.",
+        assessment_gate_id="canary-target-assessed",
+    )
+    protocol = replace(
+        _human_protocol(
+            human_subjects=False,
+            quality_requirements=["integrity", "canary-target-assessed"],
+            canary_target_plan=plan,
+        ),
+        status=ProtocolStatus.FROZEN,
+    )
+    run = ResearchRun(
+        run_id="canary-run",
+        protocol_id=protocol.protocol_id,
+        protocol_hash=protocol.protocol_hash or "f" * 64,
+        analysis_mode=protocol.analysis_mode,
+        started_at="2026-09-02T12:01:00Z",
+        completed_at="2026-09-02T12:02:00Z",
+        executed_by="fixture",
+        analysis_code_hash="a" * 64,
+        environment_hash="b" * 64,
+        quality_gates=[
+            QualityGateResult(
+                "integrity",
+                QualityGateStatus.PASSED,
+                "Synthetic fixture gate.",
+                details={"evidence_sha256": "c" * 64},
+            )
+        ],
+        synthetic=True,
+        metadata={
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared",
+                "deviations": [],
+            }
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Canary audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[run],
+    )
+    assert "PROTECTED_EMPIRICAL_CANARY_TARGET_UNASSESSED" in {
+        finding.code for finding in audit.findings
+    }
+
+    assessed_run = replace(
+        run,
+        quality_gates=[
+            *run.quality_gates,
+            QualityGateResult(
+                "canary-target-assessed",
+                QualityGateStatus.PASSED,
+                "Synthetic canary assessment.",
+                details={
+                    "evidence_sha256": "d" * 64,
+                    "canary_target_assessment": {
+                        "plan_id": "masked-canary-plan",
+                        "assessment_status": "follows_no_target",
+                    },
+                },
+            ),
+        ],
+    )
+    assessed_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[assessed_run],
+    )
+    assert "PROTECTED_EMPIRICAL_CANARY_TARGET_UNASSESSED" not in {
         finding.code for finding in assessed_audit.findings
     }
 

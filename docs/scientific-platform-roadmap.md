@@ -2009,6 +2009,11 @@ outcomes remain visible in rigor and deterministic synthesis instead of being
 rephrased as support. This is an adversarial design commitment for future
 domain add-ons; it does not prove adaptation, mechanism, attribution, intent, or
 ethical adequacy.
+Rigor now also warns when a protected empirical protocol freezes such a canary
+target plan and recorded runs exist, but none carries a structured canary
+assessment on the frozen canary gate. The masked plan therefore cannot become
+silent support for target-following, adaptation, mechanism, attribution, or
+intent without an artifact-bound assessment result.
 Guided canary-target delivery: the provider-free JSON scaffold and terminal
 interview now collect the same canary plan before protocol review. Scaffold
 audit blocks fewer than two candidate targets, duplicate or padded target IDs,

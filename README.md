@@ -527,6 +527,11 @@ When the assessment cites JSON bytes that Faraday can inspect, run intake derive
 a `selected_value_sha256` over the exact value at the cited JSON Pointer and
 rejects caller-supplied digest drift. Replication-package verification replays
 that digest when the assessment cites a retained Faraday analysis result.
+Rigor also warns when a protected empirical protocol freezes a canary target
+plan and has recorded runs, but no run exposes a structured
+`details.canary_target_assessment` on the frozen canary gate. A masked plan by
+itself remains adversarial-design provenance, not evidence of target-following,
+adaptation, mechanism, attribution, or intent.
 The provider-free JSON scaffold and terminal interview can now draft the same
 canary target plan before protocol review. Guided review rejects fewer than two
 candidate targets, duplicate or padded target handles, noncanonical seed or

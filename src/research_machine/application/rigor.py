@@ -939,6 +939,31 @@ def audit_research_state(
                     "In the next run, attach a byte-verified temporal-order assessment to the registered causal temporal-order gate; do not infer causal direction from timing prose, assumptions, or favorable results."
                 ),
             )
+        canary_plan = protocol.canary_target_plan
+        if (
+            _protected_empirical(protocol)
+            and canary_plan is not None
+            and runs_by_protocol[protocol.protocol_id] > 0
+            and not any(
+                _has_structured_gate_detail_for_gate_ids(
+                    run,
+                    "canary_target_assessment",
+                    {canary_plan.assessment_gate_id},
+                )
+                for run in runs
+                if run.protocol_id == protocol.protocol_id
+            )
+        ):
+            add(
+                "PROTECTED_EMPIRICAL_CANARY_TARGET_UNASSESSED",
+                RigorSeverity.WARNING,
+                "Protected empirical protocol has a frozen canary-target assessment gate, but recorded runs expose no structured canary-target assessment for that gate.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "In the next run, attach the canary-target assessment to the frozen canary gate; do not infer target-following, adaptation, mechanism, attribution, or intent from the masked plan alone."
+                ),
+            )
         if runs_by_protocol[protocol.protocol_id] == 0:
             add(
                 "FROZEN_PROTOCOL_NOT_EXECUTED",
