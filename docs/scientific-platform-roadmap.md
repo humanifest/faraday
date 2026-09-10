@@ -1050,6 +1050,10 @@ diagnostic and rejects caller-supplied drift. Deterministic synthesis exposes
 the frozen assumption, every recorded disposition, and the selected-value
 digest. This closes an accountability gap but does not make any diagnostic
 sufficient to establish ignorability.
+Rigor audit now also flags protected empirical protocols that freeze a
+missingness-assessment gate and have recorded runs without any structured
+`missingness_assessment_result` on that frozen gate, keeping complete-case
+execution from silently substituting for the prospective missingness assessment.
 Replication-package verification now replays that performed missingness gate
 against the frozen analysis contract: the result must be exact, the assessment
 kind must match, passed/warning/failed gate status must agree with

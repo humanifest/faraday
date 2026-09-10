@@ -24,6 +24,7 @@ from research_machine.reporting.synthesis import build_synthesis
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     AnalysisMode,
+    AnalysisContract,
     CanaryTargetPlan,
     Claim,
     ClaimLevel,
@@ -1777,6 +1778,125 @@ def test_audit_warns_when_measurement_validity_results_are_unassessed() -> None:
         runs=[assessed_run],
     )
     assert "PROTECTED_EMPIRICAL_VALIDITY_RESULTS_UNASSESSED" not in {
+        finding.code for finding in assessed_audit.findings
+    }
+
+
+def test_audit_warns_when_missingness_assessment_is_unassessed() -> None:
+    from test_ethics_gate import _human_protocol
+
+    contract = AnalysisContract(
+        primary_hypothesis_id="h1",
+        primary_measurement_id="primary-measurement",
+        method="independent_mean_difference",
+        outcome_column="outcome",
+        group_column="assignment",
+        groups=["control", "intervention"],
+        estimand="Mean difference between intervention and control.",
+        missing_data_policy="complete_case",
+        assignment_type="randomized",
+        effect_estimate_path="/effect/estimate",
+        uncertainty_path="/effect/interval",
+        null_value=0.0,
+        support_rule="confidence_interval_excludes_null",
+        missingness_assumption=(
+            "Excluded records do not materially distort the registered contrast."
+        ),
+        missingness_assessment_plan=(
+            "Inspect total and group-specific exclusions before interpretation."
+        ),
+        missingness_failure_response=(
+            "Stop primary interpretation if missingness is not defensible."
+        ),
+        missingness_assessment_kind="empirical_diagnostic",
+        missingness_assessment_gate_id="missingness-assessed",
+    )
+    protocol = replace(
+        _human_protocol(
+            human_subjects=False,
+            analysis_contract=contract,
+            quality_requirements=["integrity", "missingness-assessed"],
+        ),
+        status=ProtocolStatus.FROZEN,
+    )
+    run = ResearchRun(
+        run_id="missingness-run",
+        protocol_id=protocol.protocol_id,
+        protocol_hash=protocol.protocol_hash or "f" * 64,
+        analysis_mode=protocol.analysis_mode,
+        started_at="2026-09-02T12:01:00Z",
+        completed_at="2026-09-02T12:02:00Z",
+        executed_by="fixture",
+        analysis_code_hash="a" * 64,
+        environment_hash="b" * 64,
+        quality_gates=[
+            QualityGateResult(
+                "integrity",
+                QualityGateStatus.PASSED,
+                "Synthetic fixture gate.",
+                details={"evidence_sha256": "c" * 64},
+            )
+        ],
+        synthetic=True,
+        metadata={
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared",
+                "deviations": [],
+            }
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Missingness audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[run],
+    )
+    assert "PROTECTED_EMPIRICAL_MISSINGNESS_ASSESSMENT_UNASSESSED" in {
+        finding.code for finding in audit.findings
+    }
+
+    assessed_run = replace(
+        run,
+        quality_gates=[
+            *run.quality_gates,
+            QualityGateResult(
+                "missingness-assessed",
+                QualityGateStatus.PASSED,
+                "Synthetic missingness assessment.",
+                details={
+                    "evidence_sha256": "d" * 64,
+                    "missingness_assessment_result": {
+                        "observed_diagnostic": "No fixture exclusions occurred.",
+                        "interpretation": "No fixture contradiction was encoded.",
+                        "assessment_status": "consistent_with_assumption",
+                        "assessment_kind": "empirical_diagnostic",
+                        "evidence_sha256": "d" * 64,
+                        "evidence_location": "/missingness/primary",
+                    },
+                },
+            ),
+        ],
+    )
+    assessed_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[assessed_run],
+    )
+    assert "PROTECTED_EMPIRICAL_MISSINGNESS_ASSESSMENT_UNASSESSED" not in {
         finding.code for finding in assessed_audit.findings
     }
 

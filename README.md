@@ -260,6 +260,11 @@ freeze. When the cited output is inspected as JSON, run intake derives
 rejects caller-supplied drift. Synthesis preserves the assumption, kind,
 disposition, artifact, location, and selected-value digest while explicitly
 avoiding a claim that ignorability was proved.
+Rigor audit also warns when a protected empirical protocol freezes a
+missingness-assessment gate and has recorded runs, but none of those runs expose
+the structured `missingness_assessment_result` on that frozen gate. A complete-
+case plan, passed unrelated gates, or favorable estimate cannot stand in for the
+artifact-bound assessment.
 
 To revise through questions without JSON or an LLM, use `./research --workspace
 PATH design interview --revise-hypothesis HYPOTHESIS_ID`. The interview asks for

@@ -891,6 +891,34 @@ def audit_research_state(
                         + "; do not infer validity from the prospective plan or favorable analysis output."
                     ),
                 )
+        missingness_gate_id = (
+            protocol.analysis_contract.missingness_assessment_gate_id
+            if protocol.analysis_contract is not None else ""
+        )
+        if (
+            _protected_empirical(protocol)
+            and missingness_gate_id
+            and runs_by_protocol[protocol.protocol_id] > 0
+            and not any(
+                _has_structured_gate_detail_for_gate_ids(
+                    run,
+                    "missingness_assessment_result",
+                    {missingness_gate_id},
+                )
+                for run in runs
+                if run.protocol_id == protocol.protocol_id
+            )
+        ):
+            add(
+                "PROTECTED_EMPIRICAL_MISSINGNESS_ASSESSMENT_UNASSESSED",
+                RigorSeverity.WARNING,
+                "Protected empirical protocol has a frozen missingness-assessment gate, but recorded runs expose no structured missingness assessment for that gate.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "In the next run, attach an artifact-bound missingness assessment to the frozen gate; do not infer ignorable missingness from the prospective plan, complete-case execution, or favorable results."
+                ),
+            )
         if _protected_empirical(protocol) and not protocol.sample_size_plan:
             add(
                 "PROTECTED_EMPIRICAL_SAMPLE_SIZE_PLAN_UNVERIFIED",
