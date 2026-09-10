@@ -117,6 +117,7 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
     reconciliation = tmp_path / "reconciliation.json"
     reconciliation_sha = write_json(reconciliation, {"study_reconciliation_version": 1,
         "status": "study_identities_reconciled", "bias_assessment_sha256": bias_sha,
+        "snapshot_id": "snap", "reviewer": "Identity reviewer",
         "independent_review": True,
         "relationship_counts": {"duplicate_report": 0, "independent": 0, "overlapping_cohort": 0, "unclear": 0},
         "scientific_evidence_eligible": False,

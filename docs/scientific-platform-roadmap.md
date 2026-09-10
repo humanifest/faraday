@@ -1582,6 +1582,13 @@ replay each retained study-identity record: source IDs, registration IDs,
 population, setting, recruitment period, sample size, identity notes, and every
 pairwise relationship with rationale and cited locations must remain canonical
 and complete before mapped claims can be joined.
+Study-reconciliation boundary replay now also validates its own version,
+retained bias-assessment SHA-256, canonical snapshot handle, reviewer handle,
+retained study list, retained relationship list, derived relationship counts,
+and derived status before evidence-map construction can trust it. A
+hash-consistent identity review can no longer rewrite its upstream bias anchor,
+reviewer identity, study roster, or pairwise-resolution status through envelope
+fields alone.
 `research literature evidence-map` verifies every hash link from extraction
 through citation review, bias assessment, and reconciled study identities before
 joining claims. The expected study-reconciliation hash must be canonical

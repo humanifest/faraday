@@ -31,6 +31,17 @@ def validate_study_reconciliation_boundary(
     require_reconciliation_contract: bool = False,
 ) -> None:
     """Replay study-reconciliation non-authority boundaries and pair counts."""
+    if (
+        not isinstance(reconciliation, dict)
+        or reconciliation.get("study_reconciliation_version") != 1
+    ):
+        raise ValidationError("study reconciliation version is invalid")
+    require_sha256(
+        reconciliation.get("bias_assessment_sha256"),
+        "study reconciliation bias_assessment_sha256",
+    )
+    _canonical_text(reconciliation.get("snapshot_id"), "study reconciliation snapshot_id")
+    _canonical_text(reconciliation.get("reviewer"), "study reconciliation reviewer")
     if reconciliation.get("independent_review") is not True:
         raise ValidationError("study reconciliation must retain independent-review status")
     if reconciliation.get("scientific_evidence_eligible") is not False:
@@ -44,6 +55,16 @@ def validate_study_reconciliation_boundary(
         raise ValidationError("study reconciliation requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
         _canonical_text(limitation, f"study reconciliation limitation {index + 1}")
+    if (
+        not isinstance(reconciliation.get("studies"), list)
+        or not reconciliation["studies"]
+    ):
+        raise ValidationError("study reconciliation requires retained studies")
+    if (
+        not isinstance(relationships, list)
+        or reconciliation.get("relationships") != relationships
+    ):
+        raise ValidationError("study reconciliation relationships must be retained")
     counts = {relationship: 0 for relationship in sorted(_RELATIONSHIPS)}
     for item in relationships:
         if not isinstance(item, dict):

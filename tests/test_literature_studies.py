@@ -6,7 +6,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.studies import create_study_reconciliation
+from research_machine.literature.studies import (
+    create_study_reconciliation,
+    validate_study_reconciliation_boundary,
+)
 
 
 DOMAINS = [
@@ -115,6 +118,27 @@ def test_reconciliation_preserves_canonical_study_source_and_registration_handle
     assert result["studies"][0]["source_ids"] == ["s1", "s1-followup"]
     assert result["studies"][0]["registration_ids"] == ["reg-1"]
     assert result["relationships"][0]["study_ids"] == ["study-1", "study-2"]
+
+
+def test_reconciliation_boundary_replays_artifact_envelope(tmp_path):
+    bias, digest = bias_file(tmp_path)
+    result = create_study_reconciliation(bias, digest, review(), tmp_path / "reconciliation")
+    validate_study_reconciliation_boundary(result, result["relationships"])
+
+    for mutate, message in [
+        (lambda candidate: candidate.update({"study_reconciliation_version": 2}), "version is invalid"),
+        (lambda candidate: candidate.update({"bias_assessment_sha256": "A" * 64}), "lowercase SHA-256"),
+        (lambda candidate: candidate.update({"snapshot_id": " snap "}), "canonical"),
+        (lambda candidate: candidate.update({"reviewer": " Identity reviewer "}), "canonical"),
+        (lambda candidate: candidate.update({"independent_review": False}), "independent-review"),
+        (lambda candidate: candidate.__setitem__("studies", []), "requires retained studies"),
+        (lambda candidate: candidate.pop("relationships"), "relationships must be retained"),
+        (lambda candidate: candidate.update({"status": "review_required"}), "status does not replay"),
+    ]:
+        candidate = json.loads(json.dumps(result))
+        mutate(candidate)
+        with pytest.raises(ValidationError, match=message):
+            validate_study_reconciliation_boundary(candidate, candidate.get("relationships", []))
 
 
 @pytest.mark.parametrize("failure", [
