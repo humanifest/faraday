@@ -1407,8 +1407,9 @@ upgraded. The collaborator context, proposal, and review input contracts are now
 published as provider-neutral JSON Schemas with synthetic examples, so apps and
 plugins can preflight the frozen context shape, retained write boundary,
 required uncertainty, alternatives, disconfirmers, falsification conditions,
-review-only authority, and manual route decisions before Faraday's service
-repeats the trusted-hash, grounding, and compatibility checks. The schemas are
+review-only authority, including capitalization variants of prohibited
+authority claims, and manual route decisions before Faraday's service repeats
+the trusted-hash, grounding, and compatibility checks. The schemas are
 only exchange shape contracts; they do not validate scientific adequacy,
 authenticate reviewers, invoke a provider, or authorize any canonical write.
 

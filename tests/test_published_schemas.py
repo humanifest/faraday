@@ -766,6 +766,12 @@ def test_collaborator_proposal_schema_requires_provider_for_model_generators():
         lambda proposal: proposal.update(
             {"summary": "This proposal confirms the result."}
         ),
+        lambda proposal: proposal.update(
+            {"summary": "This proposal APPROVED the result."}
+        ),
+        lambda proposal: proposal["suggestions"][0].update(
+            {"statement": "This proposal Validated the route."}
+        ),
         lambda proposal: proposal["suggestions"][0].update(
             {"rationale": "This proposal authorizes evidence creation."}
         ),
@@ -806,8 +812,14 @@ def test_collaborator_review_schema_constrains_route_authority(mutation):
         lambda review: review.update(
             {"overall_assessment": "This review approves the proposal."}
         ),
+        lambda review: review.update(
+            {"overall_assessment": "This review APPROVES the proposal."}
+        ),
         lambda review: review["decisions"][0].update(
             {"rationale": "The proposal confirms the result."}
+        ),
+        lambda review: review["decisions"][0].update(
+            {"rationale": "This triage proposes Evidence Creation."}
         ),
     ],
 )
