@@ -34,8 +34,10 @@ def bias_domains(judgment):
 
 def bias_file(tmp_path):
     value = {"bias_assessment_version": 1, "status": "bias_assessment_recorded",
+        "citation_verification_sha256": "2" * 64,
         "snapshot_id": "snap", "reviewer": "Bias reviewer",
         "independent_review": True,
+        "domain_order": DOMAINS,
         "overall_judgment_counts": {"low": 1, "some_concerns": 1, "high": 0, "unclear": 0},
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,

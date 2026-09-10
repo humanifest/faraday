@@ -95,7 +95,13 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
     judgment_counts = {"low": 0, "some_concerns": 0, "high": 0, "unclear": 0}
     judgment_counts[bias_judgment] += 1
     bias_sha = write_json(bias, {"bias_assessment_version": 1, "status": "bias_assessment_recorded",
-        "citation_verification_sha256": verification_sha, "independent_review": True,
+        "citation_verification_sha256": verification_sha, "snapshot_id": "snap",
+        "reviewer": "Bias reviewer", "independent_review": True,
+        "domain_order": [
+            "selection", "confounding", "exposure_or_intervention_classification",
+            "deviations_from_intended_conditions", "missing_data", "outcome_measurement",
+            "selective_reporting",
+        ],
         "overall_judgment_counts": judgment_counts,
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,

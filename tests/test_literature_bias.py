@@ -6,7 +6,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.bias import create_bias_assessment
+from research_machine.literature.bias import (
+    create_bias_assessment,
+    validate_bias_assessment_boundary,
+)
 
 
 DOMAINS = ["selection", "confounding", "exposure_or_intervention_classification",
@@ -107,6 +110,27 @@ def test_bias_assessment_preserves_canonical_study_and_source_handles(tmp_path):
     assert result["assessments"][0]["study_id"] == "study-1"
     assert result["assessments"][0]["source_ids"] == ["s1", "s2"]
     assert result["assessments"][0]["domains"][0]["evidence_locations"] == ["methods"]
+
+
+def test_bias_assessment_boundary_replays_artifact_envelope(tmp_path):
+    verification, digest = verification_file(tmp_path)
+    result = create_bias_assessment(verification, digest, review(), tmp_path / "bias")
+    validate_bias_assessment_boundary(result, result["assessments"])
+
+    for mutate, message in [
+        (lambda candidate: candidate.update({"bias_assessment_version": 2}), "version is invalid"),
+        (lambda candidate: candidate.update({"citation_verification_sha256": "A" * 64}), "lowercase SHA-256"),
+        (lambda candidate: candidate.update({"snapshot_id": " snap "}), "canonical"),
+        (lambda candidate: candidate.update({"reviewer": " Bias reviewer "}), "canonical"),
+        (lambda candidate: candidate.update({"independent_review": False}), "independent-review"),
+        (lambda candidate: candidate.__setitem__("domain_order", list(reversed(candidate["domain_order"]))), "domain_order"),
+        (lambda candidate: candidate.__setitem__("assessments", []), "assessments must be retained"),
+        (lambda candidate: candidate.update({"status": "review_required"}), "status is invalid"),
+    ]:
+        candidate = json.loads(json.dumps(result))
+        mutate(candidate)
+        with pytest.raises(ValidationError, match=message):
+            validate_bias_assessment_boundary(candidate, candidate["assessments"])
 
 
 @pytest.mark.parametrize("failure", [

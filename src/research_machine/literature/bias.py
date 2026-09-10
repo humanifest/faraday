@@ -51,6 +51,14 @@ def validate_bias_assessment_boundary(
     require_assessment_contract: bool = False,
 ) -> None:
     """Replay risk-of-bias authority, independence, and summary counts."""
+    if not isinstance(bias, dict) or bias.get("bias_assessment_version") != 1:
+        raise ValidationError("bias assessment version is invalid")
+    require_sha256(
+        bias.get("citation_verification_sha256"),
+        "bias assessment citation_verification_sha256",
+    )
+    _canonical_text(bias.get("snapshot_id"), "bias assessment snapshot_id")
+    _canonical_text(bias.get("reviewer"), "bias reviewer")
     if bias.get("independent_review") is not True:
         raise ValidationError("bias assessment must retain independent-review status")
     if bias.get("scientific_evidence_eligible") is not False:
@@ -64,6 +72,14 @@ def validate_bias_assessment_boundary(
         raise ValidationError("bias assessment requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
         _canonical_text(limitation, f"bias assessment limitation {index + 1}")
+    if bias.get("domain_order") != list(_DOMAINS):
+        raise ValidationError("bias assessment domain_order is invalid")
+    if (
+        not isinstance(assessments, list)
+        or not assessments
+        or bias.get("assessments") != assessments
+    ):
+        raise ValidationError("bias assessment assessments must be retained")
 
     counts: dict[str, int] = {
         judgment: 0 for judgment in ("low", "some_concerns", "high", "unclear")
@@ -75,6 +91,8 @@ def validate_bias_assessment_boundary(
         counts[judgment] += 1
     if bias.get("overall_judgment_counts") != counts:
         raise ValidationError("bias assessment overall_judgment_counts do not replay from studies")
+    if bias.get("status") != "bias_assessment_recorded":
+        raise ValidationError("bias assessment status is invalid")
     if require_assessment_contract:
         seen_study_ids: set[str] = set()
         required_assessment = {

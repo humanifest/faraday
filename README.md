@@ -1233,7 +1233,13 @@ splitting or merging provenance after citation review. Bias assessment also repl
 citation assessment's contract fields before accepting study-level judgments:
 duplicate extraction IDs, padded claim or citation-location text, malformed
 source-byte anchors, and altered extracted-claim digests fail closed even when
-the citation summary counts still match. Study reconciliation and evidence-map
+the citation summary counts still match. The bias-assessment boundary now also
+replays its own version, retained citation-verification SHA-256, canonical
+snapshot handle, reviewer handle, domain order, retained assessment list,
+derived overall-judgment counts, and recorded status before study reconciliation
+or evidence-map construction can trust it. A hash-consistent bias review cannot
+rewrite its upstream citation anchor, reviewer identity, domain order, or
+study-level summary without failing boundary replay. Study reconciliation and evidence-map
 construction now replay each retained study-identity record: source IDs,
 registration IDs, population, setting, recruitment period, sample size, identity
 notes, and every pairwise relationship with rationale and cited locations must
