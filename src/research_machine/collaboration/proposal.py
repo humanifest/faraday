@@ -193,6 +193,16 @@ _CONTEXT_RECORD_COLLECTIONS = {
     "runs": ("run:", "run_id"),
     "ethics_review_events": ("ethics_review_event:", "event_id"),
 }
+_OPERATIONAL_CONTEXT_KEYS = {
+    "artifact_root",
+    "attestation_schema_path",
+    "custody_artifact_root",
+    "ethics_artifact_root",
+    "review_artifact_root",
+    "run_artifact_root",
+    "run_attestation_schema_path",
+}
+_REDACTED_CONTEXT_PREFIX = "[redacted:"
 
 
 def _duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -574,9 +584,30 @@ def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
     return refs
 
 
+def _validate_context_operational_redaction(value: Any, path: str) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            child_path = f"{path}.{key}" if path else key
+            if key in _OPERATIONAL_CONTEXT_KEYS and item:
+                if not (
+                    isinstance(item, str)
+                    and item.startswith(_REDACTED_CONTEXT_PREFIX)
+                ):
+                    raise ValidationError(
+                        "collaborator context operational field "
+                        f"{child_path} must be redacted before freezing"
+                    )
+            else:
+                _validate_context_operational_redaction(item, child_path)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_context_operational_redaction(item, f"{path}[{index}]")
+
+
 def _validate_context_snapshot(context: dict[str, Any]) -> list[str]:
     if context.get("context_version") != 1:
         raise ValidationError("collaborator context_version must be 1")
+    _validate_context_operational_redaction(context, "context")
     _context_write_boundary(context)
     _canonical_text(context.get("purpose", ""), "context purpose")
     indexed_refs = _context_reference_ids(context)

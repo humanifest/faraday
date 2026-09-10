@@ -337,6 +337,32 @@ def test_collaborator_context_redacts_operational_review_roots(
     ] == str(review_root.resolve())
 
 
+def test_context_snapshot_rejects_unredacted_operational_roots(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[
+            {
+                "ref": "evidence_status_event:evidence-status-1",
+                "kind": "evidence_status_event",
+            }
+        ]
+    )
+    context["evidence_status_events"][0][
+        "review_artifact_root"
+    ] = "/private/review-root"
+
+    with pytest.raises(
+        ValidationError,
+        match=(
+            "context.evidence_status_events\\[0\\].review_artifact_root "
+            "must be redacted"
+        ),
+    ):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
+
+
 def test_collaborator_context_exposes_pending_review_hypotheses(
     tmp_path: Path,
 ) -> None:

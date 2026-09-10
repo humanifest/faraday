@@ -936,7 +936,9 @@ write boundary from the trusted context bytes, and proposal/review records retai
 them for later inspection. The frozen context redacts operational artifact roots
 and attestation-schema paths while preserving stable IDs, hashes, statuses, and
 citable review-event records, so optional collaborators do not receive local
-custody paths merely to reason about the scientific state. The frozen context
+custody paths merely to reason about the scientific state. Context freezing and
+proposal validation both reject any retained collaborator context that still
+contains an unredacted operational root or attestation-schema path. The frozen context
 also carries a compact reference index such as
 `question:<id>`, `claim:<id>`, `hypothesis:<id>`, `evidence:<id>`,
 `evidence_status_event:<id>`, `protocol:<id>`, `run:<id>`, and
