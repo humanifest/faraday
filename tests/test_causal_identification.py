@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -1093,7 +1094,28 @@ def test_observational_causal_adjustment_executes_the_exact_frozen_covariates(
     ]) == 0
     recorded = json.loads(capsys.readouterr().out)["result"]
     assert recorded["status"] == "completed"
+    recorded_missingness_gate = next(
+        item for item in recorded["quality_gates"]
+        if item["gate_id"] == "missingness-assessed"
+    )
+    recorded_missingness = recorded_missingness_gate["details"][
+        "missingness_assessment_result"
+    ]
+    expected_selected_value_sha256 = hashlib.sha256(
+        (json.dumps(
+            execution["result"]["result"]["exclusion_report"],
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+            allow_nan=False,
+        ) + "\n").encode()
+    ).hexdigest()
+    assert (
+        recorded_missingness["selected_value_sha256"]
+        == expected_selected_value_sha256
+    )
     synthesis = service.build_synthesis()["content"]
     assert "Missingness assessment provenance" in synthesis
     assert "via dedicated gate `missingness-assessed`" in synthesis
     assert "`/result/exclusion_report`" in synthesis
+    assert expected_selected_value_sha256 in synthesis

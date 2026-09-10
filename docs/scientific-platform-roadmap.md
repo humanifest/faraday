@@ -1000,17 +1000,21 @@ dedicated required gate. The gate cannot be reused for control or causal-
 assumption evaluation. Performed runs retain one exact artifact-bound assessment;
 passed, warning, and failed dispositions must agree with consistent,
 inconclusive, and contradicted results. Verified analysis-result citations use a
-resolving absolute JSON Pointer. Deterministic synthesis exposes the frozen
-assumption and every recorded disposition. This closes an accountability gap but
-does not make any diagnostic sufficient to establish ignorability.
+resolving absolute JSON Pointer. When Faraday can inspect the cited JSON, run
+intake derives `selected_value_sha256` for the exact selected missingness
+diagnostic and rejects caller-supplied drift. Deterministic synthesis exposes
+the frozen assumption, every recorded disposition, and the selected-value
+digest. This closes an accountability gap but does not make any diagnostic
+sufficient to establish ignorability.
 Replication-package verification now replays that performed missingness gate
 against the frozen analysis contract: the result must be exact, the assessment
 kind must match, passed/warning/failed gate status must agree with
 `consistent_with_assumption`, `inconclusive`, or
 `contradicted_assumption`, and the cited assessment hash must be a packaged run
-output. Exported packages therefore retain missingness warnings and
-contradictions without converting them into proof that complete-case analysis
-was unbiased.
+output. Retained Faraday result bodies must also replay a matching
+`selected_value_sha256` for the selected missingness diagnostic. Exported
+packages therefore retain missingness warnings and contradictions without
+converting them into proof that complete-case analysis was unbiased.
 The bundled descriptive summary, Pearson correlation, two-group estimators,
 adjusted model, and missingness report require requested diagnostic columns,
 comparison labels, covariates, unit or pair handles, family names, and row group
@@ -1181,8 +1185,10 @@ preprocessing look passed; self-contained comparison replay remains a retained
 conformance-record check when the artifact bytes are present. Missingness-assessment gate
 metadata is now also replayed against the frozen complete-case analysis
 contract: retained assessment kind and status must match the registered gate
-semantics, and the assessment evidence must cite a packaged run output. This
-keeps exclusions, inconclusive diagnostics, and contradicted missingness
+semantics, and the assessment evidence must cite a packaged run output. When
+the evidence points into a retained Faraday result body, package verification
+also recomputes the selected missingness diagnostic's `selected_value_sha256`.
+This keeps exclusions, inconclusive diagnostics, and contradicted missingness
 assumptions attached to exported runs without treating them as proof that
 missingness was ignorable. Causal-assumption gate metadata is now replayed
 against the packaged causal audit as well: every mapped assumption category must

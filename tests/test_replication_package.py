@@ -2563,6 +2563,7 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
         ("blank_interpretation", "interpretation must be nonempty text"),
         ("relative_analysis_location", "requires an absolute JSON Pointer"),
         ("missing_analysis_location", "does not resolve"),
+        ("selected_value_mismatch", "selected_value_sha256 disagrees"),
         ("skipped_gate_with_result", "skipped quality gate"),
     ],
 )
@@ -2822,6 +2823,8 @@ def test_replication_package_verifies_missingness_gate_metadata(
         result["evidence_location"] = "missingness/exclusion_report"
     elif mutation == "missing_analysis_location":
         result["evidence_location"] = "/result/missingness/missing-report"
+    elif mutation == "selected_value_mismatch":
+        result["selected_value_sha256"] = "0" * 64
     elif mutation == "skipped_gate_with_result":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"

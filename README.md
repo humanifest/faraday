@@ -241,8 +241,11 @@ self-comparisons, or comparison identities.
 Run intake requires an exact artifact-bound result. Passed, warning, and failed
 gates correspond respectively to `consistent_with_assumption`, `inconclusive`,
 and `contradicted_assumption`; the classification cannot be upgraded after
-freeze. Synthesis preserves the assumption, kind, disposition, artifact, and
-location while explicitly avoiding a claim that ignorability was proved.
+freeze. When the cited output is inspected as JSON, run intake derives
+`selected_value_sha256` for the exact selected missingness diagnostic and
+rejects caller-supplied drift. Synthesis preserves the assumption, kind,
+disposition, artifact, location, and selected-value digest while explicitly
+avoiding a claim that ignorability was proved.
 
 To revise through questions without JSON or an LLM, use `./research --workspace
 PATH design interview --revise-hypothesis HYPOTHESIS_ID`. The interview asks for
@@ -844,8 +847,10 @@ complete-case gate: the retained assessment kind must match the analysis
 contract, passed/warning/failed gates must retain
 `consistent_with_assumption`, `inconclusive`, or
 `contradicted_assumption` respectively, and the assessment evidence must cite a
-packaged run output. This preserves missingness ambiguity and contradictions in
-the handoff without treating a diagnostic as proof that exclusions were
+packaged run output. When that output is a retained Faraday result body, the
+verifier also recomputes `selected_value_sha256` for the exact selected
+missingness diagnostic. This preserves missingness ambiguity and contradictions
+in the handoff without treating a diagnostic as proof that exclusions were
 ignorable. Structured causal-assumption gate metadata is replayed against the
 frozen assumption register: every mapped category must have exactly one result,
 the retained assessment kind and constrained status must match the registered

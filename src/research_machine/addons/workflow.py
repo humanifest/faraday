@@ -110,8 +110,18 @@ def composite_quality_gates(adjudication: dict[str, Any], output_sha256: str) ->
                 )
         missingness = details.get("missingness_assessment_result")
         if isinstance(missingness, dict):
+            source_missingness = source_gate.get("details", {}).get(
+                "missingness_assessment_result"
+            )
+            if not isinstance(source_missingness, dict):
+                raise ValidationError(
+                    "authoritative source gate lacks missingness assessment result"
+                )
             missingness["evidence_sha256"] = output_sha256
             missingness["evidence_location"] = f"{base}/missingness_assessment_result"
+            missingness["selected_value_sha256"] = _selected_json_value_sha256(
+                source_missingness
+            )
         causal = details.get("causal_assumption_results")
         if isinstance(causal, dict):
             for category, result in causal.items():

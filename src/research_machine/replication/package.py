@@ -1286,7 +1286,12 @@ def _validate_missingness_gate_metadata(
         "evidence_sha256",
         "evidence_location",
     }
-    if not isinstance(result, dict) or set(result) != required_fields:
+    optional_fields = {"selected_value_sha256"}
+    if (
+        not isinstance(result, dict)
+        or not required_fields <= set(result)
+        or set(result) - required_fields - optional_fields
+    ):
         raise ValidationError(
             f"package run {run_id} performed missingness assessment gate {gate.gate_id} requires one exact result"
         )
@@ -1329,13 +1334,28 @@ def _validate_missingness_gate_metadata(
         raise ValidationError(
             f"package run {run_id} missingness assessment evidence must reference a run output artifact"
         )
-    _validate_analysis_result_location(
+    selected_value_sha256 = result.get("selected_value_sha256")
+    if selected_value_sha256 is not None:
+        selected_value_sha256 = require_sha256(
+            selected_value_sha256, f"{prefix}.selected_value_sha256"
+        )
+    selected_value = _resolve_analysis_result_location(
         run_id=run_id,
         digest=digest,
         location=result["evidence_location"],
         field_name="missingness assessment evidence_location",
         verified_results_by_sha=verified_results_by_sha,
     )
+    if selected_value is not None:
+        expected_selected_value_sha256 = _result_body_sha256(selected_value)
+        if selected_value_sha256 is None:
+            raise ValidationError(
+                f"package run {run_id} gate {gate.gate_id} missingness assessment lacks selected_value_sha256"
+            )
+        if selected_value_sha256 != expected_selected_value_sha256:
+            raise ValidationError(
+                f"package run {run_id} gate {gate.gate_id} missingness selected_value_sha256 disagrees with retained result body"
+            )
 
 
 def _validate_causal_assumption_gate_metadata(

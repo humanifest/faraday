@@ -776,7 +776,8 @@ def build_synthesis(
                     f"{result.get('assessment_kind', 'legacy_unclassified')}; "
                     f"{result.get('assessment_status', 'unclassified')}; artifact "
                     f"`{result.get('evidence_sha256', 'unavailable')}` at "
-                    f"`{result.get('evidence_location', 'unavailable')}`."
+                    f"`{result.get('evidence_location', 'unavailable')}`; "
+                    f"selected value `{result.get('selected_value_sha256', 'unavailable')}`."
                 )
     causal_protocols = [protocol for protocol in protocols if protocol.causal_claim]
     if causal_protocols:
