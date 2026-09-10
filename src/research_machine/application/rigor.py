@@ -83,6 +83,30 @@ def _dataset_artifact_verification_passed(dataset: DatasetManifest) -> bool:
     )
 
 
+def _dataset_measurement_custody_verification_passed(
+    dataset: DatasetManifest,
+    protocol: ExperimentProtocol,
+) -> bool:
+    verification = dataset.metadata.get("measurement_custody_verification")
+    if not isinstance(verification, dict):
+        return False
+    integrity = verification.get("artifact_integrity")
+    return (
+        isinstance(protocol.protocol_hash, str)
+        and len(protocol.protocol_hash) == 64
+        and verification.get("protocol_hash") == protocol.protocol_hash
+        and verification.get("required_gate_ids")
+        == list(protocol.measurement_custody_requirements)
+        and isinstance(verification.get("custody_artifact_root"), str)
+        and bool(verification["custody_artifact_root"].strip())
+        and isinstance(verification.get("custody_receipt_sha256"), str)
+        and len(verification["custody_receipt_sha256"]) == 64
+        and isinstance(integrity, dict)
+        and integrity.get("status") == "passed"
+        and integrity.get("all_artifacts_match") is True
+    )
+
+
 def _has_preprocessing_conformance_gate(run: ResearchRun) -> bool:
     return any(
         isinstance(gate.details.get("preprocessing_conformance"), dict)
@@ -498,6 +522,33 @@ def audit_research_state(
                 remediation=(
                     "Restore the frozen protocol or register a new protected dataset "
                     "without rewriting this record."
+                ),
+            )
+        protocol = protocol_by_id.get(dataset.protocol_id)
+        if (
+            protocol is not None
+            and protocol.measurement_custody_requirements
+            and not _dataset_measurement_custody_verification_passed(
+                dataset, protocol
+            )
+        ):
+            add(
+                "PROTECTED_DATASET_MEASUREMENT_CUSTODY_VERIFICATION_MISSING",
+                RigorSeverity.ERROR,
+                (
+                    "Protected dataset lacks a passed service-generated "
+                    "measurement-custody verification receipt for the exact frozen "
+                    "protocol and required custody gates."
+                ),
+                entity_type="dataset",
+                entity_id=dataset.dataset_id,
+                remediation=(
+                    "Treat the dataset as unusable for protected analysis until it "
+                    "is registered through the canonical service with the original "
+                    "custody receipt, local custody-artifact root, exact protocol "
+                    "hash, exact required custody gates, and current-byte "
+                    "verification; do not trust declared artifact hashes or a "
+                    "generic custody note."
                 ),
             )
         if (

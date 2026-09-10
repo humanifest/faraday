@@ -2166,6 +2166,12 @@ Rigor audit also flags legacy or imported non-synthetic confirmatory and
 replication datasets that lack a passed service-generated
 `dataset_artifact_verification` receipt, so a protected dataset cannot look
 analysis-ready on declared artifact hashes alone.
+For protocols with frozen measurement-custody requirements, rigor also flags
+protected datasets without a passed service-generated
+`measurement_custody_verification` receipt bound to the exact frozen protocol
+hash and ordered custody gates. Observation-byte verification and custody replay
+remain separate obligations; neither declared hashes nor generic custody prose
+can make a protected dataset analysis-ready.
 
 Ethics-gate delivery: a human-subject protocol cannot freeze until its consent,
 withdrawal, privacy, retention/deletion, and risk plans are explicit and it

@@ -1274,6 +1274,88 @@ def test_audit_flags_unverified_protected_dataset_observation_bytes() -> None:
     }
 
 
+def test_audit_flags_missing_protected_dataset_measurement_custody() -> None:
+    from test_ethics_gate import _human_protocol
+
+    protocol = replace(
+        _human_protocol(
+            human_subjects=False,
+            measurement_custody_requirements=["clock-sync"],
+        ),
+        status=ProtocolStatus.FROZEN,
+        protocol_hash="c" * 64,
+    )
+    dataset = DatasetManifest(
+        dataset_id="custody-bound-observations",
+        name="Custody-bound observations",
+        role=DatasetRole.CONFIRMATORY,
+        created_at="2026-09-02T12:00:00Z",
+        artifacts=[DatasetArtifact("observations.csv", "a" * 64)],
+        protocol_id=protocol.protocol_id,
+        synthetic=False,
+        metadata={
+            "dataset_artifact_verification": {
+                "artifact_integrity": {
+                    "status": "passed",
+                    "all_artifacts_match": True,
+                }
+            }
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Measurement custody audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[dataset],
+        protocols=[protocol],
+        runs=[],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "PROTECTED_DATASET_MEASUREMENT_CUSTODY_VERIFICATION_MISSING"
+    )
+    assert finding.severity is RigorSeverity.ERROR
+    assert finding.entity_id == dataset.dataset_id
+    assert "generic custody note" in finding.remediation
+
+    verified_dataset = replace(
+        dataset,
+        metadata={
+            **dataset.metadata,
+            "measurement_custody_verification": {
+                "protocol_hash": protocol.protocol_hash,
+                "required_gate_ids": ["clock-sync"],
+                "custody_artifact_root": "/tmp/faraday-custody-fixture",
+                "custody_receipt_sha256": "b" * 64,
+                "artifact_integrity": {
+                    "status": "passed",
+                    "all_artifacts_match": True,
+                },
+            },
+        },
+    )
+    verified_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[verified_dataset],
+        protocols=[protocol],
+        runs=[],
+    )
+    assert "PROTECTED_DATASET_MEASUREMENT_CUSTODY_VERIFICATION_MISSING" not in {
+        finding.code for finding in verified_audit.findings
+    }
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [

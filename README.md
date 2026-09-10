@@ -1806,6 +1806,12 @@ Rigor audit flags legacy or imported non-synthetic confirmatory and replication
 datasets whose metadata lacks a passed service-generated
 `dataset_artifact_verification` receipt. Declared artifact hashes alone do not
 authorize protected analysis or evidence.
+When the frozen protocol requires measurement custody, rigor also flags protected
+datasets that lack a passed service-generated `measurement_custody_verification`
+receipt matching the exact frozen protocol hash and required custody-gate order.
+A dataset artifact receipt or free-text custody note cannot substitute for replay
+of raw sources, transformation code, derived outputs, calibration support, and
+gate evidence.
 
 ## What works now
 
