@@ -1325,6 +1325,23 @@ def test_audit_flags_missing_protected_dataset_measurement_custody() -> None:
     assert finding.severity is RigorSeverity.ERROR
     assert finding.entity_id == dataset.dataset_id
     assert "generic custody note" in finding.remediation
+    synthesis = build_synthesis(
+        inquiry,
+        [],
+        [],
+        [],
+        [],
+        [dataset],
+        [protocol],
+        [],
+        [],
+        [],
+        audit,
+        [],
+    )
+    assert "observation bytes: service-verified" in synthesis
+    assert "measurement custody: missing exact service verification" in synthesis
+    assert "not proof of consent truth, custody truth, measurement validity" in synthesis
 
     verified_dataset = replace(
         dataset,
@@ -1354,6 +1371,21 @@ def test_audit_flags_missing_protected_dataset_measurement_custody() -> None:
     assert "PROTECTED_DATASET_MEASUREMENT_CUSTODY_VERIFICATION_MISSING" not in {
         finding.code for finding in verified_audit.findings
     }
+    verified_synthesis = build_synthesis(
+        inquiry,
+        [],
+        [],
+        [],
+        [],
+        [verified_dataset],
+        [protocol],
+        [],
+        [],
+        [],
+        verified_audit,
+        [],
+    )
+    assert "measurement custody: service-verified" in verified_synthesis
 
 
 def test_audit_flags_missing_human_subject_dataset_ethics_checks() -> None:
@@ -1396,6 +1428,23 @@ def test_audit_flags_missing_human_subject_dataset_ethics_checks() -> None:
     codes = {finding.code for finding in audit.findings}
     assert "PROTECTED_DATASET_ETHICS_REVIEW_STATUS_CHECK_MISSING" in codes
     assert "PROTECTED_DATASET_ETHICS_CONDITION_VERIFICATION_MISSING" in codes
+    synthesis = build_synthesis(
+        inquiry,
+        [],
+        [],
+        [],
+        [],
+        [dataset],
+        [protocol],
+        [],
+        [],
+        [],
+        audit,
+        [],
+    )
+    assert "observation bytes: synthetic dataset" in synthesis
+    assert "ethics status: missing active service check" in synthesis
+    assert "ethics conditions: missing exact service verification" in synthesis
 
     verified_dataset = replace(
         dataset,
@@ -1447,6 +1496,22 @@ def test_audit_flags_missing_human_subject_dataset_ethics_checks() -> None:
     verified_codes = {finding.code for finding in verified_audit.findings}
     assert "PROTECTED_DATASET_ETHICS_REVIEW_STATUS_CHECK_MISSING" not in verified_codes
     assert "PROTECTED_DATASET_ETHICS_CONDITION_VERIFICATION_MISSING" not in verified_codes
+    verified_synthesis = build_synthesis(
+        inquiry,
+        [],
+        [],
+        [],
+        [],
+        [verified_dataset],
+        [protocol],
+        [],
+        [],
+        [],
+        verified_audit,
+        [],
+    )
+    assert "ethics status: active service check" in verified_synthesis
+    assert "ethics conditions: service-verified" in verified_synthesis
 
 
 @pytest.mark.parametrize(

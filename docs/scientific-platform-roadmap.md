@@ -2254,9 +2254,10 @@ auditable workflow rather than metadata relabeling. Rigor audit now flags
 protected lineage records with missing protocol bindings, unknown protocols,
 duplicate lineage sources, missing sources, or cross-role/cross-protocol
 ancestry as structural errors. Deterministic synthesis exposes each protected
-dataset's lineage state while explicitly treating it as protocol-closure
-provenance only, not consent, custody, measurement-validity, or analysis
-adequacy. Replication-package verification replays the same protocol-closed
+dataset's lineage state together with observation-byte, measurement-custody,
+ethics-status, and conditional-ethics verification state while explicitly
+treating these as provenance only, not consent, custody, measurement-validity, or
+analysis adequacy. Replication-package verification replays the same protocol-closed
 lineage rule from packaged metadata, including redacted packages that cannot
 reopen local dataset payload commitments. A shared application integrity check
 now recursively walks protected ancestors during inquiry display, execution

@@ -78,6 +78,87 @@ def _protected_lineage_state(
     return "protocol-closed"
 
 
+def _artifact_integrity_passed(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("artifact_integrity"), dict)
+        and value["artifact_integrity"].get("status") == "passed"
+        and value["artifact_integrity"].get("all_artifacts_match") is True
+    )
+
+
+def _protected_dataset_verification_summary(
+    dataset: DatasetManifest,
+    protocol: ExperimentProtocol | None,
+) -> str:
+    if dataset.role not in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}:
+        return "not protected"
+    parts: list[str] = []
+    if dataset.synthetic:
+        parts.append(
+            "observation bytes: synthetic dataset; local observation-byte "
+            "verification not required"
+        )
+    elif _artifact_integrity_passed(
+        dataset.metadata.get("dataset_artifact_verification")
+    ):
+        parts.append("observation bytes: service-verified")
+    else:
+        parts.append("observation bytes: missing service verification")
+
+    if protocol is None:
+        parts.append(
+            "protocol-dependent checks: unavailable because protocol is missing"
+        )
+        return "; ".join(parts)
+
+    if protocol.measurement_custody_requirements:
+        custody = dataset.metadata.get("measurement_custody_verification")
+        if (
+            _artifact_integrity_passed(custody)
+            and isinstance(custody, dict)
+            and custody.get("protocol_hash") == protocol.protocol_hash
+            and custody.get("required_gate_ids")
+            == list(protocol.measurement_custody_requirements)
+        ):
+            parts.append("measurement custody: service-verified")
+        else:
+            parts.append("measurement custody: missing exact service verification")
+    else:
+        parts.append("measurement custody: no frozen custody gates")
+
+    if protocol.human_subjects:
+        status_check = dataset.metadata.get("ethics_review_status_check")
+        if (
+            isinstance(status_check, dict)
+            and status_check.get("status") == "active"
+            and status_check.get("protocol_hash") == protocol.protocol_hash
+        ):
+            parts.append("ethics status: active service check")
+        else:
+            parts.append("ethics status: missing active service check")
+        if protocol.independent_review_decision == "approved_with_conditions":
+            condition_check = dataset.metadata.get("ethics_condition_verification")
+            if (
+                _artifact_integrity_passed(condition_check)
+                and isinstance(condition_check, dict)
+                and condition_check.get("protocol_hash") == protocol.protocol_hash
+                and [
+                    item.get("condition")
+                    for item in condition_check.get("condition_results", [])
+                    if isinstance(item, dict)
+                ] == list(protocol.independent_review_conditions)
+            ):
+                parts.append("ethics conditions: service-verified")
+            else:
+                parts.append("ethics conditions: missing exact service verification")
+        else:
+            parts.append("ethics conditions: not conditionally approved")
+    else:
+        parts.append("ethics status: not human-subject protocol")
+    return "; ".join(parts)
+
+
 def _evidence_detail_lines(
     records: list[EvidenceRecord], statuses: dict[str, EvidenceStatusEvent]
 ) -> list[str]:
@@ -341,17 +422,21 @@ def build_synthesis(
     ]
     if protected_datasets:
         lines.extend(["", "### Protected dataset lineage", ""])
+        protocols_by_id = {protocol.protocol_id: protocol for protocol in protocols}
         for dataset in sorted(protected_datasets, key=lambda item: item.dataset_id):
             sources = (
                 ", ".join(f"`{source_id}`" for source_id in dataset.source_dataset_ids)
                 or "none"
             )
+            protocol = protocols_by_id.get(dataset.protocol_id or "")
             lines.append(
                 f"- Dataset `{dataset.dataset_id}` [{dataset.role.value}; protocol "
                 f"`{dataset.protocol_id or 'unbound'}`]: sources {sources}; "
-                f"lineage state: {_protected_lineage_state(dataset, datasets_by_id)}. "
-                "This is protocol-closure provenance, not proof of consent, custody, "
-                "measurement validity, or analysis adequacy."
+                f"lineage state: {_protected_lineage_state(dataset, datasets_by_id)}; "
+                "verification state: "
+                f"{_protected_dataset_verification_summary(dataset, protocol)}. "
+                "These are protocol-closure provenance, not proof of consent "
+                "truth, custody truth, measurement validity, or analysis adequacy."
             )
     factor_protocols = [
         protocol for protocol in protocols

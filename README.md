@@ -1504,7 +1504,8 @@ review conditions, or prospective analysis commitments from being laundered
 through another protocol or amendment. Rigor audit now reports protected
 datasets with missing, unknown, repeated, or cross-boundary lineage sources as
 structural errors, and deterministic synthesis exposes each protected dataset's
-lineage state as protocol-closure provenance rather than consent, custody,
+lineage state plus observation-byte, measurement-custody, ethics-status, and
+conditional-ethics verification state as provenance rather than consent, custody,
 measurement-validity, or analysis proof. Replication-package verification
 replays the same protocol-closed lineage boundary from packaged metadata before
 trusting a redacted handoff. Authoritative inquiry display, protocol-bound
