@@ -28,6 +28,7 @@ def validate_study_reconciliation_boundary(
     relationships: list[dict[str, Any]],
     *,
     require_reconciled: bool = False,
+    require_reconciliation_contract: bool = False,
 ) -> None:
     """Replay study-reconciliation non-authority boundaries and pair counts."""
     if reconciliation.get("independent_review") is not True:
@@ -62,6 +63,121 @@ def validate_study_reconciliation_boundary(
         raise ValidationError("study reconciliation status does not replay from relationships")
     if require_reconciled and expected_status != "study_identities_reconciled":
         raise ValidationError("evidence map requires fully reconciled independent study identities")
+    if require_reconciliation_contract:
+        studies = reconciliation.get("studies")
+        if not isinstance(studies, list) or not studies:
+            raise ValidationError("study reconciliation requires retained studies")
+        required_study = {
+            "study_id",
+            "source_ids",
+            "registration_ids",
+            "population",
+            "setting",
+            "recruitment_period",
+            "sample_size",
+            "identity_notes",
+        }
+        by_study: dict[str, dict[str, Any]] = {}
+        for study in studies:
+            if not isinstance(study, dict) or set(study) != required_study:
+                raise ValidationError(
+                    "reconciled study metadata fields do not match the documented contract"
+                )
+            study_id = _canonical_text(study.get("study_id"), "reconciled study_id")
+            if study_id in by_study:
+                raise ValidationError("reconciled studies contain duplicate study_id")
+            source_ids = study.get("source_ids")
+            if (
+                not isinstance(source_ids, list)
+                or not source_ids
+                or any(
+                    not isinstance(source, str)
+                    or not source.strip()
+                    or source != source.strip()
+                    for source in source_ids
+                )
+                or len(source_ids) != len(set(source_ids))
+            ):
+                raise ValidationError(
+                    "reconciled source_ids must be unique non-empty canonical text"
+                )
+            registration_ids = study.get("registration_ids")
+            if (
+                not isinstance(registration_ids, list)
+                or any(
+                    not isinstance(value, str)
+                    or not value.strip()
+                    or value != value.strip()
+                    for value in registration_ids
+                )
+                or len(registration_ids) != len(set(registration_ids))
+            ):
+                raise ValidationError("registration_ids must be unique non-empty text")
+            sample_size = study.get("sample_size")
+            if (
+                isinstance(sample_size, bool)
+                or not isinstance(sample_size, int)
+                or sample_size <= 0
+            ):
+                raise ValidationError("study sample_size must be a positive integer")
+            _canonical_text(study.get("population"), "study population")
+            _canonical_text(study.get("setting"), "study setting")
+            _canonical_text(study.get("recruitment_period"), "recruitment_period")
+            _canonical_text(study.get("identity_notes"), "identity_notes")
+            by_study[study_id] = study
+
+        expected_pairs = {
+            tuple(pair) for pair in itertools.combinations(sorted(by_study), 2)
+        }
+        by_pair: dict[tuple[str, str], dict[str, Any]] = {}
+        required_relationship = {
+            "study_ids",
+            "relationship",
+            "rationale",
+            "evidence_locations",
+        }
+        for item in relationships:
+            if not isinstance(item, dict) or set(item) != required_relationship:
+                raise ValidationError(
+                    "study relationship fields do not match the documented contract"
+                )
+            pair = item.get("study_ids")
+            if (
+                not isinstance(pair, list)
+                or len(pair) != 2
+                or any(
+                    not isinstance(value, str)
+                    or not value.strip()
+                    or value != value.strip()
+                    for value in pair
+                )
+            ):
+                raise ValidationError("study_ids must name two distinct assessed studies")
+            if any(value not in by_study for value in pair) or pair[0] == pair[1]:
+                raise ValidationError("study_ids must name two distinct assessed studies")
+            key = tuple(sorted(pair))
+            if key in by_pair:
+                raise ValidationError("duplicate study relationship")
+            if item.get("relationship") not in _RELATIONSHIPS:
+                raise ValidationError("invalid study relationship")
+            locations = item.get("evidence_locations")
+            if (
+                not isinstance(locations, list)
+                or not locations
+                or any(
+                    not isinstance(value, str)
+                    or not value.strip()
+                    or value != value.strip()
+                    for value in locations
+                )
+            ):
+                raise ValidationError("study relationships require evidence_locations")
+            _canonical_text(item.get("rationale"), "relationship rationale")
+            by_pair[key] = item
+        if set(by_pair) != expected_pairs:
+            raise ValidationError(
+                "study relationships must cover every unordered pair exactly once"
+            )
 
 
 def create_study_reconciliation(
@@ -212,7 +328,11 @@ def create_study_reconciliation(
             "Study reconciliation does not validate outcomes, assess applicability, or authorize quantitative synthesis.",
         ],
     }
-    validate_study_reconciliation_boundary(result, result["relationships"])
+    validate_study_reconciliation_boundary(
+        result,
+        result["relationships"],
+        require_reconciliation_contract=True,
+    )
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("study reconciliation output already exists")

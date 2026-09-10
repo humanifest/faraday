@@ -115,7 +115,16 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
             "Overlap, duplicate, and unclear relationships are preserved and block a reconciled status rather than being silently deduplicated.",
             "Study reconciliation does not validate outcomes, assess applicability, or authorize quantitative synthesis.",
         ],
-        "studies": [{"study_id": "study-1"}], "relationships": []})
+        "studies": [{
+            "study_id": "study-1",
+            "source_ids": ["s1"],
+            "registration_ids": ["reg-1"],
+            "population": "Synthetic population",
+            "setting": "Synthetic setting",
+            "recruitment_period": "2025-01 through 2025-06",
+            "sample_size": 20,
+            "identity_notes": "Fixture metadata only",
+        }], "relationships": []})
     return extraction, verification, bias, reconciliation, reconciliation_sha
 
 
@@ -182,6 +191,9 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
     "reconciliation-conclusion-authority", "reconciliation-publication-authority",
     "reconciliation-not-independent", "reconciliation-count-drift",
     "reconciliation-limitations-missing", "reconciliation-padded-limitation",
+    "reconciliation-missing-contract-field", "reconciliation-padded-source",
+    "reconciliation-padded-registration", "reconciliation-sample",
+    "reconciliation-padded-metadata",
     "coverage", "padded-extraction-duplicate", "padded-citation-duplicate",
     "padded-bias-duplicate", "padded-reconciliation-duplicate",
     "padded-extraction-source", "padded-extraction-study", "padded-extraction-location",
@@ -275,7 +287,9 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         "reconciliation-authority", "reconciliation-not-independent",
         "reconciliation-conclusion-authority", "reconciliation-publication-authority",
         "reconciliation-count-drift", "reconciliation-limitations-missing",
-        "reconciliation-padded-limitation",
+        "reconciliation-padded-limitation", "reconciliation-missing-contract-field",
+        "reconciliation-padded-source", "reconciliation-padded-registration",
+        "reconciliation-sample", "reconciliation-padded-metadata",
     }:
         value = json.loads(reconciliation.read_text())
         if failure == "reconciliation-authority":
@@ -292,6 +306,16 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
             value["limitations"] = []
         elif failure == "reconciliation-padded-limitation":
             value["limitations"][0] = " " + value["limitations"][0]
+        elif failure == "reconciliation-missing-contract-field":
+            del value["studies"][0]["identity_notes"]
+        elif failure == "reconciliation-padded-source":
+            value["studies"][0]["source_ids"] = [" s1 "]
+        elif failure == "reconciliation-padded-registration":
+            value["studies"][0]["registration_ids"] = [" reg-1 "]
+        elif failure == "reconciliation-sample":
+            value["studies"][0]["sample_size"] = True
+        elif failure == "reconciliation-padded-metadata":
+            value["studies"][0]["population"] = " Synthetic population "
         digest = write_json(reconciliation, value)
     elif failure == "coverage":
         value = json.loads(verification.read_text()); value["assessments"] = []; verification_sha = write_json(verification, value)
@@ -347,7 +371,9 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
     elif failure == "padded-reconciliation-duplicate":
         value = json.loads(reconciliation.read_text())
-        value["studies"].append({"study_id": " study-1 "})
+        duplicate = dict(value["studies"][0])
+        duplicate["study_id"] = " study-1 "
+        value["studies"].append(duplicate)
         digest = write_json(reconciliation, value)
     elif failure in {"padded-extraction-source", "padded-extraction-study", "padded-extraction-location"}:
         value = json.loads(extraction.read_text())

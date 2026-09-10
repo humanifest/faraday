@@ -237,7 +237,10 @@ def create_evidence_map(
     if not isinstance(relationships, list):
         raise ValidationError("study relationships must be an array")
     validate_study_reconciliation_boundary(
-        reconciliation, relationships, require_reconciled=True
+        reconciliation,
+        relationships,
+        require_reconciled=True,
+        require_reconciliation_contract=True,
     )
     for item in reconciliation.get("studies", []):
         if not isinstance(item, dict):

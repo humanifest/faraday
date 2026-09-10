@@ -1556,7 +1556,11 @@ Bias assessment and study reconciliation require canonical prior reviewer,
 study/source, reviewer, registration, metadata, relationship-pair, rationale,
 and evidence-location text before coverage and duplicate checks, so
 reviewer-entered whitespace cannot create separate provenance identities after
-citation review.
+citation review. Study reconciliation and evidence-map construction now also
+replay each retained study-identity record: source IDs, registration IDs,
+population, setting, recruitment period, sample size, identity notes, and every
+pairwise relationship with rationale and cited locations must remain canonical
+and complete before mapped claims can be joined.
 `research literature evidence-map` verifies every hash link from extraction
 through citation review, bias assessment, and reconciled study identities before
 joining claims. The expected study-reconciliation hash must be canonical

@@ -1219,7 +1219,11 @@ splitting or merging provenance after citation review. Bias assessment also repl
 citation assessment's contract fields before accepting study-level judgments:
 duplicate extraction IDs, padded claim or citation-location text, malformed
 source-byte anchors, and altered extracted-claim digests fail closed even when
-the citation summary counts still match. Evidence-map construction also
+the citation summary counts still match. Study reconciliation and evidence-map
+construction now replay each retained study-identity record: source IDs,
+registration IDs, population, setting, recruitment period, sample size, identity
+notes, and every pairwise relationship with rationale and cited locations must
+remain canonical and complete before mapped claims can be joined. Evidence-map construction also
 requires canonical extraction, study, source, citation-review, and bias-domain
 handles before joining or counting claims, so the final map cannot reintroduce
 hidden duplicate identities. It also replays the non-authority flags, retained
