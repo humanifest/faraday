@@ -1375,6 +1375,95 @@ def test_audit_warns_when_empirical_preprocessing_conformance_is_unreported(
     )
 
 
+def test_audit_warns_when_acquisition_and_timing_commitments_are_unassessed() -> None:
+    from test_ethics_gate import _human_protocol
+
+    protocol = replace(
+        _human_protocol(
+            human_subjects=False,
+            sensor_requirements=["audio stream", "event marker stream"],
+            clock_accuracy_requirement="Clock uncertainty below 10 ms.",
+            control_windows=["pre-event baseline"],
+        ),
+        status=ProtocolStatus.FROZEN,
+    )
+    run = ResearchRun(
+        run_id="acquisition-run",
+        protocol_id=protocol.protocol_id,
+        protocol_hash=protocol.protocol_hash or "f" * 64,
+        analysis_mode=protocol.analysis_mode,
+        started_at="2026-09-02T12:01:00Z",
+        completed_at="2026-09-02T12:02:00Z",
+        executed_by="fixture",
+        analysis_code_hash="a" * 64,
+        environment_hash="b" * 64,
+        quality_gates=[
+            QualityGateResult(
+                "integrity",
+                QualityGateStatus.PASSED,
+                "Synthetic fixture gate.",
+                details={"evidence_sha256": "c" * 64},
+            )
+        ],
+        synthetic=True,
+        metadata={
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared",
+                "deviations": [],
+            }
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Acquisition audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[run],
+    )
+    codes = {finding.code for finding in audit.findings}
+    assert "PROTECTED_EMPIRICAL_ACQUISITION_INSPECTION_UNASSESSED" in codes
+    assert "PROTECTED_EMPIRICAL_STREAM_TIMING_UNASSESSED" in codes
+
+    assessed_run = replace(
+        run,
+        quality_gates=[
+            QualityGateResult(
+                "integrity",
+                QualityGateStatus.PASSED,
+                "Synthetic fixture gate.",
+                details={
+                    "evidence_sha256": "c" * 64,
+                    "instrument_inspection": {"status": "inspection_recorded"},
+                    "stream_timing_assessment": {
+                        "status": "timing_feasibility_passed"
+                    },
+                },
+            )
+        ],
+    )
+    assessed_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[assessed_run],
+    )
+    assessed_codes = {finding.code for finding in assessed_audit.findings}
+    assert "PROTECTED_EMPIRICAL_ACQUISITION_INSPECTION_UNASSESSED" not in assessed_codes
+    assert "PROTECTED_EMPIRICAL_STREAM_TIMING_UNASSESSED" not in assessed_codes
+
+
 def test_retrospectively_amended_evidence_cannot_raise_prospective_ceiling(tmp_path: Path) -> None:
     service, hypothesis, predecessor_run = _prepared_run(tmp_path)
     predecessor = service.get_protocol(predecessor_run.protocol_id)

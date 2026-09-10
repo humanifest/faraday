@@ -1909,6 +1909,10 @@ hash, source hash, config hash, implementation hash, derived stream count,
 temporal-metadata status, and bounded non-evidentiary status. Run intake derives
 those summaries from the byte-verified record and rejects copied summary fields
 that disagree with the replayed inspection.
+Rigor now also warns when a protected empirical protocol declares sensor or
+stream requirements and has recorded runs, but no run carries a structured
+instrument-inspection gate, so acquisition coverage cannot be silently inferred
+from protocol prose or favorable output.
 Stream-timing feasibility delivery: `measurement assess-timing` now accepts an
 independently trusted instrument-inspection hash plus a machine-readable timing
 specification. It publishes a deterministic, non-evidentiary
@@ -1946,6 +1950,11 @@ them. Rigor, deterministic synthesis, and replication-package verification now
 carry those gates with their exact artifact locator, record hash, inspection
 hash, specification hash, bounded status, and replay-derived counts of required
 streams, stream failures, events, event failures, and findings.
+Rigor likewise warns when a protected empirical protocol declares clock-accuracy
+or control-window commitments and has recorded runs, but no run carries a
+structured stream-timing assessment gate; this keeps prospective timing
+commitments separate from artifact-bound feasibility review and from scientific
+evidence.
 Temporal-order classification delivery: `measurement assess-temporal-order` now
 binds an independently trusted timing-assessment hash plus a registered
 event-order specification. It compares uncertainty intervals instead of point

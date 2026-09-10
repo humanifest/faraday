@@ -1543,6 +1543,10 @@ verification expose the record locator, hashes, derived stream count, and
 temporal-metadata status while preserving the boundary: this proves local
 retention of low-authority acquisition metadata, not calibration, custody,
 dataset registration, or scientific evidence.
+For protected empirical protocols that declare `sensor_requirements`, rigor also
+warns once recorded runs exist but none expose a structured
+`details.instrument_inspection` gate, preventing acquisition coverage from being
+inferred from protocol prose or favorable analysis output.
 
 Use `measurement assess-timing --inspection-file FILE
 --expected-inspection-sha256 HASH --spec-file SPEC --output DIRECTORY` to turn a
@@ -1584,6 +1588,11 @@ and replay-derived counts of required streams, stream failures, events, event
 failures, and findings. Caller-supplied stream-timing summaries are rejected
 when they disagree with the verified record, and packages must retain the full
 summary rather than reducing timing feasibility to a bare pass/fail label.
+For protected empirical protocols that declare a clock-accuracy requirement or
+control windows, rigor warns once recorded runs exist but none expose a
+structured `details.stream_timing_assessment` gate. The warning preserves the
+distinction between prospective timing commitments, low-authority feasibility
+reviews, and evidence-worthy scientific conclusions.
 
 Use `measurement assess-temporal-order --timing-assessment-file FILE
 --expected-timing-assessment-sha256 HASH --spec-file SPEC --output DIRECTORY`

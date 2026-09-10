@@ -78,6 +78,10 @@ def _has_preprocessing_conformance_gate(run: ResearchRun) -> bool:
     )
 
 
+def _has_structured_gate_detail(run: ResearchRun, key: str) -> bool:
+    return any(isinstance(gate.details.get(key), dict) for gate in run.quality_gates)
+
+
 def _factor_interpretability_state(protocol: ExperimentProtocol) -> str:
     factors = protocol.manipulated_factors
     has_plan = bool(protocol.factor_interpretability_plan.strip())
@@ -837,6 +841,49 @@ def audit_research_state(
                 entity_id=protocol.protocol_id,
                 remediation=(
                     "In the next run, attach a byte-verified preprocessing-conformance record to a quality gate; do not infer adherence from an analysis summary."
+                ),
+            )
+        if (
+            _protected_empirical(protocol)
+            and protocol.sensor_requirements
+            and runs_by_protocol[protocol.protocol_id] > 0
+            and not any(
+                _has_structured_gate_detail(run, "instrument_inspection")
+                for run in runs
+                if run.protocol_id == protocol.protocol_id
+            )
+        ):
+            add(
+                "PROTECTED_EMPIRICAL_ACQUISITION_INSPECTION_UNASSESSED",
+                RigorSeverity.WARNING,
+                "Protected empirical protocol declares required sensors or streams, but recorded runs expose no structured instrument-inspection gate.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "In the next run, attach a byte-verified instrument-inspection record to a quality gate; do not infer acquisition coverage from an analysis summary."
+                ),
+            )
+        if (
+            _protected_empirical(protocol)
+            and (
+                protocol.clock_accuracy_requirement.strip()
+                or protocol.control_windows
+            )
+            and runs_by_protocol[protocol.protocol_id] > 0
+            and not any(
+                _has_structured_gate_detail(run, "stream_timing_assessment")
+                for run in runs
+                if run.protocol_id == protocol.protocol_id
+            )
+        ):
+            add(
+                "PROTECTED_EMPIRICAL_STREAM_TIMING_UNASSESSED",
+                RigorSeverity.WARNING,
+                "Protected empirical protocol declares clock or temporal-window commitments, but recorded runs expose no structured stream-timing assessment gate.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "In the next run, attach a byte-verified stream-timing assessment to a quality gate; do not infer timing feasibility from declared windows or favorable results."
                 ),
             )
         if runs_by_protocol[protocol.protocol_id] == 0:
