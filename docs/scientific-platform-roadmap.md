@@ -1758,10 +1758,10 @@ The meta-analysis artifact now replays its own non-authority and summary
 boundary before it is written: false scientific-evidence, conclusion, and
 publication authorization; deviation-derived review status; available-study
 counts; unavailable-study disclosure; deviation-bound plan commitments; retained
-source-summary digest coverage; exact frozen sensitivity-result coverage; and
-the small-study diagnostic's explicit refusal to conclude publication bias. This
-keeps the pooled arithmetic inspectable without turning the result into
-evidence, a conclusion, or publication clearance.
+source-summary digest coverage; the frozen sensitivity-analysis list and exact
+result coverage; and the small-study diagnostic's explicit refusal to conclude
+publication bias. This keeps the pooled arithmetic inspectable without turning
+the result into evidence, a conclusion, or publication clearance.
 It also replays retained numeric-result shape: trusted input hashes, plan and
 snapshot handles, finite pooled estimates and uncertainty, confidence-interval
 arithmetic, heterogeneity degrees of freedom, prediction-interval eligibility,

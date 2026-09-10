@@ -445,6 +445,17 @@ def validate_meta_analysis_boundary(
     sensitivity_results = meta_analysis.get("planned_sensitivity_results")
     if not isinstance(sensitivity_results, list) or not sensitivity_results:
         raise ValidationError("meta-analysis requires retained planned sensitivity results")
+    retained_plan = meta_analysis.get("planned_sensitivity_analyses")
+    if not isinstance(retained_plan, list) or not retained_plan:
+        raise ValidationError("meta-analysis requires retained planned sensitivity analyses")
+    retained_sensitivity_names = []
+    for index, name in enumerate(retained_plan):
+        retained_name = _canonical_text(
+            name, f"meta-analysis planned sensitivity analysis {index + 1}"
+        )
+        if retained_name in retained_sensitivity_names:
+            raise ValidationError("meta-analysis planned sensitivity analyses must be unique")
+        retained_sensitivity_names.append(retained_name)
     sensitivity_names = []
     for item in sensitivity_results:
         if not isinstance(item, dict):
@@ -482,7 +493,9 @@ def validate_meta_analysis_boundary(
             if (remaining is not None
                     and (isinstance(remaining, bool) or not isinstance(remaining, int) or remaining < 0)):
                 raise ValidationError("meta-analysis not-estimable sensitivity remaining_study_count is invalid")
-    if planned_sensitivity_analyses is not None and sensitivity_names != planned_sensitivity_analyses:
+    if sensitivity_names != retained_sensitivity_names:
+        raise ValidationError("meta-analysis sensitivity results do not replay from retained planned analyses")
+    if planned_sensitivity_analyses is not None and retained_sensitivity_names != planned_sensitivity_analyses:
         raise ValidationError("meta-analysis sensitivity results do not cover the frozen plan exactly")
 
     small_study_effects = meta_analysis.get("small_study_effects")
@@ -838,6 +851,7 @@ def execute_meta_analysis(
                           "tau_squared_der_simonian_laird": tau_squared},
         "prediction_interval_95": prediction_interval,
         "leave_one_study_out": leave_one_out,
+        "planned_sensitivity_analyses": planned,
         "planned_sensitivity_results": sensitivity_results,
         "small_study_effects": _egger_diagnostic(available),
         "status": ("meta_analysis_deviation_review_required"

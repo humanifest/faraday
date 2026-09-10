@@ -224,6 +224,8 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     assert result["publication_authorized"] is False
     assert result["small_study_effects"]["status"] == "not_estimable"
     assert result["small_study_effects"]["publication_bias_conclusion"] is False
+    assert result["planned_sensitivity_analyses"] == [
+        "leave_one_study_out", "exclude_high_or_unclear_bias", "alternate_random_effects"]
     assert [item["analysis"] for item in result["planned_sensitivity_results"]] == [
         "leave_one_study_out", "exclude_high_or_unclear_bias", "alternate_random_effects"]
     with pytest.raises(ValidationError, match="already exists"):
@@ -384,6 +386,8 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     "loo-missing",
     "loo-ci-drift",
     "retained-summary-digest",
+    "planned-sensitivity-list",
+    "planned-sensitivity-padding",
     "sensitivity-missing",
     "sensitivity-result-drift",
     "small-study-conclusion",
@@ -444,6 +448,10 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["leave_one_study_out"][0]["confidence_interval_95_normal_approximation"][1] += 1.0
     elif tamper == "retained-summary-digest":
         candidate["study_provenance"][0]["retained_source_summary_sha256"] = "c" * 64
+    elif tamper == "planned-sensitivity-list":
+        candidate["planned_sensitivity_analyses"] = ["leave_one_study_out"]
+    elif tamper == "planned-sensitivity-padding":
+        candidate["planned_sensitivity_analyses"][0] = " leave_one_study_out "
     elif tamper == "sensitivity-missing":
         candidate["planned_sensitivity_results"].pop()
     elif tamper == "sensitivity-result-drift":
