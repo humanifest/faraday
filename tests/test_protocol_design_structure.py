@@ -1616,6 +1616,12 @@ def test_holm_execution_binds_frozen_workflow_family_and_registered_input(tmp_pa
             ),
             "not a declared run artifact",
         ),
+        (
+            lambda handoff: handoff["adjudication"]["primary_estimate"].__setitem__(
+                "effect_estimate", 999
+            ),
+            "workflow_adjudication_handoff body does not match",
+        ),
     ):
         tampered_runs = json.loads(json.dumps(packaged_runs))
         tampered_composite = next(

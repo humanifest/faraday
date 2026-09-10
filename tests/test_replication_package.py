@@ -77,19 +77,42 @@ def _packaged_output_artifact_for_sha(run: dict, output_sha256: str) -> dict:
     )
 
 
+def _json_artifact_bytes(value: dict) -> bytes:
+    return (
+        json.dumps(
+            value,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode()
+
+
+def _replace_json_value(value: object, old: object, new: object) -> None:
+    if isinstance(value, dict):
+        for key, child in list(value.items()):
+            if child == old:
+                value[key] = new
+            else:
+                _replace_json_value(child, old, new)
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            if child == old:
+                value[index] = new
+            else:
+                _replace_json_value(child, old, new)
+
+
 def _execution_handoff_for_result(output_artifact: dict, result: dict) -> dict:
-    return {
+    handoff = {
         "receipt": {
             "addon": {"addon_id": "general_science", "version": "fixture"},
             "method": "descriptive_summary",
             "maximum_inference_level": "descriptive",
             "randomness_control": "deterministic",
             "randomness_binding": {"control": "deterministic"},
-            "output": {
-                "locator": output_artifact["locator"],
-                "sha256": output_artifact["sha256"],
-                "size_bytes": output_artifact["size_bytes"],
-            },
         },
         "result": {
             "result_contract_version": 2,
@@ -116,6 +139,32 @@ def _execution_handoff_for_result(output_artifact: dict, result: dict) -> dict:
             "result": result,
         },
     }
+    result_bytes = _json_artifact_bytes(handoff["result"])
+    output = {
+        "locator": output_artifact["locator"],
+        "sha256": hashlib.sha256(result_bytes).hexdigest(),
+        "size_bytes": len(result_bytes),
+    }
+    handoff["receipt"]["output"] = output
+    output_artifact["sha256"] = output["sha256"]
+    output_artifact["size_bytes"] = output["size_bytes"]
+    return handoff
+
+
+def _attach_execution_handoff_for_result(
+    run: dict,
+    output_sha256: str,
+    result: dict,
+) -> str:
+    run["metadata"]["execution_handoff"] = _execution_handoff_for_result(
+        _packaged_output_artifact_for_sha(run, output_sha256),
+        result,
+    )
+    handoff_sha256 = run["metadata"]["execution_handoff"]["receipt"]["output"][
+        "sha256"
+    ]
+    _replace_json_value(run, output_sha256, handoff_sha256)
+    return handoff_sha256
 
 
 def _pipeline(*, smoothing_window: int = 5) -> dict:
@@ -1740,8 +1789,9 @@ def test_replication_package_verifies_canary_target_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
-    runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
-        _packaged_output_artifact_for_sha(runs[0], record_sha256),
+    _attach_execution_handoff_for_result(
+        runs[0],
+        record_sha256,
         {
             "canary": {
                 "comparison": {
@@ -2104,6 +2154,7 @@ def test_replication_package_verifies_sample_size_plan_check_metadata(
         ("missing_analysis_location", "does not resolve"),
         ("extra_handoff_authority", "result contract is invalid"),
         ("handoff_identity_mismatch", "authority identity disagrees"),
+        ("handoff_result_body_mismatch", "execution_handoff body does not match"),
         ("handoff_output_missing_locator", "execution_handoff output is invalid"),
         (
             "handoff_output_locator_mismatch",
@@ -2209,8 +2260,9 @@ def test_replication_package_verifies_control_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
-    runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
-        _packaged_output_artifact_for_sha(runs[0], record_sha256),
+    _attach_execution_handoff_for_result(
+        runs[0],
+        record_sha256,
         {"controls": {"negative-1": {"matches_expected": True}}},
     )
     runs[0]["quality_gates"][0]["details"]["control_results"]["negative-1"][
@@ -2247,6 +2299,10 @@ def test_replication_package_verifies_control_gate_metadata(
         runs[0]["metadata"]["execution_handoff"]["receipt"][
             "maximum_inference_level"
         ] = "association"
+    elif mutation == "handoff_result_body_mismatch":
+        runs[0]["metadata"]["execution_handoff"]["result"]["result"][
+            "controls"
+        ]["negative-1"]["matches_expected"] = False
     elif mutation == "handoff_output_missing_locator":
         del runs[0]["metadata"]["execution_handoff"]["receipt"]["output"][
             "locator"
@@ -2425,8 +2481,9 @@ def test_replication_package_verifies_measurement_validity_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
-    runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
-        _packaged_output_artifact_for_sha(runs[0], record_sha256),
+    _attach_execution_handoff_for_result(
+        runs[0],
+        record_sha256,
         {
             "validity": {
                 "checker-reference-agreement": {"acceptance": 1}
@@ -2711,8 +2768,9 @@ def test_replication_package_verifies_missingness_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
-    runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
-        _packaged_output_artifact_for_sha(runs[0], record_sha256),
+    _attach_execution_handoff_for_result(
+        runs[0],
+        record_sha256,
         {
             "controls": {"reference-1": {"matches_expected": True}},
             "missingness": {"exclusion_report": {"excluded_fraction": 0.0}},
@@ -3134,8 +3192,9 @@ def test_replication_package_verifies_causal_assumption_gate_metadata(
 
     runs_path = package / "runs.json"
     runs = json.loads(runs_path.read_text())
-    runs[0]["metadata"]["execution_handoff"] = _execution_handoff_for_result(
-        _packaged_output_artifact_for_sha(runs[0], record_sha256),
+    _attach_execution_handoff_for_result(
+        runs[0],
+        record_sha256,
         {
             "controls": {"reference-1": {"matches_expected": True}},
             "diagnostics": {

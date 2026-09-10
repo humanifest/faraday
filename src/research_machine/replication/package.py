@@ -752,6 +752,24 @@ def _measurement_value_domain_sha256(definition: dict[str, Any]) -> str:
     })).hexdigest()
 
 
+def _validate_retained_handoff_body_digest(
+    *,
+    run_id: str,
+    handoff_name: str,
+    body: dict[str, Any],
+    digest: str,
+    size_bytes: int,
+) -> None:
+    body_bytes = _bytes(body)
+    if (
+        hashlib.sha256(body_bytes).hexdigest() != digest
+        or len(body_bytes) != size_bytes
+    ):
+        raise ValidationError(
+            f"package run {run_id} {handoff_name} body does not match output hash and size"
+        )
+
+
 def _validate_execution_handoff_measurement_value_check(run: ResearchRun) -> None:
     handoff = run.metadata.get("execution_handoff")
     if handoff is None:
@@ -934,6 +952,13 @@ def _verified_handoff_results_by_output_sha(
             raise ValidationError(
                 f"package run {run.run_id} workflow_adjudication_handoff output is not a declared run artifact"
             )
+        _validate_retained_handoff_body_digest(
+            run_id=run.run_id,
+            handoff_name="workflow_adjudication_handoff",
+            body=adjudication,
+            digest=digest,
+            size_bytes=output["size_bytes"],
+        )
         return {digest: adjudication}
     handoff = execution_handoff
     if not isinstance(handoff, dict):
@@ -991,6 +1016,13 @@ def _verified_handoff_results_by_output_sha(
         raise ValidationError(
             f"package run {run.run_id} execution_handoff output is not a declared run artifact"
         )
+    _validate_retained_handoff_body_digest(
+        run_id=run.run_id,
+        handoff_name="execution_handoff",
+        body=result,
+        digest=digest,
+        size_bytes=output["size_bytes"],
+    )
     return {digest: result}
 
 
@@ -2222,7 +2254,16 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
 
 
 def _bytes(value: Any) -> bytes:
-    return (json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode()
+    return (
+        json.dumps(
+            value,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode()
 
 
 def _write(path: Path, value: Any) -> str:

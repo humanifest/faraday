@@ -102,8 +102,9 @@ methods without changing its epistemic rules or canonical state.
   method-enforced ceiling status, or altered non-authority missing-data scope
   before downstream run, evidence, replication, or rigor paths can trust it.
   Replication packages additionally require retained execution handoff output
-  digest, locator, and byte count to match a declared packaged run artifact
-  before structured gates may cite the retained result body.
+  digest, locator, and byte count to match a declared packaged run artifact,
+  and the retained result body must hash back to that exact output before
+  structured gates may cite it.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit
@@ -1145,8 +1146,8 @@ resolution. Retained workflow-adjudication handoffs now replay the same
 non-evidence boundary at the composite layer: completed receipt semantics, false
 evidence eligibility, `reviewed_composite_run_required` status, and the bounded
 claim ceiling must match, and the adjudication must bind to the packaged
-protocol, observation dataset, and declared run output, before package gates can
-cite adjudication content.
+protocol, observation dataset, declared run output, and retained body digest
+before package gates can cite adjudication content.
 When a package includes locators, verification also recomputes the packaged
 protocol, dataset, and run frozen hash commitments from the unredacted bytes;
 redacted packages preserve but cannot independently replay locator-bearing
