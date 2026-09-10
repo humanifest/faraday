@@ -26,14 +26,15 @@ methods without changing its epistemic rules or canonical state.
   distinguish hypotheses must now retain exact
   `hypothesis_discrimination_targets`: one canonical target for every named
   hypothesis, including the discriminating observation, the expected result
-  under the target hypothesis, the expected result under an explicitly named
-  competing model or alternative reference, and the observation that would
+  under the target hypothesis, the expected result under the exact registered
+  null model or one registered competing model, and the observation that would
   weaken it. The target-favorable expectation must differ from the alternative
   expectation, and the weakening condition cannot be the target-favorable
-  expectation. The competing-model reference is retained and replayed with the
-  target, so a recommendation cannot preserve a self-confirming or
-  post-hoc-swapped discriminator. Infrastructure work may name information
-  targets instead, without pretending to test a hypothesis.
+  expectation. The competing-model reference is retained and replayed against
+  the hypothesis alternative set, so a recommendation cannot preserve a
+  self-confirming, invented, or post-hoc-swapped discriminator. Infrastructure
+  work may name information targets instead, without pretending to test a
+  hypothesis.
   Hypothesis-discriminating candidates also retain service-derived workflow
   states for every cited target, so `pending_review` proposals remain visibly
   unapproved in recommendations and synthesis. Callers cannot supply that

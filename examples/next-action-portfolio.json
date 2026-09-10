@@ -37,7 +37,7 @@
           "expected_if_hypothesis": "The target pattern survives the falsifier.",
           "expected_if_alternative": "The pattern follows the ordinary competing process or disappears.",
           "would_weaken_if": "The target pattern disappears or follows the competing process under the falsifier.",
-          "competing_model_ref": "ordinary competing process"
+          "competing_model_ref": "<exact registered null_model or competing_model>"
         }
       ],
       "information_targets": ["theory:first-failing-gate"],

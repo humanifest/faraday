@@ -135,6 +135,25 @@ def _slugify(value: str) -> str:
     return slug or "inquiry"
 
 
+def _hypothesis_alternatives(
+    hypotheses: list[Hypothesis],
+) -> dict[str, list[str]]:
+    alternatives: dict[str, list[str]] = {}
+    for hypothesis in hypotheses:
+        values: list[str] = []
+        if hypothesis.null_model.strip():
+            values.append(hypothesis.null_model.strip())
+        values.extend(item.strip() for item in hypothesis.competing_models if item.strip())
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            if value not in seen:
+                seen.add(value)
+                deduped.append(value)
+        alternatives[hypothesis.hypothesis_id] = deduped
+    return alternatives
+
+
 def _validate_protocol_deviation_disclosure(value: Any) -> dict[str, Any]:
     """Validate an execution disclosure without judging its substantive impact."""
     if value is None:
@@ -4527,17 +4546,21 @@ class ResearchService:
         self, command: RecommendNextAction, inquiry_id: str | None = None
     ) -> ActionRecommendation:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        hypotheses = self.repository.list_hypotheses(resolved)
         researchable_hypotheses = {
             hypothesis.hypothesis_id: hypothesis.workflow_state.value
-            for hypothesis in self.repository.list_hypotheses(resolved)
+            for hypothesis in hypotheses
             if hypothesis.workflow_state
             in {
                 HypothesisWorkflowState.PENDING_REVIEW,
                 HypothesisWorkflowState.ACTIVE,
             }
         }
+        hypothesis_alternatives = _hypothesis_alternatives(hypotheses)
         candidates = validate_action_candidates(
-            command.candidates, researchable_hypotheses
+            command.candidates,
+            researchable_hypotheses,
+            hypothesis_alternatives=hypothesis_alternatives,
         )
         for candidate in candidates:
             if candidate.depends_on:
@@ -4582,19 +4605,22 @@ class ResearchService:
         self, command: RecommendActionPortfolio, inquiry_id: str | None = None
     ) -> ActionRecommendation:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        hypotheses = self.repository.list_hypotheses(resolved)
         researchable_hypotheses = {
             hypothesis.hypothesis_id: hypothesis.workflow_state.value
-            for hypothesis in self.repository.list_hypotheses(resolved)
+            for hypothesis in hypotheses
             if hypothesis.workflow_state
             in {
                 HypothesisWorkflowState.PENDING_REVIEW,
                 HypothesisWorkflowState.ACTIVE,
             }
         }
+        hypothesis_alternatives = _hypothesis_alternatives(hypotheses)
         lanes = validate_action_lanes(command.lanes)
         candidates, completed = validate_portfolio_action_candidates(
             command.candidates,
             researchable_hypotheses,
+            hypothesis_alternatives,
             lanes,
             command.completed_action_ids,
         )
@@ -4719,8 +4745,14 @@ class ResearchService:
         self, inquiry_id: str
     ) -> list[ActionRecommendation]:
         recommendations = self.repository.list_recommendations(inquiry_id)
+        hypothesis_alternatives = _hypothesis_alternatives(
+            self.repository.list_hypotheses(inquiry_id)
+        )
         for recommendation in recommendations:
-            verify_recommendation_score_replay(recommendation)
+            verify_recommendation_score_replay(
+                recommendation,
+                hypothesis_alternatives=hypothesis_alternatives,
+            )
         return recommendations
 
     def record_evidence(

@@ -108,14 +108,20 @@ def reviewed_hypothesis(service: ResearchService, statement: str) -> str:
     return hypothesis.hypothesis_id
 
 
-def discrimination_target(hypothesis_id: str, label: str) -> HypothesisDiscriminationTarget:
+def discrimination_target(
+    hypothesis_id: str,
+    label: str,
+    competing_model_ref: str = (
+        "Measurement error or selection explains the apparent pattern."
+    ),
+) -> HypothesisDiscriminationTarget:
     return HypothesisDiscriminationTarget(
         hypothesis_id=hypothesis_id,
         discriminating_observation=f"{label} separates the target pattern from the comparator.",
         expected_if_hypothesis=f"{label} follows the target hypothesis prediction.",
         expected_if_alternative=f"{label} follows the competing model prediction.",
         would_weaken_if=f"{label} is absent or follows the competing model.",
-        competing_model_ref="competing model",
+        competing_model_ref=competing_model_ref,
     )
 
 
@@ -220,6 +226,10 @@ def test_hypothesis_discrimination_targets_are_retained_and_visible(
     synthesis = service.build_synthesis()["content"]
     assert "Discrimination targets: machine: " in synthesis
     assert f"{target_hypothesis} [active]: Target channel separates" in synthesis
+    assert (
+        "alternative Measurement error or selection explains the apparent pattern"
+        in synthesis
+    )
     assert "weakens if Target channel is absent" in synthesis
 
     recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
@@ -269,7 +279,11 @@ def test_pending_review_discrimination_targets_retain_visible_workflow_state(
                     0.9,
                     distinguishes_hypotheses=[staged.hypothesis_id],
                     hypothesis_discrimination_targets=[
-                        discrimination_target(staged.hypothesis_id, "Pending target")
+                        discrimination_target(
+                            staged.hypothesis_id,
+                            "Pending target",
+                            "The target observable follows the ordinary alternative.",
+                        )
                     ],
                 ),
                 candidate("theory-next", "theory", 0.7),
@@ -672,6 +686,81 @@ def test_recommendation_replay_rejects_legacy_self_confirming_discriminator(
         service.list_recommendations()
 
 
+def test_action_discriminators_must_cite_registered_alternatives(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    hypothesis_id = reviewed_hypothesis(
+        service, "The target explanation is compared with registered alternatives."
+    )
+    with pytest.raises(
+        ValidationError,
+        match="competing_model_ref must match the hypothesis null_model",
+    ):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate(
+                        "invented-alternative",
+                        "machine",
+                        0.8,
+                        distinguishes_hypotheses=[hypothesis_id],
+                        hypothesis_discrimination_targets=[
+                            discrimination_target(
+                                hypothesis_id,
+                                "Target channel",
+                                "An unregistered exciting alternative.",
+                            )
+                        ],
+                    ),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+
+
+def test_recommendation_replay_rejects_alternative_ref_drift(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    hypothesis_id = reviewed_hypothesis(
+        service, "The retained action discriminator names a registered alternative."
+    )
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[
+                candidate(
+                    "alternative-drift-target",
+                    "machine",
+                    0.8,
+                    distinguishes_hypotheses=[hypothesis_id],
+                    hypothesis_discrimination_targets=[
+                        discrimination_target(hypothesis_id, "Target channel")
+                    ],
+                )
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][0]["hypothesis_discrimination_targets"][0][
+        "competing_model_ref"
+    ] = "A later invented alternative."
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="competing_model_ref must match the hypothesis null_model",
+    ):
+        service.list_recommendations()
+
+
 def test_recommendation_replay_rejects_legacy_invalid_lane_state(
     tmp_path: Path,
 ) -> None:
@@ -945,7 +1034,7 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                     "Expected target",
                     "Expected alternative",
                     "Weakening condition",
-                    "alternative:model",
+                    "Measurement error or selection explains the apparent pattern.",
                 )
             ],
             "hypothesis_discrimination_target hypothesis_id",
@@ -958,7 +1047,7 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                     "Expected target",
                     "Expected alternative",
                     "Weakening condition",
-                    "alternative:model",
+                    "Measurement error or selection explains the apparent pattern.",
                 )
             ],
             "hypothesis_discrimination_target discriminating_observation",
@@ -971,7 +1060,7 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                     "Target and alternative both produce the same pattern.",
                     "Target and alternative both produce the same pattern.",
                     "Weakening condition",
-                    "alternative:model",
+                    "Measurement error or selection explains the apparent pattern.",
                 )
             ],
             "must state different expected observations",
@@ -984,7 +1073,7 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                     "Target-favorable pattern appears.",
                     "Competing model pattern appears.",
                     "Target-favorable pattern appears.",
-                    "alternative:model",
+                    "Measurement error or selection explains the apparent pattern.",
                 )
             ],
             "cannot use the hypothesis-favorable expectation",
@@ -997,7 +1086,7 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                     "Target-favorable pattern appears.",
                     "Competing model pattern appears.",
                     "Target-favorable pattern disappears.",
-                    " alternative:model ",
+                    " Measurement error or selection explains the apparent pattern. ",
                 )
             ],
             "hypothesis_discrimination_target competing_model_ref",

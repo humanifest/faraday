@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 import hashlib
 import json
 import math
@@ -185,6 +186,13 @@ def _validate_candidate_score_inputs_for_replay(
 
 
 def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
+    _validate_discrimination_target_replay_against_alternatives(candidate)
+
+
+def _validate_discrimination_target_replay_against_alternatives(
+    candidate: ActionCandidate,
+    hypothesis_alternatives: Mapping[str, Sequence[str]] | None = None,
+) -> None:
     hypotheses = _require_unique_canonical_text_list(
         candidate.distinguishes_hypotheses, "distinguishes_hypotheses"
     )
@@ -260,6 +268,20 @@ def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
             target.competing_model_ref,
             "hypothesis_discrimination_target competing_model_ref",
         )
+        if hypothesis_alternatives is not None:
+            alternatives = {
+                _require_canonical_text(
+                    alternative,
+                    "hypothesis registered alternative",
+                )
+                for alternative in hypothesis_alternatives.get(hypothesis_id, [])
+            }
+            if target.competing_model_ref not in alternatives:
+                raise ValidationError(
+                    f"action {candidate.action_id} discrimination target "
+                    f"{hypothesis_id} competing_model_ref must match the "
+                    "hypothesis null_model or one registered competing_model"
+                )
         _validate_discrimination_text_contrast(target, candidate.action_id)
     if seen != set(hypotheses):
         raise ValidationError(
@@ -615,6 +637,8 @@ def _recommendation_allows_legacy_missing_eligibility_basis(
 
 def verify_recommendation_score_replay(
     recommendation: ActionRecommendation,
+    *,
+    hypothesis_alternatives: Mapping[str, Sequence[str]] | None = None,
 ) -> None:
     """Replay stored recommendation scores from retained candidates and weights."""
 
@@ -623,6 +647,11 @@ def verify_recommendation_score_replay(
     )
     if recommendation.selection_mode == "single":
         _validate_single_replay_inputs(recommendation)
+        if hypothesis_alternatives is not None:
+            for candidate in recommendation.candidates:
+                _validate_discrimination_target_replay_against_alternatives(
+                    candidate, hypothesis_alternatives
+                )
         expected_scores = rank_actions(
             recommendation.candidates,
             recommendation.weights,
@@ -633,6 +662,11 @@ def verify_recommendation_score_replay(
         expected_selected_action_id = expected_scores[0].action_id
         expected_selected_by_lane: dict[str, str] = {}
     elif recommendation.selection_mode == "portfolio":
+        if hypothesis_alternatives is not None:
+            for candidate in recommendation.candidates:
+                _validate_discrimination_target_replay_against_alternatives(
+                    candidate, hypothesis_alternatives
+                )
         rankings = rank_actions_by_lane(
             recommendation.candidates,
             recommendation.lanes,

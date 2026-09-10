@@ -2441,6 +2441,7 @@ def validate_quality_gates(
 def validate_action_candidates(
     candidates: Sequence[ActionCandidate],
     known_hypotheses: Mapping[str, str],
+    hypothesis_alternatives: Mapping[str, Sequence[str]] | None = None,
 ) -> list[ActionCandidate]:
     if isinstance(candidates, (str, bytes)) or not isinstance(candidates, Sequence):
         raise ValidationError("candidates must be a list")
@@ -2488,7 +2489,10 @@ def validate_action_candidates(
             for hypothesis_id in hypotheses
         }
         discrimination_targets = _validate_hypothesis_discrimination_targets(
-            candidate.hypothesis_discrimination_targets, hypotheses, action_id
+            candidate.hypothesis_discrimination_targets,
+            hypotheses,
+            action_id,
+            hypothesis_alternatives=hypothesis_alternatives,
         )
         for field_name in score_fields:
             value = getattr(candidate, field_name)
@@ -2594,6 +2598,8 @@ def _validate_hypothesis_discrimination_targets(
     targets: Sequence[HypothesisDiscriminationTarget],
     hypotheses: list[str],
     action_id: str,
+    *,
+    hypothesis_alternatives: Mapping[str, Sequence[str]] | None = None,
 ) -> list[HypothesisDiscriminationTarget]:
     if isinstance(targets, (str, bytes)) or not isinstance(targets, Sequence):
         raise ValidationError("hypothesis_discrimination_targets must be a list")
@@ -2625,6 +2631,24 @@ def _validate_hypothesis_discrimination_targets(
                 "hypothesis_discrimination_targets repeat a hypothesis_id"
             )
         seen.add(hypothesis_id)
+        competing_model_ref = require_canonical_text(
+            target.competing_model_ref,
+            "hypothesis_discrimination_target competing_model_ref",
+        )
+        if hypothesis_alternatives is not None:
+            alternatives = {
+                require_canonical_text(
+                    alternative,
+                    "hypothesis registered alternative",
+                )
+                for alternative in hypothesis_alternatives.get(hypothesis_id, [])
+            }
+            if competing_model_ref not in alternatives:
+                raise ValidationError(
+                    f"action {action_id} discrimination target {hypothesis_id} "
+                    "competing_model_ref must match the hypothesis null_model or "
+                    "one registered competing_model"
+                )
         normalized.append(
             HypothesisDiscriminationTarget(
                 hypothesis_id=hypothesis_id,
@@ -2644,10 +2668,7 @@ def _validate_hypothesis_discrimination_targets(
                     target.would_weaken_if,
                     "hypothesis_discrimination_target would_weaken_if",
                 ),
-                competing_model_ref=require_canonical_text(
-                    target.competing_model_ref,
-                    "hypothesis_discrimination_target competing_model_ref",
-                ),
+                competing_model_ref=competing_model_ref,
             )
         )
         _validate_discriminating_observation_shape(normalized[-1], action_id)
@@ -2725,10 +2746,15 @@ def validate_action_lanes(lanes: Sequence[ActionLane]) -> list[ActionLane]:
 def validate_portfolio_action_candidates(
     candidates: Sequence[ActionCandidate],
     known_hypotheses: Mapping[str, str],
+    hypothesis_alternatives: Mapping[str, Sequence[str]] | None,
     lanes: Sequence[ActionLane],
     completed_action_ids: Sequence[str],
 ) -> tuple[list[ActionCandidate], list[str]]:
-    normalized = validate_action_candidates(candidates, known_hypotheses)
+    normalized = validate_action_candidates(
+        candidates,
+        known_hypotheses,
+        hypothesis_alternatives=hypothesis_alternatives,
+    )
     lane_ids = {lane.lane_id for lane in lanes}
     for candidate in normalized:
         if candidate.lane_id not in lane_ids:

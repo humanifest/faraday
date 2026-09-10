@@ -2199,14 +2199,14 @@ uninterpretable simultaneous intervention.
 When a candidate claims to distinguish specific hypotheses, it must also provide
 exact `hypothesis_discrimination_targets`: one canonical target per named
 hypothesis with the discriminating observation, expected result if the hypothesis
-is right, expected result under an explicitly named competing model or
-alternative reference, and the observation that would weaken it. The
+is right, expected result under the exact registered null model or one
+registered competing model, and the observation that would weaken it. The
 target-favorable expectation must differ from the alternative expectation, and
 the weakening condition cannot be the target-favorable
 expectation, so action selection cannot record a self-confirming discriminator.
-The competing-model reference is retained and replayed with the target so a
-later report cannot silently change which alternative the action was supposed
-to distinguish.
+The competing-model reference is retained and replayed against the hypothesis
+alternative set, so a later report cannot silently change which alternative the
+action was supposed to distinguish.
 Infrastructure actions may instead name typed `information_targets` without
 pretending to discriminate a hypothesis.
 For every hypothesis-discriminating action, Faraday derives and retains the
