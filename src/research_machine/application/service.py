@@ -1645,8 +1645,10 @@ class ResearchService:
         self, command: ProposeHypothesis, inquiry_id: str | None = None
     ) -> Hypothesis:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        parent_claims = require_text_list(command.parent_claims, "parent_claims")
-        lineage = require_text_list(command.lineage, "lineage")
+        parent_claims = require_unique_canonical_text_list(
+            command.parent_claims, "parent_claims"
+        )
+        lineage = require_unique_canonical_text_list(command.lineage, "lineage")
         claims = {claim.claim_id for claim in self.repository.load_claims(resolved)}
         missing_claims = sorted(set(parent_claims) - claims)
         if missing_claims:
@@ -1671,7 +1673,7 @@ class ResearchService:
         contrast_definition = normalize_text(
             command.contrast_definition, "contrast_definition"
         )
-        contrast_groups = require_text_list(
+        contrast_groups = require_unique_canonical_text_list(
             command.contrast_groups, "contrast_groups"
         )
         if bool(contrast_definition) != bool(contrast_groups):

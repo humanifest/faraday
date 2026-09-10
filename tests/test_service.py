@@ -267,6 +267,51 @@ def test_complete_inquiry_loop_preserves_rejected_hypotheses(tmp_path: Path) -> 
     }
 
 
+def test_hypothesis_proposal_rejects_noncanonical_lineage_and_contrast_handles(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Hypothesis handles",
+            initial_statement="Can proposal handles be padded?",
+            inquiry_id="hypothesis-handles",
+        )
+    )
+    claim = service.add_claim(
+        AddClaim(
+            statement="The source claim exists.",
+            level=ClaimLevel.OTHER,
+        )
+    )
+    prior = service.propose_hypothesis(
+        ProposeHypothesis(statement="The prior candidate remains unreviewed.")
+    )
+    with pytest.raises(ValidationError, match="parent_claims item must be canonical"):
+        service.propose_hypothesis(
+            ProposeHypothesis(
+                statement="A padded parent claim should fail.",
+                parent_claims=[f" {claim.claim_id} "],
+            )
+        )
+    with pytest.raises(ValidationError, match="lineage item must be canonical"):
+        service.propose_hypothesis(
+            ProposeHypothesis(
+                statement="A padded lineage link should fail.",
+                lineage=[f" {prior.hypothesis_id} "],
+            )
+        )
+    with pytest.raises(ValidationError, match="contrast_groups item must be canonical"):
+        service.propose_hypothesis(
+            ProposeHypothesis(
+                statement="A padded contrast level should fail.",
+                contrast_definition="Treatment minus control.",
+                contrast_groups=["treatment", " control "],
+            )
+        )
+
+
 @pytest.mark.parametrize("overclaim", ["proved", "confirmed", "explained"])
 def test_evidence_summary_rejects_report_overclaim_language(
     tmp_path: Path, overclaim: str

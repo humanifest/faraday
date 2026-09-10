@@ -161,6 +161,60 @@ def test_claim_command_schema_preflights_accepted_claim_authority(mutation):
         jsonschema.validate(command, schema)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("statement", " "),
+        ("generated_by", " "),
+        ("parent_claims", [" clm-parent "]),
+        ("lineage", [" hyp-prior "]),
+        ("source_context", [" "]),
+        ("competing_models", [" "]),
+        ("contrast_groups", ["treatment", "treatment"]),
+        ("covariates", [" "]),
+        ("known_confounds", [" "]),
+        ("falsification_conditions", [" "]),
+        ("support_conditions", [" "]),
+        ("boundary_conditions", [" "]),
+    ],
+)
+def test_hypothesis_proposal_schema_rejects_noncanonical_scientific_inputs(
+    field, value
+):
+    schema = json.loads((SCHEMAS / "hypothesis-proposal.schema.json").read_text())
+    command = {
+        "statement": "The bounded candidate remains a proposal.",
+        "generated_by": "codex",
+    }
+    command[field] = value
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda command: command.pop("contrast_groups"),
+        lambda command: command.update({"contrast_groups": ["treatment"]}),
+        lambda command: command.pop("contrast_definition"),
+        lambda command: command.update({"contrast_definition": " "}),
+    ],
+)
+def test_hypothesis_proposal_schema_pairs_contrast_definition_and_groups(
+    mutation,
+):
+    schema = json.loads((SCHEMAS / "hypothesis-proposal.schema.json").read_text())
+    command = {
+        "statement": "The bounded two-level contrast remains a proposal.",
+        "contrast_definition": "Treatment minus control.",
+        "contrast_groups": ["treatment", "control"],
+    }
+    jsonschema.validate(command, schema)
+    mutation(command)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
 def test_evidence_command_schema_accepts_causal_estimate_tag_without_overclaiming():
     schema = json.loads((SCHEMAS / "evidence-command.schema.json").read_text())
     command = {

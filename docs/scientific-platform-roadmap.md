@@ -352,6 +352,11 @@ The published claim-command schema now preflights those same handle and accepted
 claim authority requirements for provider-neutral clients while leaving
 referenced-claim existence, conflict/dependency overlap, and inferential
 hierarchy checks to the canonical service.
+Hypothesis proposal intake now applies the same canonical-handle rule to parent
+claims, lineage, and ordered contrast groups; the published proposal schema also
+includes the first-class contrast fields and requires definition/group coverage
+together. This keeps prospective signed contrasts and proposal lineage from
+being silently rewritten at canonical intake.
 Legacy or externally corrupted records remain detectable through rigor findings,
 but the canonical service no longer records a bare accepted flag as if it were a
 reviewed scientific judgment.

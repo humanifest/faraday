@@ -6,29 +6,74 @@
   "type": "object",
   "required": ["statement"],
   "properties": {
-    "statement": {"type": "string", "minLength": 1},
-    "generated_by": {"type": "string", "minLength": 1, "default": "codex"},
-    "parent_claims": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "lineage": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "source_context": {"type": "array", "items": {"type": "string"}},
+    "statement": {"$ref": "#/$defs/nonBlankText"},
+    "generated_by": {"$ref": "#/$defs/nonBlankText", "default": "codex"},
+    "parent_claims": {"type": "array", "items": {"$ref": "#/$defs/canonicalHandle"}, "uniqueItems": true},
+    "lineage": {"type": "array", "items": {"$ref": "#/$defs/canonicalHandle"}, "uniqueItems": true},
+    "source_context": {"type": "array", "items": {"$ref": "#/$defs/nonBlankText"}},
     "scope": {"type": "string"},
     "observable_prediction": {"type": "string"},
     "null_model": {"type": "string"},
-    "competing_models": {"type": "array", "items": {"type": "string"}},
+    "competing_models": {"type": "array", "items": {"$ref": "#/$defs/nonBlankText"}},
     "causal_direction": {"type": "string"},
     "primary_estimand": {"type": "string"},
+    "contrast_definition": {"type": "string"},
+    "contrast_groups": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/canonicalHandle"},
+      "uniqueItems": true
+    },
     "expected_effect_direction": {"type": "string"},
     "time_window": {"type": "string"},
-    "covariates": {"type": "array", "items": {"type": "string"}},
-    "known_confounds": {"type": "array", "items": {"type": "string"}},
-    "falsification_conditions": {"type": "array", "items": {"type": "string"}},
-    "support_conditions": {"type": "array", "items": {"type": "string"}},
-    "boundary_conditions": {"type": "array", "items": {"type": "string"}},
+    "covariates": {"type": "array", "items": {"$ref": "#/$defs/nonBlankText"}},
+    "known_confounds": {"type": "array", "items": {"$ref": "#/$defs/nonBlankText"}},
+    "falsification_conditions": {"type": "array", "items": {"$ref": "#/$defs/nonBlankText"}},
+    "support_conditions": {"type": "array", "items": {"$ref": "#/$defs/nonBlankText"}},
+    "boundary_conditions": {"type": "array", "items": {"$ref": "#/$defs/nonBlankText"}},
     "required_replications": {
       "type": ["integer", "null"],
       "minimum": 0,
       "default": null
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "nonBlankText": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "canonicalHandle": {
+      "type": "string",
+      "pattern": "^\\S(?:.*\\S)?$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["contrast_definition"],
+        "properties": {"contrast_definition": {"$ref": "#/$defs/nonBlankText"}}
+      },
+      "then": {
+        "required": ["contrast_groups"],
+        "properties": {
+          "contrast_groups": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["contrast_groups"],
+        "properties": {"contrast_groups": {"type": "array", "minItems": 1}}
+      },
+      "then": {
+        "required": ["contrast_definition"],
+        "properties": {"contrast_definition": {"$ref": "#/$defs/nonBlankText"}}
+      }
+    }
+  ]
 }

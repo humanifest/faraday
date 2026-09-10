@@ -2168,6 +2168,10 @@ a nonblank review time and decision owner; accepted documented facts and source
 claims also require at least one source reference. These schema checks are
 client-facing preflight only; the application service remains the canonical
 authority and also validates referenced claim existence and hierarchy direction.
+Hypothesis proposal commands likewise reject padded parent-claim, lineage, and
+contrast-group handles, and the published schema exposes
+`contrast_definition`/`contrast_groups` as a paired commitment. Proposals remain
+unreviewed until a separate review or activation step.
 
 ## Epistemic validation tags
 
