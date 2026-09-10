@@ -85,7 +85,7 @@
           "falsification_conditions": {
             "type": "array",
             "minItems": 1,
-            "items": {"$ref": "#/$defs/canonicalNonEmptyText"},
+            "items": {"$ref": "#/$defs/boundedProposalText"},
             "uniqueItems": true
           },
           "next_test": {"$ref": "#/$defs/boundedProposalText"},

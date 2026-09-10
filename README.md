@@ -1012,7 +1012,8 @@ uncertainty, competing explanations, disconfirming evidence, limitations, and
 review-only suggestions with falsification conditions and a next test. Faraday
 strictly parses it, binds it to the exact frozen context, and stores it
 write-once as `pending_human_review`. Proposal summaries, uncertainty
-statements, grounded body claims, and suggestion prose must not claim
+statements, grounded body claims, suggestion prose, and returned falsification
+conditions must not claim
 acceptance, approval, authorization, proof, confirmation, validation, evidence
 creation, or canonical action. The frozen context must carry canonical,
 nonempty scientific constraints that include explicit inferential-boundary and

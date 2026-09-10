@@ -485,6 +485,15 @@ def _proposal_boundary_text(value: Any, field: str) -> str:
     return text
 
 
+def _bounded_proposal_text_array(
+    value: Any, field: str, *, nonempty: bool = True
+) -> list[str]:
+    return [
+        _proposal_boundary_text(item, f"{field} item")
+        for item in _string_array(value, field, nonempty=nonempty)
+    ]
+
+
 def _context_reference_ids(context: dict[str, Any]) -> set[str]:
     raw_index = context.get("context_reference_index")
     if raw_index is None:
@@ -830,7 +839,7 @@ def _validate_proposal(
                 f"{label} evidence_refs are not present in the frozen context: "
                 + ", ".join(unknown_refs)
             )
-        _string_array(
+        _bounded_proposal_text_array(
             suggestion["falsification_conditions"], "falsification_conditions"
         )
     return proposal_body_grounding
@@ -1439,7 +1448,7 @@ def verify_collaborator_review_record(
                     f"{label} evidence_refs are not present in the retained context: "
                     + ", ".join(unknown_refs)
                 )
-        _string_array(
+        _bounded_proposal_text_array(
             suggestion["falsification_conditions"],
             f"{label}.falsification_conditions",
         )

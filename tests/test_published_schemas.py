@@ -786,6 +786,9 @@ def test_collaborator_proposal_schema_requires_provider_for_model_generators():
         lambda proposal: proposal["suggestions"][0].update(
             {"rationale": "This proposal authorizes evidence creation."}
         ),
+        lambda proposal: proposal["suggestions"][0].update(
+            {"falsification_conditions": ["This proves the suggested mechanism."]}
+        ),
     ],
 )
 def test_collaborator_proposal_schema_rejects_authority_claims(mutation):

@@ -864,6 +864,16 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
         ),
         (
             lambda proposal: proposal["suggestions"][0].update(
+                {
+                    "falsification_conditions": [
+                        "This proves the suggested mechanism."
+                    ]
+                }
+            ),
+            "falsification_conditions item must not claim acceptance",
+        ),
+        (
+            lambda proposal: proposal["suggestions"][0].update(
                 {"evidence_refs": ["evidence:not-in-context"]}
             ),
             "evidence_refs are not present in the frozen context",
@@ -1292,6 +1302,57 @@ def test_proposal_record_replay_rejects_rewritten_body_authority_claim(
         match="limitations\\[0\\].statement must not claim acceptance",
     ):
         verify_collaborator_proposal_record(record_path, trusted_hash)
+
+
+def test_review_record_replay_rejects_rewritten_falsification_authority_claim(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(
+            _proposal(
+                snapshot["context_sha256"],
+                evidence_refs=["claim:claim-1"],
+            )
+        ),
+        encoding="utf-8",
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(
+        json.dumps(_review(validated["record_sha256"])), encoding="utf-8"
+    )
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    review_record_path = Path(reviewed["record_file"])
+    record = json.loads(review_record_path.read_text(encoding="utf-8"))
+    record["reviewed_suggestions"][0]["suggestion"]["falsification_conditions"] = [
+        "This proves the suggested mechanism."
+    ]
+    review_record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(review_record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(
+        ValidationError,
+        match="falsification_conditions item must not claim acceptance",
+    ):
+        verify_collaborator_review_record(review_record_path, trusted_hash)
 
 
 def test_proposal_suggestion_ids_must_be_canonical(tmp_path: Path) -> None:

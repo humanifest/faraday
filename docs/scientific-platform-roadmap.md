@@ -1313,10 +1313,11 @@ validate-proposal` requires that trusted hash and strictly validates an untruste
 human/LLM/hybrid response. Responses must expose uncertainty, alternatives,
 disconfirmers, limitations, falsification conditions, and next tests; every
 suggestion has `review_only` authority. Proposal summaries, uncertainty
-statements, grounded body claims, and suggestion prose now also fail closed when
-they claim acceptance, approval, authorization, proof, confirmation, validation,
-evidence creation, or canonical action, and the published proposal schema
-preflights the same boundary for apps and plugins. The context now includes a compact
+statements, grounded body claims, suggestion prose, and returned falsification
+conditions now also fail closed when they claim acceptance, approval,
+authorization, proof, confirmation, validation, evidence creation, or canonical
+action, and the published proposal schema preflights the same boundary for apps
+and plugins. The context now includes a compact
 reference index for inquiry, question, claim, hypothesis, evidence, dataset,
 evidence-status-event, protocol, run, and ethics-review-event records, and
 proposal `evidence_refs` must cite only those frozen typed handles; each handle
