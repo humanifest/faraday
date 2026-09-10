@@ -1516,6 +1516,12 @@ replays each extraction source-review envelope before creating the review
 artifact: duplicate source IDs, padded source-review reasons, malformed retained
 source-file hashes, and extracted/no-extractable status drift fail closed even
 when the retained claim rows still look reviewable.
+Citation-verification boundary replay now also validates its own version,
+retained extraction SHA-256, canonical snapshot handle, independent reviewer
+handles, retained assessment list, derived verdict counts, and derived status
+before downstream bias assessment or evidence-map joins can trust it. A
+hash-consistent citation review can no longer rewrite the checked extraction,
+reviewer handles, or unresolved/unsupported-claim status in summary fields.
 `research literature assess-bias` requires a clean citation-review artifact and
 a third reviewer distinct from both extraction and citation reviewers. The
 expected citation-verification hash must be canonical lowercase SHA-256 before

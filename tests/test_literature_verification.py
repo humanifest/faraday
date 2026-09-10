@@ -6,7 +6,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.verification import create_citation_verification
+from research_machine.literature.verification import (
+    create_citation_verification,
+    validate_citation_verification_boundary,
+)
 
 
 def extraction_file(tmp_path):
@@ -121,6 +124,29 @@ def test_citation_verification_binds_retained_source_bytes_when_available(tmp_pa
     assert result["assessments"][0]["extraction_claim_sha256"] == claim_digest(
         "source-1", extraction_record, retained_source_sha
     )
+
+
+def test_citation_verification_boundary_replays_artifact_envelope(tmp_path):
+    extraction, digest = extraction_file(tmp_path)
+    result = create_citation_verification(
+        extraction, digest, review(), tmp_path / "verification"
+    )
+    validate_citation_verification_boundary(result, result["assessments"])
+
+    for mutate, message in [
+        (lambda candidate: candidate.update({"citation_verification_version": 2}), "version is invalid"),
+        (lambda candidate: candidate.update({"extraction_sha256": "A" * 64}), "lowercase SHA-256"),
+        (lambda candidate: candidate.update({"snapshot_id": " snapshot-fixture "}), "canonical"),
+        (lambda candidate: candidate.update({"extraction_reviewer": " Extractor One "}), "canonical"),
+        (lambda candidate: candidate.update({"citation_reviewer": "Extractor One"}), "reviewers must be independent"),
+        (lambda candidate: candidate.update({"independent_review": False}), "independent-review"),
+        (lambda candidate: candidate.update({"status": "review_required"}), "status does not replay"),
+        (lambda candidate: candidate.__setitem__("assessments", []), "assessments must be retained"),
+    ]:
+        candidate = json.loads(json.dumps(result))
+        mutate(candidate)
+        with pytest.raises(ValidationError, match=message):
+            validate_citation_verification_boundary(candidate, candidate["assessments"])
 
 
 @pytest.mark.parametrize("failure", [

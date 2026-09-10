@@ -73,6 +73,26 @@ def validate_citation_verification_boundary(
     require_assessment_contract: bool = False,
 ) -> None:
     """Replay citation-review authority, independence, status, and counts."""
+    if (
+        not isinstance(verification, dict)
+        or verification.get("citation_verification_version") != 1
+    ):
+        raise ValidationError("citation verification version is invalid")
+    require_sha256(
+        verification.get("extraction_sha256"),
+        "citation verification extraction_sha256",
+    )
+    _canonical_text(verification.get("snapshot_id"), "citation verification snapshot_id")
+    extraction_reviewer = _canonical_text(
+        verification.get("extraction_reviewer"),
+        "citation verification extraction_reviewer",
+    )
+    citation_reviewer = _canonical_text(
+        verification.get("citation_reviewer"),
+        "citation verification citation_reviewer",
+    )
+    if extraction_reviewer.casefold() == citation_reviewer.casefold():
+        raise ValidationError("citation verification reviewers must be independent")
     if verification.get("independent_review") is not True:
         raise ValidationError("citation verification must retain independent-review status")
     if verification.get("scientific_evidence_eligible") is not False:
@@ -86,6 +106,12 @@ def validate_citation_verification_boundary(
         raise ValidationError("citation verification requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
         _canonical_text(limitation, f"citation verification limitation {index + 1}")
+    if (
+        not isinstance(assessments, list)
+        or not assessments
+        or verification.get("assessments") != assessments
+    ):
+        raise ValidationError("citation verification assessments must be retained")
 
     counts: dict[str, int] = {verdict: 0 for verdict in sorted(_VERDICTS)}
     for item in assessments:

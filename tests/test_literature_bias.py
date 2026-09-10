@@ -54,6 +54,7 @@ def citation_assessment(extraction_id, source_id, verdict):
 
 def verification_file(tmp_path, status="citation_review_recorded"):
     value = {"citation_verification_version": 1, "status": status, "snapshot_id": "snap",
+        "extraction_sha256": "1" * 64,
         "extraction_reviewer": "Extractor", "citation_reviewer": "Citation verifier",
         "independent_review": True,
         "verdict_counts": {"partially_supported": 1, "supported": 1, "unclear": 0, "unsupported": 0},

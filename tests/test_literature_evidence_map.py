@@ -65,7 +65,9 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
     if source_sha != "legacy_missing":
         citation["source_retained_file_sha256"] = source_sha
     verification_sha = write_json(verification, {"citation_verification_version": 1, "status": "citation_review_recorded",
-        "extraction_sha256": extraction_sha, "independent_review": True,
+        "extraction_sha256": extraction_sha, "snapshot_id": "snap",
+        "extraction_reviewer": "Extractor", "citation_reviewer": "Citation verifier",
+        "independent_review": True,
         "verdict_counts": {"partially_supported": 0, "supported": 1, "unclear": 0, "unsupported": 0},
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,

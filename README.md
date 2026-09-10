@@ -1219,7 +1219,13 @@ pinned extraction trail. It also replays each extraction source-review envelope:
 source IDs must remain duplicate-free, source-review reasons must remain
 canonical, retained source-file hashes must still be valid when present, and
 the declared extracted/no-extractable status must agree with the retained record
-list before citation review can proceed. Bias assessment and study-identity
+list before citation review can proceed. The citation-verification boundary
+also replays its own version, retained extraction SHA-256, canonical snapshot
+handle, independent reviewer handles, retained assessment list, derived verdict
+counts, and derived status before downstream bias assessment or evidence-map
+joins can trust it. A hash-consistent citation review cannot rewrite which
+extraction it checked, who reviewed it, or whether unresolved/unsupported
+claims require further review. Bias assessment and study-identity
 reconciliation now require canonical prior reviewer, study/source, reviewer,
 registration, metadata, relationship-pair, rationale, and evidence-location
 text before coverage checks, preventing reviewer-entered whitespace from
