@@ -73,7 +73,7 @@
         {"$ref": "#/$defs/nonBlankText"},
         {
           "not": {
-            "pattern": "\\b(?:[Pp][Rr][Oo][Vv][Ee][Dd]|[Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd]|[Ee][Xx][Pp][Ll][Aa][Ii][Nn][Ee][Dd])\\b"
+            "pattern": "\\b(?:[Pp][Rr][Oo][Vv][Ee][Dd]|[Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd]|[Ee][Xx][Pp][Ll][Aa][Ii][Nn][Ee][Dd]|[Vv][Aa][Ll][Ii][Dd][Aa][Tt][Ee][Ss]?|[Vv][Aa][Ll][Ii][Dd][Aa][Tt][Ee][Dd])\\b"
           }
         }
       ]

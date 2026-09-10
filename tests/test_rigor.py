@@ -583,7 +583,7 @@ def test_rigor_flags_legacy_overclaiming_evidence_summary_without_rewriting(
     )
     legacy_evidence = replace(
         evidence,
-        summary="This confirmed and explained the mechanism.",
+        summary="This confirmed, explained, and validated the mechanism.",
     )
     repository = service.repository
     inquiry_id = repository.resolve_inquiry_id(None)
@@ -602,7 +602,7 @@ def test_rigor_flags_legacy_overclaiming_evidence_summary_without_rewriting(
         if item.code == "EVIDENCE_SUMMARY_OVERCLAIM_LANGUAGE"
     )
     assert finding.entity_id == evidence.evidence_id
-    assert "confirmed, explained" in finding.message
+    assert "confirmed, explained, validated" in finding.message
     assert "Do not rewrite" in finding.remediation
     synthesis = build_synthesis(
         repository.load_inquiry(inquiry_id),
@@ -618,7 +618,7 @@ def test_rigor_flags_legacy_overclaiming_evidence_summary_without_rewriting(
         audit,
         [],
     )
-    assert "This confirmed and explained the mechanism." in synthesis
+    assert "This confirmed, explained, and validated the mechanism." in synthesis
     assert "EVIDENCE_SUMMARY_OVERCLAIM_LANGUAGE (1)" in synthesis
 
 
@@ -627,6 +627,7 @@ def test_rigor_flags_legacy_overclaiming_evidence_summary_without_rewriting(
     [
         ("run", "This confirmed the execution result.", "run summary"),
         ("gate", "This gate explained the mechanism.", "quality gate summary"),
+        ("gate", "This gate validates the causal mechanism.", "quality gate summary"),
     ],
 )
 def test_new_run_and_gate_summaries_reject_report_overclaim_language(
@@ -646,7 +647,7 @@ def test_rigor_flags_legacy_overclaiming_run_and_gate_summaries_without_rewritin
     service, hypothesis, run = _prepared_run(tmp_path / "workspace")
     legacy_run = replace(
         run,
-        summary="The run confirmed the model.",
+        summary="The run confirmed and validated the model.",
         quality_gates=[
             replace(
                 run.quality_gates[0],
@@ -675,7 +676,7 @@ def test_rigor_flags_legacy_overclaiming_run_and_gate_summaries_without_rewritin
         if item.code == "QUALITY_GATE_SUMMARY_OVERCLAIM_LANGUAGE"
     )
     assert run_finding.entity_id == run.run_id
-    assert "confirmed" in run_finding.message
+    assert "confirmed, validated" in run_finding.message
     assert gate_finding.entity_id == f"{run.run_id}:checker"
     assert "explained" in gate_finding.message
     synthesis = build_synthesis(

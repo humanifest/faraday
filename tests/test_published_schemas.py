@@ -62,6 +62,12 @@ def test_published_schema_is_well_formed(path):
                 {"summary": "This explained the effect."}
             ),
         ),
+        (
+            "evidence-command.schema.json",
+            lambda command: command.update(
+                {"summary": "This validates the mechanism."}
+            ),
+        ),
     ],
 )
 def test_report_command_schemas_reject_overclaiming_summaries(schema_name, mutation):

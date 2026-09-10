@@ -312,7 +312,10 @@ def test_hypothesis_proposal_rejects_noncanonical_lineage_and_contrast_handles(
         )
 
 
-@pytest.mark.parametrize("overclaim", ["proved", "confirmed", "explained"])
+@pytest.mark.parametrize(
+    "overclaim",
+    ["proved", "confirmed", "explained", "validates", "validated"],
+)
 def test_evidence_summary_rejects_report_overclaim_language(
     tmp_path: Path, overclaim: str
 ) -> None:
@@ -377,6 +380,7 @@ def test_evidence_summary_rejects_report_overclaim_language(
     synthesis = service.build_synthesis()["content"]
     assert evidence.summary in synthesis
     assert "confirmed the mechanism" not in synthesis
+    assert "validated the mechanism" not in synthesis
 
 
 def test_supporting_evidence_cannot_promote_to_explanatory_claim_levels(

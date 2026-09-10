@@ -42,7 +42,7 @@ from research_machine.domain.models import (
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _REPORT_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained)\b",
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
     re.IGNORECASE,
 )
 _INDEPENDENT_REVIEW_DECISIONS = {"approved", "approved_with_conditions"}

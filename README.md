@@ -480,9 +480,9 @@ preserves rejected hypotheses with the conditions under which they should be
 reconsidered.
 New evidence and execution summaries are also kept inside that boundary:
 reportable evidence, run summaries, and quality-gate summaries cannot use
-overclaiming verbs such as `proved`, `confirmed`, or `explained`. Use bounded
-language like "supported against these alternatives on this dataset,"
-"weakened," "refuted," or "inconclusive."
+overclaiming verbs such as `proved`, `confirmed`, `explained`, or `validated`.
+Use bounded language like "supported against these alternatives on this
+dataset," "weakened," "refuted," or "inconclusive."
 If imported or legacy evidence, run, or gate summaries already contain those
 verbs, rigor audit reports the exact record as a warning while preserving the
 original prose; qualify it through append-only status review, bounded gate

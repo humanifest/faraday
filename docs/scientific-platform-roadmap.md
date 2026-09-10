@@ -270,8 +270,8 @@ requires a nonblank `analysis_id` when evidence is not backed by a recorded run;
 run-backed evidence continues to derive the analysis identity from the run.
 Evidence and execution report-language delivery: new evidence summaries, run
 summaries, and quality-gate summaries now reject the overclaiming report verbs
-`proved`, `confirmed`, and `explained` before admission. Deterministic synthesis
-can still quote bounded user summaries, but new reportable records must use
+`proved`, `confirmed`, `explained`, and `validated` before admission.
+Deterministic synthesis can still quote bounded user summaries, but new reportable records must use
 scoped language such as supported against specified alternatives, weakened,
 refuted, or inconclusive. This is a lexical guardrail on new reports, not a
 substitute for substantive scientific review. Rigor audit also flags legacy or
