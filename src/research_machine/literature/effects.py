@@ -247,6 +247,35 @@ def retained_source_summary_sha256(summary: dict[str, Any]) -> str:
 
 def validate_effect_records_boundary(effects: dict[str, Any]) -> None:
     """Replay effect-record non-authority, provenance, counts, and readiness status."""
+    if effects.get("effect_records_version") != 1:
+        raise ValidationError("effect records version is invalid")
+    inputs = effects.get("inputs")
+    if not isinstance(inputs, dict) or set(inputs) != {
+        "synthesis_plan_sha256",
+        "extraction_sha256",
+        "evidence_map_sha256",
+    }:
+        raise ValidationError("effect records require exact retained input hashes")
+    require_sha256(
+        inputs.get("synthesis_plan_sha256"),
+        "effect records synthesis_plan_sha256",
+    )
+    require_sha256(inputs.get("extraction_sha256"), "effect records extraction_sha256")
+    require_sha256(
+        inputs.get("evidence_map_sha256"),
+        "effect records evidence_map_sha256",
+    )
+    _canonical_text(effects.get("plan_id"), "effect-record plan_id")
+    _canonical_text(effects.get("snapshot_id"), "effect-record snapshot_id")
+    _canonical_text(effects.get("reviewer"), "effect-record reviewer")
+    derivation_scope = _canonical_text(
+        effects.get("derivation_scope"), "effect-record derivation_scope"
+    )
+    if derivation_scope not in {
+        "reviewer_reported_effect_and_standard_error",
+        "recomputed_from_source_reported_arm_summaries",
+    }:
+        raise ValidationError("effect records derivation_scope is invalid")
     if effects.get("scientific_evidence_eligible") is not False:
         raise ValidationError("effect records must remain scientifically ineligible")
     if effects.get("conclusion_authorized") is not False:
@@ -382,7 +411,7 @@ def validate_effect_records_boundary(effects: dict[str, Any]) -> None:
             expected_statuses=expected_statuses,
             effect_measure=effect_measure,
         )
-    if (effects.get("derivation_scope") == "recomputed_from_source_reported_arm_summaries"
+    if (derivation_scope == "recomputed_from_source_reported_arm_summaries"
             and source_summaries is None):
         raise ValidationError("reproducibly derived effect records require retained source summaries")
 

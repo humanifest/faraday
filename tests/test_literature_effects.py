@@ -157,6 +157,16 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
 
 
 @pytest.mark.parametrize("tamper", [
+    "version",
+    "inputs-missing",
+    "inputs-extra",
+    "plan-input-hash",
+    "extraction-input-hash",
+    "map-input-hash",
+    "plan-id",
+    "snapshot-id",
+    "reviewer",
+    "derivation-scope",
     "scientific-authority",
     "conclusion-authority",
     "publication-authority",
@@ -176,7 +186,27 @@ def test_effect_records_boundary_replays_output_summaries(tmp_path, tamper):
         plan, plan_sha, extraction, evidence_map, map_sha, review(), tmp_path / "effects"
     )
     candidate = copy.deepcopy(result)
-    if tamper == "scientific-authority":
+    if tamper == "version":
+        candidate["effect_records_version"] = 2
+    elif tamper == "inputs-missing":
+        del candidate["inputs"]["extraction_sha256"]
+    elif tamper == "inputs-extra":
+        candidate["inputs"]["extra_sha256"] = "0" * 64
+    elif tamper == "plan-input-hash":
+        candidate["inputs"]["synthesis_plan_sha256"] = "A" * 64
+    elif tamper == "extraction-input-hash":
+        candidate["inputs"]["extraction_sha256"] = "not a digest"
+    elif tamper == "map-input-hash":
+        candidate["inputs"]["evidence_map_sha256"] = "0" * 63
+    elif tamper == "plan-id":
+        candidate["plan_id"] = " p1 "
+    elif tamper == "snapshot-id":
+        candidate["snapshot_id"] = " snap "
+    elif tamper == "reviewer":
+        candidate["reviewer"] = " Effect reviewer "
+    elif tamper == "derivation-scope":
+        candidate["derivation_scope"] = "unregistered derivation"
+    elif tamper == "scientific-authority":
         candidate["scientific_evidence_eligible"] = True
     elif tamper == "conclusion-authority":
         candidate["conclusion_authorized"] = True

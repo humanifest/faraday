@@ -54,6 +54,11 @@ def effects_file(tmp_path):
     summaries = [source_summary("s1"), source_summary("s2", "unavailable")]
     value = {"effect_records_version": 1, "status": "effects_ready",
         "derivation_scope": "recomputed_from_source_reported_arm_summaries", "reviewer": "Effect reviewer",
+        "inputs": {
+            "synthesis_plan_sha256": "c" * 64,
+            "extraction_sha256": "d" * 64,
+            "evidence_map_sha256": "e" * 64,
+        },
         "plan_id": "p1", "snapshot_id": "snap", "effect_measure": "mean_difference",
         "contrast_definition": "experimental versus comparator",
         "source_summaries": summaries, "records": [

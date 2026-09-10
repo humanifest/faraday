@@ -98,8 +98,9 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
     source_summaries.append(source_summary("missing", "unavailable"))
     effects = tmp_path / "effects.json"
     effects_sha = write_json(effects, {"effect_records_version": 1, "status": "effects_ready",
-        "inputs": {"synthesis_plan_sha256": plan_sha}, "effect_measure": "mean_difference",
-        "plan_id": "p1", "snapshot_id": "snap",
+        "inputs": {"synthesis_plan_sha256": plan_sha, "extraction_sha256": "e" * 64,
+                   "evidence_map_sha256": "f" * 64}, "effect_measure": "mean_difference",
+        "plan_id": "p1", "snapshot_id": "snap", "reviewer": "Effect reviewer",
         "derivation_scope": "recomputed_from_source_reported_arm_summaries",
         "contrast_definition": "experimental versus comparator",
         "source_summaries": source_summaries, "records": records,
