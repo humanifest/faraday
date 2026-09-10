@@ -319,7 +319,10 @@ Post-discovery evidence-status delivery: evidence records remain immutable, but
 evidence ID, require timezone-aware chronology and the exact latest predecessor,
 reject noncanonical status, event, evidence, predecessor, reason, review-artifact
 locator/root, creator, and retained conclusion-ceiling handles, and preserve a
-linear sequence. Current rigor audits and synthesis capability calculations use
+linear sequence. Retained status conclusion ceilings now also use the bounded
+report-language guard on write and authoritative replay, preventing a stored
+correction event from being rewritten into overclaiming scientific authority.
+Current rigor audits and synthesis capability calculations use
 only evidence with no status event or a latest `active` event; restricted
 evidence and its entire correction history remain visible in the report. This
 verifies local review bytes and lifecycle consistency, not reviewer identity or

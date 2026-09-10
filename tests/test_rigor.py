@@ -901,6 +901,28 @@ def test_evidence_status_reads_fail_closed_on_noncanonical_chain_tampering(
         service.list_evidence_status_events()
 
 
+def test_evidence_status_reads_reject_overclaiming_conclusion_ceiling(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service, hypothesis, run = _prepared_run(workspace)
+    evidence = service.record_evidence(
+        _classified_evidence(hypothesis.hypothesis_id, run.run_id)
+    )
+    review_root = tmp_path / "reviews"
+    review_root.mkdir()
+    event = service.record_evidence_status_event(
+        _status_command(evidence.evidence_id, review_root, "qualified.txt", "qualified")
+    )
+    event_file = next(workspace.rglob(f"{event.event_id}.json"))
+    tampered = json.loads(event_file.read_text(encoding="utf-8"))
+    tampered["conclusion_ceiling"] = "This status event validated the mechanism."
+    event_file.write_text(json.dumps(tampered), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
+        service.list_evidence_status_events()
+
+
 def test_new_evidence_requires_scope_ceiling_and_classification(tmp_path: Path) -> None:
     service, hypothesis, run = _prepared_run(tmp_path)
     with pytest.raises(ValidationError, match="scope must not be empty"):

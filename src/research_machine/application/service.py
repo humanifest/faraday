@@ -5521,9 +5521,12 @@ class ResearchService:
             created_at=created_at,
             created_by=self.actor,
             artifact_integrity=report.to_dict(),
-            conclusion_ceiling=(
-                "Append-only evidence interpretation status; preserves the original record "
-                "and verifies local review bytes without authenticating the reviewer or its judgment."
+            conclusion_ceiling=require_canonical_bounded_report_text(
+                (
+                    "Append-only evidence interpretation status; preserves the original record "
+                    "and verifies local review bytes without authenticating the reviewer or its judgment."
+                ),
+                "evidence status conclusion ceiling",
             ),
         )
         self.repository.save_evidence_status_event(resolved, event)

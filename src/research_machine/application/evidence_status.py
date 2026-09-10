@@ -5,7 +5,11 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime
 
-from research_machine.application.policies import require_sha256, require_text
+from research_machine.application.policies import (
+    require_canonical_bounded_report_text,
+    require_sha256,
+    require_text,
+)
 from research_machine.application.artifact_integrity import verify_run_artifacts
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import DatasetArtifact, EvidenceRecord, EvidenceStatusEvent
@@ -125,7 +129,10 @@ def validate_evidence_status_event_chains(
                 raise ValidationError(
                     f"evidence status event {event.event_id} review artifact no longer matches its integrity receipt"
                 )
-            _canonical_text(event.conclusion_ceiling, "evidence status conclusion ceiling")
+            require_canonical_bounded_report_text(
+                event.conclusion_ceiling,
+                "evidence status conclusion ceiling",
+            )
             terminal_seen = event.status == "retracted"
             prior_effective = effective
             prior_event_id = event.event_id
