@@ -722,6 +722,13 @@ Guided JSON command ingress now uses the same design-brief field vocabulary as
 the scaffold validator for scaffold, revision, and repository initialization,
 so outcome-role partitions, multiplicity method, and multiplicity alpha are
 admitted consistently instead of becoming internal-only review commitments.
+Guided acquisition-timing delivery: JSON briefs and the provider-free interview
+now collect required instruments, streams, or channels; a prospective
+clock-accuracy or synchronization requirement; and exact control-window labels.
+The protocol draft, data dictionary, and collection plan preserve those
+commitments. Duplicate or padded sensor/window labels block readiness, and
+control windows without a clock-accuracy commitment fail closed rather than
+letting timing comparisons proceed without a prospective uncertainty boundary.
 For causal studies it can also collect the DAG and complete typed assumption
 register interactively, validate variable and edge references, and feed the same
 deterministic audit used by file-based and canonical workflows. Declining this

@@ -538,6 +538,12 @@ The JSON `design scaffold`, `design revise`, and `design initialize` paths share
 the scaffold validator's design-brief field vocabulary, so guided outcome-role
 partitions, multiplicity method, and multiplicity alpha cannot be stranded
 behind an internal-only API while the terminal interview accepts them.
+Guided briefs and the provider-free interview can also preserve required
+instrument, stream, or channel declarations; an exact clock-accuracy or
+synchronization requirement; and named baseline, sham, replay, random-time, or
+negative-control windows. Control windows without a timing-accuracy commitment
+block review readiness, because window labels cannot establish whether timing
+uncertainty is small enough for the intended comparison.
 
 The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,

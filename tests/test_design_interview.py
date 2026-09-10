@@ -8,7 +8,7 @@ import pytest
 @pytest.mark.parametrize("complete", [True, False])
 def test_interview_emits_reviewable_control_definitions(complete):
     answers = iter(["Fixture", "Question", "Decision", "Height", "pot", "exploratory", "no"]
-        + [""] * 26 + ["Blank sample", ""]
+        + [""] * 29 + ["Blank sample", ""]
         + (["negative", "Detect background signal", "No signal"] if complete else ["", "", ""])
         + [""] * 35)
     result = interview_design(lambda prompt: next(answers))
@@ -24,11 +24,10 @@ def test_interview_emits_reviewable_control_definitions(complete):
 def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, monkeypatch, capsys):
     answers = iter(
         ["Fixture", "Question", "Decision", "Height", "pot-day", "exploratory", "no"]
-        + [""] * 14
+        + [""] * 15
         + [
             "Target 40 independent pots per group for a two-millimeter interval half-width under the stated variance assumption.",
-            "",
-            *([""] * 12),
+            *([""] * 15),
             "Higher mean height after 7 days",
             "No difference between conditions",
             "A zero or negative mean difference",
@@ -103,6 +102,53 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
     proposal = result["scaffold"]["artifacts"]["hypothesis-proposal.json"]
     assert proposal["observable_prediction"] == "Higher mean height after 7 days"
     assert proposal["falsification_conditions"] == ["A zero or negative mean difference"]
+
+
+def test_interview_collects_acquisition_timing_commitments():
+    def ask(prompt: str) -> str:
+        if "working title" in prompt:
+            return "Temporal fixture"
+        if "What question" in prompt:
+            return "Question"
+        if "practical decision" in prompt:
+            return "Decision"
+        if "What exactly will you measure as the primary outcome" in prompt:
+            return "Event lag"
+        if "one data row" in prompt:
+            return "trial"
+        if "kind of claim" in prompt:
+            return "exploratory"
+        if "people or data about people" in prompt:
+            return "no"
+        if "maximum timing uncertainty" in prompt:
+            return "Clock drift below 10 ms across the tested lag window."
+        if "Which instruments, streams, or channels" in prompt:
+            return "audio recorder at 48 kHz; event marker stream"
+        if "Which baseline, sham, replay" in prompt:
+            return "pre-event baseline; random-time negative window"
+        return ""
+
+    result = interview_design(ask)
+
+    assert result["brief"]["sensor_requirements"] == [
+        "audio recorder at 48 kHz",
+        "event marker stream",
+    ]
+    assert (
+        result["brief"]["clock_accuracy_requirement"]
+        == "Clock drift below 10 ms across the tested lag window."
+    )
+    assert result["brief"]["control_windows"] == [
+        "pre-event baseline",
+        "random-time negative window",
+    ]
+    protocol = result["scaffold"]["artifacts"]["protocol-draft.json"]
+    assert protocol["sensor_requirements"] == result["brief"]["sensor_requirements"]
+    assert (
+        protocol["clock_accuracy_requirement"]
+        == result["brief"]["clock_accuracy_requirement"]
+    )
+    assert protocol["control_windows"] == result["brief"]["control_windows"]
 
 
 def test_interview_cancellation_creates_nothing(tmp_path, monkeypatch, capsys):
@@ -636,7 +682,7 @@ def test_provider_free_interview_collects_auditable_causal_design() -> None:
 
 def test_human_interview_retains_hold_and_retries_invalid_choice():
     answers = iter(["Fixture", "Question", "Decision", "Score", "participant-day",
-                    "invalid choice", "causal", "yes"] + [""] * 37 + ["no"] + [""] * 33)
+                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 33)
     result = interview_design(lambda prompt: next(answers))
     assert result["brief"]["study_type"] == "causal"
     assert "BLINDING_UNRESOLVED" in {item["code"] for item in result["scaffold"]["findings"]}

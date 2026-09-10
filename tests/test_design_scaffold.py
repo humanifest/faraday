@@ -486,6 +486,65 @@ def test_unit_identity_column_is_explicit_and_shared_by_all_guided_artifacts():
     }
 
 
+def test_guided_acquisition_timing_commitments_are_shared_by_review_artifacts():
+    brief = {
+        "title": "Temporal fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "outcome": "Event lag",
+        "unit_of_observation": "trial",
+        "human_participants": False,
+        "sensor_requirements": [
+            "audio recorder at 48 kHz",
+            "event marker stream",
+        ],
+        "clock_accuracy_requirement": "Clock drift below 10 ms across the tested lag window.",
+        "control_windows": [
+            "pre-event baseline",
+            "random-time negative window",
+        ],
+    }
+
+    result = scaffold_design(brief)
+
+    codes = {item["code"] for item in result["findings"]}
+    assert "CLOCK_ACCURACY_UNRESOLVED" not in codes
+    protocol = result["artifacts"]["protocol-draft.json"]
+    assert protocol["sensor_requirements"] == brief["sensor_requirements"]
+    assert protocol["clock_accuracy_requirement"] == brief["clock_accuracy_requirement"]
+    assert protocol["control_windows"] == brief["control_windows"]
+    dictionary = result["artifacts"]["data-dictionary-draft.json"]
+    assert dictionary["sensor_requirements"] == brief["sensor_requirements"]
+    assert dictionary["clock_accuracy_requirement"] == brief["clock_accuracy_requirement"]
+    assert dictionary["control_windows"] == brief["control_windows"]
+    collection = result["artifacts"]["collection-plan.md"]
+    assert "audio recorder at 48 kHz" in collection
+    assert "Clock drift below 10 ms" in collection
+    assert "random-time negative window" in collection
+
+    missing_clock = scaffold_design({
+        **brief,
+        "clock_accuracy_requirement": "",
+    })
+    assert missing_clock["status"] == "blocked"
+    assert "CLOCK_ACCURACY_UNRESOLVED" in {
+        item["code"] for item in missing_clock["findings"]
+    }
+
+    padded = scaffold_design({
+        **brief,
+        "sensor_requirements": [" audio recorder at 48 kHz"],
+        "clock_accuracy_requirement": " Clock drift below 10 ms",
+        "control_windows": [" pre-event baseline"],
+    })
+    assert padded["status"] == "blocked"
+    assert {
+        "SENSOR_REQUIREMENT_NONCANONICAL",
+        "CONTROL_WINDOW_NONCANONICAL",
+        "PROSPECTIVE_COMMITMENT_NONCANONICAL",
+    } <= {item["code"] for item in padded["findings"]}
+
+
 def test_comparison_column_is_bound_to_contrast_and_causal_exposure():
     base = {
         "title": "Contrast fixture", "question": "Question", "decision": "Decision",

@@ -74,6 +74,7 @@ DESIGN_BRIEF_FIELDS = {
     "measurement_expected_behavior", "measurement_temporal_role",
     "outcome_data_column",
     "preprocessing_pipeline", "preprocessing_conformance_gate_id",
+    "sensor_requirements", "clock_accuracy_requirement", "control_windows",
     "measurement_validity_checks",
     "secondary_measurements",
     "control_measurements",
@@ -342,7 +343,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     unknown = set(brief) - DESIGN_BRIEF_FIELDS
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -365,7 +366,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
         raise ValueError("study_type must be one of: " + ", ".join(sorted(_STUDY_TYPES)))
     if brief.get("assignment_type", "") not in {"", "randomized", "observational"}:
         raise ValueError("assignment_type must be randomized or observational")
-    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors"}:
+    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
         _text_list(brief, key)
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
         raise ValueError("outcome_scale is unsupported")
@@ -630,6 +631,8 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
     require_canonical_list_items("exploratory_outcomes", "EXPLORATORY_OUTCOME_LABEL_NONCANONICAL", "Exploratory outcomes")
     require_canonical_list_items("contrast_groups", "CONTRAST_GROUP_LABEL_NONCANONICAL", "Contrast groups")
     require_canonical_list_items("manipulated_factors", "MANIPULATED_FACTOR_NONCANONICAL", "Manipulated factors")
+    require_canonical_list_items("sensor_requirements", "SENSOR_REQUIREMENT_NONCANONICAL", "Sensor requirements")
+    require_canonical_list_items("control_windows", "CONTROL_WINDOW_NONCANONICAL", "Control windows")
     require_canonical_list_items("controls", "CONTROL_LABEL_NONCANONICAL", "Controls")
     require_canonical_list_items("confounds", "CONFOUND_LABEL_NONCANONICAL", "Confounds")
     require_canonical_list_items("exclusions", "EXCLUSION_RULE_NONCANONICAL", "Exclusion rules")
@@ -708,6 +711,8 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
 
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
     manipulated_factors = _text_list(brief, "manipulated_factors")
+    sensor_requirements = _text_list(brief, "sensor_requirements")
+    control_windows = _text_list(brief, "control_windows")
     normalized_factors = [item.strip().casefold() for item in manipulated_factors]
     factorial_or_crossover = brief.get("factorial_or_crossover_design", False)
     factor_plan = brief.get("factor_interpretability_plan", "")
@@ -717,6 +722,20 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "error",
             "Manipulated factors contain duplicate labels.",
             "Give each changed person, setting, apparatus, operator, condition, or analysis-label factor one stable name before review.",
+        )
+    if len({item.strip().casefold() for item in sensor_requirements}) != len(sensor_requirements):
+        add(
+            "SENSOR_REQUIREMENT_DUPLICATE",
+            "error",
+            "Sensor requirements contain duplicate labels.",
+            "Give each required instrument, stream, or channel one stable name so custody, calibration, and missing-channel checks cannot double-count it.",
+        )
+    if len({item.strip().casefold() for item in control_windows}) != len(control_windows):
+        add(
+            "CONTROL_WINDOW_DUPLICATE",
+            "error",
+            "Control windows contain duplicate labels.",
+            "Give each baseline, sham, replay, random-time, or negative-control window one stable name before review.",
         )
     if factor_plan and factor_plan != factor_plan.strip():
         add(
@@ -1165,6 +1184,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         "sampling_plan", "randomization_plan", "blinding_plan",
         "calibration_plan", "measurement_validity", "analysis_commitment",
         "stopping_rule", "observable_prediction", "null_model",
+        "clock_accuracy_requirement",
     )
     if any(
         isinstance(brief.get(field), str)
@@ -1175,7 +1195,14 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         add(
             "PROSPECTIVE_COMMITMENT_NONCANONICAL", "error",
             "A prospective design commitment contains surrounding whitespace.",
-            "Use exact unpadded intervention, exposure, comparison, sampling, blinding, calibration, analysis, stopping, prediction, and alternative-model text before review artifacts preserve those commitments.",
+            "Use exact unpadded intervention, exposure, comparison, sampling, blinding, calibration, clock-accuracy, analysis, stopping, prediction, and alternative-model text before review artifacts preserve those commitments.",
+        )
+    if control_windows and not str(brief.get("clock_accuracy_requirement", "")).strip():
+        add(
+            "CLOCK_ACCURACY_UNRESOLVED",
+            "error",
+            "Control windows are declared without a clock-accuracy requirement.",
+            "State the maximum tolerable timing uncertainty or synchronization rule before timing windows can be interpreted.",
         )
     preprocessing_pipeline = brief.get("preprocessing_pipeline", "")
     preprocessing_gate_id = brief.get("preprocessing_conformance_gate_id", "")
@@ -1624,6 +1651,8 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     controls = _text_list(brief, "controls")
     confounds = _text_list(brief, "confounds")
     manipulated_factors = _text_list(brief, "manipulated_factors")
+    sensor_requirements = _text_list(brief, "sensor_requirements")
+    control_windows = _text_list(brief, "control_windows")
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
     canary_target_plan = (
         dict(brief["canary_target_plan"])
@@ -1818,6 +1847,14 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         "multiple_testing_policy": brief.get("multiple_testing_policy", "[REVIEW REQUIRED]"),
         "inclusion_rules": [brief.get("sampling_plan", "[REVIEW REQUIRED]")],
         "exclusion_rules": _text_list(brief, "exclusions"),
+        "sensor_requirements": sensor_requirements or [
+            "[REVIEW REQUIRED] specify required instruments, streams, or channels"
+        ],
+        "clock_accuracy_requirement": brief.get(
+            "clock_accuracy_requirement",
+            "[REVIEW REQUIRED] maximum tolerable timing uncertainty or synchronization rule",
+        ),
+        "control_windows": control_windows,
         "safety_constraints": ["Human-participant review required before collection."] if brief.get("human_participants") else ["[REVIEW REQUIRED] assess applicable safety constraints."],
         "human_subjects": brief.get("human_participants"),
         "consent_plan": brief.get("consent_plan", ""),
@@ -1951,6 +1988,9 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                     )
                 },
                 "primary_outcome": brief["outcome"],
+                "sensor_requirements": sensor_requirements,
+                "clock_accuracy_requirement": brief.get("clock_accuracy_requirement", ""),
+                "control_windows": control_windows,
                 "manipulated_factors": manipulated_factors,
                 "factorial_or_crossover_design": brief.get("factorial_or_crossover_design", False),
                 "factor_interpretability_plan": brief.get("factor_interpretability_plan", ""),
@@ -2173,6 +2213,10 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 f"Manipulated factors: {', '.join(manipulated_factors) if manipulated_factors else '[REVIEW REQUIRED: none declared]'}. "
                 f"Factorial or crossover design declared: {brief.get('factorial_or_crossover_design', False)}. "
                 f"Interpretability plan: {brief.get('factor_interpretability_plan') or '[REVIEW REQUIRED if more than one factor changes]'}.\n"
+                "\n"
+                f"Required sensors or streams: {', '.join(sensor_requirements) if sensor_requirements else '[REVIEW REQUIRED: none declared]'}. "
+                f"Clock accuracy or synchronization: {brief.get('clock_accuracy_requirement') or '[REVIEW REQUIRED]'}. "
+                f"Control windows: {', '.join(control_windows) if control_windows else '[none declared]'}.\n"
                 "\n"
                 f"Canary target plan: {canary_target_plan['plan_id'] if canary_target_plan else '[not supplied]'}. "
                 "If used, keep the hidden assignment artifact sealed until the protocol-specified reveal point and report comparator, decoy, no-target, mixed, or inconclusive outcomes without upgrading them into source or intent claims.\n"

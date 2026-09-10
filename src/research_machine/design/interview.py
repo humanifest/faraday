@@ -120,11 +120,20 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
         ("randomization_plan", "How will assignment be randomized, or why is randomization inapplicable?"),
         ("measurement_validity", "How will you check that the measurement represents the intended construct?"),
         ("calibration_plan", "What calibration or quality failure would invalidate a measurement?"),
+        ("clock_accuracy_requirement", "What maximum timing uncertainty or synchronization rule is tolerable for the study?"),
         ("analysis_commitment", "What effect, uncertainty calculation, exclusions, and multiplicity policy will you commit to?"),
         ("stopping_rule", "When will collection stop, regardless of whether the result is favorable?"),
         ("sample_size_justification", "Why is that amount of information useful? State the precision or power target and assumptions, or explain the feasibility limit and resulting inferential limits. Count independent units, not rows."),
     ):
         answer(key, prompt)
+    sensors = ask(
+        "Which instruments, streams, or channels are required? Separate exact requirements with semicolons [blank = none declared]"
+    )
+    brief["sensor_requirements"] = _split_semicolon_answer(sensors)
+    windows = ask(
+        "Which baseline, sham, replay, random-time, or negative-control windows will be interpreted? Separate exact window labels with semicolons [blank = none declared]"
+    )
+    brief["control_windows"] = _split_semicolon_answer(windows)
     answer(
         "preprocessing_pipeline",
         "What lowercase SHA-256 commits to the registered preprocessing-pipeline declaration?",
