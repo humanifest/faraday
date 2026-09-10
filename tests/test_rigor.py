@@ -1558,6 +1558,117 @@ def test_audit_warns_when_causal_temporal_order_gate_is_unassessed() -> None:
     }
 
 
+def test_audit_warns_when_causal_assumption_results_are_unassessed() -> None:
+    from research_machine.design.causal import audit_causal_identification
+    from test_causal_identification import _confounded
+    from test_ethics_gate import _human_protocol
+
+    graph = _confounded(["baseline"])
+    protocol = replace(
+        _human_protocol(
+            human_subjects=False,
+            causal_claim=True,
+            causal_identification=graph,
+            causal_identification_audit=audit_causal_identification(graph),
+        ),
+        status=ProtocolStatus.FROZEN,
+    )
+    run = ResearchRun(
+        run_id="causal-assumption-run",
+        protocol_id=protocol.protocol_id,
+        protocol_hash=protocol.protocol_hash or "f" * 64,
+        analysis_mode=protocol.analysis_mode,
+        started_at="2026-09-02T12:01:00Z",
+        completed_at="2026-09-02T12:02:00Z",
+        executed_by="fixture",
+        analysis_code_hash="a" * 64,
+        environment_hash="b" * 64,
+        quality_gates=[
+            QualityGateResult(
+                "integrity",
+                QualityGateStatus.PASSED,
+                "Synthetic temporal-order fixture only.",
+                details={
+                    "evidence_sha256": "c" * 64,
+                    "temporal_order_assessment": {
+                        "status": "temporal_order_passed",
+                    },
+                },
+            )
+        ],
+        synthetic=True,
+        metadata={
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared",
+                "deviations": [],
+            }
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Causal-assumption audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[run],
+    )
+    assert "PROTECTED_CAUSAL_TEMPORAL_ORDER_UNASSESSED" not in {
+        finding.code for finding in audit.findings
+    }
+    assert "PROTECTED_CAUSAL_ASSUMPTIONS_UNASSESSED" in {
+        finding.code for finding in audit.findings
+    }
+
+    assumption_results = {
+        item["category"]: {
+            "observed_diagnostic": f"Synthetic diagnostic for {item['category']}.",
+            "interpretation": "No fixture contradiction was encoded.",
+            "assessment_status": "consistent_with_assumption",
+            "assessment_kind": item["assessment_kind"],
+            "evidence_sha256": "d" * 64,
+            "evidence_location": f"/diagnostics/{item['category']}",
+        }
+        for item in protocol.causal_identification_audit["assumption_register"]
+    }
+    assessed_run = replace(
+        run,
+        quality_gates=[
+            QualityGateResult(
+                "integrity",
+                QualityGateStatus.PASSED,
+                "Synthetic causal-assumption assessment.",
+                details={
+                    "evidence_sha256": "d" * 64,
+                    "temporal_order_assessment": {
+                        "status": "temporal_order_passed",
+                    },
+                    "causal_assumption_results": assumption_results,
+                },
+            )
+        ],
+    )
+    assessed_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[assessed_run],
+    )
+    assert "PROTECTED_CAUSAL_ASSUMPTIONS_UNASSESSED" not in {
+        finding.code for finding in assessed_audit.findings
+    }
+
+
 def test_audit_warns_when_canary_target_gate_is_unassessed() -> None:
     from test_ethics_gate import _human_protocol
 

@@ -324,6 +324,11 @@ Deterministic synthesis reports the frozen count of each assessment kind and,
 for recorded results, preserves the run, category, kind, disposition, artifact
 hash, and exact evidence location. It never summarizes these as “assumptions
 verified.”
+Rigor audit also warns when a protected causal protocol has recorded runs but
+the run set does not expose structured `causal_assumption_results` for every
+frozen assumption category. A DAG audit, temporal-order artifact, passed
+unrelated gate, or favorable result cannot stand in for the registered causal
+assumption assessments.
 Each passed causal-assumption result must also name the exact location of its
 diagnostic inside the cited output artifact. A whole-file hash without an
 inspectable table, figure, section, record range, or JSON Pointer is insufficient.

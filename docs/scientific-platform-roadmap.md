@@ -440,6 +440,10 @@ cannot be presented under a passed gate. The provider-free run template emits
 these slots from the frozen protocol. This creates an artifact-linked assessment
 chain; it does not turn a diagnostic into proof of an untestable identification
 assumption or authenticate the interpretation at the named location.
+Rigor audit now also flags protected causal protocols that have recorded runs
+without structured `causal_assumption_results` for every frozen assumption
+category, so a graph audit, temporal-order artifact, or favorable numerical
+result cannot silently replace the prespecified causal-assumption assessments.
 Protocol freeze now rejects noncanonical `quality_requirements` IDs before gate
 membership is evaluated, preventing padded required-gate names from satisfying
 causal, control, validity, or missingness bindings through silent trimming.

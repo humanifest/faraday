@@ -110,6 +110,41 @@ def _causal_temporal_order_gate_ids(protocol: ExperimentProtocol) -> set[str]:
     }
 
 
+def _reported_causal_assumption_categories(
+    protocol: ExperimentProtocol,
+    runs: list[ResearchRun],
+) -> set[str]:
+    if not protocol.causal_claim:
+        return set()
+    audit = protocol.causal_identification_audit
+    register = audit.get("assumption_register") if isinstance(audit, dict) else None
+    if not isinstance(register, list):
+        return set()
+    gate_ids = {
+        gate_id
+        for item in register
+        if isinstance(item, dict)
+        and isinstance((gate_id := item.get("assessment_gate_id")), str)
+        and gate_id
+    }
+    reported: set[str] = set()
+    for run in runs:
+        if run.protocol_id != protocol.protocol_id:
+            continue
+        for gate in run.quality_gates:
+            if gate.gate_id not in gate_ids:
+                continue
+            results = gate.details.get("causal_assumption_results")
+            if not isinstance(results, dict):
+                continue
+            reported.update(
+                category
+                for category, result in results.items()
+                if isinstance(category, str) and isinstance(result, dict)
+            )
+    return reported
+
+
 def _reported_measurement_validity_check_ids(
     protocol: ExperimentProtocol,
     runs: list[ResearchRun],
@@ -1041,6 +1076,41 @@ def audit_research_state(
                 ),
             )
         temporal_order_gate_ids = _causal_temporal_order_gate_ids(protocol)
+        assumption_register = (
+            protocol.causal_identification_audit.get("assumption_register", [])
+            if protocol.causal_claim
+            and isinstance(protocol.causal_identification_audit, dict)
+            else []
+        )
+        expected_causal_assumption_categories = {
+            item["category"]
+            for item in assumption_register
+            if isinstance(item, dict)
+            and isinstance(item.get("category"), str)
+            and item["category"]
+        }
+        if (
+            _protected_empirical(protocol)
+            and expected_causal_assumption_categories
+            and runs_by_protocol[protocol.protocol_id] > 0
+        ):
+            missing_causal_categories = sorted(
+                expected_causal_assumption_categories
+                - _reported_causal_assumption_categories(protocol, runs)
+            )
+            if missing_causal_categories:
+                add(
+                    "PROTECTED_CAUSAL_ASSUMPTIONS_UNASSESSED",
+                    RigorSeverity.WARNING,
+                    "Protected causal protocol has frozen causal-assumption assessment gates, but recorded runs do not expose structured results for every assumption category.",
+                    entity_type="protocol",
+                    entity_id=protocol.protocol_id,
+                    remediation=(
+                        "Record artifact-bound causal_assumption_results for "
+                        + ", ".join(missing_causal_categories)
+                        + "; do not infer exchangeability, temporality, positivity, consistency, measurement validity, or selection validity from the DAG, design prose, gate labels, or favorable results."
+                    ),
+                )
         if (
             _protected_empirical(protocol)
             and temporal_order_gate_ids
