@@ -623,9 +623,11 @@ Deterministic rigor and synthesis carry the validity layer through reporting.
 The synthesis lists frozen checks and each run’s observed diagnostic,
 interpretation, disposition, artifact location, and selected-value digest when
 available. Rigor warns on inconclusive checks, errors on contradicted validity
-claims, and warns when a protected empirical protocol has typed measurements but
-no canonical validity plan. A numerically favorable estimate therefore cannot
-make a failed measurement check disappear from the scientific record.
+claims, warns when a protected empirical protocol has typed measurements but no
+canonical validity plan, and warns when recorded runs do not expose structured
+results for every frozen validity check. A numerically favorable estimate
+therefore cannot make a missing or failed measurement check disappear from the
+scientific record.
 Admitted evidence also retains the ordered IDs of the exact frozen validity
 checks whose artifact-bound results were consistent. Faraday derives this
 binding from the protocol and run rather than accepting it from the caller,

@@ -806,12 +806,13 @@ laundering a fabricated or drifted internal location while leaving non-JSON
 locations explicitly human-inspectable.
 Validity-reporting delivery: rigor now warns when a protected empirical protocol
 has typed measurements but no canonical validity plan, emits a specific warning
-for inconclusive validity checks, and emits an error when a frozen validity claim
-is contradicted. Deterministic synthesis lists every frozen check and every
-reported diagnostic, interpretation, disposition, output digest, and location,
-including unavailable results, and includes selected-value digests when the
-cited JSON was machine-resolved. Numerical success cannot suppress measurement
-validity limitations.
+when recorded runs lack structured results for any frozen validity check, emits
+a specific warning for inconclusive validity checks, and emits an error when a
+frozen validity claim is contradicted. Deterministic synthesis lists every
+frozen check and every reported diagnostic, interpretation, disposition, output
+digest, and location, including unavailable results, and includes selected-value
+digests when the cited JSON was machine-resolved. Numerical success cannot
+suppress missing or failed measurement-validity limitations.
 Replication-package verification now replays performed measurement-validity
 gates against the frozen checks: every mapped check must have exactly one result,
 the retained evidence type must match the protocol, gate status must agree with

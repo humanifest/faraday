@@ -36,6 +36,7 @@ from research_machine.domain.models import (
     EvidenceRecord,
     MeasurementDefinition,
     MeasurementRole,
+    MeasurementValidityCheck,
     ProtocolKind,
     ProtocolStatus,
     QualityGateResult,
@@ -1650,6 +1651,132 @@ def test_audit_warns_when_canary_target_gate_is_unassessed() -> None:
         runs=[assessed_run],
     )
     assert "PROTECTED_EMPIRICAL_CANARY_TARGET_UNASSESSED" not in {
+        finding.code for finding in assessed_audit.findings
+    }
+
+
+def test_audit_warns_when_measurement_validity_results_are_unassessed() -> None:
+    from test_ethics_gate import _human_protocol
+
+    measurement = MeasurementDefinition(
+        measurement_id="primary-measurement",
+        role=MeasurementRole.PRIMARY,
+        registered_target="Registered outcome",
+        observable="Synthetic fixture outcome",
+        input_condition="All eligible fixture rows",
+        parameter_values={"scale": "fixture units"},
+        evaluation_point="registered endpoint",
+        convention="higher is larger",
+        aggregation="mean by group",
+        tolerance="exact fixture parsing",
+        expected_behavior="Reported regardless of direction",
+        data_column="outcome",
+        temporal_role="post_exposure",
+        scale_type="interval",
+        unit="fixture units",
+        valid_min=0.0,
+        valid_max=100.0,
+        missing_value_codes=["<blank>"],
+    )
+    check = MeasurementValidityCheck(
+        check_id="primary-validity",
+        measurement_id="primary-measurement",
+        evidence_type="criterion",
+        validity_claim="The primary measurement agrees with the registered reference.",
+        assessment_plan="Compare a prespecified subset before interpretation.",
+        acceptance_criterion="Agreement is within the frozen tolerance.",
+        failure_response="Stop unqualified interpretation and repair measurement.",
+        assessment_gate_id="measurement-validity-assessed",
+    )
+    protocol = replace(
+        _human_protocol(
+            human_subjects=False,
+            measurement_definitions=[measurement],
+            measurement_validity_checks=[check],
+            quality_requirements=["integrity", "measurement-validity-assessed"],
+        ),
+        status=ProtocolStatus.FROZEN,
+    )
+    run = ResearchRun(
+        run_id="validity-run",
+        protocol_id=protocol.protocol_id,
+        protocol_hash=protocol.protocol_hash or "f" * 64,
+        analysis_mode=protocol.analysis_mode,
+        started_at="2026-09-02T12:01:00Z",
+        completed_at="2026-09-02T12:02:00Z",
+        executed_by="fixture",
+        analysis_code_hash="a" * 64,
+        environment_hash="b" * 64,
+        quality_gates=[
+            QualityGateResult(
+                "integrity",
+                QualityGateStatus.PASSED,
+                "Synthetic fixture gate.",
+                details={"evidence_sha256": "c" * 64},
+            )
+        ],
+        synthetic=True,
+        metadata={
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared",
+                "deviations": [],
+            }
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Measurement-validity audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[run],
+    )
+    assert "PROTECTED_EMPIRICAL_VALIDITY_RESULTS_UNASSESSED" in {
+        finding.code for finding in audit.findings
+    }
+
+    assessed_run = replace(
+        run,
+        quality_gates=[
+            *run.quality_gates,
+            QualityGateResult(
+                "measurement-validity-assessed",
+                QualityGateStatus.PASSED,
+                "Synthetic validity assessment.",
+                details={
+                    "evidence_sha256": "d" * 64,
+                    "measurement_validity_results": {
+                        "primary-validity": {
+                            "observed_diagnostic": "Reference agreement was inspected.",
+                            "interpretation": "No fixture contradiction was encoded.",
+                            "assessment_status": "consistent_with_validity_claim",
+                            "evidence_type": "criterion",
+                            "evidence_sha256": "d" * 64,
+                            "evidence_location": "/validity/primary",
+                        }
+                    },
+                },
+            ),
+        ],
+    )
+    assessed_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[assessed_run],
+    )
+    assert "PROTECTED_EMPIRICAL_VALIDITY_RESULTS_UNASSESSED" not in {
         finding.code for finding in assessed_audit.findings
     }
 

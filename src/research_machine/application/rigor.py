@@ -110,6 +110,32 @@ def _causal_temporal_order_gate_ids(protocol: ExperimentProtocol) -> set[str]:
     }
 
 
+def _reported_measurement_validity_check_ids(
+    protocol: ExperimentProtocol,
+    runs: list[ResearchRun],
+) -> set[str]:
+    gate_ids = {
+        check.assessment_gate_id
+        for check in protocol.measurement_validity_checks
+    }
+    reported: set[str] = set()
+    for run in runs:
+        if run.protocol_id != protocol.protocol_id:
+            continue
+        for gate in run.quality_gates:
+            if gate.gate_id not in gate_ids:
+                continue
+            results = gate.details.get("measurement_validity_results")
+            if not isinstance(results, dict):
+                continue
+            reported.update(
+                check_id
+                for check_id, result in results.items()
+                if isinstance(check_id, str) and isinstance(result, dict)
+            )
+    return reported
+
+
 def _factor_interpretability_state(protocol: ExperimentProtocol) -> str:
     factors = protocol.manipulated_factors
     has_plan = bool(protocol.factor_interpretability_plan.strip())
@@ -840,6 +866,31 @@ def audit_research_state(
                     "In the next prospective protocol version, bind structured validity claims, acceptance criteria, failure responses, and dedicated gates; do not retroactively rewrite this frozen protocol."
                 ),
             )
+        if (
+            _protected_empirical(protocol)
+            and protocol.measurement_validity_checks
+            and runs_by_protocol[protocol.protocol_id] > 0
+        ):
+            expected_validity_check_ids = {
+                check.check_id for check in protocol.measurement_validity_checks
+            }
+            missing_validity_check_ids = sorted(
+                expected_validity_check_ids
+                - _reported_measurement_validity_check_ids(protocol, runs)
+            )
+            if missing_validity_check_ids:
+                add(
+                    "PROTECTED_EMPIRICAL_VALIDITY_RESULTS_UNASSESSED",
+                    RigorSeverity.WARNING,
+                    "Protected empirical protocol has frozen measurement-validity checks, but recorded runs do not expose structured results for every check.",
+                    entity_type="protocol",
+                    entity_id=protocol.protocol_id,
+                    remediation=(
+                        "Record artifact-bound measurement-validity results for "
+                        + ", ".join(missing_validity_check_ids)
+                        + "; do not infer validity from the prospective plan or favorable analysis output."
+                    ),
+                )
         if _protected_empirical(protocol) and not protocol.sample_size_plan:
             add(
                 "PROTECTED_EMPIRICAL_SAMPLE_SIZE_PLAN_UNVERIFIED",
