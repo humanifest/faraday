@@ -810,6 +810,28 @@ def test_new_evidence_requires_scope_ceiling_and_classification(tmp_path: Path) 
                 exploratory=False,
             )
         )
+    with pytest.raises(ValidationError, match="uncertainty must not be empty"):
+        service.record_evidence(
+            _classified_evidence(
+                hypothesis.hypothesis_id,
+                run.run_id,
+                uncertainty=" ",
+            )
+        )
+    with pytest.raises(
+        ValidationError,
+        match="control disclosures must not contain duplicates",
+    ):
+        service.record_evidence(
+            _classified_evidence(
+                hypothesis.hypothesis_id,
+                run.run_id,
+                controls_passed=[
+                    "Negative control rejected the invalid candidate.",
+                    " Negative control rejected the invalid candidate. ",
+                ],
+            )
+        )
     with pytest.raises(ValidationError, match="unclassified new evidence"):
         service.record_evidence(
             _classified_evidence(

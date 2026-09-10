@@ -2174,7 +2174,9 @@ records remain admissible when their ordinary evidence requirements are met, so
 disconfirming material is preserved rather than promoted. Each record must name
 at least one distinct unsupported higher-level conclusion; duplicates are
 rejected after text normalization so repeated ceiling prose cannot masquerade as
-multiple independent limitations.
+multiple independent limitations. Scope, uncertainty, summary, control
+disclosures, and unsupported-conclusion ceiling entries must be nonblank, and
+control disclosures cannot contain duplicates.
 independent replication must name an eligible earlier run through
 `metadata.replicates_run_id`, use a different executor identity, and use a
 different analysis-code hash. It must also declare a clean-room design with

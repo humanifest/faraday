@@ -24,15 +24,23 @@
     "run_id": {"type": ["string", "null"], "minLength": 1},
     "analysis_id": {"type": "string"},
     "effect_estimate": {"type": "string"},
-    "uncertainty": {"type": "string"},
-    "scope": {"type": "string"},
-    "controls_passed": {"type": "array", "items": {"type": "string"}},
-    "controls_failed": {"type": "array", "items": {"type": "string"}},
+    "uncertainty": {"$ref": "#/$defs/nonBlankText"},
+    "scope": {"$ref": "#/$defs/nonBlankText"},
+    "controls_passed": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonBlankText"}
+    },
+    "controls_failed": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonBlankText"}
+    },
     "higher_level_conclusions_unsupported": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": {"type": "string", "minLength": 1}
+      "items": {"$ref": "#/$defs/nonBlankText"}
     },
     "validation_tags": {
       "type": "array",
@@ -56,9 +64,13 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "nonBlankText": {
+      "type": "string",
+      "pattern": "\\S"
+    },
     "boundedReportText": {
       "allOf": [
-        {"type": "string", "minLength": 1},
+        {"$ref": "#/$defs/nonBlankText"},
         {
           "not": {
             "pattern": "\\b(?:[Pp][Rr][Oo][Vv][Ee][Dd]|[Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd]|[Ee][Xx][Pp][Ll][Aa][Ii][Nn][Ee][Dd])\\b"

@@ -132,6 +132,41 @@ def test_evidence_command_schema_rejects_duplicate_unsupported_conclusions():
         jsonschema.validate(command, schema)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("summary", " "),
+        ("scope", " "),
+        ("uncertainty", " "),
+        ("higher_level_conclusions_unsupported", [" "]),
+        ("controls_passed", ["negative control", "negative control"]),
+        ("controls_failed", [" "]),
+    ],
+)
+def test_evidence_command_schema_preflights_evidence_annotation_invariants(
+    field, value
+):
+    schema = json.loads((SCHEMAS / "evidence-command.schema.json").read_text())
+    command = {
+        "hypothesis_id": "hyp-annotation-fixture",
+        "direction": "supports",
+        "summary": "The fixture supports only the scoped synthetic check.",
+        "dataset_id": "dataset-annotation-fixture",
+        "analysis_id": "analysis-annotation-fixture",
+        "uncertainty": "Synthetic fixture uncertainty.",
+        "scope": "Synthetic schema fixture only.",
+        "controls_passed": ["negative control"],
+        "higher_level_conclusions_unsupported": [
+            "Causality remains unsupported."
+        ],
+        "validation_tags": ["controlled_benchmark"],
+        "exploratory": True,
+    }
+    command[field] = value
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
 def test_empirical_protocol_command_matches_published_schema():
     from test_ethics_gate import _human_protocol
     from research_machine.interfaces.cli import _PROTOCOL_FIELDS
