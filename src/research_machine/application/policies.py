@@ -1360,9 +1360,17 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         )
         if len(groups) != 2:
             raise ValidationError("analysis_contract.groups must contain exactly two distinct levels")
-        require_canonical_contract_list(
+        if not contract.contrast_definition:
+            raise ValidationError(
+                "analysis_contract.contrast_definition must declare the signed contrast"
+            )
+        contrast_groups = require_canonical_contract_list(
             contract.contrast_groups, "analysis_contract.contrast_groups"
         )
+        if contrast_groups != groups:
+            raise ValidationError(
+                "analysis_contract.contrast_groups must exactly match the executable group order"
+            )
         require_canonical_contract_list(
             contract.adjustment_columns, "analysis_contract.adjustment_columns"
         )

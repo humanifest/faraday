@@ -730,6 +730,32 @@ def test_analysis_contract_rejects_noncanonical_list_handles(
         validate_protocol_freeze(replace(protocol, analysis_contract=contract))
 
 
+@pytest.mark.parametrize(
+    ("updates", "message"),
+    [
+        (
+            {"contrast_definition": ""},
+            "analysis_contract.contrast_definition must declare the signed contrast",
+        ),
+        (
+            {"contrast_groups": []},
+            "analysis_contract.contrast_groups must exactly match",
+        ),
+        (
+            {"contrast_groups": ["b", "a"]},
+            "analysis_contract.contrast_groups must exactly match",
+        ),
+    ],
+)
+def test_analysis_contract_requires_explicit_signed_contrast(
+    updates: dict[str, object], message: str
+) -> None:
+    protocol = _multi_step_protocol()
+    contract = replace(protocol.analysis_contract, **updates)
+    with pytest.raises(ValidationError, match=message):
+        validate_protocol_freeze(replace(protocol, analysis_contract=contract))
+
+
 def test_measurement_custody_requirement_ids_are_unambiguous_at_freeze() -> None:
     protocol = replace(
         _human_protocol(human_subjects=False),

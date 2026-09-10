@@ -671,11 +671,11 @@ as first-class hypothesis fields rather than being left only in draft files or
 provenance prose. The service-generated scientific-content seal covers the
 contrast, so later out-of-band reversal fails integrity validation.
 When that hypothesis is used by an executable protocol, the analysis contract
-must carry the same `contrast_definition`, and the runtime specification must
-match it exactly. Execution receipts retain the contrast alongside the estimand.
-Legacy hypotheses and contracts that never declared a contrast remain readable,
-but a contrast declared on either side cannot be omitted or changed on the
-other.
+must carry the same `contrast_definition`; protocol freeze rejects a grouped
+analysis contract that omits the signed contrast, and the runtime specification
+must match it exactly. Execution receipts retain the contrast alongside the
+estimand. Legacy records that predate the executable contract remain readable,
+but new executable analysis contracts cannot leave group order implicit.
 The contrast also carries an ordered two-level `contrast_groups` commitment.
 Protocol freeze requires it to equal both the hypothesis order and the analysis
 contract’s executable `groups` order. Thus a shared prose label cannot conceal

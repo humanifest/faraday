@@ -887,12 +887,13 @@ canonical unreviewed hypothesis. `contrast_definition` is a first-class sealed
 hypothesis field and therefore participates in both the proposition commitment
 and later protocol hypothesis commitments; it is no longer stranded in a draft
 artifact or opaque revision provenance.
-Executable contrast-binding delivery: `AnalysisContract` can now retain the
-same signed `contrast_definition`; protocol freeze requires exact agreement
-whenever either the hypothesis or contract declares it, runtime design checks
-require the executable specification to match, and result receipts preserve the
-executed contrast. This is backward-readable for older undeclared records while
-failing closed against omission or reversal once a contrast is declared.
+Executable contrast-binding delivery: `AnalysisContract` now must retain the
+same signed `contrast_definition` for grouped executable analysis. Protocol
+freeze rejects contracts that leave the signed contrast implicit, requires exact
+agreement with the target hypothesis, runtime design checks require the
+executable specification to match, and result receipts preserve the executed
+contrast. This keeps legacy records readable while failing closed against new
+omission or reversal.
 Structured contrast-order delivery: hypotheses now pair their prose contrast
 with exactly two distinct ordered `contrast_groups`. Analysis contracts must
 match that list and their executable `groups` order exactly; runtime semantics

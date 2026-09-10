@@ -437,6 +437,29 @@ def test_protocol_schema_accepts_and_constrains_measurement_validity_checks():
         jsonschema.validate(malformed, schema)
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda contract: contract.pop("contrast_definition"),
+        lambda contract: contract.pop("contrast_groups"),
+        lambda contract: contract.update({"contrast_definition": " group a minus group b "}),
+        lambda contract: contract.update({"contrast_groups": ["a", " b "]}),
+    ],
+)
+def test_protocol_schema_requires_explicit_analysis_contract_contrast(mutation):
+    from test_protocol_design_structure import _multi_step_protocol
+    from research_machine.interfaces.cli import _PROTOCOL_FIELDS
+
+    protocol = _multi_step_protocol().to_dict()
+    command = {key: value for key, value in protocol.items() if key in _PROTOCOL_FIELDS}
+    schema = json.loads((SCHEMAS / "protocol-command.schema.json").read_text())
+    jsonschema.validate(command, schema)
+
+    mutation(command["analysis_contract"])
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
 def test_published_causal_schemas_require_structured_assumption_register():
     from test_causal_identification import _confounded
 

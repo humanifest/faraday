@@ -174,17 +174,17 @@
     },
     "analysisContract": {
       "type": "object", "additionalProperties": false,
-      "required": ["primary_hypothesis_id", "primary_measurement_id", "method", "outcome_column", "group_column", "groups", "estimand", "missing_data_policy", "assignment_type", "effect_estimate_path", "uncertainty_path", "null_value", "support_rule", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "missingness_assumption", "missingness_assessment_plan", "missingness_failure_response", "missingness_assessment_kind", "missingness_assessment_gate_id"],
+      "required": ["primary_hypothesis_id", "primary_measurement_id", "method", "outcome_column", "group_column", "groups", "estimand", "contrast_definition", "contrast_groups", "missing_data_policy", "assignment_type", "effect_estimate_path", "uncertainty_path", "null_value", "support_rule", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "missingness_assumption", "missingness_assessment_plan", "missingness_failure_response", "missingness_assessment_kind", "missingness_assessment_gate_id"],
       "properties": {
-        "primary_hypothesis_id": {"type": "string", "minLength": 1},
-        "primary_measurement_id": {"type": "string", "minLength": 1},
-        "method": {"type": "string", "minLength": 1},
-        "outcome_column": {"type": "string", "minLength": 1},
-        "group_column": {"type": "string", "minLength": 1},
-        "groups": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 2, "maxItems": 2, "uniqueItems": true},
-        "estimand": {"type": "string", "minLength": 1},
-        "contrast_definition": {"type": "string", "minLength": 1},
-        "contrast_groups": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 2, "maxItems": 2, "uniqueItems": true},
+        "primary_hypothesis_id": {"$ref": "#/$defs/canonicalText"},
+        "primary_measurement_id": {"$ref": "#/$defs/canonicalText"},
+        "method": {"$ref": "#/$defs/canonicalText"},
+        "outcome_column": {"$ref": "#/$defs/canonicalText"},
+        "group_column": {"$ref": "#/$defs/canonicalText"},
+        "groups": {"type": "array", "items": {"$ref": "#/$defs/canonicalText"}, "minItems": 2, "maxItems": 2, "uniqueItems": true},
+        "estimand": {"$ref": "#/$defs/canonicalText"},
+        "contrast_definition": {"$ref": "#/$defs/canonicalText"},
+        "contrast_groups": {"type": "array", "items": {"$ref": "#/$defs/canonicalText"}, "minItems": 2, "maxItems": 2, "uniqueItems": true},
         "missing_data_policy": {"const": "complete_case"}
         ,"assignment_type": {"enum": ["observational", "randomized_between_units", "nonrandomized", "not_applicable"]}
         ,"allocation_sha256": {"type": "string", "pattern": "^([0-9a-f]{64})?$"}
