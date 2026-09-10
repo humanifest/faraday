@@ -1335,7 +1335,8 @@ false; deviation status must derive the meta-analysis review status; the
 embedded deviation-bound plan commitments must match the retained quantitative
 effect measure, contrast, and model; available study counts, unavailable-study
 disclosures, retained source-summary digests, the frozen sensitivity-analysis
-list and its result coverage, and small-study diagnostic non-conclusion status
+list, known executable sensitivity identifiers and exact result coverage,
+and small-study diagnostic non-conclusion status
 must all replay from the artifact's retained provenance.
 It also replays retained numeric-result shape: trusted input hashes, plan and
 snapshot handles, finite pooled estimates and uncertainty, confidence-interval

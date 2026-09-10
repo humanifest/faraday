@@ -22,7 +22,10 @@ from research_machine.literature.effects import (
     validate_retained_source_summaries,
 )
 from research_machine.literature.hashes import require_sha256
-from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
+from research_machine.literature.synthesis_plan import (
+    QUANTITATIVE_SENSITIVITIES,
+    validate_synthesis_plan_boundary,
+)
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
 _DEVIATION_STATUSES = {
@@ -455,6 +458,10 @@ def validate_meta_analysis_boundary(
         )
         if retained_name in retained_sensitivity_names:
             raise ValidationError("meta-analysis planned sensitivity analyses must be unique")
+        if retained_name not in QUANTITATIVE_SENSITIVITIES:
+            raise ValidationError(
+                "meta-analysis retained an unknown executable quantitative sensitivity analysis"
+            )
         retained_sensitivity_names.append(retained_name)
     sensitivity_names = []
     for item in sensitivity_results:

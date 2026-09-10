@@ -16,7 +16,7 @@ from research_machine.literature.snapshot import _text
 
 _TYPES = {"qualitative", "quantitative"}
 _MODELS = {"not_applicable", "fixed_effect", "random_effects"}
-_QUANTITATIVE_SENSITIVITIES = {
+QUANTITATIVE_SENSITIVITIES = {
     "leave_one_study_out",
     "exclude_high_or_unclear_bias",
     "alternate_fixed_effect",
@@ -111,7 +111,7 @@ def create_synthesis_plan(
 
     sensitivities = _text_list(specification["sensitivity_analyses"], "sensitivity_analyses", allow_empty=False)
     if synthesis_type == "quantitative":
-        unknown = sorted(set(sensitivities) - _QUANTITATIVE_SENSITIVITIES)
+        unknown = sorted(set(sensitivities) - QUANTITATIVE_SENSITIVITIES)
         if unknown:
             raise ValidationError("unknown executable quantitative sensitivity analysis: " + ", ".join(unknown))
         incompatible = ((model == "fixed_effect" and "alternate_fixed_effect" in sensitivities)

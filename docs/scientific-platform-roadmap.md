@@ -1753,14 +1753,17 @@ Quantitative plans now use executable sensitivity identifiers:
 the consistent study-level bias judgment from the evidence map. Pooling must
 account for every frozen sensitivity, preserving `not_estimable` results rather
 than omitting them; alternate-model and bias-exclusion uncertainties are labeled
-normal approximations.
+normal approximations. Boundary replay rejects retained sensitivity names outside
+that known executable set, even when an edited artifact makes the retained list
+and result rows agree with each other.
 The meta-analysis artifact now replays its own non-authority and summary
 boundary before it is written: false scientific-evidence, conclusion, and
 publication authorization; deviation-derived review status; available-study
 counts; unavailable-study disclosure; deviation-bound plan commitments; retained
-source-summary digest coverage; the frozen sensitivity-analysis list and exact
-result coverage; and the small-study diagnostic's explicit refusal to conclude
-publication bias. This keeps the pooled arithmetic inspectable without turning
+source-summary digest coverage; the frozen sensitivity-analysis list, known
+executable sensitivity identifiers, and exact result coverage; and the
+small-study diagnostic's explicit refusal to conclude publication bias. This
+keeps the pooled arithmetic inspectable without turning
 the result into evidence, a conclusion, or publication clearance.
 It also replays retained numeric-result shape: trusted input hashes, plan and
 snapshot handles, finite pooled estimates and uncertainty, confidence-interval

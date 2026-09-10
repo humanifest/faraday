@@ -467,6 +467,26 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         )
 
 
+def test_meta_analysis_boundary_rejects_unknown_retained_sensitivity_without_external_plan(tmp_path):
+    plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
+    result = execute_meta_analysis(
+        plan, plan_sha, effects, effects_sha, verification, verification_sha,
+        deviations, deviations_sha, tmp_path / "meta"
+    )
+    candidate = copy.deepcopy(result)
+    candidate["planned_sensitivity_analyses"] = ["exploratory_trim_and_fill"]
+    candidate["planned_sensitivity_results"] = [{
+        "analysis": "exploratory_trim_and_fill",
+        "status": "completed",
+        "remaining_study_count": candidate["available_study_count"],
+        "estimate": candidate["pooled_estimate"],
+        "standard_error_normal_approximation": candidate["standard_error"],
+    }]
+
+    with pytest.raises(ValidationError, match="unknown executable quantitative sensitivity"):
+        validate_meta_analysis_boundary(candidate)
+
+
 @pytest.mark.parametrize(("artifact", "field"), [
     ("effects-study", "effect record study_id"),
     ("mapped-claim", "mapped claim extraction_id"),
