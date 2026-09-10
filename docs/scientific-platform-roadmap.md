@@ -194,10 +194,13 @@ and deviation evidence hashes must cite packaged run outputs.
 Run-output and evidence-admission delivery: scientific evidence eligibility now
 also requires a passed verification of every declared output under an explicit
 local artifact root. Runs lacking that verification remain recordable but cannot
-cross the evidence boundary. Rigor audit and deterministic synthesis now name
-gate-passing non-synthetic runs that lack local output-byte verification, making
-the ineligibility reason visible instead of hiding it behind a bare false
-eligibility flag. The canonical run retains its resolved root,
+cross the evidence boundary. Read-side inquiry display, rigor audit, and
+deterministic synthesis now replay retained artifact-integrity receipts for
+ineligible runs too, so deviation-restricted or calibration outcomes fail closed
+if their preserved output bytes move or change. Rigor audit and deterministic
+synthesis also name gate-passing non-synthetic runs that lack local output-byte
+verification, making the ineligibility reason visible instead of hiding it
+behind a bare false eligibility flag. The canonical run retains its resolved root,
 integrity receipt, and any pinned attestation-schema location and commitment.
 Retained run artifact roots and attestation-schema paths must be canonical
 unpadded text, and pinned attestation-schema commitments must be canonical

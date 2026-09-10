@@ -1196,6 +1196,10 @@ class ResearchService:
         )
         for run in runs:
             validate_run_payload_commitment(run)
+            artifact_integrity_replayed = False
+            if "artifact_integrity" in run.metadata:
+                reverify_run_artifacts(run)
+                artifact_integrity_replayed = True
             if not run.scientific_evidence_eligible:
                 continue
             protocol = protocols_by_id.get(run.protocol_id)
@@ -1212,7 +1216,8 @@ class ResearchService:
                 for dataset_id in run.dataset_ids
             ]
             self._validate_run_datasets(protocol, run_datasets, all_datasets=datasets)
-            reverify_run_artifacts(run)
+            if not artifact_integrity_replayed:
+                reverify_run_artifacts(run)
         from research_machine.application.evidence_admission import (
             validate_evidence_admission_receipts,
         )

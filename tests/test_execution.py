@@ -1681,6 +1681,59 @@ def test_declared_protocol_deviation_is_preserved_and_blocks_evidence(tmp_path: 
     assert "potential impact: potentially_material" in synthesis
 
 
+def test_ineligible_run_with_retained_artifact_receipt_replays_on_read(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    output = tmp_path / "proof-output.json"
+    output.write_text('{"checker":"passed","deviation":"declared"}\n', encoding="utf-8")
+    output_sha256 = hashlib.sha256(output.read_bytes()).hexdigest()
+    disclosure = {
+        "status": "deviations_declared",
+        "deviations": [{
+            "deviation_id": "dev-artifact-retained",
+            "stage": "analysis",
+            "frozen_commitment": "Use the registered solver tolerance.",
+            "actual_method": "Used a looser tolerance after convergence failed.",
+            "reason": "The registered tolerance did not converge.",
+            "timing": "after_results_seen",
+            "potential_impact": "potentially_material",
+            "corrective_action": "Repeat both tolerances and report all results.",
+            "evidence_sha256": output_sha256,
+            "evidence_location": "/deviation",
+        }],
+    }
+    run = service.record_run(run_command(
+        protocol.protocol_id,
+        QualityGateStatus.PASSED,
+        artifact_root=str(tmp_path),
+        output_artifacts=[DatasetArtifact(
+            output.name,
+            output_sha256,
+            output.stat().st_size,
+            "application/json",
+        )],
+        quality_gates=[QualityGateResult(
+            "proof-check",
+            QualityGateStatus.PASSED,
+            "Independent proof-checker result.",
+            details={"evidence_sha256": output_sha256},
+        )],
+        metadata={"protocol_deviation_disclosure": disclosure},
+    ))
+
+    assert run.scientific_evidence_eligible is False
+    assert run.metadata["artifact_integrity"]["status"] == "passed"
+    service.show_inquiry()
+
+    output.write_text('{"checker":"changed","deviation":"declared"}\n', encoding="utf-8")
+    with pytest.raises(ValidationError, match="ARTIFACT_HASH_MISMATCH"):
+        service.show_inquiry()
+    with pytest.raises(ValidationError, match="ARTIFACT_HASH_MISMATCH"):
+        service.audit_rigor()
+
+
 def test_gate_passing_run_without_artifact_verification_is_reported_ineligible(
     tmp_path: Path,
 ) -> None:
