@@ -418,12 +418,14 @@ requires that gate among `quality_requirements`. Run intake requires every passe
 causal gate to retain a structured result for each mapped assumption: observed
 diagnostic, interpretation, the exact `consistent_with_assumption` disposition,
 evidence SHA-256 referencing a listed output from that run, and an exact table,
-figure, section, record range, or JSON Pointer within that artifact. Missing or failed
-gates preserve an invalid run, while contradictory structured results cannot be
-presented under a passed gate. The provider-free run template emits these slots
-from the frozen protocol. This creates an artifact-linked assessment chain; it
-does not turn a diagnostic into proof of an untestable identification assumption
-or authenticate the interpretation at the named location.
+figure, section, record range, or JSON Pointer within that artifact. When
+Faraday can inspect the cited JSON, run intake derives
+`selected_value_sha256` for the exact selected causal diagnostic. Missing or
+failed gates preserve an invalid run, while contradictory structured results
+cannot be presented under a passed gate. The provider-free run template emits
+these slots from the frozen protocol. This creates an artifact-linked assessment
+chain; it does not turn a diagnostic into proof of an untestable identification
+assumption or authenticate the interpretation at the named location.
 Protocol freeze now rejects noncanonical `quality_requirements` IDs before gate
 membership is evaluated, preventing padded required-gate names from satisfying
 causal, control, validity, or missingness bindings through silent trimming.
@@ -1198,8 +1200,10 @@ missingness was ignorable. Causal-assumption gate metadata is now replayed
 against the packaged causal audit as well: every mapped assumption category must
 have exactly one result, assessment kinds must match the frozen register, gate
 status must agree with the retained constrained dispositions, and every cited
-diagnostic hash must be a packaged run output. This prevents exported packages
-from hiding contradicted causal assumptions or upgrading inconclusive diagnostics
+diagnostic hash must be a packaged run output. When that output is a retained
+Faraday result body, package verification also recomputes the selected causal
+diagnostic's `selected_value_sha256`. This prevents exported packages from
+hiding contradicted causal assumptions or upgrading inconclusive diagnostics
 into identification support. Retained execution handoffs now also replay the
 closed version-2 analysis-result envelope and receipt/result authority identity:
 unsupported inference levels, extra authority fields, rewritten method-enforced

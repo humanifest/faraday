@@ -2856,6 +2856,7 @@ def test_replication_package_verifies_missingness_gate_metadata(
         ("failed_without_contradiction", "failed causal assessment gate"),
         ("relative_analysis_location", "requires an absolute JSON Pointer"),
         ("missing_analysis_location", "does not resolve"),
+        ("selected_value_mismatch", "selected_value_sha256 disagrees"),
         ("skipped_gate_with_results", "skipped quality gate"),
     ],
 )
@@ -3278,6 +3279,8 @@ def test_replication_package_verifies_causal_assumption_gate_metadata(
         positivity["evidence_location"] = "diagnostics/positivity"
     elif mutation == "missing_analysis_location":
         positivity["evidence_location"] = "/result/diagnostics/missing-assumption"
+    elif mutation == "selected_value_mismatch":
+        positivity["selected_value_sha256"] = "0" * 64
     elif mutation == "skipped_gate_with_results":
         gate["status"] = "skipped"
         runs[0]["status"] = "invalid"

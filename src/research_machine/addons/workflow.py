@@ -145,10 +145,24 @@ def composite_quality_gates(adjudication: dict[str, Any], output_sha256: str) ->
             )
         causal = details.get("causal_assumption_results")
         if isinstance(causal, dict):
+            source_causal = source_gate.get("details", {}).get(
+                "causal_assumption_results"
+            )
+            if not isinstance(source_causal, dict):
+                raise ValidationError(
+                    "authoritative source gate lacks causal assumption results"
+                )
             for category, result in causal.items():
+                if category not in source_causal:
+                    raise ValidationError(
+                        "authoritative source gate lacks inherited causal assumption result"
+                    )
                 result["evidence_sha256"] = output_sha256
                 result["evidence_location"] = (
                     f"{base}/causal_assumption_results/{_pointer_token(category)}"
+                )
+                result["selected_value_sha256"] = _selected_json_value_sha256(
+                    source_causal[category]
                 )
         gates.append({
             "gate_id": source_gate["gate_id"], "status": "passed",

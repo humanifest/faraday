@@ -1114,8 +1114,29 @@ def test_observational_causal_adjustment_executes_the_exact_frozen_covariates(
         recorded_missingness["selected_value_sha256"]
         == expected_selected_value_sha256
     )
+    recorded_causal_gate = next(
+        item for item in recorded["quality_gates"]
+        if item["gate_id"] == "integrity"
+    )
+    recorded_positivity = recorded_causal_gate["details"][
+        "causal_assumption_results"
+    ]["positivity"]
+    expected_causal_selected_value_sha256 = hashlib.sha256(
+        (json.dumps(
+            execution["result"]["result"]["diagnostics"],
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+            allow_nan=False,
+        ) + "\n").encode()
+    ).hexdigest()
+    assert (
+        recorded_positivity["selected_value_sha256"]
+        == expected_causal_selected_value_sha256
+    )
     synthesis = service.build_synthesis()["content"]
     assert "Missingness assessment provenance" in synthesis
     assert "via dedicated gate `missingness-assessed`" in synthesis
     assert "`/result/exclusion_report`" in synthesis
     assert expected_selected_value_sha256 in synthesis
+    assert expected_causal_selected_value_sha256 in synthesis

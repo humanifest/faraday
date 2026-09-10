@@ -285,10 +285,12 @@ Each assumption also names a frozen protocol quality gate. The gate must be a
 declared `quality_requirement`; a passed run must include an exact
 `causal_assumption_results` entry with the observed diagnostic, interpretation,
 `consistent_with_assumption` status, and a SHA-256 reference to one of that
-run's output artifacts. Missing or failed gates make the run invalid. A failed
-assessment remains recordable as an invalid run; a contradictory result cannot
-be mislabeled as a passed gate. “Consistent with” means only that the registered
-diagnostic did not trigger its failure response—it does not verify the assumption.
+run's output artifacts. When the cited output is inspected as JSON, run intake
+derives `selected_value_sha256` for the exact selected causal diagnostic.
+Missing or failed gates make the run invalid. A failed assessment remains
+recordable as an invalid run; a contradictory result cannot be mislabeled as a
+passed gate. “Consistent with” means only that the registered diagnostic did not
+trigger its failure response—it does not verify the assumption.
 Protocol freeze rejects noncanonical `quality_requirements` gate IDs, so padded
 gate names cannot satisfy causal, control, validity, or missingness bindings by
 being silently trimmed first.
@@ -858,9 +860,11 @@ ignorable. Structured causal-assumption gate metadata is replayed against the
 frozen assumption register: every mapped category must have exactly one result,
 the retained assessment kind and constrained status must match the registered
 gate semantics, and the cited diagnostic hash must be a packaged run output.
-This keeps causal assumption warnings and contradictions visible without
-treating a consistent diagnostic as proof that identification assumptions are
-true. Structured canary-target gate metadata is replayed against the packaged
+Retained Faraday result bodies must also replay a matching
+`selected_value_sha256` for the selected causal diagnostic. This keeps causal
+assumption warnings and contradictions visible without treating a consistent
+diagnostic as proof that identification assumptions are true. Structured
+canary-target gate metadata is replayed against the packaged
 protocol and run:
 the gate must be the frozen canary assessment gate, the plan and hidden
 assignment hashes must agree with `canary_target_plan`, the revealed and
