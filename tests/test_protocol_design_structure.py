@@ -1617,6 +1617,12 @@ def test_holm_execution_binds_frozen_workflow_family_and_registered_input(tmp_pa
             "not a declared run artifact",
         ),
         (
+            lambda handoff: handoff["receipt"]["output"].__setitem__(
+                "size_bytes", True
+            ),
+            "output is invalid",
+        ),
+        (
             lambda handoff: handoff["adjudication"]["primary_estimate"].__setitem__(
                 "effect_estimate", 999
             ),
