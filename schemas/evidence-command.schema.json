@@ -46,7 +46,8 @@
           "independent_replication",
           "known_result_reproduction",
           "novel_prediction",
-          "empirical_test"
+          "empirical_test",
+          "causal_estimate"
         ]
       }
     },

@@ -431,6 +431,9 @@ eligible run, matching causal estimand target, frozen analysis contract, verifie
 execution handoff, and a `design_conditional_effect` method. Lower method classes
 cannot cross that boundary. This prevents prose-only ceiling bypass while still
 treating the estimator as only one component of causal identification.
+The published evidence-command schema exposes the same validation-tag vocabulary
+as the domain model, so provider-neutral clients can submit causal-estimate
+evidence without bypassing the deeper service prerequisites.
 Evidence admission and rigor now replay that typed ceiling for all
 execution-backed `supports` evidence with an exact claim. The current ladder is
 conservative: `computation_only` supports no scientific claim, `descriptive`

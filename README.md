@@ -2164,7 +2164,8 @@ The package has no runtime dependencies. It supports Python 3.11 and newer.
 Evidence is classified by what it actually tests: `source_assessment`,
 `calibration`, `internal_consistency`, `controlled_benchmark`,
 `independent_replication`, `known_result_reproduction`, `novel_prediction`, or
-`empirical_test`. Higher tags have enforceable prerequisites. In particular,
+`empirical_test`, or `causal_estimate`. Higher tags have enforceable
+prerequisites. In particular,
 supporting evidence cannot target mechanism, adaptation, or attribution/intent
 claims under the current validation-tag capability model; record lower-level
 support and keep those explanatory conclusions explicitly unsupported until a
@@ -2188,7 +2189,13 @@ A different actor string plus a cosmetic code edit is therefore insufficient. Kn
 reproduction requires a passed `known-result-reproduction` quality gate. Novel
 predictions and empirical tests require active hypotheses and protected
 non-exploratory runs; empirical tests also require non-synthetic observational
-or experimental data.
+or experimental data. `causal_estimate` is narrower still: it is allowed only
+with `empirical_test`, an exact causal-direction claim, an eligible
+non-exploratory run, a frozen causal protocol and analysis contract, a verified
+execution handoff, a matching causal estimand target, and an add-on method whose
+typed maximum inference level is `design_conditional_effect`. It records only a
+scoped design-conditional estimate, not causal proof, mechanism, intent, or
+unrestricted generalization.
 
 `workspace audit` reports errors, warnings, the capability vector, and a
 conservative conclusion ceiling. Use `--fail-on error` in CI. Warnings remain

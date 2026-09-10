@@ -8,6 +8,7 @@ jsonschema = pytest.importorskip("jsonschema")
 SCHEMAS = Path(__file__).resolve().parents[1] / "schemas"
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 from research_machine.addons.general_science import MANIFEST
+from research_machine.domain.models import ValidationTag
 
 
 @pytest.mark.parametrize("method", MANIFEST.methods, ids=lambda method: method.method_id)
@@ -81,6 +82,33 @@ def test_report_command_schemas_reject_overclaiming_summaries(schema_name, mutat
     mutation(command)
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(command, schema)
+
+
+def test_evidence_command_schema_validation_tags_match_domain_model():
+    schema = json.loads((SCHEMAS / "evidence-command.schema.json").read_text())
+    published_tags = set(schema["properties"]["validation_tags"]["items"]["enum"])
+    assert published_tags == {tag.value for tag in ValidationTag}
+
+
+def test_evidence_command_schema_accepts_causal_estimate_tag_without_overclaiming():
+    schema = json.loads((SCHEMAS / "evidence-command.schema.json").read_text())
+    command = {
+        "hypothesis_id": "hyp-causal-fixture",
+        "claim_id": "claim-causal-fixture",
+        "direction": "supports",
+        "summary": "The registered estimate supports the scoped causal-direction claim under the frozen design assumptions.",
+        "run_id": "run-causal-fixture",
+        "analysis_id": "analysis-causal-fixture",
+        "effect_estimate": "Synthetic fixture design-conditional estimate.",
+        "uncertainty": "Synthetic fixture interval remains bounded to the registered estimand.",
+        "scope": "Synthetic schema fixture for a registered causal-direction claim.",
+        "higher_level_conclusions_unsupported": [
+            "Mechanism, intent, and unrestricted generalization remain unsupported."
+        ],
+        "validation_tags": ["empirical_test", "causal_estimate"],
+        "exploratory": False,
+    }
+    jsonschema.validate(command, schema)
 
 
 def test_empirical_protocol_command_matches_published_schema():
