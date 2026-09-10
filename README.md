@@ -924,7 +924,10 @@ Proposal JSON must identify its human, LLM, or hybrid generator and include
 uncertainty, competing explanations, disconfirming evidence, limitations, and
 review-only suggestions with falsification conditions and a next test. Faraday
 strictly parses it, binds it to the exact frozen context, and stores it
-write-once as `pending_human_review`. The frozen context must carry canonical,
+write-once as `pending_human_review`. Proposal summaries, uncertainty
+statements, and suggestion prose must not claim acceptance, approval,
+authorization, proof, confirmation, validation, evidence creation, or canonical
+action. The frozen context must carry canonical,
 nonempty scientific constraints that include explicit inferential-boundary and
 authorization-boundary prohibitions: the constraints must tell collaborators not
 to claim causality, mechanism, or replication beyond recorded evidence and not

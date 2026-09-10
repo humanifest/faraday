@@ -42,8 +42,8 @@
       "additionalProperties": false
     },
     "purpose": {"$ref": "#/$defs/canonicalNonEmptyText"},
-    "summary": {"$ref": "#/$defs/canonicalNonEmptyText"},
-    "uncertainty": {"$ref": "#/$defs/canonicalNonEmptyText"},
+    "summary": {"$ref": "#/$defs/boundedProposalText"},
+    "uncertainty": {"$ref": "#/$defs/boundedProposalText"},
     "competing_explanations": {"$ref": "#/$defs/groundedClaimList"},
     "disconfirming_evidence": {"$ref": "#/$defs/groundedClaimList"},
     "limitations": {"$ref": "#/$defs/groundedClaimList"},
@@ -74,9 +74,9 @@
               "next_action"
             ]
           },
-          "statement": {"$ref": "#/$defs/canonicalNonEmptyText"},
-          "rationale": {"$ref": "#/$defs/canonicalNonEmptyText"},
-          "uncertainty": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "statement": {"$ref": "#/$defs/boundedProposalText"},
+          "rationale": {"$ref": "#/$defs/boundedProposalText"},
+          "uncertainty": {"$ref": "#/$defs/boundedProposalText"},
           "evidence_refs": {
             "type": "array",
             "items": {"$ref": "#/$defs/contextRef"},
@@ -88,7 +88,7 @@
             "items": {"$ref": "#/$defs/canonicalNonEmptyText"},
             "uniqueItems": true
           },
-          "next_test": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "next_test": {"$ref": "#/$defs/boundedProposalText"},
           "authority": {"const": "review_only"}
         },
         "additionalProperties": false
@@ -104,6 +104,16 @@
     "canonicalNonEmptyText": {
       "type": "string",
       "pattern": "^(?:\\S|\\S.*\\S)$"
+    },
+    "boundedProposalText": {
+      "allOf": [
+        {"$ref": "#/$defs/canonicalNonEmptyText"},
+        {
+          "not": {
+            "pattern": "\\b(?:accepts?|accepted|approves?|approved|authorizes?|authorized|confirms?|confirmed|proves?|proved|proof|validated)\\b|canonical write|canonical action|evidence creation|creates evidence|created evidence"
+          }
+        }
+      ]
     },
     "sha256": {
       "type": "string",

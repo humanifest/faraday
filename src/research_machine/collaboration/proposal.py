@@ -97,7 +97,7 @@ _REVIEW_CONCLUSION_CEILING = (
     "Accountable triage only. Advancement requests a separate domain review; "
     "it does not accept a claim, amend a protocol, create evidence, or authorize action."
 )
-_REVIEW_AUTHORITY_CLAIM = re.compile(
+_AUTHORITY_CLAIM = re.compile(
     r"\b(?:accepts?|accepted|approves?|approved|authorizes?|authorized|"
     r"confirms?|confirmed|proves?|proved|proof|validated)\b|"
     r"canonical write|canonical action|evidence creation|creates evidence|created evidence"
@@ -463,7 +463,18 @@ def _context_write_boundary(context: dict[str, Any]) -> dict[str, Any]:
 
 def _review_boundary_text(value: Any, field: str) -> str:
     text = _canonical_text(value, field)
-    if _REVIEW_AUTHORITY_CLAIM.search(text.casefold()):
+    if _AUTHORITY_CLAIM.search(text.casefold()):
+        raise ValidationError(
+            f"collaborator proposal {field} must not claim acceptance, approval, "
+            "authorization, proof, confirmation, validation, evidence creation, "
+            "or canonical action"
+        )
+    return text
+
+
+def _proposal_boundary_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _AUTHORITY_CLAIM.search(text.casefold()):
         raise ValidationError(
             f"collaborator proposal {field} must not claim acceptance, approval, "
             "authorization, proof, confirmation, validation, evidence creation, "
@@ -769,7 +780,7 @@ def _validate_proposal(
         raise ValidationError("collaborator proposal purpose does not match its context")
     _canonical_text(proposal["purpose"], "purpose")
     for field in ("summary", "uncertainty"):
-        _canonical_text(proposal[field], field)
+        _proposal_boundary_text(proposal[field], field)
     allowed_evidence_refs = _context_reference_ids(context)
     proposal_body_grounding = _validate_body_claims(proposal, allowed_evidence_refs)
 
@@ -805,7 +816,7 @@ def _validate_proposal(
         if suggestion["authority"] != "review_only":
             raise ValidationError(f"{label} authority must be review_only")
         for field in ("statement", "rationale", "uncertainty", "next_test"):
-            _canonical_text(suggestion[field], field)
+            _proposal_boundary_text(suggestion[field], field)
         evidence_refs = _string_array(
             suggestion["evidence_refs"],
             "evidence_refs",
@@ -1413,7 +1424,7 @@ def verify_collaborator_review_record(
         if suggestion["authority"] != "review_only":
             raise ValidationError(f"{label} suggestion authority must be review_only")
         for field in ("statement", "rationale", "uncertainty", "next_test"):
-            _canonical_text(suggestion[field], f"{label}.{field}")
+            _proposal_boundary_text(suggestion[field], f"{label}.{field}")
         evidence_refs = _string_array(
             suggestion["evidence_refs"],
             f"{label}.evidence_refs",

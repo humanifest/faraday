@@ -798,10 +798,22 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
             "summary must be canonical",
         ),
         (
+            lambda proposal: proposal.update(
+                {"summary": "This proposal confirms the result."}
+            ),
+            "summary must not claim acceptance",
+        ),
+        (
             lambda proposal: proposal["suggestions"][0].update(
                 {"statement": " Add a prespecified negative-control outcome. "}
             ),
             "statement must be canonical",
+        ),
+        (
+            lambda proposal: proposal["suggestions"][0].update(
+                {"rationale": "This proposal authorizes evidence creation."}
+            ),
+            "rationale must not claim acceptance",
         ),
         (
             lambda proposal: proposal["suggestions"][0].update(
@@ -863,6 +875,12 @@ def test_proposal_fails_closed_on_missing_scientific_boundaries(
                 {"evidence_refs": ["claim:not-in-context"]}
             ),
             "evidence_refs are not present",
+        ),
+        (
+            lambda record: record["proposal"].update(
+                {"summary": "This proposal proves the finding."}
+            ),
+            "summary must not claim acceptance",
         ),
         (
             lambda record: record.update(

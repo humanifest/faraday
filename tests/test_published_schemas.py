@@ -353,6 +353,25 @@ def test_collaborator_proposal_schema_requires_provider_for_model_generators():
 @pytest.mark.parametrize(
     "mutation",
     [
+        lambda proposal: proposal.update(
+            {"summary": "This proposal confirms the result."}
+        ),
+        lambda proposal: proposal["suggestions"][0].update(
+            {"rationale": "This proposal authorizes evidence creation."}
+        ),
+    ],
+)
+def test_collaborator_proposal_schema_rejects_authority_claims(mutation):
+    schema = json.loads((SCHEMAS / "collaborator-proposal.schema.json").read_text())
+    proposal = json.loads((EXAMPLES / "collaborator-proposal.json").read_text())
+    mutation(proposal)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(proposal, schema)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
         lambda review: review["decisions"][0].update(
             {"disposition": "defer", "domain_route": "design.revise"}
         ),
