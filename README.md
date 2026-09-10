@@ -1717,7 +1717,10 @@ generated or replayed.
   even before a protocol or evidence record references it.
 - Keep documented facts, source claims, project interpretations, reasonable
   inferences, and unresolved claims in explicit epistemic layers, with source,
-  conflict, falsification, confidence, and review metadata.
+  conflict, falsification, confidence, and review metadata. A claim cannot enter
+  or move into the accepted disposition unless the review time and decision
+  owner are explicit; accepted documented facts and source claims also require
+  source references.
 - Propose structured hypotheses as unreviewed candidates.
 - Prevent incomplete hypotheses from entering the active model set.
 - Support an auditable `pending_review` lane for delegated autonomous

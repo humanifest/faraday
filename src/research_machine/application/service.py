@@ -5304,6 +5304,13 @@ class ResearchService:
             ClaimEpistemicLayer.DOCUMENTED_FACT,
             ClaimEpistemicLayer.SOURCE_CLAIM,
         }
+        if claim.disposition is ClaimDisposition.ACCEPTED and not claim.last_reviewed:
+            raise ValidationError("accepted claims require last_reviewed")
+        if (
+            claim.disposition is ClaimDisposition.ACCEPTED
+            and not claim.decision_owner.strip()
+        ):
+            raise ValidationError("accepted claims require decision_owner")
         if (
             claim.disposition is ClaimDisposition.ACCEPTED
             and claim.epistemic_layer in source_grounded_layers

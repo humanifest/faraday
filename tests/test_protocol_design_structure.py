@@ -1693,6 +1693,7 @@ def test_holm_execution_binds_frozen_workflow_family_and_registered_input(tmp_pa
         epistemic_layer=ClaimEpistemicLayer.REASONABLE_INFERENCE,
         disposition=ClaimDisposition.ACCEPTED,
         confidence=0.7,
+        decision_owner="workflow-reviewer",
     ))
     service.show_inquiry()
     claims_path = workspace / "inquiries" / "formal" / "claims.json"

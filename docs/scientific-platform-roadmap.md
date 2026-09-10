@@ -329,6 +329,12 @@ assessment, replication, and retirement transitions. Inquiry and direct
 hypothesis reads validate every seal; review, activation, staging, and retirement
 validate the source record before moving it. Thus even an unreferenced draft or
 claim cannot be silently rewritten through direct state-file mutation.
+Accepted-claim authority delivery: new claim writes and reviews now reject an
+accepted disposition unless the retained claim has a review time and decision
+owner. Source-grounded accepted claims continue to require source references.
+Legacy or externally corrupted records remain detectable through rigor findings,
+but the canonical service no longer records a bare accepted flag as if it were a
+reviewed scientific judgment.
 Known scientific claim levels now also enforce an inferential dependency
 direction: a claim may depend on lower or same-level parents, but a
 measurement-validity, association, causal-direction, robustness, mechanism,

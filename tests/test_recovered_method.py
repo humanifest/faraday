@@ -96,10 +96,20 @@ def test_decision_context_and_claim_layers_remain_explicit(tmp_path: Path) -> No
             ReviewClaim(
                 claim_id=first.claim_id,
                 disposition=ClaimDisposition.ACCEPTED,
+                decision_owner="project-owner",
             )
         )
     with pytest.raises(ValidationError, match="confidence must be"):
         service.review_claim(ReviewClaim(claim_id=first.claim_id, confidence=1.5))
+    with pytest.raises(ValidationError, match="require decision_owner"):
+        service.review_claim(
+            ReviewClaim(
+                claim_id=first.claim_id,
+                disposition=ClaimDisposition.ACCEPTED,
+                confidence=0.8,
+                source_refs=["inventory:repo-one@commit-a"],
+            )
+        )
 
     first = service.review_claim(
         ReviewClaim(
@@ -191,6 +201,8 @@ def test_cli_exposes_decision_and_claim_provenance_contracts(
                 "0.95",
                 "--last-reviewed",
                 "2026-09-03T12:00:00Z",
+                "--decision-owner",
+                "project-owner",
             ]
         )
         == 0
@@ -198,6 +210,37 @@ def test_cli_exposes_decision_and_claim_provenance_contracts(
     claim = json.loads(capsys.readouterr().out)["result"]
     assert claim["epistemic_layer"] == "documented_fact"
     assert claim["source_refs"] == ["git:origin/main@abc123"]
+    assert claim["decision_owner"] == "project-owner"
+
+
+def test_accepted_claims_require_review_authority_on_creation(tmp_path: Path) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Claim authority",
+            initial_statement="Can claims be accepted without review authority?",
+            inquiry_id="claim-authority",
+        )
+    )
+    with pytest.raises(ValidationError, match="require last_reviewed"):
+        service.add_claim(
+            AddClaim(
+                statement="A claim cannot be accepted without a review event.",
+                level=ClaimLevel.OTHER,
+                disposition=ClaimDisposition.ACCEPTED,
+                decision_owner="project-owner",
+            )
+        )
+    with pytest.raises(ValidationError, match="require decision_owner"):
+        service.add_claim(
+            AddClaim(
+                statement="A claim cannot be accepted without an owner.",
+                level=ClaimLevel.OTHER,
+                disposition=ClaimDisposition.ACCEPTED,
+                last_reviewed="2026-09-03T12:00:00Z",
+            )
+        )
 
 
 def test_audit_detects_corrupted_claim_spine() -> None:
