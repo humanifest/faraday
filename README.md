@@ -534,6 +534,10 @@ draft, data dictionary, collection plan, and
 required run-assessment shape. A later matching conformance record remains only
 declaration conformance; it does not prove implementation correctness,
 measurement validity, or scientific adequacy.
+The JSON `design scaffold`, `design revise`, and `design initialize` paths share
+the scaffold validator's design-brief field vocabulary, so guided outcome-role
+partitions, multiplicity method, and multiplicity alpha cannot be stranded
+behind an internal-only API while the terminal interview accepts them.
 
 The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,

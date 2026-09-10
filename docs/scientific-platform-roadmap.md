@@ -718,6 +718,10 @@ collection plan, and a `preprocessing-conformance-plan-draft.json` artifact
 with the exact run-assessment shape, while explicitly keeping declaration
 conformance separate from implementation correctness, measurement validity, and
 scientific adequacy.
+Guided JSON command ingress now uses the same design-brief field vocabulary as
+the scaffold validator for scaffold, revision, and repository initialization,
+so outcome-role partitions, multiplicity method, and multiplicity alpha are
+admitted consistently instead of becoming internal-only review commitments.
 For causal studies it can also collect the DAG and complete typed assumption
 register interactively, validate variable and edge references, and feed the same
 deterministic audit used by file-based and canonical workflows. Declining this

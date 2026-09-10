@@ -677,6 +677,47 @@ def test_secondary_outcomes_require_distinct_roles_and_multiplicity_plan():
     ]
 
 
+def test_cli_design_scaffold_accepts_multiplicity_commitments(
+    tmp_path: Path, capsys
+) -> None:
+    brief = {
+        "title": "Multiplicity fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "study_type": "correlational",
+        "human_participants": False,
+        "secondary_outcomes": ["Response time"],
+        "confirmatory_outcomes": ["Primary score", "Response time"],
+        "exploratory_outcomes": [],
+        "multiplicity_method": "holm",
+        "multiplicity_alpha": 0.05,
+        "multiple_testing_policy": "Holm-adjust the two confirmatory outcomes.",
+        "population": "Registered fixture units",
+        "setting": "Fixture laboratory",
+        "outcome_unit": "points",
+        "effect_scale": "mean difference",
+        "conclusion_time_window": "registered endpoint",
+        "smallest_effect_size_of_interest": 2.0,
+        "non_supporting_direction": "inconclusive",
+        "higher_level_conclusions_unsupported": [
+            "No causal or external-validity conclusion"
+        ],
+    }
+    brief_file = tmp_path / "brief.json"
+    brief_file.write_text(json.dumps(brief), encoding="utf-8")
+
+    assert main(["--json", "design", "scaffold", "--brief-file", str(brief_file)]) == 0
+
+    result = json.loads(capsys.readouterr().out)["result"]
+    protocol = result["artifacts"]["protocol-draft.json"]
+    assert protocol["confirmatory_outcomes"] == ["Primary score", "Response time"]
+    assert protocol["exploratory_outcomes"] == []
+    assert protocol["multiplicity_method"] == "holm"
+    assert protocol["multiplicity_alpha"] == 0.05
+
+
 def test_confirmatory_scaffold_emits_structured_analysis_contract():
     brief = {
         "title": "Analysis contract fixture",
