@@ -621,6 +621,11 @@ def build_synthesis(
             ]
             if failed:
                 lines.append("  - Required gates not passed: " + "; ".join(failed))
+            if run.metadata.get("artifact_integrity_missing_for_evidence") is True:
+                lines.append(
+                    "  - Artifact integrity: local output bytes were not machine-verified; "
+                    "declared hashes and passed gates are insufficient for scientific evidence."
+                )
             if disclosure_status == "legacy_not_declared":
                 lines.append("  - Protocol deviations: not explicitly declared; adherence cannot be inferred from silence.")
             elif disclosure_status == "deviations_declared" and isinstance(disclosure, dict):

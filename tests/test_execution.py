@@ -1681,6 +1681,31 @@ def test_declared_protocol_deviation_is_preserved_and_blocks_evidence(tmp_path: 
     assert "potential impact: potentially_material" in synthesis
 
 
+def test_gate_passing_run_without_artifact_verification_is_reported_ineligible(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+
+    run = service.record_run(
+        run_command(protocol.protocol_id, QualityGateStatus.PASSED)
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.scientific_evidence_eligible is False
+    assert run.metadata["artifact_integrity_missing_for_evidence"] is True
+
+    findings = service.audit_rigor().findings
+    assert any(
+        finding.code == "RUN_ARTIFACT_INTEGRITY_MISSING_FOR_EVIDENCE"
+        and finding.entity_id == run.run_id
+        for finding in findings
+    )
+    synthesis = service.build_synthesis()["content"]
+    assert "local output bytes were not machine-verified" in synthesis
+    assert "declared hashes and passed gates are insufficient" in synthesis
+
+
 def test_domain_neutral_protocol_run_and_evidence_chain(tmp_path: Path) -> None:
     service, hypothesis_id = prepared_service(tmp_path)
     protocol = frozen_formal_protocol(service, hypothesis_id)

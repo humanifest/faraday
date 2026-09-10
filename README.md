@@ -1741,7 +1741,10 @@ generated or replayed.
   optional archival check. Runs without a passed local artifact verification may
   be recorded for audit but remain evidence-ineligible. Faraday retains the run
   artifact root and replays the exact receipt before evidence admission,
-  inquiry display, rigor audit, and synthesis. Retained run artifact roots and
+  inquiry display, rigor audit, and synthesis. Rigor and synthesis explicitly
+  flag gate-passing non-synthetic runs whose local output bytes were not
+  machine-verified, so declared hashes cannot masquerade as evidence readiness.
+  Retained run artifact roots and
   attestation-schema paths must be canonical unpadded text, and schema hash
   commitments must be canonical lowercase SHA-256 digests, before receipts can
   be generated or replayed. Output artifact locators and media types must also

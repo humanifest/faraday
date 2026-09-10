@@ -1150,6 +1150,23 @@ def audit_research_state(
             if gate.required
         )
         if (
+            run.metadata.get("artifact_integrity_missing_for_evidence") is True
+            and not run.synthetic
+            and run.status is RunStatus.COMPLETED
+            and required_gates_passed
+        ):
+            add(
+                "RUN_ARTIFACT_INTEGRITY_MISSING_FOR_EVIDENCE",
+                RigorSeverity.WARNING,
+                "Run passed its required gates but lacks machine-replayed local output-byte verification, so it cannot support scientific evidence.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation=(
+                    "Re-record the run with a local artifact root and exact output bytes; "
+                    "do not treat declared output hashes or passed gate labels as evidence eligibility."
+                ),
+            )
+        if (
             run.synthetic
             and run.status is RunStatus.COMPLETED
             and required_gates_passed
