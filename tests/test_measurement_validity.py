@@ -1,5 +1,6 @@
 from dataclasses import fields
 import hashlib
+import json
 
 import pytest
 
@@ -115,6 +116,7 @@ def test_run_template_and_intake_require_artifact_bound_validity_result(tmp_path
     result = gate["details"]["measurement_validity_results"][check.check_id]
     assert result["evidence_type"] == "criterion"
     assert "assessment_status" in result
+    assert "selected_value_sha256" in result
 
     with pytest.raises(ValidationError, match="requires exact results"):
         service.record_run(run_command(
@@ -183,10 +185,24 @@ def test_run_template_and_intake_require_artifact_bound_validity_result(tmp_path
     assert stored.details["measurement_validity_results"][check.check_id][
         "assessment_status"
     ] == "consistent_with_validity_claim"
+    selected_value = {"acceptance": 1}
+    selected_value_sha256 = hashlib.sha256(
+        (json.dumps(
+            selected_value,
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+            allow_nan=False,
+        ) + "\n").encode()
+    ).hexdigest()
+    assert stored.details["measurement_validity_results"][check.check_id][
+        "selected_value_sha256"
+    ] == selected_value_sha256
     synthesis = service.build_synthesis()["content"]
     assert "Measurement validity provenance" in synthesis
     assert "checker-reference-agreement" in synthesis
     assert "consistent_with_validity_claim" in synthesis
+    assert selected_value_sha256 in synthesis
     assert "does not prove construct validity" in synthesis
     evidence = service.record_evidence(RecordEvidence(
         hypothesis_id=protocol.hypotheses_tested[0],

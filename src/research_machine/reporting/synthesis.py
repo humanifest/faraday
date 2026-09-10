@@ -724,7 +724,8 @@ def build_synthesis(
                             f"observed: {_text(str(result.get('observed_diagnostic', '')))} "
                             f"Interpretation: {_text(str(result.get('interpretation', '')))} "
                             f"Artifact `{result.get('evidence_sha256', 'unavailable')}` at "
-                            f"`{result.get('evidence_location', 'unavailable')}`."
+                            f"`{result.get('evidence_location', 'unavailable')}`; "
+                            f"selected value `{result.get('selected_value_sha256', 'unavailable')}`."
                         )
                 missing = sorted(set(checks_by_id) - reported)
                 if missing:

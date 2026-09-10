@@ -134,8 +134,10 @@ pins the exact adjudication artifact, and only then applies ordinary eligibility
 rules. Replication-package verification treats that retained adjudication
 artifact as the verified result body for inherited gate metadata, so absolute
 JSON Pointers for controls, missingness, causal assumptions, canary assessments,
-and validity checks must still resolve after export. Evidence attached
-to the composite must select its exact registered estimate and uncertainty; a
+and validity checks must still resolve after export. For retained Faraday result
+bodies, validity checks also replay the `selected_value_sha256` of the exact
+selected JSON diagnostic. Evidence attached to the composite must select its
+exact registered estimate and uncertainty; a
 `supports` direction is rejected unless the adjusted primary decision also
 rejects. Successful local assembly therefore cannot promote itself into a
 scientific claim.
@@ -572,16 +574,17 @@ must agree with the gate: `consistent_with_validity_claim` for passed,
 Warnings and failures remain recordable but cannot become eligible scientific
 evidence; consistency remains a bounded diagnostic statement, not proof of
 validity. For any locally verified JSON output, the location must be an absolute
-JSON Pointer that actually resolves in the hash-verified bytes. Other artifact
-formats retain an exact human-inspectable location without claiming automatic
-content interpretation.
+JSON Pointer that actually resolves in the hash-verified bytes, and run intake
+derives `selected_value_sha256` for the exact selected validity diagnostic.
+Other artifact formats retain an exact human-inspectable location without
+claiming automatic content interpretation.
 Deterministic rigor and synthesis carry the validity layer through reporting.
 The synthesis lists frozen checks and each run’s observed diagnostic,
-interpretation, disposition, and artifact location. Rigor warns on inconclusive
-checks, errors on contradicted validity claims, and warns when a protected
-empirical protocol has typed measurements but no canonical validity plan. A
-numerically favorable estimate therefore cannot make a failed measurement check
-disappear from the scientific record.
+interpretation, disposition, artifact location, and selected-value digest when
+available. Rigor warns on inconclusive checks, errors on contradicted validity
+claims, and warns when a protected empirical protocol has typed measurements but
+no canonical validity plan. A numerically favorable estimate therefore cannot
+make a failed measurement check disappear from the scientific record.
 Admitted evidence also retains the ordered IDs of the exact frozen validity
 checks whose artifact-bound results were consistent. Faraday derives this
 binding from the protocol and run rather than accepting it from the caller,

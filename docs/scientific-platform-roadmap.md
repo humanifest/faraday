@@ -761,23 +761,27 @@ listed run output plus exact location. Inconclusive and contradicted checks are
 preserved in invalid runs rather than suppressed; a consistent result does not
 prove construct validity. Locally verified JSON evidence receives an additional
 content-level check: its location must be an absolute JSON Pointer that resolves
-in the cited bytes. This prevents a correct whole-file digest from laundering a
-fabricated internal location while leaving non-JSON locations explicitly
-human-inspectable.
+in the cited bytes, and run intake derives `selected_value_sha256` for the exact
+selected validity diagnostic. This prevents a correct whole-file digest from
+laundering a fabricated or drifted internal location while leaving non-JSON
+locations explicitly human-inspectable.
 Validity-reporting delivery: rigor now warns when a protected empirical protocol
 has typed measurements but no canonical validity plan, emits a specific warning
 for inconclusive validity checks, and emits an error when a frozen validity claim
 is contradicted. Deterministic synthesis lists every frozen check and every
 reported diagnostic, interpretation, disposition, output digest, and location,
-including unavailable results. Numerical success cannot suppress measurement
+including unavailable results, and includes selected-value digests when the
+cited JSON was machine-resolved. Numerical success cannot suppress measurement
 validity limitations.
 Replication-package verification now replays performed measurement-validity
 gates against the frozen checks: every mapped check must have exactly one result,
 the retained evidence type must match the protocol, gate status must agree with
 `consistent_with_validity_claim`, `inconclusive`, or
 `contradicted_validity_claim`, and each result must cite a packaged run output.
-This keeps validity contradictions and ambiguity attached to exported runs
-without treating a consistent diagnostic as construct-validity proof.
+Retained Faraday result bodies must also replay a matching
+`selected_value_sha256` for the selected validity diagnostic. This keeps
+validity contradictions and ambiguity attached to exported runs without treating
+a consistent diagnostic as construct-validity proof.
 Validity-to-evidence binding delivery: each evidence record now carries the
 service-derived ordered IDs of frozen measurement-validity checks with
 artifact-bound `consistent_with_validity_claim` results. Evidence admission

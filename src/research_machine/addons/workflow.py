@@ -93,6 +93,27 @@ def composite_quality_gates(adjudication: dict[str, Any], output_sha256: str) ->
         details["evidence_location"] = f"/quality_gate_adjudication/{gate_index}"
         details["inherited_source_gate_results"] = copy.deepcopy(source_results)
         base = f"/quality_gate_adjudication/{gate_index}/source_gate_results/0/gate/details"
+        validity = details.get("measurement_validity_results")
+        if isinstance(validity, dict):
+            source_validity = source_gate.get("details", {}).get(
+                "measurement_validity_results"
+            )
+            if not isinstance(source_validity, dict):
+                raise ValidationError(
+                    "authoritative source gate lacks measurement validity results"
+                )
+            for check_id, result in validity.items():
+                if check_id not in source_validity:
+                    raise ValidationError(
+                        "authoritative source gate lacks inherited measurement validity result"
+                    )
+                result["evidence_sha256"] = output_sha256
+                result["evidence_location"] = (
+                    f"{base}/measurement_validity_results/{_pointer_token(check_id)}"
+                )
+                result["selected_value_sha256"] = _selected_json_value_sha256(
+                    source_validity[check_id]
+                )
         controls = details.get("control_results")
         if isinstance(controls, dict):
             source_control_results = source_gate.get("details", {}).get("control_results")

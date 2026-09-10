@@ -3523,7 +3523,12 @@ class ResearchService:
                     "observed_diagnostic", "interpretation", "assessment_status",
                     "evidence_type", "evidence_sha256", "evidence_location",
                 }
-                if not isinstance(result, dict) or set(result) != required_fields:
+                derived_fields = {"selected_value_sha256"}
+                if (
+                    not isinstance(result, dict)
+                    or not required_fields <= set(result)
+                    or set(result) - required_fields - derived_fields
+                ):
                     raise ValidationError(
                         f"measurement validity result for {check.check_id} must contain exactly the documented fields"
                     )
@@ -3561,13 +3566,23 @@ class ResearchService:
                         "measurement validity evidence must reference a run output artifact"
                     )
                 location = result["evidence_location"]
-                location_verified = _verify_json_artifact_location(
+                location_verified, selected_value = _resolve_json_artifact_location(
                     outputs,
                     command.artifact_root,
                     digest,
                     location,
                     f"measurement validity {check.check_id} evidence_location",
                 )
+                if location_verified:
+                    selected_value_sha256 = _result_selection_sha256(selected_value)
+                    supplied = result.get("selected_value_sha256")
+                    if supplied is not None and require_sha256(
+                        supplied, f"measurement validity {check.check_id} selected_value_sha256"
+                    ) != selected_value_sha256:
+                        raise ValidationError(
+                            "measurement validity selected_value_sha256 does not match the verified JSON value"
+                        )
+                    result["selected_value_sha256"] = selected_value_sha256
                 if (
                     not location_verified
                     and verified_gate_result is not None
@@ -3577,10 +3592,19 @@ class ResearchService:
                         raise ValidationError(
                             "measurement validity evidence in the verified analysis output requires an absolute JSON Pointer evidence_location"
                         )
-                    _resolve_json_pointer(
+                    selected_value = _resolve_json_pointer(
                         verified_gate_result, location,
                         f"measurement validity {check.check_id} evidence_location",
                     )
+                    selected_value_sha256 = _result_selection_sha256(selected_value)
+                    supplied = result.get("selected_value_sha256")
+                    if supplied is not None and require_sha256(
+                        supplied, f"measurement validity {check.check_id} selected_value_sha256"
+                    ) != selected_value_sha256:
+                        raise ValidationError(
+                            "measurement validity selected_value_sha256 does not match the verified analysis result value"
+                        )
+                    result["selected_value_sha256"] = selected_value_sha256
         contract = protocol.analysis_contract
         if contract is not None and contract.missingness_assessment_gate_id:
             gate = gates_by_id.get(contract.missingness_assessment_gate_id)
@@ -4317,6 +4341,7 @@ class ResearchService:
                                     "evidence_type": check.evidence_type,
                                     "evidence_sha256": "<hash of a listed run output artifact>",
                                     "evidence_location": "<exact table, figure, section, record range, or JSON Pointer within that artifact>",
+                                    "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
                                 }
                                 for check in validity_checks_by_gate[gate_id]
                             }} if gate_id in validity_checks_by_gate else {}),
