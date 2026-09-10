@@ -73,6 +73,7 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
     plan = tmp_path / "plan.json"
     plan_sha = write_json(plan, {"synthesis_plan_version": 1, "status": "synthesis_plan_frozen",
         "synthesis_type": "quantitative", "statistical_model": model, "effect_measure": "mean_difference",
+        "contrast_definition": "experimental versus comparator",
         "minimum_independent_studies": minimum, "plan_id": "p1", "snapshot_id": "snap",
         "sensitivity_analyses": sensitivities,
         "scientific_evidence_eligible": False,
@@ -100,6 +101,7 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
         "inputs": {"synthesis_plan_sha256": plan_sha}, "effect_measure": "mean_difference",
         "plan_id": "p1", "snapshot_id": "snap",
         "derivation_scope": "recomputed_from_source_reported_arm_summaries",
+        "contrast_definition": "experimental versus comparator",
         "source_summaries": source_summaries, "records": records,
         "study_count": len(records), "available_effect_count": count,
         "unavailable_effect_count": 1, "minimum_independent_studies": minimum,
@@ -113,6 +115,7 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
         "plan_id": "p1", "snapshot_id": "snap",
+        "contrast_definition": "experimental versus comparator",
         "effect_reviewer": "Effect reviewer", "verification_reviewer": "Independent checker",
         "independent_review": True, "mismatch_study_ids": [],
         "scientific_evidence_eligible": False, "conclusion_authorized": False,
@@ -158,7 +161,7 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
             "research_question": None,
             "primary_outcome": None,
             "effect_measure": "mean_difference",
-            "contrast_definition": None,
+            "contrast_definition": "experimental versus comparator",
             "statistical_model": model,
             "minimum_independent_studies": minimum,
             "included_source_ids_at_freeze": None,
@@ -181,6 +184,7 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     assert result["pooled_estimate"] == pytest.approx(1.5)
     assert result["standard_error"] == pytest.approx(2 ** -0.5)
     assert result["prediction_interval_95"] is None
+    assert result["contrast_definition"] == "experimental versus comparator"
     assert result["unavailable_studies"] == [{"reason": "Not reported", "study_id": "missing"}]
     assert result["deviation_plan_commitments"]["statistical_model"] == "fixed_effect"
     assert result["retained_source_summaries"] == [
@@ -263,6 +267,7 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
         "plan_id": "p1", "snapshot_id": "snap",
+        "contrast_definition": "experimental versus comparator",
         "effect_reviewer": "Effect reviewer", "verification_reviewer": "Independent checker",
         "independent_review": True, "mismatch_study_ids": [],
         "scientific_evidence_eligible": False, "conclusion_authorized": False,
@@ -306,6 +311,7 @@ def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
     verification_sha = write_json(verification, {"effect_verification_version": 1,
         "status": "effect_verification_recorded", "effect_records_sha256": effects_sha,
         "plan_id": "p1", "snapshot_id": "snap",
+        "contrast_definition": "experimental versus comparator",
         "effect_reviewer": "Effect reviewer", "verification_reviewer": "Independent checker",
         "independent_review": True, "mismatch_study_ids": [],
         "scientific_evidence_eligible": False, "conclusion_authorized": False,
@@ -358,6 +364,7 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     "version",
     "input-hash",
     "plan-id",
+    "contrast-definition",
     "scientific-authority",
     "conclusion-authority",
     "publication-authority",
@@ -393,6 +400,8 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["inputs"]["effect_records_sha256"] = "A" * 64
     elif tamper == "plan-id":
         candidate["plan_id"] = " p1 "
+    elif tamper == "contrast-definition":
+        candidate["contrast_definition"] = "not_applicable"
     elif tamper == "scientific-authority":
         candidate["scientific_evidence_eligible"] = True
     elif tamper == "conclusion-authority":
@@ -469,7 +478,7 @@ def test_meta_analysis_requires_canonical_effect_and_verification_handles(tmp_pa
         )
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "plan-authority", "plan-conclusion-authority", "plan-publication-authority", "plan-limitations-missing", "effects-hash", "model", "link", "measure", "derivation-scope", "effects-authority", "effects-conclusion-authority", "effects-publication-authority", "effects-limitations-missing", "effects-count-drift", "effects-availability-count-drift", "effects-readiness-drift", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-authority", "verification-conclusion-authority", "verification-publication-authority", "verification-limitations-missing", "verification-independent-drift", "verification-reviewer-drift", "verification-mismatch-drift", "verification-status-rewrite", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-source-summary-digest", "verification-source-summary-digest-drift", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "deviation-authority", "deviation-conclusion-authority", "deviation-publication-authority", "deviation-plan-amended", "deviation-ceiling", "deviation-limitations-missing", "deviation-timing-counts", "deviation-status-rewrite", "deviation-padded-row", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "plan-authority", "plan-conclusion-authority", "plan-publication-authority", "plan-limitations-missing", "effects-hash", "model", "link", "measure", "contrast", "derivation-scope", "effects-authority", "effects-conclusion-authority", "effects-publication-authority", "effects-limitations-missing", "effects-count-drift", "effects-availability-count-drift", "effects-readiness-drift", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-authority", "verification-conclusion-authority", "verification-publication-authority", "verification-limitations-missing", "verification-contrast", "verification-independent-drift", "verification-reviewer-drift", "verification-mismatch-drift", "verification-status-rewrite", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-source-summary-digest", "verification-source-summary-digest-drift", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "deviation-contrast", "deviation-authority", "deviation-conclusion-authority", "deviation-publication-authority", "deviation-plan-amended", "deviation-ceiling", "deviation-limitations-missing", "deviation-timing-counts", "deviation-status-rewrite", "deviation-padded-row", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -498,6 +507,8 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(effects.read_text()); value["inputs"]["synthesis_plan_sha256"] = "0" * 64; effects_sha = write_json(effects, value)
     elif failure == "measure":
         value = json.loads(effects.read_text()); value["effect_measure"] = "other"; effects_sha = write_json(effects, value)
+    elif failure == "contrast":
+        value = json.loads(effects.read_text()); value["contrast_definition"] = "other contrast"; effects_sha = write_json(effects, value)
     elif failure == "derivation-scope":
         value = json.loads(effects.read_text()); value["derivation_scope"] = "reviewer_reported_effect_and_standard_error"; effects_sha = write_json(effects, value)
     elif failure == "effects-authority":
@@ -542,6 +553,8 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(verification.read_text()); value["publication_authorized"] = True; verification_sha = write_json(verification, value)
     elif failure == "verification-limitations-missing":
         value = json.loads(verification.read_text()); value["limitations"] = []; verification_sha = write_json(verification, value)
+    elif failure == "verification-contrast":
+        value = json.loads(verification.read_text()); value["contrast_definition"] = "other contrast"; verification_sha = write_json(verification, value)
     elif failure == "verification-independent-drift":
         value = json.loads(verification.read_text()); value["independent_review"] = False; verification_sha = write_json(verification, value)
     elif failure == "verification-reviewer-drift":
@@ -579,6 +592,8 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         value = json.loads(verification.read_text()); value["assessments"][-1]["source_values_match"] = True; verification_sha = write_json(verification, value)
     elif failure == "deviation-plan":
         value = json.loads(deviations.read_text()); value["frozen_plan_commitments"]["statistical_model"] = "random_effects"; deviations_sha = write_json(deviations, value)
+    elif failure == "deviation-contrast":
+        value = json.loads(deviations.read_text()); value["frozen_plan_commitments"]["contrast_definition"] = "other contrast"; deviations_sha = write_json(deviations, value)
     elif failure in {"deviation-authority", "deviation-conclusion-authority",
                      "deviation-publication-authority", "deviation-plan-amended",
                      "deviation-ceiling", "deviation-limitations-missing",

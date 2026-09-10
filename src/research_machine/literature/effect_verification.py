@@ -43,6 +43,12 @@ def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -
     )
     _canonical_text(effect_verification.get("plan_id"), "effect verification plan_id")
     _canonical_text(effect_verification.get("snapshot_id"), "effect verification snapshot_id")
+    contrast_definition = _canonical_text(
+        effect_verification.get("contrast_definition"),
+        "effect verification contrast_definition",
+    )
+    if contrast_definition == "not_applicable":
+        raise ValidationError("effect verification requires a frozen quantitative contrast_definition")
     if effect_verification.get("scientific_evidence_eligible") is not False:
         raise ValidationError("effect verification must remain scientifically ineligible")
     if effect_verification.get("conclusion_authorized") is not False:
@@ -260,6 +266,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
                   and (not item["source_values_match"] or not item["calculation_matches"])]
     result = {"effect_verification_version": 1, "effect_records_sha256": digest,
         "plan_id": effects.get("plan_id"), "snapshot_id": effects.get("snapshot_id"),
+        "contrast_definition": effects.get("contrast_definition"),
         "effect_reviewer": effect_reviewer, "verification_reviewer": reviewer,
         "independent_review": True, "assessments": [by_study[item] for item in sorted(by_study)],
         "mismatch_study_ids": sorted(mismatches),

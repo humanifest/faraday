@@ -1647,17 +1647,19 @@ consistency, but does not reproduce source calculations, prove outcome
 compatibility, impute missing values, or authorize pooling.
 The effect-record artifact now replays its own non-authority and retained
 provenance boundary before it is written: false evidence, conclusion, and
-publication authorization; study, availability, and readiness counts; mapped
-claim source anchors; available-effect variance as `standard_error ** 2`;
-unavailable numeric fields as null; and retained source-summary coverage for
-reproducibly derived effects.
+publication authorization; the frozen quantitative contrast definition; study,
+availability, and readiness counts; mapped claim source anchors; available-effect
+variance as `standard_error ** 2`; unavailable numeric fields as null; and
+retained source-summary coverage for reproducibly derived effects.
 Effect preparation requires canonical frozen plan source IDs, extraction source
 IDs, mapped study/source/claim IDs, citation anchors, reviewer text, derivation
 scope, reasons, evidence locations, and derivation prose before coverage and
-duplicate checks. Effect verification also requires canonical effect reviewer,
-retained study IDs, source-summary study IDs, verification reviewer, checked
-locations, rationales, and service-derived claim source anchors before coverage
-checks.
+duplicate checks, and the prepared effect artifact must preserve the plan's
+exact frozen contrast rather than a later reviewer-entered comparison. Effect
+verification also requires canonical effect reviewer, retained study IDs,
+source-summary study IDs, verification reviewer, checked locations, rationales,
+and service-derived claim source anchors before coverage checks, and it carries
+the same frozen contrast definition forward.
 `research literature derive-effects` provides a reproducible alternative for
 `mean_difference` and `log_risk_ratio`: it computes estimates and standard errors
 from source-reported experimental and comparator arm summaries under canonical
@@ -1702,19 +1704,20 @@ assessments while evidence, conclusion, and publication authority remain false.
 `research literature pool-effects` performs deterministic inverse-variance
 pooling only after the quantitative plan, prepared-effect, effect-verification,
 and deviation hashes are canonical lowercase digests and agree. It
-enforces the frozen fixed-effect or random-effects model, requires at least two
-available independent-study effects and the frozen minimum, reports Cochran's Q,
-I-squared, DerSimonian-Laird tau-squared, a 95% confidence interval, a random-
-effects prediction interval when at least three studies exist, leave-one-study-
-out estimates, and a study-provenance table spanning available and unavailable
-studies. That table retains the mapped claim IDs, study risk of bias, retained
-source-summary digest, and independent effect-verification assessment for each
-record, including mapped claim source provenance. It also replays the
-verification artifact's retained effect status, claim source anchors, and
-source-summary digest against the effect records, so available studies require
-clean transcription and arithmetic checks, unavailable studies retain
-not-applicable checks, and source-byte or source-summary provenance cannot be
-rewritten between verification and pooling. Pooling now also requires
+enforces the frozen fixed-effect or random-effects model and frozen contrast
+definition, requires at least two available independent-study effects and the
+frozen minimum, reports Cochran's Q, I-squared, DerSimonian-Laird tau-squared, a
+95% confidence interval, a random-effects prediction interval when at least
+three studies exist, leave-one-study-out estimates, and a study-provenance table
+spanning available and unavailable studies. That table retains the mapped claim
+IDs, study risk of bias, retained source-summary digest, and independent
+effect-verification assessment for each record, including mapped claim source
+provenance. It also replays the verification artifact's retained effect status,
+claim source anchors, frozen contrast, and source-summary digest against the
+effect records, so available studies require clean transcription and arithmetic
+checks, unavailable studies retain not-applicable checks, and source-byte,
+source-summary, or registered-comparison provenance cannot be rewritten between
+verification and pooling. Pooling now also requires
 reproducibly derived effect records and replays the retained source-summary
 contract, then reports the canonical summaries alongside study provenance so
 malformed arm summaries cannot hide behind a clean verification label.

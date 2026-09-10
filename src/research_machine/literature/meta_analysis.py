@@ -190,6 +190,11 @@ def validate_meta_analysis_boundary(
         require_sha256(inputs.get(key), f"meta-analysis input {key}")
     _canonical_text(meta_analysis.get("plan_id"), "meta-analysis plan_id")
     _canonical_text(meta_analysis.get("snapshot_id"), "meta-analysis snapshot_id")
+    contrast_definition = _canonical_text(
+        meta_analysis.get("contrast_definition"), "meta-analysis contrast_definition"
+    )
+    if contrast_definition == "not_applicable":
+        raise ValidationError("meta-analysis requires a frozen quantitative contrast_definition")
     if meta_analysis.get("scientific_evidence_eligible") is not False:
         raise ValidationError("meta-analysis must remain scientifically ineligible")
     if meta_analysis.get("conclusion_authorized") is not False:
@@ -576,6 +581,13 @@ def execute_meta_analysis(
     validate_effect_records_boundary(effects)
     if effects.get("effect_measure") != plan.get("effect_measure"):
         raise ValidationError("effect records do not match the frozen effect measure")
+    plan_contrast = _canonical_text(
+        plan.get("contrast_definition"), "meta-analysis plan contrast_definition"
+    )
+    if plan_contrast == "not_applicable":
+        raise ValidationError("meta-analysis requires a frozen quantitative contrast_definition")
+    if effects.get("contrast_definition") != plan_contrast:
+        raise ValidationError("effect records do not match the frozen contrast_definition")
     if effects.get("derivation_scope") != "recomputed_from_source_reported_arm_summaries":
         raise ValidationError(
             "meta-analysis requires reproducibly derived effect records with retained source summaries"
@@ -585,6 +597,8 @@ def execute_meta_analysis(
             or effect_verification.get("effect_records_sha256") != effects_sha):
         raise ValidationError("meta-analysis requires clean independent verification of the supplied effects")
     validate_effect_verification_boundary(effect_verification)
+    if effect_verification.get("contrast_definition") != plan_contrast:
+        raise ValidationError("effect verification does not match the frozen contrast_definition")
     verification_assessments = effect_verification.get("assessments")
     if not isinstance(verification_assessments, list) or not verification_assessments:
         raise ValidationError("meta-analysis requires retained effect-verification assessments")
@@ -639,6 +653,7 @@ def execute_meta_analysis(
         raise ValidationError("meta-analysis requires deviation-bound frozen plan commitments")
     if (frozen_deviation_plan.get("synthesis_type") != "quantitative"
             or frozen_deviation_plan.get("effect_measure") != plan.get("effect_measure")
+            or frozen_deviation_plan.get("contrast_definition") != plan_contrast
             or frozen_deviation_plan.get("statistical_model") != plan.get("statistical_model")
             or frozen_deviation_plan.get("minimum_independent_studies") != plan.get("minimum_independent_studies")):
         raise ValidationError("deviation-bound frozen plan commitments do not match the supplied plan")
@@ -798,6 +813,7 @@ def execute_meta_analysis(
         "deviation_plan_commitments": frozen_deviation_plan,
         "deviations": deviations.get("deviations"),
         "plan_id": plan.get("plan_id"), "snapshot_id": plan.get("snapshot_id"),
+        "contrast_definition": plan_contrast,
         "effect_measure": plan.get("effect_measure"), "statistical_model": model,
         "available_study_count": len(available), "unavailable_studies": unavailable,
         "retained_source_summaries": retained_source_summaries,

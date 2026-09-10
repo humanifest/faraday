@@ -263,6 +263,11 @@ def validate_effect_records_boundary(effects: dict[str, Any]) -> None:
     if not isinstance(records, list) or not records:
         raise ValidationError("effect records require retained study records")
     effect_measure = _canonical_text(effects.get("effect_measure"), "effect-record effect_measure")
+    contrast_definition = _canonical_text(
+        effects.get("contrast_definition"), "effect-record contrast_definition"
+    )
+    if contrast_definition == "not_applicable":
+        raise ValidationError("effect records require a frozen quantitative contrast_definition")
     available = 0
     unavailable = 0
     seen = set()
@@ -539,6 +544,22 @@ def create_effect_records(
         if source_summaries is not None
         else None
     )
+    plan_contrast = _canonical_text(
+        plan.get("contrast_definition"), "frozen effect contrast_definition"
+    )
+    if plan_contrast == "not_applicable":
+        raise ValidationError("effect records require a frozen quantitative contrast_definition")
+    if contrast_definition is None:
+        contrast_definition = plan_contrast
+    else:
+        contrast_definition = _canonical_text(
+            contrast_definition, "effect contrast_definition"
+        )
+        if contrast_definition != plan_contrast:
+            raise ValidationError(
+                "effect contrast_definition must exactly match the frozen synthesis plan"
+            )
+
     result = {"effect_records_version": 1, "inputs": {"synthesis_plan_sha256": plan_sha,
         "extraction_sha256": extraction_sha, "evidence_map_sha256": map_sha},
         "plan_id": plan.get("plan_id"), "snapshot_id": plan.get("snapshot_id"),

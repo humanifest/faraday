@@ -55,6 +55,7 @@ def effects_file(tmp_path):
     value = {"effect_records_version": 1, "status": "effects_ready",
         "derivation_scope": "recomputed_from_source_reported_arm_summaries", "reviewer": "Effect reviewer",
         "plan_id": "p1", "snapshot_id": "snap", "effect_measure": "mean_difference",
+        "contrast_definition": "experimental versus comparator",
         "source_summaries": summaries, "records": [
             {"study_id": "s1", "status": "available", "reason": "Reported arms",
              "risk_of_bias": "low", "mapped_claims": [mapped_claim("s1")],
@@ -98,6 +99,7 @@ def test_effect_verification_cli_records_clean_independent_review(tmp_path, caps
     assert result["publication_authorized"] is False
     assert result["assessments"][0]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s1"))
     assert result["assessments"][1]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s2", "unavailable"))
+    assert result["contrast_definition"] == "experimental versus comparator"
     with pytest.raises(ValidationError, match="already exists"):
         create_effect_verification(effects, digest, review(), output)
 
@@ -122,6 +124,7 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     "effects-hash",
     "plan-id",
     "snapshot-id",
+    "contrast-definition",
     "independent-review",
     "same-reviewer",
     "assessment-extra",
@@ -146,6 +149,8 @@ def test_effect_verification_boundary_replays_retained_assessments(tmp_path, tam
         candidate["plan_id"] = " p1 "
     elif tamper == "snapshot-id":
         candidate["snapshot_id"] = " snap "
+    elif tamper == "contrast-definition":
+        candidate["contrast_definition"] = " not_applicable "
     elif tamper == "independent-review":
         candidate["independent_review"] = False
     elif tamper == "same-reviewer":
@@ -211,6 +216,8 @@ def test_effect_verification_boundary_replays_retained_assessments(tmp_path, tam
     "count-drift",
     "availability-count-drift",
     "readiness-drift",
+    "contrast-missing",
+    "contrast-padded",
 ])
 def test_invalid_effect_verification_never_publishes(tmp_path, failure):
     effects, digest = effects_file(tmp_path); candidate = review()
@@ -225,6 +232,15 @@ def test_invalid_effect_verification_never_publishes(tmp_path, failure):
             value["records"][0]["study_id"] = " s1 "
         elif failure == "padded-summary-study":
             value["source_summaries"][0]["study_id"] = " s1 "
+        encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
+        effects.write_bytes(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
+    elif failure in {"contrast-missing", "contrast-padded"}:
+        value = json.loads(effects.read_text())
+        value["contrast_definition"] = (
+            "not_applicable" if failure == "contrast-missing"
+            else " experimental versus comparator "
+        )
         encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
         effects.write_bytes(encoded)
         digest = hashlib.sha256(encoded).hexdigest()

@@ -1272,36 +1272,40 @@ against the supplied extraction bytes. It also replays the evidence map's
 non-evidence, non-conclusion, non-publication boundary and summary counts.
 The effect-record artifact now replays its own retained boundary before it is
 written: false scientific-evidence, conclusion, and publication authorization;
-study, availability, and readiness counts; mapped claim provenance; finite
-available-effect variance as the square of the standard error; unavailable
-numeric fields as null; and retained source-summary coverage whenever effects
-are reproducibly derived from source-reported arm summaries.
+the frozen quantitative contrast definition; study, availability, and readiness
+counts; mapped claim provenance; finite available-effect variance as the square
+of the standard error; unavailable numeric fields as null; and retained
+source-summary coverage whenever effects are reproducibly derived from
+source-reported arm summaries.
 Trusted plan, evidence-map,
 effect-record, effect-verification, and deviation hashes must be canonical
 lowercase SHA-256 digests before later synthesis commands can bind those
 artifacts. Effect preparation now requires canonical frozen plan source IDs,
 extraction source IDs, mapped study/source/claim IDs, citation anchors, reviewer
-text, derivation scope, reasons, evidence locations, and derivation prose before
-coverage and duplicate checks; reproducible effect derivation also rejects a
-padded frozen contrast definition before preserving it in the effect-record
-artifact. Reproducible derivation and independent effect verification also
-validate the retained source-summary contract: every source summary must cover
-exactly one effect record with matching status, canonical reason and evidence
-location, and measure-compatible experimental/comparator arm values. Independent
-effect verification also requires canonical effect reviewer, retained study IDs,
-verification reviewer, checked locations, rationales, and service-derived claim
-source anchors before coverage checks. Each verification assessment also carries
-the service-derived digest of the exact retained source summary it checked.
+text, frozen contrast definition, derivation scope, reasons, evidence locations,
+and derivation prose before coverage and duplicate checks; reviewer-entered and
+reproducibly derived effect paths must preserve the exact frozen contrast rather
+than supplying a later comparison. Reproducible derivation and independent
+effect verification also validate the retained source-summary contract: every
+source summary must cover exactly one effect record with matching status,
+canonical reason and evidence location, and measure-compatible
+experimental/comparator arm values. Independent effect verification also
+requires canonical effect reviewer, retained study IDs, verification reviewer,
+checked locations, rationales, and service-derived claim source anchors before
+coverage checks. The verification artifact preserves the same frozen contrast
+definition and each verification assessment also carries the service-derived
+digest of the exact retained source summary it checked.
 The effect-verification artifact now replays its own retained boundary before it
 is written: version and trusted effect-record hash, plan and snapshot handles,
 independent reviewer separation, exact assessment shape, retained source-summary
 digests, reduced claim source-provenance anchors, canonical checked locations
 and rationales, mismatch IDs, and status must all derive from retained
 assessments while evidence, conclusion, and publication authority remain false.
-Meta-analysis replays those verifier-retained anchors and summary digests
-against the prepared effect records before pooling, so an independent
-verification artifact cannot silently drop, substitute, or rewrite the retained
-source bytes and source-reported values behind a mapped literature claim.
+Meta-analysis replays those verifier-retained anchors, the frozen contrast
+definition, and summary digests against the prepared effect records before
+pooling, so an independent verification artifact cannot silently drop,
+substitute, or rewrite the retained source bytes, source-reported values, or
+registered comparison behind a mapped literature claim.
 Meta-analysis now requires canonical prepared-effect study IDs, mapped claim
 IDs, verification study IDs, and checked locations before joining prepared
 effects to independent verification. Pooling also requires the reproducible

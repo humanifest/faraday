@@ -44,6 +44,7 @@ def artifacts(tmp_path, minimum=1):
     plan = tmp_path / "plan.json"
     plan_sha = write_json(plan, {"synthesis_plan_version": 1, "status": "synthesis_plan_frozen",
         "synthesis_type": "quantitative", "effect_measure": "log_risk_ratio",
+        "contrast_definition": "experimental versus comparator",
         "minimum_independent_studies": minimum, "screening_sha256": screening_sha,
         "snapshot_id": "snap", "plan_id": "p1", "included_source_ids_at_freeze": ["source-fixture"],
         "scientific_evidence_eligible": False,
@@ -121,6 +122,7 @@ def test_effect_cli_preserves_unavailable_study_and_is_write_once(tmp_path, caps
     result = json.loads(capsys.readouterr().out)["result"]
     assert result["available_effect_count"] == 1 and result["unavailable_effect_count"] == 1
     assert result["records"][0]["variance"] == pytest.approx(0.01)
+    assert result["contrast_definition"] == "experimental versus comparator"
     assert result["records"][1]["risk_of_bias"] == "high"
     assert result["records"][0]["mapped_claims"][0]["extraction_id"] == "claim-1"
     extraction_record = json.loads(extraction.read_text())["source_reviews"][0]["records"][0]
@@ -161,6 +163,7 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     "mapped-claim-digest",
     "padded-mapped-claim",
     "recomputed-without-summaries",
+    "contrast-missing",
 ])
 def test_effect_records_boundary_replays_output_summaries(tmp_path, tamper):
     plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
@@ -191,6 +194,8 @@ def test_effect_records_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["records"][0]["mapped_claims"][0]["citation_checked_location"] = " page fixture "
     elif tamper == "recomputed-without-summaries":
         candidate["derivation_scope"] = "recomputed_from_source_reported_arm_summaries"
+    elif tamper == "contrast-missing":
+        candidate["contrast_definition"] = "not_applicable"
     with pytest.raises(ValidationError):
         validate_effect_records_boundary(candidate)
 
@@ -210,12 +215,14 @@ def test_effect_records_boundary_replays_output_summaries(tmp_path, tamper):
     "map-claim-digest", "map-authority", "map-publication-authority",
     "map-claim-count", "map-ceiling-count",
     "map-boundary-limitations",
+    "plan-contrast-missing", "plan-contrast-mismatch", "padded-plan-contrast",
     "padded-reviewer", "padded-reason", "padded-location", "padded-derivation",
     "padded-derivation-scope",
 ])
 def test_invalid_effect_records_never_publish(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path)
     candidate = review()
+    kwargs = {}
     if failure == "plan-hash": plan_sha = "0" * 64
     elif failure in {"plan-authority", "plan-conclusion-authority",
                      "plan-publication-authority", "plan-limitations-missing"}:
@@ -334,13 +341,24 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
         value = json.loads(evidence_map.read_text())
         value["limitations"] = []
         map_sha = write_json(evidence_map, value)
+    elif failure == "plan-contrast-missing":
+        value = json.loads(plan.read_text())
+        value["contrast_definition"] = "not_applicable"
+        plan_sha = write_json(plan, value)
+    elif failure == "plan-contrast-mismatch":
+        kwargs = {"contrast_definition": "other contrast"}
+    elif failure == "padded-plan-contrast":
+        value = json.loads(plan.read_text())
+        value["contrast_definition"] = " experimental versus comparator "
+        plan_sha = write_json(plan, value)
     elif failure == "padded-reviewer": candidate["reviewer"] = " Effect reviewer "
     elif failure == "padded-reason": candidate["records"][0]["reason"] = " Fixture record "
     elif failure == "padded-location": candidate["records"][0]["evidence_location"] = " table 2 "
     elif failure == "padded-derivation": candidate["records"][0]["derivation"] = " Reported estimate and standard error "
     output = tmp_path / "effects"
     with pytest.raises(ValidationError):
-        kwargs = {"derivation_scope": " reviewer_reported_effect_and_standard_error "} if failure == "padded-derivation-scope" else {}
+        if failure == "padded-derivation-scope":
+            kwargs = {"derivation_scope": " reviewer_reported_effect_and_standard_error "}
         create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, candidate, output, **kwargs)
     assert not output.exists()
 
