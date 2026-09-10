@@ -1507,8 +1507,12 @@ structural errors, and deterministic synthesis exposes each protected dataset's
 lineage state plus observation-byte, measurement-custody, ethics-status, and
 conditional-ethics verification state as provenance rather than consent, custody,
 measurement-validity, or analysis proof. Replication-package verification
-replays the same protocol-closed lineage boundary from packaged metadata before
-trusting a redacted handoff. Authoritative inquiry display, protocol-bound
+replays the same protocol-closed lineage boundary from packaged metadata and
+also checks the portable redacted semantics of protected observation-byte,
+measurement-custody, ethics-status, and conditional-ethics receipts before
+trusting a handoff. These package checks preserve what the original service
+verified and what remains unauthenticated; they do not re-open local roots or
+turn redacted metadata into fresh byte verification. Authoritative inquiry display, protocol-bound
 execution checks, run intake, and evidence admission also walk the complete
 protected ancestor graph and reject resealed missing, duplicated, cyclic, or
 cross-boundary lineage before the dataset can support scientific use.

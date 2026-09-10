@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,13 @@ _V2_LIMITATIONS = [
 _V1_VERIFICATION_CONTRACT = "replication_package_v1_file_integrity"
 _V2_VERIFICATION_CONTRACT = "replication_package_v2_guardrails"
 _REDACTED_ARTIFACT_LOCATOR = "[redacted: obtain from authorized source]"
+_DATASET_ARTIFACT_SCOPE = (
+    "registered observation bytes under the supplied local artifact root"
+)
+_MEASUREMENT_CUSTODY_SCOPE = (
+    "raw-source, transformation implementation, derived-output, and "
+    "supporting-evidence bytes under the supplied local artifact root"
+)
 
 _STRUCTURED_RESULT_DETAIL_KEYS = {
     "canary_target_assessment",
@@ -184,6 +192,433 @@ def _validate_packaged_artifacts(
 
 def _validate_package_identity_list(values: Any, field_name: str) -> list[str]:
     return require_unique_canonical_text_list(values, field_name)
+
+
+def _validate_package_timestamp(value: Any, field_name: str) -> str:
+    timestamp = require_canonical_text(value, field_name)
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValidationError(f"{field_name} must be valid ISO-8601") from exc
+    if parsed.utcoffset() is None:
+        raise ValidationError(f"{field_name} must include a UTC offset")
+    return timestamp
+
+
+def _validate_packaged_root(value: Any, field_name: str, locator_policy: str) -> str:
+    root = require_canonical_text(value, field_name)
+    if locator_policy == "redacted":
+        if root != _REDACTED_ARTIFACT_LOCATOR:
+            raise ValidationError(
+                f"{field_name} must use the package redaction placeholder"
+            )
+    elif not root.strip():
+        raise ValidationError(f"{field_name} must not be blank")
+    return root
+
+
+def _validate_packaged_artifact_integrity(
+    value: Any,
+    *,
+    label: str,
+    expected_artifact_sha256s: list[str] | None = None,
+) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValidationError(f"{label} artifact_integrity must be an object")
+    required = {
+        "status",
+        "verification_profile",
+        "artifact_count",
+        "artifact_set_sha256",
+        "all_artifacts_match",
+        "attestation_required",
+        "attestation_schema_sha256",
+        "attestation_schema_matches_commitment",
+        "attestation_schema_valid",
+        "attestation_consistent",
+        "findings",
+        "artifacts",
+        "conclusion_ceiling",
+    }
+    if set(value) != required:
+        raise ValidationError(f"{label} artifact_integrity fields do not match the contract")
+    if value.get("status") != "passed" or value.get("all_artifacts_match") is not True:
+        raise ValidationError(f"{label} artifact_integrity must retain a passed byte check")
+    require_canonical_text(
+        value.get("verification_profile"),
+        f"{label} artifact_integrity verification_profile",
+    )
+    require_sha256(
+        value.get("artifact_set_sha256"),
+        f"{label} artifact_integrity artifact_set_sha256",
+    )
+    if not isinstance(value.get("attestation_required"), bool):
+        raise ValidationError(f"{label} artifact_integrity attestation_required must be boolean")
+    if value.get("attestation_schema_sha256") is not None:
+        require_sha256(
+            value.get("attestation_schema_sha256"),
+            f"{label} artifact_integrity attestation_schema_sha256",
+        )
+    for optional in (
+        "attestation_schema_matches_commitment",
+        "attestation_schema_valid",
+        "attestation_consistent",
+    ):
+        if value.get(optional) is not None and not isinstance(value.get(optional), bool):
+            raise ValidationError(
+                f"{label} artifact_integrity {optional} must be boolean or null"
+            )
+    if not isinstance(value.get("findings"), list) or value["findings"]:
+        raise ValidationError(f"{label} artifact_integrity findings must be an empty array")
+    artifacts = value.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise ValidationError(f"{label} artifact_integrity artifacts must be an array")
+    count = value.get("artifact_count")
+    if (
+        isinstance(count, bool)
+        or not isinstance(count, int)
+        or count != len(artifacts)
+        or count < 1
+    ):
+        raise ValidationError(f"{label} artifact_integrity artifact_count is invalid")
+    observed_expected: list[str] = []
+    for index, artifact in enumerate(artifacts):
+        if not isinstance(artifact, dict):
+            raise ValidationError(f"{label} artifact_integrity artifact must be an object")
+        require_canonical_text(
+            artifact.get("locator"),
+            f"{label} artifact_integrity artifact {index} locator",
+        )
+        expected_sha = require_sha256(
+            artifact.get("expected_sha256"),
+            f"{label} artifact_integrity artifact {index} expected_sha256",
+        )
+        observed_sha = require_sha256(
+            artifact.get("observed_sha256"),
+            f"{label} artifact_integrity artifact {index} observed_sha256",
+        )
+        if expected_sha != observed_sha or artifact.get("status") != "passed":
+            raise ValidationError(
+                f"{label} artifact_integrity artifact observations must retain passed matching digests"
+            )
+        for size_field in ("expected_size_bytes", "observed_size_bytes"):
+            size = artifact.get(size_field)
+            if size is not None and (
+                isinstance(size, bool) or not isinstance(size, int) or size < 0
+            ):
+                raise ValidationError(
+                    f"{label} artifact_integrity artifact {size_field} must be non-negative or null"
+                )
+        observed_expected.append(expected_sha)
+    if expected_artifact_sha256s is not None and observed_expected != expected_artifact_sha256s:
+        raise ValidationError(
+            f"{label} artifact_integrity no longer matches packaged artifact digests"
+        )
+    require_canonical_text(
+        value.get("conclusion_ceiling"),
+        f"{label} artifact_integrity conclusion_ceiling",
+    )
+    return value
+
+
+def _validate_packaged_protected_dataset_verification(
+    *,
+    protocol: ExperimentProtocol,
+    dataset: DatasetManifest,
+    locator_policy: str,
+    ethics_events_by_id: dict[str, EthicsReviewEvent],
+) -> None:
+    metadata = dataset.metadata
+    dataset_id = dataset.dataset_id
+    protected_role = dataset.role in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
+
+    artifact_receipt = metadata.get("dataset_artifact_verification")
+    if protected_role and not dataset.synthetic:
+        if not isinstance(artifact_receipt, dict):
+            raise ValidationError(
+                f"package protected dataset {dataset_id} lacks portable artifact verification"
+            )
+        if set(artifact_receipt) != {
+            "verification_version",
+            "verified_at",
+            "verified_by",
+            "dataset_artifact_root",
+            "protocol_hash",
+            "artifact_integrity",
+            "scope",
+            "scientific_interpretation_verified",
+        }:
+            raise ValidationError(
+                f"package protected dataset {dataset_id} artifact verification fields do not match the contract"
+            )
+        if artifact_receipt.get("verification_version") != 1:
+            raise ValidationError(
+                f"package protected dataset {dataset_id} artifact verification version is unsupported"
+            )
+        _validate_package_timestamp(
+            artifact_receipt.get("verified_at"),
+            f"package protected dataset {dataset_id} artifact verification time",
+        )
+        require_canonical_text(
+            artifact_receipt.get("verified_by"),
+            f"package protected dataset {dataset_id} artifact verifier",
+        )
+        _validate_packaged_root(
+            artifact_receipt.get("dataset_artifact_root"),
+            f"package protected dataset {dataset_id} dataset_artifact_root",
+            locator_policy,
+        )
+        if artifact_receipt.get("protocol_hash") != protocol.protocol_hash:
+            raise ValidationError(
+                f"package protected dataset {dataset_id} artifact verification does not match the protocol hash"
+            )
+        if artifact_receipt.get("scope") != _DATASET_ARTIFACT_SCOPE:
+            raise ValidationError(
+                f"package protected dataset {dataset_id} artifact verification scope changed"
+            )
+        if artifact_receipt.get("scientific_interpretation_verified") is not False:
+            raise ValidationError(
+                f"package protected dataset {dataset_id} artifact verification must remain non-interpretive"
+            )
+        _validate_packaged_artifact_integrity(
+            artifact_receipt.get("artifact_integrity"),
+            label=f"package protected dataset {dataset_id} artifact verification",
+            expected_artifact_sha256s=[artifact.sha256 for artifact in dataset.artifacts],
+        )
+    elif artifact_receipt is not None:
+        raise ValidationError(
+            f"package dataset {dataset_id} contains unexpected artifact verification"
+        )
+
+    custody_receipt = metadata.get("measurement_custody_verification")
+    if protocol.measurement_custody_requirements or custody_receipt is not None:
+        if not isinstance(custody_receipt, dict):
+            raise ValidationError(
+                f"package dataset {dataset_id} lacks portable measurement custody verification"
+            )
+        if set(custody_receipt) != {
+            "verification_version",
+            "verified_at",
+            "verified_by",
+            "custody_artifact_root",
+            "custody_receipt_sha256",
+            "protocol_hash",
+            "required_gate_ids",
+            "artifact_integrity",
+            "scope",
+            "scientific_interpretation_verified",
+        }:
+            raise ValidationError(
+                f"package dataset {dataset_id} measurement custody verification fields do not match the contract"
+            )
+        if custody_receipt.get("verification_version") != 1:
+            raise ValidationError(
+                f"package dataset {dataset_id} measurement custody verification version is unsupported"
+            )
+        _validate_package_timestamp(
+            custody_receipt.get("verified_at"),
+            f"package dataset {dataset_id} measurement custody verification time",
+        )
+        require_canonical_text(
+            custody_receipt.get("verified_by"),
+            f"package dataset {dataset_id} measurement custody verifier",
+        )
+        _validate_packaged_root(
+            custody_receipt.get("custody_artifact_root"),
+            f"package dataset {dataset_id} custody_artifact_root",
+            locator_policy,
+        )
+        require_sha256(
+            custody_receipt.get("custody_receipt_sha256"),
+            f"package dataset {dataset_id} custody_receipt_sha256",
+        )
+        if custody_receipt.get("protocol_hash") != protocol.protocol_hash:
+            raise ValidationError(
+                f"package dataset {dataset_id} measurement custody verification does not match the protocol hash"
+            )
+        if custody_receipt.get("required_gate_ids") != list(protocol.measurement_custody_requirements):
+            raise ValidationError(
+                f"package dataset {dataset_id} measurement custody required gates changed"
+            )
+        if custody_receipt.get("scope") != _MEASUREMENT_CUSTODY_SCOPE:
+            raise ValidationError(
+                f"package dataset {dataset_id} measurement custody verification scope changed"
+            )
+        if custody_receipt.get("scientific_interpretation_verified") is not False:
+            raise ValidationError(
+                f"package dataset {dataset_id} measurement custody verification must remain non-interpretive"
+            )
+        _validate_packaged_artifact_integrity(
+            custody_receipt.get("artifact_integrity"),
+            label=f"package dataset {dataset_id} measurement custody verification",
+        )
+
+    ethics_status = metadata.get("ethics_review_status_check")
+    if protocol.human_subjects:
+        if not isinstance(ethics_status, dict):
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} lacks portable ethics status check"
+            )
+        if ethics_status.get("status") != "active":
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} ethics status is not active"
+            )
+        if ethics_status.get("protocol_id") != protocol.protocol_id or ethics_status.get("protocol_hash") != protocol.protocol_hash:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} ethics status does not match the protocol"
+            )
+        basis = require_canonical_text(
+            ethics_status.get("basis"),
+            f"package human-subject dataset {dataset_id} ethics status basis",
+        )
+        if basis not in {"frozen_independent_review_decision", "append_only_ethics_review_event"}:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} ethics status basis is unsupported"
+            )
+        checked_at = _validate_package_timestamp(
+            ethics_status.get("checked_at"),
+            f"package human-subject dataset {dataset_id} ethics status checked_at",
+        )
+        event_id = ethics_status.get("review_event_id")
+        if event_id is None:
+            if basis != "frozen_independent_review_decision":
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics status lacks its review event"
+                )
+        else:
+            if basis != "append_only_ethics_review_event":
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics status event basis changed"
+                )
+            event_id = require_canonical_text(
+                event_id,
+                f"package human-subject dataset {dataset_id} ethics review_event_id",
+            )
+            event = ethics_events_by_id.get(event_id)
+            if event is None or event.status != "active":
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics status references an unavailable active event"
+                )
+            if ethics_status.get("event_artifact_sha256") != event.review_artifact_sha256:
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics status event artifact changed"
+                )
+            if event.expires_at is not None:
+                expires_at = datetime.fromisoformat(
+                    event.expires_at.replace("Z", "+00:00")
+                )
+                checked = datetime.fromisoformat(checked_at.replace("Z", "+00:00"))
+                if expires_at < checked:
+                    raise ValidationError(
+                        f"package human-subject dataset {dataset_id} ethics status event expired before the dataset check"
+                    )
+        if ethics_status.get("reviewer_identity_authenticated", False) is not False:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} ethics status must not authenticate reviewer identity"
+            )
+        if ethics_status.get("substantive_adequacy_verified", False) is not False:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} ethics status must not verify substantive adequacy"
+            )
+    elif ethics_status is not None:
+        raise ValidationError(
+            f"package dataset {dataset_id} contains unexpected ethics status check"
+        )
+
+    condition_receipt = metadata.get("ethics_condition_verification")
+    if protocol.human_subjects and protocol.independent_review_decision == "approved_with_conditions":
+        if not isinstance(condition_receipt, dict):
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} lacks portable ethics condition verification"
+            )
+        if condition_receipt.get("verification_version") != 1:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} ethics condition verification version is unsupported"
+            )
+        _validate_package_timestamp(
+            condition_receipt.get("verified_at"),
+            f"package human-subject dataset {dataset_id} condition verification time",
+        )
+        require_canonical_text(
+            condition_receipt.get("verified_by"),
+            f"package human-subject dataset {dataset_id} condition verifier",
+        )
+        _validate_packaged_root(
+            condition_receipt.get("evidence_artifact_root"),
+            f"package human-subject dataset {dataset_id} evidence_artifact_root",
+            locator_policy,
+        )
+        require_sha256(
+            condition_receipt.get("discharge_receipt_sha256"),
+            f"package human-subject dataset {dataset_id} discharge_receipt_sha256",
+        )
+        if (
+            condition_receipt.get("protocol_id") != protocol.protocol_id
+            or condition_receipt.get("protocol_hash") != protocol.protocol_hash
+            or condition_receipt.get("independent_review_receipt")
+            != protocol.independent_review_receipt
+        ):
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} ethics condition verification does not match the protocol"
+            )
+        require_canonical_text(
+            condition_receipt.get("assessor"),
+            f"package human-subject dataset {dataset_id} condition assessor",
+        )
+        _validate_package_timestamp(
+            condition_receipt.get("assessed_at"),
+            f"package human-subject dataset {dataset_id} condition assessed_at",
+        )
+        condition_results = condition_receipt.get("condition_results")
+        location_checks = condition_receipt.get("evidence_location_checks")
+        if (
+            not isinstance(condition_results, list)
+            or not all(isinstance(item, dict) for item in condition_results)
+            or [item.get("condition") for item in condition_results]
+            != list(protocol.independent_review_conditions)
+        ):
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} ethics condition results changed"
+            )
+        if (
+            not isinstance(location_checks, list)
+            or not all(isinstance(item, dict) for item in location_checks)
+            or [item.get("condition") for item in location_checks]
+            != list(protocol.independent_review_conditions)
+        ):
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} ethics condition location checks changed"
+            )
+        for item in location_checks:
+            if item.get("location_kind") == "json_pointer":
+                require_sha256(
+                    item.get("selected_value_sha256"),
+                    f"package human-subject dataset {dataset_id} condition selected_value_sha256",
+                )
+            elif item.get("selected_value_sha256") is not None:
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} condition non-JSON location cannot carry a selected value digest"
+                )
+        _validate_packaged_artifact_integrity(
+            condition_receipt.get("artifact_integrity"),
+            label=f"package human-subject dataset {dataset_id} ethics condition verification",
+        )
+        if condition_receipt.get("reviewer_identity_authenticated") is not False:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} condition verification must not authenticate reviewer identity"
+            )
+        if condition_receipt.get("condition_truth_independently_established") is not False:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} condition verification must not establish condition truth"
+            )
+        if not isinstance(condition_receipt.get("ongoing_controls_require_continued_monitoring"), bool):
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} condition monitoring flag must be boolean"
+            )
+    elif condition_receipt is not None:
+        raise ValidationError(
+            f"package dataset {dataset_id} contains unexpected ethics condition verification"
+        )
 
 
 def _contains_template_placeholder(value: Any) -> bool:
@@ -2017,6 +2452,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
             events = validate_ethics_review_event_chain(
                 protocol, events, verify_current_artifacts=False
             )
+            ethics_events_by_id = {item.event_id: item for item in events}
             if manifest_ethics_event_ids != [item.event_id for item in events]:
                 raise ValidationError("package ethics event IDs disagree with the event chain")
             expected_status = (
@@ -2091,6 +2527,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     artifacts=dataset.artifacts,
                     label=f"package dataset {dataset_id}",
                     locator_policy=manifest["artifact_locator_policy"],
+                )
+                _validate_packaged_protected_dataset_verification(
+                    protocol=protocol,
+                    dataset=dataset,
+                    locator_policy=manifest["artifact_locator_policy"],
+                    ethics_events_by_id=ethics_events_by_id,
                 )
                 if manifest.get("artifact_locator_policy") == "included":
                     validate_dataset_payload_commitment(dataset)

@@ -1211,7 +1211,17 @@ must be nonnegative where applicable. Digest anchors must be duplicate-free;
 included locators must be duplicate-free, while redacted locators must use the
 explicit package redaction placeholder. This prevents package-local rewrites
 from creating ambiguous dataset or output hash anchors while keeping the
-manifest internally consistent. Protocol-deviation
+manifest internally consistent. The verifier now also replays the portable
+semantics of protected dataset verification receipts: non-synthetic protected
+datasets must retain a service-generated observation-byte receipt bound to the
+packaged protocol and declared artifact digests; measurement-custody receipts
+must retain the frozen gate list and non-interpretive boundary; human-subject
+dataset status and conditional-discharge receipts must remain tied to the
+packaged protocol, review receipt, event record, condition list, location
+checks, and redacted root policy. These checks prevent an internally
+hash-consistent package from erasing or strengthening protected-dataset
+verification metadata, while still refusing to treat redacted roots as current
+local byte access. Protocol-deviation
 disclosure metadata is also replayed before eligibility is trusted: legacy
 silence remains ineligible, explicit no-deviation declarations must retain the
 unauthenticated-assertion boundary, declared departures must preserve exact typed
@@ -2259,7 +2269,9 @@ ethics-status, and conditional-ethics verification state while explicitly
 treating these as provenance only, not consent, custody, measurement-validity, or
 analysis adequacy. Replication-package verification replays the same protocol-closed
 lineage rule from packaged metadata, including redacted packages that cannot
-reopen local dataset payload commitments. A shared application integrity check
+reopen local dataset payload commitments, and checks the package-portable
+protected dataset receipt fields so redacted handoffs cannot drop artifact,
+custody, or ethics verification state while preserving a fresh manifest hash. A shared application integrity check
 now recursively walks protected ancestors during inquiry display, execution
 binding, run intake, and evidence admission; resealed records with missing,
 duplicated, cyclic, or cross-role/cross-protocol ancestry fail before scientific

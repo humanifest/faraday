@@ -1002,6 +1002,94 @@ def test_replication_package_rejects_invalid_protected_lineage(
         verify_replication_package(package, commitment)
 
 
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("remove_artifact_verification", "portable artifact verification"),
+        ("artifact_protocol_hash", "protocol hash"),
+        ("artifact_digest", "packaged artifact digests"),
+        ("artifact_root_unredacted", "redaction placeholder"),
+        ("artifact_interpretive", "non-interpretive"),
+    ],
+)
+def test_replication_package_replays_portable_protected_dataset_verification(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement",
+        observable_prediction="Prediction",
+        null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test",
+        title="Test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id],
+        primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL,
+        methodology="Method",
+        quality_requirements=["gate"],
+        controls=["control"],
+        expected_outputs=["output"],
+        success_conditions=["success"],
+        environment_requirements=["environment"],
+        sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"],
+        safety_constraints=["safe"],
+        analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    observations = tmp_path / "observations.csv"
+    observations.write_text("unit,group,outcome\nu1,a,1\nu2,b,2\n", encoding="utf-8")
+    observation_sha256 = hashlib.sha256(observations.read_bytes()).hexdigest()
+    service.register_dataset(RegisterDataset(
+        name="Protected observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact(
+            "observations.csv",
+            observation_sha256,
+            observations.stat().st_size,
+            "text/csv",
+        )],
+        protocol_id=frozen.protocol_id,
+        artifact_root=str(tmp_path),
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    datasets_path = package / "datasets.json"
+    datasets = json.loads(datasets_path.read_text())
+    dataset = datasets[0]
+    receipt = dataset["metadata"]["dataset_artifact_verification"]
+    if mutation == "remove_artifact_verification":
+        dataset["metadata"].pop("dataset_artifact_verification")
+    elif mutation == "artifact_protocol_hash":
+        receipt["protocol_hash"] = "b" * 64
+    elif mutation == "artifact_digest":
+        receipt["artifact_integrity"]["artifacts"][0]["expected_sha256"] = "c" * 64
+        receipt["artifact_integrity"]["artifacts"][0]["observed_sha256"] = "c" * 64
+    elif mutation == "artifact_root_unredacted":
+        receipt["dataset_artifact_root"] = str(tmp_path.resolve())
+    elif mutation == "artifact_interpretive":
+        receipt["scientific_interpretation_verified"] = True
+    datasets_path.write_text(json.dumps(datasets, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "datasets.json")
+
+    with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
+
+
 def test_redacted_replication_package_allows_multiple_artifacts(
     tmp_path: Path,
 ) -> None:
