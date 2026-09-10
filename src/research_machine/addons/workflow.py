@@ -39,6 +39,16 @@ def _require_sha256(value: Any, field: str) -> str:
     return value
 
 
+def _selected_json_value_sha256(value: Any) -> str:
+    try:
+        content = (json.dumps(
+            value, sort_keys=True, indent=2, ensure_ascii=False, allow_nan=False
+        ) + "\n").encode()
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("workflow selected JSON value is not finite") from exc
+    return hashlib.sha256(content).hexdigest()
+
+
 def _gate_semantics(gate: Any) -> dict[str, Any]:
     details = gate.details
     return {
@@ -85,10 +95,18 @@ def composite_quality_gates(adjudication: dict[str, Any], output_sha256: str) ->
         base = f"/quality_gate_adjudication/{gate_index}/source_gate_results/0/gate/details"
         controls = details.get("control_results")
         if isinstance(controls, dict):
+            source_control_results = source_gate.get("details", {}).get("control_results")
+            if not isinstance(source_control_results, dict):
+                raise ValidationError("authoritative source gate lacks control results")
             for control_id, result in controls.items():
+                if control_id not in source_control_results:
+                    raise ValidationError("authoritative source gate lacks inherited control result")
                 result["evidence_sha256"] = output_sha256
                 result["evidence_location"] = (
                     f"{base}/control_results/{_pointer_token(control_id)}"
+                )
+                result["selected_value_sha256"] = _selected_json_value_sha256(
+                    source_control_results[control_id]
                 )
         missingness = details.get("missingness_assessment_result")
         if isinstance(missingness, dict):

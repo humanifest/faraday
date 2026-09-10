@@ -2155,6 +2155,7 @@ def test_replication_package_verifies_sample_size_plan_check_metadata(
         ("blank_location", "evidence_location must be nonempty text"),
         ("relative_analysis_location", "requires an absolute JSON Pointer"),
         ("missing_analysis_location", "does not resolve"),
+        ("selected_value_mismatch", "selected_value_sha256 disagrees"),
         ("extra_handoff_authority", "result contract is invalid"),
         ("handoff_identity_mismatch", "authority identity disagrees"),
         ("handoff_result_body_mismatch", "execution_handoff body does not match"),
@@ -2294,6 +2295,8 @@ def test_replication_package_verifies_control_gate_metadata(
         results["negative-1"]["evidence_location"] = "controls/negative-1"
     elif mutation == "missing_analysis_location":
         results["negative-1"]["evidence_location"] = "/result/controls/missing-control"
+    elif mutation == "selected_value_mismatch":
+        results["negative-1"]["selected_value_sha256"] = "0" * 64
     elif mutation == "extra_handoff_authority":
         runs[0]["metadata"]["execution_handoff"]["result"][
             "scientific_evidence_eligible"
@@ -2697,7 +2700,10 @@ def test_replication_package_verifies_missingness_gate_metadata(
     record_path = tmp_path / "missingness-output.json"
     record_sha256 = _write_json(
         record_path,
-        {"missingness": {"exclusion_report": {"excluded_fraction": 0.0}}},
+        {
+            "controls": {"reference-1": {"matches_expected": True}},
+            "missingness": {"exclusion_report": {"excluded_fraction": 0.0}},
+        },
     )
     started_at, completed_at = _after_registration_times(
         frozen.registration_timestamp

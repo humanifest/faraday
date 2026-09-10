@@ -151,10 +151,12 @@ gate. Each result contains `observed_behavior`, `interpretation`, boolean
 `matches_expected`, `evidence_sha256` referencing a run output artifact, and an
 exact `evidence_location` within it. Extra or missing control IDs fail intake.
 When the result cites Faraday's verified analysis output, the location must be an
-absolute JSON Pointer that resolves in those hash-verified bytes. Other formats
-retain an exact human-inspectable location without pretending to interpret an
-arbitrary artifact. Unexpected observations remain recordable; failed or skipped
-evaluation gates remain invalid runs. These declarations do not validate the
+absolute JSON Pointer that resolves in those hash-verified bytes. When the
+cited output is inspected as JSON, run intake also derives
+`selected_value_sha256` for the exact selected control value and rejects
+caller-supplied drift. Other formats retain an exact human-inspectable location
+without pretending to interpret an arbitrary artifact. Unexpected observations
+remain recordable; failed or skipped evaluation gates remain invalid runs. These declarations do not validate the
 interpretation or establish that an unexpected control result permits downstream
 inference. Deterministic synthesis preserves each control's family, run, gate
 disposition, expected-behavior match, artifact digest, and exact location.
@@ -173,7 +175,8 @@ boolean scientific outcome, and each evaluation must cite a packaged run output.
 If that output is a retained workflow-adjudication artifact, the verifier resolves
 the control's absolute JSON Pointer inside the packaged adjudication body, so
 composite exports cannot replace inherited gate locations with fabricated
-human-inspectable text. This prevents exported packages from hiding failed
+human-inspectable text. Retained Faraday result bodies must also replay a
+matching `selected_value_sha256` for the selected control value. This prevents exported packages from hiding failed
 controls, adding convenient controls, or detaching control results from
 output-bound evidence.
 All passed quality gates now require `details.evidence_sha256` referencing an

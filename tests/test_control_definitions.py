@@ -1,3 +1,5 @@
+import hashlib
+import json
 from dataclasses import replace
 
 import pytest
@@ -230,6 +232,7 @@ def test_recorded_control_evaluations_require_evidence_not_favorable_results(tmp
     assert blank["interpretation"] == ""
     assert blank["matches_expected"] is None
     assert "evidence_location" in blank
+    assert "selected_value_sha256" in blank
     assert template_ledger.read_bytes() == template_before
     evaluation = {"observed_behavior": "Synthetic checker outcome", "interpretation": "Fixture only",
         "matches_expected": case != "unexpected", "evidence_sha256": "d" * 64 if case == "unbound" else "c" * 64,
@@ -264,6 +267,73 @@ def test_recorded_control_evaluations_require_evidence_not_favorable_results(tmp
             )
             assert expected_disposition in synthesis
     assert service.verify_ledger()["valid"]
+
+
+def test_control_evaluation_retains_selected_json_value_digest(tmp_path):
+    from dataclasses import fields
+    from research_machine.application.commands import CreateProtocol
+    from research_machine.domain.models import DatasetArtifact, QualityGateResult, QualityGateStatus
+    from test_execution import prepared_service, frozen_formal_protocol, run_command
+
+    service, hypothesis = prepared_service(tmp_path)
+    base = frozen_formal_protocol(service, hypothesis)
+    values = {field.name: getattr(base, field.name) for field in fields(CreateProtocol)}
+    control = ControlDefinition("negative-1", base.controls[0], "negative",
+        "Detect false acceptance", "Invalid derivation is rejected", "proof-check")
+    draft = service.create_protocol(CreateProtocol(**{**values, "control_definitions": [control]}))
+    frozen = service.freeze_protocol(draft.protocol_id)
+    selected_value = {"matches_expected": True, "notes": ["synthetic fixture"]}
+    artifact = tmp_path / "control-output.json"
+    artifact.write_text(
+        json.dumps({"controls": {"negative-1": selected_value}}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    artifact_sha256 = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    selected_value_sha256 = hashlib.sha256(
+        (json.dumps(
+            selected_value,
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+            allow_nan=False,
+        ) + "\n").encode()
+    ).hexdigest()
+
+    run = service.record_run(run_command(
+        frozen.protocol_id,
+        QualityGateStatus.PASSED,
+        synthetic=True,
+        artifact_root=str(tmp_path),
+        output_artifacts=[
+            DatasetArtifact(
+                artifact.name,
+                artifact_sha256,
+                size_bytes=artifact.stat().st_size,
+                media_type="application/json",
+            )
+        ],
+        quality_gates=[QualityGateResult(
+            "proof-check",
+            QualityGateStatus.PASSED,
+            "Fixture evaluation",
+            details={
+                "evidence_sha256": artifact_sha256,
+                "control_results": {
+                    "negative-1": {
+                        "observed_behavior": "Synthetic checker outcome",
+                        "interpretation": "Fixture only",
+                        "matches_expected": True,
+                        "evidence_sha256": artifact_sha256,
+                        "evidence_location": "/controls/negative-1",
+                    }
+                },
+            },
+        )],
+    ))
+
+    retained = run.quality_gates[0].details["control_results"]["negative-1"]
+    assert retained["selected_value_sha256"] == selected_value_sha256
+    assert selected_value_sha256 in service.build_synthesis()["content"]
 
 
 @pytest.mark.parametrize("disclosure", ["omitted", "contradictory", "disclosed"])

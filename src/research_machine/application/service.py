@@ -3439,7 +3439,12 @@ class ResearchService:
                     "observed_behavior", "interpretation", "matches_expected",
                     "evidence_sha256", "evidence_location",
                 }
-                if not isinstance(evaluation, dict) or set(evaluation) != required_fields:
+                derived_fields = {"selected_value_sha256"}
+                if (
+                    not isinstance(evaluation, dict)
+                    or not required_fields <= set(evaluation)
+                    or set(evaluation) - required_fields - derived_fields
+                ):
                     raise ValidationError(
                         f"passed control gate requires an exact evaluation for {control.control_id}"
                     )
@@ -3455,8 +3460,26 @@ class ResearchService:
                     raise ValidationError(
                         "control evaluation evidence must reference a run output artifact"
                     )
+                location_verified, selected_value = _resolve_json_artifact_location(
+                    outputs,
+                    artifact_root,
+                    digest,
+                    evaluation["evidence_location"],
+                    f"control {control.control_id} evidence_location",
+                )
+                if location_verified:
+                    selected_value_sha256 = _result_selection_sha256(selected_value)
+                    supplied = evaluation.get("selected_value_sha256")
+                    if supplied is not None and require_sha256(
+                        supplied, f"control {control.control_id} selected_value_sha256"
+                    ) != selected_value_sha256:
+                        raise ValidationError(
+                            "control selected_value_sha256 does not match the verified JSON value"
+                        )
+                    evaluation["selected_value_sha256"] = selected_value_sha256
                 if (
-                    verified_gate_result is not None
+                    not location_verified
+                    and verified_gate_result is not None
                     and digest == verified_gate_output_sha256
                 ):
                     location = evaluation["evidence_location"]
@@ -3465,10 +3488,19 @@ class ResearchService:
                             "control evidence in the verified analysis output requires "
                             "an absolute JSON Pointer evidence_location"
                         )
-                    _resolve_json_pointer(
+                    selected_value = _resolve_json_pointer(
                         verified_gate_result, location,
                         f"control {control.control_id} evidence_location",
                     )
+                    selected_value_sha256 = _result_selection_sha256(selected_value)
+                    supplied = evaluation.get("selected_value_sha256")
+                    if supplied is not None and require_sha256(
+                        supplied, f"control {control.control_id} selected_value_sha256"
+                    ) != selected_value_sha256:
+                        raise ValidationError(
+                            "control selected_value_sha256 does not match the verified analysis result value"
+                        )
+                    evaluation["selected_value_sha256"] = selected_value_sha256
         validity_checks_by_gate: dict[str, list[Any]] = {}
         for check in protocol.measurement_validity_checks:
             validity_checks_by_gate.setdefault(
@@ -4218,6 +4250,7 @@ class ResearchService:
                                 "matches_expected": None,
                                 "evidence_sha256": "<hash of a listed run output artifact>",
                                 "evidence_location": "<exact table, figure, section, record range, or JSON Pointer within that artifact>",
+                                "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
                             }
                             for control in protocol.control_definitions
                             if control.evaluation_gate_id == gate_id

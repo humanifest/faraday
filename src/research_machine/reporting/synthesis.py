@@ -679,7 +679,8 @@ def build_synthesis(
                             + (f" ({control.family})" if control is not None else "")
                             + f": gate `{gate.gate_id}` {gate.status.value}; {disposition}; "
                             f"artifact `{result.get('evidence_sha256', 'unavailable')}` at "
-                            f"`{result.get('evidence_location', 'unavailable')}`."
+                            f"`{result.get('evidence_location', 'unavailable')}`; "
+                            f"selected value `{result.get('selected_value_sha256', 'unavailable')}`."
                         )
     validity_protocols = [
         protocol for protocol in protocols if protocol.measurement_validity_checks

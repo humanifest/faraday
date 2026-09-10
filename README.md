@@ -170,7 +170,9 @@ mapped to that gate: observed behavior, interpretation, whether the frozen
 expectation was met, an output-artifact SHA-256, and an exact table, figure,
 section, record range, or JSON Pointer inside that artifact. When the cited
 artifact is Faraday's verified analysis result, the location must be an absolute
-JSON Pointer that resolves in those bytes. Synthesis retains this provenance and
+JSON Pointer that resolves in those bytes. When the cited output is inspected as
+JSON, run intake derives `selected_value_sha256` for the exact selected control
+value and rejects caller-supplied drift. Synthesis retains this provenance and
 keeps unexpected control behavior visible. A passed gate means the control was
 evaluated as required; it does not mean the scientific outcome was favorable.
 Protocol freeze rejects noncanonical registered control names and
@@ -801,9 +803,11 @@ power or design validity. Structured
 control-evaluation metadata is replayed for passed control gates: each frozen
 control mapped to the gate must have exactly one evaluation, no extra controls
 may appear, `matches_expected` must remain boolean, and the evaluation evidence
-hash must reference a packaged run output. This keeps failed or unexpected
-controls visible as scientific outcomes without treating expected behavior as
-proof that the study is valid. Skipped gates cannot carry a real
+hash must reference a packaged run output. When that output is a retained
+Faraday analysis or workflow-adjudication result, the package verifier also
+recomputes `selected_value_sha256` for the exact selected JSON value. This keeps
+failed or unexpected controls visible as scientific outcomes without treating
+expected behavior as proof that the study is valid. Skipped gates cannot carry a real
 `evidence_sha256`, completed structured assessment or retained-record payloads,
 or any real SHA-256 evidence anchors inside those payloads, such as
 measurement-validity results, missingness assessments, causal-assumption
