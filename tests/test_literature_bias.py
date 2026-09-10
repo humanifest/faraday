@@ -13,6 +13,45 @@ DOMAINS = ["selection", "confounding", "exposure_or_intervention_classification"
     "deviations_from_intended_conditions", "missing_data", "outcome_measurement", "selective_reporting"]
 
 
+def claim_digest(extraction_id, source_id, study_id, claim_text, evidence_location):
+    payload = {
+        "source_id": source_id,
+        "extraction_id": extraction_id,
+        "study_id": study_id,
+        "claim_text": claim_text,
+        "evidence_location": evidence_location,
+        "epistemic_layer": "inferred",
+        "result_direction": "supports",
+        "uncertainty": "fixture",
+        "notes": "fixture",
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def citation_assessment(extraction_id, source_id, verdict):
+    study_id = "study-1"
+    claim_text = f"Synthetic claim {extraction_id}"
+    evidence_location = f"page {extraction_id[-1]}"
+    return {
+        "extraction_id": extraction_id,
+        "study_id": study_id,
+        "source_id": source_id,
+        "source_retained_file_sha256": "legacy_missing",
+        "claim_text": claim_text,
+        "extracted_evidence_location": evidence_location,
+        "extraction_claim_sha256": claim_digest(
+            extraction_id, source_id, study_id, claim_text, evidence_location
+        ),
+        "verdict": verdict,
+        "checked_location": evidence_location,
+        "rationale": "Fixture citation rationale",
+    }
+
+
 def verification_file(tmp_path, status="citation_review_recorded"):
     value = {"citation_verification_version": 1, "status": status, "snapshot_id": "snap",
         "extraction_reviewer": "Extractor", "citation_reviewer": "Citation verifier",
@@ -27,8 +66,8 @@ def verification_file(tmp_path, status="citation_review_recorded"):
             "Risk-of-bias assessment, study-identity reconciliation, and quantitative synthesis remain separate gates.",
         ],
         "assessments": [
-            {"extraction_id": "e1", "study_id": "study-1", "source_id": "s1", "verdict": "supported"},
-            {"extraction_id": "e2", "study_id": "study-1", "source_id": "s2", "verdict": "partially_supported"},
+            citation_assessment("e1", "s1", "supported"),
+            citation_assessment("e2", "s2", "partially_supported"),
         ]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
     path = tmp_path / "citation-verification.json"
@@ -85,8 +124,16 @@ def test_bias_assessment_preserves_canonical_study_and_source_handles(tmp_path):
     "citation-unsupported-verdict",
     "citation-unclear-count",
     "citation-bad-verdict",
+    "citation-duplicate-extraction",
+    "citation-missing-contract-field",
+    "citation-padded-checked-location",
+    "citation-padded-rationale",
+    "citation-claim-digest",
+    "citation-source-anchor",
     "padded-citation-study",
     "padded-citation-source",
+    "padded-citation-claim",
+    "padded-citation-extracted-location",
     "missing-study",
     "duplicate-study",
     "source",
@@ -119,8 +166,16 @@ def test_invalid_bias_assessment_never_publishes(tmp_path, failure):
         "citation-unsupported-verdict",
         "citation-unclear-count",
         "citation-bad-verdict",
+        "citation-duplicate-extraction",
+        "citation-missing-contract-field",
+        "citation-padded-checked-location",
+        "citation-padded-rationale",
+        "citation-claim-digest",
+        "citation-source-anchor",
         "padded-citation-study",
         "padded-citation-source",
+        "padded-citation-claim",
+        "padded-citation-extracted-location",
     }:
         value = json.loads(verification.read_text())
         if failure == "padded-prior-reviewer":
@@ -149,10 +204,26 @@ def test_invalid_bias_assessment_never_publishes(tmp_path, failure):
             value["verdict_counts"]["unclear"] = 1
         elif failure == "citation-bad-verdict":
             value["assessments"][0]["verdict"] = "true"
+        elif failure == "citation-duplicate-extraction":
+            value["assessments"][1]["extraction_id"] = "e1"
+        elif failure == "citation-missing-contract-field":
+            del value["assessments"][0]["checked_location"]
+        elif failure == "citation-padded-checked-location":
+            value["assessments"][0]["checked_location"] = " page 1 "
+        elif failure == "citation-padded-rationale":
+            value["assessments"][0]["rationale"] = " Fixture citation rationale "
+        elif failure == "citation-claim-digest":
+            value["assessments"][0]["extraction_claim_sha256"] = "A" * 64
+        elif failure == "citation-source-anchor":
+            value["assessments"][0]["source_retained_file_sha256"] = "A" * 64
         elif failure == "padded-citation-study":
             value["assessments"][0]["study_id"] = " study-1 "
         elif failure == "padded-citation-source":
             value["assessments"][0]["source_id"] = " s1 "
+        elif failure == "padded-citation-claim":
+            value["assessments"][0]["claim_text"] = " Synthetic claim e1 "
+        elif failure == "padded-citation-extracted-location":
+            value["assessments"][0]["extracted_evidence_location"] = " page 1 "
         encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
         verification.write_bytes(encoded)
         digest = hashlib.sha256(encoded).hexdigest()

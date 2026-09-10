@@ -70,6 +70,7 @@ def validate_citation_verification_boundary(
     assessments: list[dict[str, Any]],
     *,
     require_clean_verdicts: bool = False,
+    require_assessment_contract: bool = False,
 ) -> None:
     """Replay citation-review authority, independence, status, and counts."""
     if verification.get("independent_review") is not True:
@@ -93,7 +94,9 @@ def validate_citation_verification_boundary(
             raise ValidationError("citation assessment verdict is invalid")
         counts[verdict] += 1
     if verification.get("verdict_counts") != counts:
-        raise ValidationError("citation verification verdict_counts do not replay from assessments")
+        raise ValidationError(
+            "citation verification verdict_counts do not replay from assessments"
+        )
     expected_status = (
         "review_required"
         if counts["unsupported"] or counts["unclear"]
@@ -102,7 +105,53 @@ def validate_citation_verification_boundary(
     if verification.get("status") != expected_status:
         raise ValidationError("citation verification status does not replay from verdicts")
     if require_clean_verdicts and (counts["unsupported"] or counts["unclear"]):
-        raise ValidationError("downstream review requires citation-reviewed claims without unsupported or unclear verdicts")
+        raise ValidationError(
+            "downstream review requires citation-reviewed claims without unsupported or unclear verdicts"
+        )
+    if require_assessment_contract:
+        seen_extraction_ids: set[str] = set()
+        required_keys = {
+            "extraction_id",
+            "source_id",
+            "source_retained_file_sha256",
+            "study_id",
+            "claim_text",
+            "extracted_evidence_location",
+            "extraction_claim_sha256",
+            "verdict",
+            "checked_location",
+            "rationale",
+        }
+        for item in assessments:
+            if not isinstance(item, dict) or set(item) != required_keys:
+                raise ValidationError(
+                    "citation assessment fields do not match the documented contract"
+                )
+            extraction_id = _canonical_text(
+                item.get("extraction_id"), "citation extraction_id"
+            )
+            if extraction_id in seen_extraction_ids:
+                raise ValidationError(
+                    "citation assessments contain duplicate extraction_id"
+                )
+            seen_extraction_ids.add(extraction_id)
+            _canonical_text(item.get("source_id"), "citation source_id")
+            _source_anchor(
+                item.get("source_retained_file_sha256"),
+                "citation source_retained_file_sha256",
+            )
+            _canonical_text(item.get("study_id"), "citation study_id")
+            _canonical_text(item.get("claim_text"), "citation claim_text")
+            _canonical_text(
+                item.get("extracted_evidence_location"),
+                "citation extracted_evidence_location",
+            )
+            require_sha256(
+                item.get("extraction_claim_sha256"),
+                "citation extraction_claim_sha256",
+            )
+            _canonical_text(item.get("checked_location"), "checked_location")
+            _canonical_text(item.get("rationale"), "citation rationale")
 
 
 def create_citation_verification(
@@ -228,7 +277,11 @@ def create_citation_verification(
             "Risk-of-bias assessment, study-identity reconciliation, and quantitative synthesis remain separate gates.",
         ],
     }
-    validate_citation_verification_boundary(result, result["assessments"])
+    validate_citation_verification_boundary(
+        result,
+        result["assessments"],
+        require_assessment_contract=True,
+    )
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("citation verification output already exists")

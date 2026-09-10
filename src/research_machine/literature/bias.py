@@ -103,7 +103,10 @@ def create_bias_assessment(
     if not isinstance(claims, list) or not claims:
         raise ValidationError("bias assessment requires citation-reviewed claims")
     validate_citation_verification_boundary(
-        verification, claims, require_clean_verdicts=True
+        verification,
+        claims,
+        require_clean_verdicts=True,
+        require_assessment_contract=True,
     )
     studies: dict[str, set[str]] = {}
     for claim in claims:

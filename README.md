@@ -1210,8 +1210,12 @@ the declared extracted/no-extractable status must agree with the retained record
 list before citation review can proceed. Bias assessment and study-identity
 reconciliation now require canonical prior reviewer, study/source, reviewer,
 registration, metadata, relationship-pair, rationale, and evidence-location
-text before coverage checks, preventing reviewer-entered whitespace from splitting or
-merging provenance after citation review. Evidence-map construction also
+text before coverage checks, preventing reviewer-entered whitespace from
+splitting or merging provenance after citation review. Bias assessment also replays each
+citation assessment's contract fields before accepting study-level judgments:
+duplicate extraction IDs, padded claim or citation-location text, malformed
+source-byte anchors, and altered extracted-claim digests fail closed even when
+the citation summary counts still match. Evidence-map construction also
 requires canonical extraction, study, source, citation-review, and bias-domain
 handles before joining or counting claims, so the final map cannot reintroduce
 hidden duplicate identities. It also replays the non-authority flags, retained

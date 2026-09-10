@@ -1516,6 +1516,10 @@ citation-verification artifact's independent-review flag, non-evidence,
 non-conclusion, non-publication boundary, retained limitations, and
 `verdict_counts` from the reviewed claim records, and it rejects unsupported or
 unclear citation verdicts even when a stale summary still claims a clean review.
+It now also replays each citation assessment's documented contract fields before
+study-level bias review can proceed, so duplicate extraction IDs, padded claim
+or citation-location text, malformed source-byte anchors, and altered
+extracted-claim digests cannot hide behind matching verdict counts.
 Every reviewed study must cover all seven documented bias domains, cite
 locations for each applicable judgment, and exactly identify all source reports
 grouped under that study. Overall judgments are computed conservatively from
