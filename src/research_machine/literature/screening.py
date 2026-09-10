@@ -8,7 +8,7 @@ from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
-from research_machine.literature.snapshot import _text
+from research_machine.literature.snapshot import _text, validate_snapshot_boundary
 
 
 def _canonical_text(value: Any, field: str) -> str:
@@ -104,8 +104,7 @@ def create_screening(snapshot_path: Path, expected_sha256: str, review: dict[str
         snapshot = json.loads(content)
     except (ValueError, UnicodeDecodeError) as exc:
         raise ValidationError("invalid literature snapshot JSON") from exc
-    if not isinstance(snapshot, dict) or snapshot.get("snapshot_version") != 1:
-        raise ValidationError("unsupported literature snapshot")
+    validate_snapshot_boundary(snapshot)
     sources = snapshot.get("sources")
     if not isinstance(sources, list) or not sources or any(not isinstance(item, dict) for item in sources):
         raise ValidationError("snapshot sources must be non-empty objects")

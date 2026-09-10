@@ -1161,6 +1161,13 @@ same canonical hash contract when they pin a screening record. They also replay
 the screening record's non-evidence, non-conclusion, non-publication boundary,
 retained limitations, source-record counts, duplicate-content conflicts, and
 derived status before trusting the screened-in source set.
+The snapshot boundary itself also replays before publication and again before
+screening trusts retained sources: version, canonical handles, criteria, source
+classifications, retained source SHA-256 digests and sizes, byte-identity
+deduplication counts/groups, and the explicit non-evidence boundary must derive
+from the source records. A caller-provided snapshot hash cannot launder a
+rewritten duplicate summary or claim-authorizing boundary into downstream
+screening.
 
 Downstream literature evidence maps retain the extraction location, independent
 citation-review location and rationale, and study-level bias-domain judgments

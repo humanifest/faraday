@@ -1426,6 +1426,13 @@ Snapshots now group byte-identical retained files by SHA-256 without deleting
 source records or resolving conflicting metadata. Unique-content counts are not
 unique-study counts; related publications and multiple reports of one study
 still require explicit study-level review.
+Snapshot boundary replay now validates the versioned envelope, canonical
+handles, criteria, source classifications, retained source SHA-256 digests and
+sizes, byte-identity deduplication counts/groups, and the explicit non-evidence
+boundary before publication and before screening trusts the source set. A
+hash-consistent edited snapshot can no longer rewrite duplicate-content
+summaries or turn retrieval into evidence/conclusion authority for downstream
+screening.
 `research literature screen --snapshot-file <snapshot> --expected-snapshot-sha256
 <hash> --review-file <review> --output <new-directory>` records screening without
 editing the snapshot. The expected snapshot hash must be a canonical lowercase

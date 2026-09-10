@@ -9,9 +9,18 @@ from pathlib import Path
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
+from research_machine.literature.hashes import require_sha256
 
 
 _SOURCE_CLASSES = {"primary", "secondary", "registry", "preprint", "other"}
+_DEDUPLICATION_METHOD = "exact_retained_file_sha256"
+_DEDUPLICATION_LIMITATIONS = (
+    "Byte identity is not study identity. Distinct files may describe the same study; "
+    "metadata and screening conflicts remain unresolved. No source records were removed."
+)
+_EVIDENCE_BOUNDARY = (
+    "Retrieved sources are not accepted claims. Screen, extract, assess bias, and cite each claim separately."
+)
 
 
 def _hash(path: Path) -> tuple[str, int]:
@@ -30,6 +39,77 @@ def _text(value: Any, field: str) -> str:
     if value != value.strip():
         raise ValidationError(f"literature snapshot {field} must be canonical without surrounding whitespace")
     return value
+
+
+def validate_snapshot_boundary(snapshot: dict[str, Any]) -> None:
+    """Replay snapshot source, deduplication, and non-evidence boundaries."""
+    if not isinstance(snapshot, dict) or snapshot.get("snapshot_version") != 1:
+        raise ValidationError("unsupported literature snapshot")
+    allowed = {
+        "snapshot_version", "snapshot_id", "query", "created_at",
+        "inclusion_criteria", "exclusion_criteria", "sources",
+        "deduplication", "evidence_boundary",
+    }
+    unknown = sorted(set(snapshot) - allowed)
+    if unknown:
+        raise ValidationError("unknown literature snapshot fields: " + ", ".join(unknown))
+    _text(snapshot.get("snapshot_id"), "snapshot_id")
+    _text(snapshot.get("query"), "query")
+    _text(snapshot.get("created_at"), "created_at")
+    for field in ("inclusion_criteria", "exclusion_criteria"):
+        criteria = snapshot.get(field)
+        if (not isinstance(criteria, list)
+                or any(not isinstance(item, str) or not item.strip() for item in criteria)
+                or any(isinstance(item, str) and item != item.strip() for item in criteria)):
+            raise ValidationError(f"literature snapshot {field} must be an array of canonical non-empty strings")
+    sources = snapshot.get("sources")
+    if not isinstance(sources, list) or not sources:
+        raise ValidationError("literature snapshot sources must be a non-empty array")
+    seen_ids: set[str] = set()
+    by_hash: dict[str, list[str]] = {}
+    for source in sources:
+        if not isinstance(source, dict):
+            raise ValidationError("literature snapshot sources must be objects")
+        allowed_source = {
+            "source_id", "title", "locator", "source_class",
+            "retained_file_sha256", "retained_file_size_bytes",
+        }
+        extra = sorted(set(source) - allowed_source)
+        if extra:
+            raise ValidationError("unknown literature snapshot source fields: " + ", ".join(extra))
+        source_id = _text(source.get("source_id"), "source_id")
+        if source_id in seen_ids:
+            raise ValidationError(f"duplicate literature source_id: {source_id}")
+        seen_ids.add(source_id)
+        _text(source.get("title"), "source title")
+        _text(source.get("locator"), "source locator")
+        if source.get("source_class") not in _SOURCE_CLASSES:
+            raise ValidationError("source_class must be one of: " + ", ".join(sorted(_SOURCE_CLASSES)))
+        digest = require_sha256(source.get("retained_file_sha256"), "retained_file_sha256")
+        size = source.get("retained_file_size_bytes")
+        if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+            raise ValidationError("retained_file_size_bytes must be a non-negative integer")
+        by_hash.setdefault(digest, []).append(source_id)
+
+    expected_duplicates = [
+        {"retained_file_sha256": digest, "source_ids": sorted(ids)}
+        for digest, ids in sorted(by_hash.items())
+        if len(ids) > 1
+    ]
+    deduplication = snapshot.get("deduplication")
+    if not isinstance(deduplication, dict):
+        raise ValidationError("literature snapshot deduplication must be an object")
+    expected_deduplication = {
+        "method": _DEDUPLICATION_METHOD,
+        "source_record_count": len(sources),
+        "unique_content_count": len(by_hash),
+        "duplicate_groups": expected_duplicates,
+        "limitations": _DEDUPLICATION_LIMITATIONS,
+    }
+    if deduplication != expected_deduplication:
+        raise ValidationError("literature snapshot deduplication does not replay from sources")
+    if snapshot.get("evidence_boundary") != _EVIDENCE_BOUNDARY:
+        raise ValidationError("literature snapshot must retain its non-evidence boundary")
 
 
 def create_snapshot(manifest: dict[str, Any], output: Path) -> dict[str, Any]:
@@ -96,12 +176,13 @@ def create_snapshot(manifest: dict[str, Any], output: Path) -> dict[str, Any]:
         **criteria,
         "sources": records,
         "deduplication": {
-            "method": "exact_retained_file_sha256", "source_record_count": len(records),
+            "method": _DEDUPLICATION_METHOD, "source_record_count": len(records),
             "unique_content_count": len(content_groups), "duplicate_groups": duplicates,
-            "limitations": "Byte identity is not study identity. Distinct files may describe the same study; metadata and screening conflicts remain unresolved. No source records were removed.",
+            "limitations": _DEDUPLICATION_LIMITATIONS,
         },
-        "evidence_boundary": "Retrieved sources are not accepted claims. Screen, extract, assess bias, and cite each claim separately.",
+        "evidence_boundary": _EVIDENCE_BOUNDARY,
     }
+    validate_snapshot_boundary(snapshot)
     content = (json.dumps(snapshot, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode()
     with tempfile.TemporaryDirectory(prefix=f".{root.name}-", dir=root.parent) as temporary:
         staging = Path(temporary) / root.name
