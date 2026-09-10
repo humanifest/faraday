@@ -383,6 +383,56 @@ def test_evidence_summary_rejects_report_overclaim_language(
     assert "validated the mechanism" not in synthesis
 
 
+def test_evidence_unsupported_conclusion_ceiling_rejects_report_overclaim(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            "Ceiling overclaim",
+            "Can a ceiling smuggle a stronger conclusion?",
+            "ceiling-overclaim",
+        )
+    )
+    hypothesis = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement="The registered association differs from the null process.",
+            observable_prediction="The prespecified statistic moves away from the null.",
+            null_model="The statistic remains compatible with the null model.",
+            competing_models=["Measurement error creates the apparent association."],
+            falsification_conditions=["The statistic remains in the null region."],
+        )
+    )
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="dataset-ceiling-overclaim",
+            name="Ceiling overclaim fixture",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[DatasetArtifact("ceiling.csv", "a" * 64)],
+        )
+    )
+
+    with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
+        service.record_evidence(
+            RecordEvidence(
+                hypothesis_id=hypothesis.hypothesis_id,
+                direction=EvidenceDirection.INCONCLUSIVE,
+                summary="The exploratory result remains inconclusive.",
+                dataset_id="dataset-ceiling-overclaim",
+                analysis_id="analysis-ceiling-overclaim",
+                uncertainty="Synthetic fixture uncertainty remains large.",
+                scope="Synthetic fixture only.",
+                higher_level_conclusions_unsupported=[
+                    "The mechanism is not validated by this result."
+                ],
+                validation_tags=[ValidationTag.CALIBRATION],
+                exploratory=True,
+            )
+        )
+
+
 def test_supporting_evidence_cannot_promote_to_explanatory_claim_levels(
     tmp_path: Path,
 ) -> None:

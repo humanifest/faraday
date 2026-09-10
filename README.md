@@ -2400,9 +2400,12 @@ at least one distinct unsupported higher-level conclusion; duplicates are
 rejected after text normalization so repeated ceiling prose cannot masquerade as
 multiple independent limitations. Scope, uncertainty, summary, control
 disclosures, and unsupported-conclusion ceiling entries must be nonblank, and
-control disclosures cannot contain duplicates. Dataset-only exploratory evidence
-must supply a nonblank analysis identity; run-backed evidence derives that
-identity from the recorded run when `--analysis` is omitted.
+unsupported-conclusion ceilings use the same report-overclaim boundary as
+summaries, so phrases such as "proved", "confirmed", "explained", or
+"validated" cannot be smuggled into retained limitation prose. Control
+disclosures cannot contain duplicates. Dataset-only exploratory evidence must
+supply a nonblank analysis identity; run-backed evidence derives that identity
+from the recorded run when `--analysis` is omitted.
 independent replication must name an eligible earlier run through
 `metadata.replicates_run_id`, use a different executor identity, and use a
 different analysis-code hash. It must also declare a clean-room design with

@@ -40,7 +40,7 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": {"$ref": "#/$defs/nonBlankText"}
+      "items": {"$ref": "#/$defs/boundedReportText"}
     },
     "validation_tags": {
       "type": "array",

@@ -261,7 +261,11 @@ classification, selectors, or claim linkage semantically detectable.
 Evidence unsupported-conclusion ceilings are now unique at admission and in the
 published command schema. The service rejects duplicates after normalizing
 surrounding whitespace, preventing repeated limitation prose from being retained
-as if it were multiple independent scientific ceilings.
+as if it were multiple independent scientific ceilings. The same ceiling text is
+now also checked against the bounded report-language guard at protocol freeze,
+evidence admission, and in the published protocol/evidence command schemas, so
+overclaim terms such as "proved", "confirmed", "explained", or "validated"
+cannot be retained as unsupported-conclusion prose.
 The evidence command schema now preflights the same annotation floor for external
 clients: report summary, uncertainty, scope, controls, and unsupported ceilings
 must be nonblank, and exact duplicate control disclosures are rejected before the

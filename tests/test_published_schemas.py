@@ -324,6 +324,26 @@ def test_evidence_command_schema_rejects_duplicate_unsupported_conclusions():
         jsonschema.validate(command, schema)
 
 
+def test_evidence_command_schema_rejects_overclaiming_unsupported_conclusion():
+    schema = json.loads((SCHEMAS / "evidence-command.schema.json").read_text())
+    command = {
+        "hypothesis_id": "hyp-ceiling-overclaim-fixture",
+        "direction": "inconclusive",
+        "summary": "The fixture remains inconclusive.",
+        "dataset_id": "dataset-ceiling-overclaim-fixture",
+        "analysis_id": "analysis-ceiling-overclaim-fixture",
+        "uncertainty": "Synthetic fixture uncertainty remains unresolved.",
+        "scope": "Synthetic schema fixture only.",
+        "higher_level_conclusions_unsupported": [
+            "The mechanism is not validated by this result."
+        ],
+        "validation_tags": ["source_assessment"],
+        "exploratory": True,
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -412,6 +432,20 @@ def test_empirical_protocol_command_matches_published_schema():
     command = {key: value for key, value in protocol.items() if key in _PROTOCOL_FIELDS}
     schema = json.loads((SCHEMAS / "protocol-command.schema.json").read_text())
     jsonschema.validate(command, schema)
+
+
+def test_protocol_command_schema_rejects_overclaiming_conclusion_ceiling():
+    from test_protocol_design_structure import _multi_step_protocol
+    from research_machine.interfaces.cli import _PROTOCOL_FIELDS
+
+    protocol = _multi_step_protocol().to_dict()
+    command = {key: value for key, value in protocol.items() if key in _PROTOCOL_FIELDS}
+    command["conclusion_contract"]["higher_level_conclusions_unsupported"] = [
+        "The protocol will not validate mechanism or intent."
+    ]
+    schema = json.loads((SCHEMAS / "protocol-command.schema.json").read_text())
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
 
 
 def test_protocol_schema_accepts_and_constrains_measurement_validity_checks():

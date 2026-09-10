@@ -150,6 +150,18 @@ def require_unique_text_list(values: Sequence[str], field_name: str) -> list[str
     return normalized
 
 
+def require_unique_bounded_report_text_list(
+    values: Sequence[str], field_name: str
+) -> list[str]:
+    normalized = [
+        require_bounded_report_text(value, f"{field_name} item")
+        for value in require_text_list(values, field_name)
+    ]
+    if len(set(normalized)) != len(normalized):
+        raise ValidationError(f"{field_name} must not contain duplicates")
+    return normalized
+
+
 def require_canonical_text_list(
     values: Sequence[str], field_name: str
 ) -> list[str]:
@@ -273,7 +285,7 @@ def validate_evidence_annotations(
         raise ValidationError("control disclosures must not contain duplicates")
     if set(passed) & set(failed):
         raise ValidationError("control disclosures cannot list the same control as passed and failed")
-    ceilings = require_unique_text_list(
+    ceilings = require_unique_bounded_report_text_list(
         higher_level_conclusions_unsupported,
         "higher_level_conclusions_unsupported",
     )
@@ -1730,7 +1742,7 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             raise ValidationError(
                 "conclusion_contract permitted_claim_level disagrees with the protocol causal scope"
             )
-        unsupported = require_unique_text_list(
+        unsupported = require_unique_bounded_report_text_list(
             conclusion.higher_level_conclusions_unsupported,
             "conclusion_contract.higher_level_conclusions_unsupported",
         )

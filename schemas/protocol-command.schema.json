@@ -9,6 +9,16 @@
       "type": "string",
       "pattern": "^\\S(?:.*\\S)?$"
     },
+    "boundedReportText": {
+      "allOf": [
+        {"type": "string", "pattern": "\\S"},
+        {
+          "not": {
+            "pattern": "\\b(?:[Pp][Rr][Oo][Vv][Ee][Dd]|[Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd]|[Ee][Xx][Pp][Ll][Aa][Ii][Nn][Ee][Dd]|[Vv][Aa][Ll][Ii][Dd][Aa][Tt][Ee][Ss]?|[Vv][Aa][Ll][Ii][Dd][Aa][Tt][Ee][Dd])\\b"
+          }
+        }
+      ]
+    },
     "causalIdentification": {
       "type": "object",
       "additionalProperties": false,
@@ -249,7 +259,7 @@
         "time_window": {"type": "string", "pattern": "\\S"},
         "non_supporting_direction": {"enum": ["inconclusive", "weakens"]},
         "permitted_claim_level": {"enum": ["measurement_validity", "statistical_association", "causal_direction"]},
-        "higher_level_conclusions_unsupported": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "\\S"}}
+        "higher_level_conclusions_unsupported": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/boundedReportText"}}
       }
     }
   },

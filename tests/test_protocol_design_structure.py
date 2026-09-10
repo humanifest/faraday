@@ -184,6 +184,23 @@ def test_canonical_measurement_validity_plan_is_bound_and_gate_dedicated() -> No
         ))
 
 
+def test_conclusion_contract_unsupported_ceiling_rejects_report_overclaim() -> None:
+    protocol = _multi_step_protocol()
+    assert protocol.conclusion_contract is not None
+    overclaiming = replace(
+        protocol,
+        conclusion_contract=replace(
+            protocol.conclusion_contract,
+            higher_level_conclusions_unsupported=[
+                "The protocol will not validate mechanism or intent."
+            ],
+        ),
+    )
+
+    with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
+        validate_protocol_freeze(overclaiming)
+
+
 def test_protocol_freeze_requires_multi_factor_interpretability_plan() -> None:
     protocol = _multi_step_protocol()
     with pytest.raises(ValidationError, match="multi-factor interventions require"):
