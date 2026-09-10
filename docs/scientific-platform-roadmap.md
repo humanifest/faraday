@@ -1538,7 +1538,11 @@ bias-assessment artifact's independent-review flag, non-evidence,
 non-conclusion, non-publication boundary, retained limitations, and
 `overall_judgment_counts` from the bias-assessed study records before accepting
 identity metadata, so a stale or authority-strengthened bias summary cannot be
-laundered into the terminal review chain.
+laundered into the terminal review chain. It also replays each bias assessment's
+documented contract fields before study identity review or evidence-map
+construction can proceed: study design, source IDs, all seven bias domains,
+rationales, evidence locations, notes, and the overall judgment recomputed from
+the domains must remain internally consistent.
 Independent, overlapping-cohort, duplicate-report, and unclear relationships are
 all preserved. Any non-independent or unclear pair forces `review_required`,
 preventing silent double counting. Registration IDs, populations, settings,

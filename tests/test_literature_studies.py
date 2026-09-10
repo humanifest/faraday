@@ -9,6 +9,29 @@ from research_machine.interfaces.cli import main
 from research_machine.literature.studies import create_study_reconciliation
 
 
+DOMAINS = [
+    "selection",
+    "confounding",
+    "exposure_or_intervention_classification",
+    "deviations_from_intended_conditions",
+    "missing_data",
+    "outcome_measurement",
+    "selective_reporting",
+]
+
+
+def bias_domains(judgment):
+    return [
+        {
+            "domain": domain,
+            "judgment": judgment if domain == "selection" else "low",
+            "rationale": "Fixture bias rationale",
+            "evidence_locations": ["methods"],
+        }
+        for domain in DOMAINS
+    ]
+
+
 def bias_file(tmp_path):
     value = {"bias_assessment_version": 1, "status": "bias_assessment_recorded",
         "snapshot_id": "snap", "reviewer": "Bias reviewer",
@@ -23,8 +46,22 @@ def bias_file(tmp_path):
             "Risk-of-bias assessment does not make a literature claim true or authorize quantitative synthesis.",
         ],
         "assessments": [
-            {"study_id": "study-1", "source_ids": ["s1", "s1-followup"], "overall_judgment": "some_concerns"},
-            {"study_id": "study-2", "source_ids": ["s2"], "overall_judgment": "low"},
+            {
+                "study_id": "study-1",
+                "study_design": "synthetic fixture",
+                "source_ids": ["s1", "s1-followup"],
+                "domains": bias_domains("some_concerns"),
+                "overall_judgment": "some_concerns",
+                "notes": "Generic fixture assessment",
+            },
+            {
+                "study_id": "study-2",
+                "study_design": "synthetic fixture",
+                "source_ids": ["s2"],
+                "domains": bias_domains("low"),
+                "overall_judgment": "low",
+                "notes": "Generic fixture assessment",
+            },
         ]}
     encoded = (json.dumps(value, sort_keys=True) + "\n").encode()
     path = tmp_path / "bias.json"
@@ -91,6 +128,15 @@ def test_reconciliation_preserves_canonical_study_source_and_registration_handle
     "bias-limitations-missing",
     "bias-padded-limitation",
     "bias-bad-judgment",
+    "bias-missing-contract-field",
+    "bias-domain-missing",
+    "bias-domain-duplicate",
+    "bias-padded-domain",
+    "bias-domain-rationale",
+    "bias-domain-location",
+    "bias-overall-drift",
+    "bias-padded-design",
+    "bias-padded-notes",
     "padded-bias-study",
     "padded-bias-source",
     "missing-study",
@@ -130,6 +176,15 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
         "bias-limitations-missing",
         "bias-padded-limitation",
         "bias-bad-judgment",
+        "bias-missing-contract-field",
+        "bias-domain-missing",
+        "bias-domain-duplicate",
+        "bias-padded-domain",
+        "bias-domain-rationale",
+        "bias-domain-location",
+        "bias-overall-drift",
+        "bias-padded-design",
+        "bias-padded-notes",
         "padded-bias-study",
         "padded-bias-source",
     }:
@@ -153,6 +208,24 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
             value["limitations"][0] = " " + value["limitations"][0]
         elif failure == "bias-bad-judgment":
             value["assessments"][0]["overall_judgment"] = "safe"
+        elif failure == "bias-missing-contract-field":
+            del value["assessments"][0]["notes"]
+        elif failure == "bias-domain-missing":
+            value["assessments"][0]["domains"].pop()
+        elif failure == "bias-domain-duplicate":
+            value["assessments"][0]["domains"][1]["domain"] = "selection"
+        elif failure == "bias-padded-domain":
+            value["assessments"][0]["domains"][0]["domain"] = " selection "
+        elif failure == "bias-domain-rationale":
+            value["assessments"][0]["domains"][0]["rationale"] = " Fixture bias rationale "
+        elif failure == "bias-domain-location":
+            value["assessments"][0]["domains"][0]["evidence_locations"] = [" methods "]
+        elif failure == "bias-overall-drift":
+            value["assessments"][0]["domains"][0]["judgment"] = "high"
+        elif failure == "bias-padded-design":
+            value["assessments"][0]["study_design"] = " synthetic fixture "
+        elif failure == "bias-padded-notes":
+            value["assessments"][0]["notes"] = " Generic fixture assessment "
         elif failure == "padded-bias-study":
             value["assessments"][0]["study_id"] = " study-1 "
         elif failure == "padded-bias-source":

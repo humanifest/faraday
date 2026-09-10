@@ -47,6 +47,8 @@ def _overall(domains: list[dict[str, Any]]) -> str:
 def validate_bias_assessment_boundary(
     bias: dict[str, Any],
     assessments: list[dict[str, Any]],
+    *,
+    require_assessment_contract: bool = False,
 ) -> None:
     """Replay risk-of-bias authority, independence, and summary counts."""
     if bias.get("independent_review") is not True:
@@ -73,6 +75,94 @@ def validate_bias_assessment_boundary(
         counts[judgment] += 1
     if bias.get("overall_judgment_counts") != counts:
         raise ValidationError("bias assessment overall_judgment_counts do not replay from studies")
+    if require_assessment_contract:
+        seen_study_ids: set[str] = set()
+        required_assessment = {
+            "study_id",
+            "study_design",
+            "source_ids",
+            "domains",
+            "overall_judgment",
+            "notes",
+        }
+        required_domain = {
+            "domain",
+            "judgment",
+            "rationale",
+            "evidence_locations",
+        }
+        for item in assessments:
+            if not isinstance(item, dict) or set(item) != required_assessment:
+                raise ValidationError(
+                    "bias assessment fields do not match the documented contract"
+                )
+            study_id = _canonical_text(item.get("study_id"), "bias study_id")
+            if study_id in seen_study_ids:
+                raise ValidationError("bias assessments contain duplicate study_id")
+            seen_study_ids.add(study_id)
+            _canonical_text(item.get("study_design"), "study_design")
+            source_ids = item.get("source_ids")
+            if (
+                not isinstance(source_ids, list)
+                or not source_ids
+                or any(
+                    not isinstance(source_id, str)
+                    or not source_id.strip()
+                    or source_id != source_id.strip()
+                    for source_id in source_ids
+                )
+                or len(source_ids) != len(set(source_ids))
+            ):
+                raise ValidationError(
+                    "bias source_ids must be unique non-empty canonical text"
+                )
+            domains = item.get("domains")
+            if not isinstance(domains, list):
+                raise ValidationError("bias domains must be an array")
+            by_domain: dict[str, dict[str, Any]] = {}
+            for domain in domains:
+                if not isinstance(domain, dict) or set(domain) != required_domain:
+                    raise ValidationError(
+                        "bias domain fields do not match the documented contract"
+                    )
+                name = _canonical_text(domain.get("domain"), "bias domain")
+                judgment = domain.get("judgment")
+                if name not in _DOMAINS or name in by_domain:
+                    raise ValidationError(
+                        "bias domains must be unique documented domain names"
+                    )
+                if judgment not in _JUDGMENTS:
+                    raise ValidationError("invalid risk-of-bias judgment")
+                locations = domain.get("evidence_locations")
+                if (
+                    not isinstance(locations, list)
+                    or any(
+                        not isinstance(location, str)
+                        or not location.strip()
+                        or location != location.strip()
+                        for location in locations
+                    )
+                    or (judgment != "not_applicable" and not locations)
+                ):
+                    raise ValidationError(
+                        "applicable bias domains require non-empty evidence_locations"
+                    )
+                by_domain[name] = {
+                    "domain": name,
+                    "judgment": judgment,
+                    "rationale": _canonical_text(
+                        domain.get("rationale"), "bias rationale"
+                    ),
+                    "evidence_locations": locations,
+                }
+            if set(by_domain) != set(_DOMAINS):
+                raise ValidationError("bias assessment must cover every documented domain")
+            ordered_domains = [by_domain[name] for name in _DOMAINS]
+            if item.get("overall_judgment") != _overall(ordered_domains):
+                raise ValidationError(
+                    "bias assessment overall_judgment does not replay from domains"
+                )
+            _canonical_text(item.get("notes"), "bias notes")
 
 
 def create_bias_assessment(
@@ -204,7 +294,11 @@ def create_bias_assessment(
             "Risk-of-bias assessment does not make a literature claim true or authorize quantitative synthesis.",
         ],
     }
-    validate_bias_assessment_boundary(result, result["assessments"])
+    validate_bias_assessment_boundary(
+        result,
+        result["assessments"],
+        require_assessment_contract=True,
+    )
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("bias assessment output already exists")

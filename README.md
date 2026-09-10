@@ -1185,7 +1185,11 @@ bias-assessment artifact's independent-review flag, non-evidence,
 non-conclusion, non-publication boundary, retained limitations, and
 `overall_judgment_counts` against the bias-assessed study records before
 accepting identity metadata, so a study-identity review cannot launder a
-rewritten bias summary into the terminal review chain.
+rewritten bias summary into the terminal review chain. It also replays each
+bias assessment's documented contract fields: study design, source IDs, all
+seven bias domains, rationales, evidence locations, notes, and the overall
+judgment recomputed from the domains must remain internally consistent before
+study identity review or evidence-map construction can proceed.
 Study-reconciliation artifacts themselves also carry explicit false
 scientific-evidence, conclusion-authorization, and publication-authorization
 boundaries with retained limitations, and evidence-map construction replays

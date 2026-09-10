@@ -86,7 +86,11 @@ def create_study_reconciliation(
     bias_assessments = bias.get("assessments")
     if not isinstance(bias_assessments, list) or not bias_assessments:
         raise ValidationError("study reconciliation requires bias-assessed studies")
-    validate_bias_assessment_boundary(bias, bias_assessments)
+    validate_bias_assessment_boundary(
+        bias,
+        bias_assessments,
+        require_assessment_contract=True,
+    )
     studies: dict[str, list[str]] = {}
     for item in bias_assessments:
         if not isinstance(item, dict):

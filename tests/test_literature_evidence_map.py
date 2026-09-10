@@ -74,7 +74,12 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
         "assessments": [citation]})
     bias = tmp_path / "bias.json"
     domains = [
-        {"domain": name, "judgment": bias_judgment, "evidence_locations": ["table 1"]}
+        {
+            "domain": name,
+            "judgment": bias_judgment,
+            "rationale": "Fixture bias rationale",
+            "evidence_locations": ["table 1"],
+        }
         for name in (
             "selection", "confounding", "exposure_or_intervention_classification",
             "deviations_from_intended_conditions", "missing_data", "outcome_measurement",
@@ -95,7 +100,8 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
             "Risk-of-bias assessment does not make a literature claim true or authorize quantitative synthesis.",
         ],
         "assessments": [{"study_id": "study-1", "overall_judgment": bias_judgment,
-            "domains": domains}]})
+            "study_design": "synthetic fixture", "source_ids": ["s1"],
+            "domains": domains, "notes": "Generic fixture assessment"}]})
     reconciliation = tmp_path / "reconciliation.json"
     reconciliation_sha = write_json(reconciliation, {"study_reconciliation_version": 1,
         "status": "study_identities_reconciled", "bias_assessment_sha256": bias_sha,

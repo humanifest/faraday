@@ -220,7 +220,11 @@ def create_evidence_map(
     bias_assessments = bias.get("assessments", [])
     if not isinstance(bias_assessments, list):
         raise ValidationError("bias assessments must be an array")
-    validate_bias_assessment_boundary(bias, bias_assessments)
+    validate_bias_assessment_boundary(
+        bias,
+        bias_assessments,
+        require_assessment_contract=True,
+    )
     for item in bias_assessments:
         if not isinstance(item, dict):
             raise ValidationError("bias assessments are malformed")
