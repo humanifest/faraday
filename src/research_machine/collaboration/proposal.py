@@ -99,7 +99,7 @@ _REVIEW_CONCLUSION_CEILING = (
 )
 _AUTHORITY_CLAIM = re.compile(
     r"\b(?:accepts?|accepted|approves?|approved|authorizes?|authorized|"
-    r"confirms?|confirmed|proves?|proved|proof|validated)\b|"
+    r"confirms?|confirmed|proves?|proved|proof|validates?|validated)\b|"
     r"canonical write|canonical action|evidence creation|creates evidence|created evidence"
 )
 _PROPOSAL_RECORD_FIELDS = {
@@ -324,7 +324,7 @@ def _validate_body_claims(
                     raise ValidationError(
                         f"collaborator proposal {item_label} must cite frozen context"
                     )
-                statement = _canonical_text(item, item_label)
+                statement = _proposal_boundary_text(item, item_label)
                 context_refs: list[str] = []
             elif isinstance(item, dict):
                 _exact_fields(
@@ -332,7 +332,9 @@ def _validate_body_claims(
                     _GROUNDED_CLAIM_FIELDS,
                     f"collaborator proposal {item_label}",
                 )
-                statement = _canonical_text(item["statement"], f"{item_label}.statement")
+                statement = _proposal_boundary_text(
+                    item["statement"], f"{item_label}.statement"
+                )
                 context_refs = _validate_refs(
                     item["context_refs"],
                     f"{item_label}.context_refs",

@@ -771,6 +771,9 @@ def test_collaborator_proposal_schema_requires_provider_for_model_generators():
         lambda proposal: proposal.update(
             {"summary": "This proposal APPROVED the result."}
         ),
+        lambda proposal: proposal["competing_explanations"].__setitem__(
+            0, "This validates the favored mechanism."
+        ),
         lambda proposal: proposal["suggestions"][0].update(
             {"statement": "This proposal Validated the route."}
         ),

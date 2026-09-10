@@ -1012,9 +1012,9 @@ uncertainty, competing explanations, disconfirming evidence, limitations, and
 review-only suggestions with falsification conditions and a next test. Faraday
 strictly parses it, binds it to the exact frozen context, and stores it
 write-once as `pending_human_review`. Proposal summaries, uncertainty
-statements, and suggestion prose must not claim acceptance, approval,
-authorization, proof, confirmation, validation, evidence creation, or canonical
-action. The frozen context must carry canonical,
+statements, grounded body claims, and suggestion prose must not claim
+acceptance, approval, authorization, proof, confirmation, validation, evidence
+creation, or canonical action. The frozen context must carry canonical,
 nonempty scientific constraints that include explicit inferential-boundary and
 authorization-boundary prohibitions: the constraints must tell collaborators not
 to claim causality, mechanism, or replication beyond recorded evidence and not
@@ -1063,10 +1063,10 @@ JSON Schemas for provider-neutral exchange artifacts live in
 `schemas/collaborator-proposal-review.schema.json`, with synthetic examples in
 `examples/`. They let future plugins and apps preflight the frozen context
 shape, typed reference-prefix matching, write boundary, proposal shape, and
-review-only authority boundary, including case-insensitive rejection of prose
-that claims acceptance, approval, authorization, proof, confirmation,
-validation, evidence creation, or canonical action, before the application
-service repeats hash, reference, and route validation. They do
+review-only authority boundary, including case-insensitive rejection of summary,
+body-claim, suggestion, and review prose that claims acceptance, approval,
+authorization, proof, confirmation, validation, evidence creation, or canonical
+action, before the application service repeats hash, reference, and route validation. They do
 not call a provider, modify the inquiry,
 accept a finding, create evidence, or authorize an action. Any accepted idea
 must still be translated deliberately through the normal question, hypothesis,

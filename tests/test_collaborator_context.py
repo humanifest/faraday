@@ -887,6 +887,12 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
             "summary must not claim acceptance",
         ),
         (
+            lambda proposal: proposal["competing_explanations"][0].update(
+                {"statement": "This validates the favored mechanism."}
+            ),
+            "competing_explanations\\[0\\].statement must not claim acceptance",
+        ),
+        (
             lambda proposal: proposal["suggestions"][0].update(
                 {"statement": " Add a prespecified negative-control outcome. "}
             ),
@@ -1244,6 +1250,48 @@ def test_proposal_adjudication_replays_retained_body_grounding(
             tmp_path / "reviewed",
         )
     assert not (tmp_path / "reviewed").exists()
+
+
+def test_proposal_record_replay_rejects_rewritten_body_authority_claim(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "claim:claim-1", "kind": "claim"}]
+    )
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(
+            _proposal(
+                snapshot["context_sha256"],
+                evidence_refs=["claim:claim-1"],
+            )
+        ),
+        encoding="utf-8",
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    record_path = Path(validated["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["proposal"]["limitations"][0]["statement"] = (
+        "This validates the favored mechanism."
+    )
+    record["proposal_body_grounding"] = _proposal_body_grounding(record["proposal"])
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(
+        ValidationError,
+        match="limitations\\[0\\].statement must not claim acceptance",
+    ):
+        verify_collaborator_proposal_record(record_path, trusted_hash)
 
 
 def test_proposal_suggestion_ids_must_be_canonical(tmp_path: Path) -> None:
