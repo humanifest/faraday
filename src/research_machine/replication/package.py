@@ -1357,6 +1357,27 @@ def _validate_canary_target_assessment_gate_metadata(
         "inconclusive",
     }:
         raise ValidationError(f"{prefix}.assessment_status is unsupported")
+    if (
+        gate.status is QualityGateStatus.PASSED
+        and status != "consistent_with_revealed_target"
+    ):
+        raise ValidationError(
+            f"package run {run_id} passed canary gate {gate.gate_id} requires revealed-target consistency"
+        )
+    if (
+        gate.status is QualityGateStatus.WARNING
+        and status not in {"mixed", "inconclusive"}
+    ):
+        raise ValidationError(
+            f"package run {run_id} warning canary gate {gate.gate_id} requires mixed or inconclusive status"
+        )
+    if (
+        gate.status is QualityGateStatus.FAILED
+        and status not in {"follows_comparator_or_decoy", "follows_no_target"}
+    ):
+        raise ValidationError(
+            f"package run {run_id} failed canary gate {gate.gate_id} requires comparator, decoy, or no-target status"
+        )
     require_canonical_text(assessment["observed_pattern"], f"{prefix}.observed_pattern")
     require_canonical_text(assessment["interpretation"], f"{prefix}.interpretation")
     evidence_sha256 = require_sha256(

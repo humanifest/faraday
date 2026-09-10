@@ -2378,7 +2378,7 @@ def test_canary_target_plan_shapes_template_run_intake_and_synthesis(
                 ),
                 QualityGateResult(
                     gate_id="canary-target-assessed",
-                    status=QualityGateStatus.PASSED,
+                    status=QualityGateStatus.FAILED,
                     summary="Canary target comparison was performed.",
                     details={
                         "evidence_sha256": canary_sha256,
@@ -2400,7 +2400,8 @@ def test_canary_target_plan_shapes_template_run_intake_and_synthesis(
         "formal",
     )
 
-    assert run.status is RunStatus.COMPLETED
+    assert run.status is RunStatus.INVALID
+    assert run.scientific_evidence_eligible is False
     retained = run.quality_gates[1].details["canary_target_assessment"]
     assert retained["selected_value_sha256"] == selected_value_sha256
     synthesis = service.build_synthesis("formal")["content"]
@@ -2412,6 +2413,79 @@ def test_canary_target_plan_shapes_template_run_intake_and_synthesis(
         finding.code == "RUN_CANARY_TARGET_FOLLOWED_COMPARATOR"
         for finding in service.audit_rigor("formal").findings
     )
+
+
+def test_run_rejects_passed_canary_gate_for_comparator_or_decoy_result(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    plan = CanaryTargetPlan(
+        plan_id="masked-canary-plan",
+        candidate_target_ids=["actual-state", "delayed-replay"],
+        seed_commitment_sha256="1" * 64,
+        assignment_artifact_sha256="2" * 64,
+        masking_plan="Hold the selected target until analysis lock.",
+        ethical_disclosure="Masked target conditions are disclosed in consent.",
+        assessment_gate_id="canary-target-assessed",
+    )
+    protocol = frozen_formal_protocol(
+        service, hypothesis_id, canary_target_plan=plan
+    )
+    proof_output = tmp_path / "proof-output.json"
+    proof_sha256 = _write_json_artifact(proof_output, {"proof": {"status": "passed"}})
+    canary_output = tmp_path / "canary-output.json"
+    canary_sha256 = _write_json_artifact(
+        canary_output,
+        {"canary": {"comparison": {"status": "follows_comparator_or_decoy"}}},
+    )
+
+    with pytest.raises(ValidationError, match="passed canary assessment gate"):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            artifact_root=str(tmp_path),
+            output_artifacts=[
+                DatasetArtifact(
+                    proof_output.name,
+                    proof_sha256,
+                    size_bytes=proof_output.stat().st_size,
+                    media_type="application/json",
+                ),
+                DatasetArtifact(
+                    canary_output.name,
+                    canary_sha256,
+                    size_bytes=canary_output.stat().st_size,
+                    media_type="application/json",
+                ),
+            ],
+            quality_gates=[
+                QualityGateResult(
+                    gate_id="proof-check",
+                    status=QualityGateStatus.PASSED,
+                    summary="Independent proof-checker result.",
+                    details={"evidence_sha256": proof_sha256},
+                ),
+                QualityGateResult(
+                    gate_id="canary-target-assessed",
+                    status=QualityGateStatus.PASSED,
+                    summary="Canary target comparison was performed.",
+                    details={
+                        "evidence_sha256": canary_sha256,
+                        "canary_target_assessment": {
+                            "plan_id": "masked-canary-plan",
+                            "assignment_artifact_sha256": "2" * 64,
+                            "revealed_target_id": "actual-state",
+                            "comparator_target_ids": ["delayed-replay"],
+                            "assessment_status": "follows_comparator_or_decoy",
+                            "observed_pattern": "Events followed the delayed replay stream.",
+                            "interpretation": "This weakens target-specific adaptation under this protocol.",
+                            "evidence_sha256": canary_sha256,
+                            "evidence_location": "/canary/comparison",
+                        },
+                    },
+                ),
+            ],
+        ))
 
 
 def test_run_rejects_canary_selected_value_digest_drift(tmp_path: Path) -> None:

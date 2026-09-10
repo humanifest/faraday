@@ -2046,7 +2046,7 @@ def test_audit_warns_when_canary_target_gate_is_unassessed() -> None:
             *run.quality_gates,
             QualityGateResult(
                 "canary-target-assessed",
-                QualityGateStatus.PASSED,
+                QualityGateStatus.FAILED,
                 "Synthetic canary assessment.",
                 details={
                     "evidence_sha256": "d" * 64,
@@ -2068,6 +2068,9 @@ def test_audit_warns_when_canary_target_gate_is_unassessed() -> None:
         runs=[assessed_run],
     )
     assert "PROTECTED_EMPIRICAL_CANARY_TARGET_UNASSESSED" not in {
+        finding.code for finding in assessed_audit.findings
+    }
+    assert "RUN_CANARY_TARGET_FOLLOWED_NO_TARGET" in {
         finding.code for finding in assessed_audit.findings
     }
 

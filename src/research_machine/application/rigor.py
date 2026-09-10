@@ -1484,6 +1484,17 @@ def audit_research_state(
                         "Preserve the comparator-following result as disconfirming or ambiguity evidence; do not relabel it as support for adaptation."
                     ),
                 )
+            elif canary_status == "follows_no_target":
+                add(
+                    "RUN_CANARY_TARGET_FOLLOWED_NO_TARGET",
+                    RigorSeverity.WARNING,
+                    "Run canary assessment reported that the pattern followed no registered target.",
+                    entity_type="run",
+                    entity_id=run.run_id,
+                    remediation=(
+                        "Preserve the no-target result as disconfirming or ambiguity evidence; do not relabel it as target-specific support."
+                    ),
+                )
             elif canary_status in {"mixed", "inconclusive"}:
                 add(
                     "RUN_CANARY_TARGET_ASSESSMENT_AMBIGUOUS",
@@ -1495,10 +1506,7 @@ def audit_research_state(
                         "Disclose the ambiguous canary result and avoid source, mechanism, or intent claims."
                     ),
                 )
-            elif canary_status in {
-                "consistent_with_revealed_target",
-                "follows_no_target",
-            }:
+            elif canary_status == "consistent_with_revealed_target":
                 add(
                     "RUN_CANARY_TARGET_ASSESSMENT_RETAINED",
                     RigorSeverity.INFO,

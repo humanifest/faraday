@@ -1790,6 +1790,7 @@ def test_replication_package_verifies_temporal_order_gate_metadata(
         ("revealed_as_comparator", "must not include the revealed target"),
         ("padded_status", "assessment_status must be canonical"),
         ("bad_status", "assessment_status is unsupported"),
+        ("passed_gate_with_comparator", "passed canary gate"),
         ("wrong_evidence", "is not a declared output artifact"),
         ("gate_evidence_mismatch", "does not match gate evidence"),
         ("wrong_gate", "is not bound to the frozen canary gate"),
@@ -1884,7 +1885,7 @@ def test_replication_package_verifies_canary_target_gate_metadata(
         artifact_root=str(tmp_path),
         quality_gates=[QualityGateResult(
             "canary-target-assessed",
-            QualityGateStatus.PASSED,
+            QualityGateStatus.FAILED,
             "Synthetic canary target fixture retained.",
             details={
                 "evidence_sha256": record_sha256,
@@ -1947,6 +1948,8 @@ def test_replication_package_verifies_canary_target_gate_metadata(
         assessment["assessment_status"] = " follows_comparator_or_decoy"
     elif mutation == "bad_status":
         assessment["assessment_status"] = "confirmed"
+    elif mutation == "passed_gate_with_comparator":
+        gate["status"] = "passed"
     elif mutation == "wrong_evidence":
         assessment["evidence_sha256"] = "f" * 64
     elif mutation == "gate_evidence_mismatch":
