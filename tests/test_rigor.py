@@ -1356,6 +1356,99 @@ def test_audit_flags_missing_protected_dataset_measurement_custody() -> None:
     }
 
 
+def test_audit_flags_missing_human_subject_dataset_ethics_checks() -> None:
+    from test_ethics_gate import _human_protocol
+
+    condition = "Maintain the reviewed exclusion of minors throughout enrollment."
+    protocol = replace(
+        _human_protocol(
+            independent_review_decision="approved_with_conditions",
+            independent_review_conditions=[condition],
+        ),
+        status=ProtocolStatus.FROZEN,
+        protocol_hash="c" * 64,
+    )
+    dataset = DatasetManifest(
+        dataset_id="conditional-human-fixture",
+        name="Conditional human fixture",
+        role=DatasetRole.CONFIRMATORY,
+        created_at="2026-09-02T12:00:00Z",
+        artifacts=[DatasetArtifact("observations.csv", "a" * 64)],
+        protocol_id=protocol.protocol_id,
+        synthetic=True,
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Ethics audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[dataset],
+        protocols=[protocol],
+        runs=[],
+    )
+    codes = {finding.code for finding in audit.findings}
+    assert "PROTECTED_DATASET_ETHICS_REVIEW_STATUS_CHECK_MISSING" in codes
+    assert "PROTECTED_DATASET_ETHICS_CONDITION_VERIFICATION_MISSING" in codes
+
+    verified_dataset = replace(
+        dataset,
+        metadata={
+            "ethics_review_status_check": {
+                "status": "active",
+                "basis": "frozen_independent_review_decision",
+                "protocol_id": protocol.protocol_id,
+                "protocol_hash": protocol.protocol_hash,
+            },
+            "ethics_condition_verification": {
+                "protocol_id": protocol.protocol_id,
+                "protocol_hash": protocol.protocol_hash,
+                "independent_review_receipt": protocol.independent_review_receipt,
+                "evidence_artifact_root": "/tmp/faraday-ethics-fixture",
+                "discharge_receipt_sha256": "b" * 64,
+                "condition_results": [{
+                    "condition": condition,
+                    "compliance_status": "satisfied",
+                    "rationale": "Synthetic fixture condition discharge.",
+                    "evidence_sha256": "d" * 64,
+                    "evidence_location": "/minors_enrolled",
+                    "valid_through": None,
+                }],
+                "evidence_location_checks": [{
+                    "condition": condition,
+                    "evidence_sha256": "d" * 64,
+                    "evidence_location": "/minors_enrolled",
+                    "location_kind": "json_pointer",
+                    "selected_value_sha256": "e" * 64,
+                    "status": "resolved",
+                }],
+                "artifact_integrity": {
+                    "status": "passed",
+                    "all_artifacts_match": True,
+                },
+            },
+        },
+    )
+    verified_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[verified_dataset],
+        protocols=[protocol],
+        runs=[],
+    )
+    verified_codes = {finding.code for finding in verified_audit.findings}
+    assert "PROTECTED_DATASET_ETHICS_REVIEW_STATUS_CHECK_MISSING" not in verified_codes
+    assert "PROTECTED_DATASET_ETHICS_CONDITION_VERIFICATION_MISSING" not in verified_codes
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [

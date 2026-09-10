@@ -2222,6 +2222,13 @@ display and every run. Replay rechecks exact condition coverage, original
 chronology, validity horizons at verification time, media types, JSON Pointers,
 selected-value hashes, and the complete integrity report; any difference fails
 closed. The operational root is redacted from default replication exports.
+Rigor audit now flags protected human-subject datasets that lack an active
+service-generated `ethics_review_status_check` for the exact frozen protocol, and
+it separately flags conditionally approved human-subject datasets without a
+matching `ethics_condition_verification` covering every frozen review condition.
+This makes legacy or imported human-subject datasets visibly unusable for
+protected analysis rather than treating frozen approval text or condition prose
+as current clearance.
 Post-freeze review status is now an append-only canonical event chain. Each
 active, suspended, withdrawn, or expired event binds the frozen protocol, exact
 latest predecessor, effective time, reason, and locally verified review artifact.

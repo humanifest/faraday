@@ -107,6 +107,62 @@ def _dataset_measurement_custody_verification_passed(
     )
 
 
+def _dataset_ethics_review_status_check_passed(
+    dataset: DatasetManifest,
+    protocol: ExperimentProtocol,
+) -> bool:
+    check = dataset.metadata.get("ethics_review_status_check")
+    return (
+        isinstance(protocol.protocol_hash, str)
+        and len(protocol.protocol_hash) == 64
+        and isinstance(check, dict)
+        and check.get("status") == "active"
+        and check.get("protocol_id") == protocol.protocol_id
+        and check.get("protocol_hash") == protocol.protocol_hash
+        and check.get("basis")
+        in {"frozen_independent_review_decision", "append_only_ethics_review_event"}
+    )
+
+
+def _dataset_ethics_condition_verification_passed(
+    dataset: DatasetManifest,
+    protocol: ExperimentProtocol,
+) -> bool:
+    verification = dataset.metadata.get("ethics_condition_verification")
+    if not isinstance(verification, dict):
+        return False
+    integrity = verification.get("artifact_integrity")
+    condition_results = verification.get("condition_results")
+    location_checks = verification.get("evidence_location_checks")
+    if (
+        not isinstance(condition_results, list)
+        or not all(isinstance(item, dict) for item in condition_results)
+        or not isinstance(location_checks, list)
+        or not all(isinstance(item, dict) for item in location_checks)
+    ):
+        return False
+    return (
+        isinstance(protocol.protocol_hash, str)
+        and len(protocol.protocol_hash) == 64
+        and verification.get("protocol_id") == protocol.protocol_id
+        and verification.get("protocol_hash") == protocol.protocol_hash
+        and verification.get(
+            "independent_review_receipt"
+        ) == protocol.independent_review_receipt
+        and isinstance(verification.get("evidence_artifact_root"), str)
+        and bool(verification["evidence_artifact_root"].strip())
+        and isinstance(verification.get("discharge_receipt_sha256"), str)
+        and len(verification["discharge_receipt_sha256"]) == 64
+        and isinstance(integrity, dict)
+        and integrity.get("status") == "passed"
+        and integrity.get("all_artifacts_match") is True
+        and [item.get("condition") for item in condition_results]
+        == list(protocol.independent_review_conditions)
+        and [item.get("condition") for item in location_checks]
+        == list(protocol.independent_review_conditions)
+    )
+
+
 def _has_preprocessing_conformance_gate(run: ResearchRun) -> bool:
     return any(
         isinstance(gate.details.get("preprocessing_conformance"), dict)
@@ -525,6 +581,53 @@ def audit_research_state(
                 ),
             )
         protocol = protocol_by_id.get(dataset.protocol_id)
+        if (
+            protocol is not None
+            and protocol.human_subjects
+            and not _dataset_ethics_review_status_check_passed(dataset, protocol)
+        ):
+            add(
+                "PROTECTED_DATASET_ETHICS_REVIEW_STATUS_CHECK_MISSING",
+                RigorSeverity.ERROR,
+                (
+                    "Protected human-subject dataset lacks an active "
+                    "service-generated ethics review status check bound to the "
+                    "exact frozen protocol."
+                ),
+                entity_type="dataset",
+                entity_id=dataset.dataset_id,
+                remediation=(
+                    "Treat the dataset as unusable for protected analysis until it "
+                    "is registered through the canonical service after evaluating "
+                    "the latest applicable ethics review status; a frozen approval "
+                    "record alone is not current clearance."
+                ),
+            )
+        if (
+            protocol is not None
+            and protocol.human_subjects
+            and protocol.independent_review_decision == "approved_with_conditions"
+            and not _dataset_ethics_condition_verification_passed(
+                dataset, protocol
+            )
+        ):
+            add(
+                "PROTECTED_DATASET_ETHICS_CONDITION_VERIFICATION_MISSING",
+                RigorSeverity.ERROR,
+                (
+                    "Protected conditionally approved human-subject dataset lacks "
+                    "a passed service-generated condition-discharge verification "
+                    "covering every frozen review condition."
+                ),
+                entity_type="dataset",
+                entity_id=dataset.dataset_id,
+                remediation=(
+                    "Treat the dataset as unusable for protected analysis until it "
+                    "is registered through the canonical service with artifact-"
+                    "backed discharge evidence for every frozen condition; "
+                    "condition prose cannot discharge human-subject obligations."
+                ),
+            )
         if (
             protocol is not None
             and protocol.measurement_custody_requirements

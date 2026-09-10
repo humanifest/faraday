@@ -1463,6 +1463,12 @@ from the preserved receipt and present bytes, including coverage, chronology,
 media types, JSON Pointers, selected-value hashes, and the integrity report.
 Anything that no longer reproduces exactly fails closed. Default replication
 exports redact this operational root.
+Rigor audit also flags protected human-subject datasets whose metadata lacks an
+active service-generated `ethics_review_status_check` bound to the exact frozen
+protocol. For conditionally approved protocols it separately flags missing or
+unmatched `ethics_condition_verification`, so a dataset artifact receipt, frozen
+approval record, or condition prose cannot make human-subject observations
+analysis-ready.
 Later review changes are append-only rather than edits to the frozen protocol:
 
 ```bash
