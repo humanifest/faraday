@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/sherlock-bridge-link.schema.json",
+  "title": "Faraday Sherlock bridge link receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format_version",
+    "receipt_id",
+    "created_at",
+    "direction",
+    "faraday_reference",
+    "sherlock_reference",
+    "translation",
+    "authority_boundary"
+  ],
+  "properties": {
+    "format_version": {
+      "const": 1
+    },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^faraday-sherlock-link-[a-z0-9][a-z0-9._-]*$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "direction": {
+      "enum": [
+        "faraday_export_to_sherlock",
+        "sherlock_reference_to_faraday"
+      ]
+    },
+    "faraday_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "inquiry",
+            "claim",
+            "hypothesis",
+            "protocol",
+            "dataset",
+            "run",
+            "evidence",
+            "synthesis"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "protocol_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "run_receipt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "evidence_record_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "claim_ceiling": {
+          "type": "string",
+          "pattern": "^\\S(?:.*\\S)?$"
+        }
+      }
+    },
+    "sherlock_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "case_id": {
+          "type": "string",
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "kind": {
+          "enum": [
+            "artifact",
+            "assertion",
+            "claim",
+            "finding",
+            "annotation",
+            "report"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "artifact_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "translation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_sha256",
+        "summary_locator",
+        "summary_role",
+        "known_limitations"
+      ],
+      "properties": {
+        "summary_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "summary_locator": {
+          "type": "string",
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "summary_role": {
+          "enum": [
+            "immutable_faraday_summary",
+            "sherlock_source_preservation_record",
+            "review_question"
+          ]
+        },
+        "known_limitations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^\\S(?:.*\\S)?$"
+          }
+        }
+      }
+    },
+    "authority_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "faraday_canonical_state_mutated",
+        "sherlock_note_is_faraday_evidence",
+        "publication_authorized",
+        "review_promotion_authorized",
+        "boundary_statement"
+      ],
+      "properties": {
+        "faraday_canonical_state_mutated": {
+          "const": false
+        },
+        "sherlock_note_is_faraday_evidence": {
+          "const": false
+        },
+        "publication_authorized": {
+          "const": false
+        },
+        "review_promotion_authorized": {
+          "const": false
+        },
+        "boundary_statement": {
+          "type": "string",
+          "pattern": "^\\S(?:.*\\S)?$"
+        }
+      }
+    }
+  }
+}

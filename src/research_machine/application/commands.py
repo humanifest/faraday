@@ -166,6 +166,16 @@ class RecordEvidence:
 
 
 @dataclass(frozen=True)
+class ExportSherlockEvidence:
+    evidence_id: str
+    output_dir: str
+    sherlock_case_id: str = "faraday-research-bridge"
+    sherlock_kind: str = "annotation"
+    sherlock_id: str | None = None
+    sherlock_artifact_sha256: str | None = None
+
+
+@dataclass(frozen=True)
 class RegisterDataset:
     name: str
     role: DatasetRole

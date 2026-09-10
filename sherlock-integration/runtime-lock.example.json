@@ -1,0 +1,14 @@
+{
+  "wheel_path": "/absolute/path/sherlock_investigation-0.1.2-py3-none-any.whl",
+  "wheel_sha256": "REPLACE_WITH_64_HEX_DIGITS",
+  "version": "0.1.2",
+  "python_version": "REPLACE_WITH_EXACT_PYTHON_VERSION",
+  "dependency_versions": {
+    "jsonschema": "REPLACE_WITH_REVIEWED_VERSION",
+    "referencing": "REPLACE_WITH_REVIEWED_VERSION",
+    "attrs": "REPLACE_WITH_REVIEWED_VERSION",
+    "jsonschema-specifications": "REPLACE_WITH_REVIEWED_VERSION",
+    "rpds-py": "REPLACE_WITH_REVIEWED_VERSION",
+    "pypdf": "REPLACE_WITH_REVIEWED_VERSION"
+  }
+}

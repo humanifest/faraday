@@ -21,6 +21,7 @@ from research_machine.application.commands import (
     RecordEthicsReviewEvent,
     RecordEvidenceStatusEvent,
     RecordEvidence,
+    ExportSherlockEvidence,
     RecordRun,
     RegisterDataset,
     ReviewClaim,
@@ -5243,6 +5244,105 @@ class ResearchService:
     def list_evidence(self, inquiry_id: str | None = None) -> list[EvidenceRecord]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         return self.repository.list_evidence(resolved)
+
+    def export_sherlock_evidence(
+        self, command: ExportSherlockEvidence, inquiry_id: str | None = None
+    ) -> dict[str, Any]:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
+        from research_machine.application.sherlock_bridge import (
+            bridge_receipt_for_summary,
+            build_sherlock_evidence_summary,
+            validate_sherlock_export_options,
+            write_sherlock_evidence_export,
+        )
+
+        (
+            evidence_id,
+            sherlock_case_id,
+            sherlock_kind,
+            sherlock_id,
+            sherlock_artifact_sha256,
+        ) = validate_sherlock_export_options(
+            evidence_id=command.evidence_id,
+            sherlock_case_id=command.sherlock_case_id,
+            sherlock_kind=command.sherlock_kind,
+            sherlock_id=command.sherlock_id,
+            sherlock_artifact_sha256=command.sherlock_artifact_sha256,
+        )
+        matches = [
+            item
+            for item in self.repository.list_evidence(resolved)
+            if item.evidence_id == evidence_id
+        ]
+        if not matches:
+            raise NotFoundError(f"evidence {evidence_id} does not exist")
+        evidence = matches[0]
+        inquiry = self.repository.load_inquiry(resolved)
+        claims = {claim.claim_id: claim for claim in self.repository.load_claims(resolved)}
+        claim = claims.get(evidence.claim_id) if evidence.claim_id else None
+        hypothesis = self.repository.find_hypothesis(resolved, evidence.hypothesis_id)
+        dataset = (
+            self.repository.find_dataset(resolved, evidence.dataset_id)
+            if evidence.dataset_id
+            else None
+        )
+        protocol = (
+            self.repository.find_protocol(resolved, evidence.protocol_id)
+            if evidence.protocol_id
+            else None
+        )
+        run = self.repository.find_run(resolved, evidence.run_id) if evidence.run_id else None
+        created_at = self.clock()
+        summary = build_sherlock_evidence_summary(
+            inquiry=inquiry,
+            evidence=evidence,
+            hypothesis=hypothesis,
+            claim=claim,
+            dataset=dataset,
+            protocol=protocol,
+            run=run,
+            status_events=self.list_evidence_status_events(
+                resolved, evidence_id=evidence.evidence_id
+            ),
+            created_at=created_at,
+        )
+        summary_bytes = (
+            json.dumps(summary, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+        ).encode("utf-8")
+        summary_sha256 = hashlib.sha256(summary_bytes).hexdigest()
+        summary_locator = "faraday-summary.json"
+        receipt = bridge_receipt_for_summary(
+            evidence=evidence,
+            run=run,
+            summary_sha256=summary_sha256,
+            summary_locator=summary_locator,
+            created_at=created_at,
+            receipt_id=f"faraday-sherlock-link-{self.token()}",
+            sherlock_case_id=sherlock_case_id,
+            sherlock_kind=sherlock_kind,
+            sherlock_id=sherlock_id,
+            sherlock_artifact_sha256=sherlock_artifact_sha256,
+        )
+        result = write_sherlock_evidence_export(
+            output_dir=Path(command.output_dir).expanduser().resolve(),
+            summary=summary,
+            receipt=receipt,
+        )
+        self._event(
+            resolved,
+            "sherlock.evidence.export",
+            "bridge_export",
+            evidence.evidence_id,
+            {
+                **result,
+                "sherlock_case_id": sherlock_case_id,
+                "sherlock_kind": sherlock_kind,
+                "sherlock_id": sherlock_id,
+                "authority_boundary": receipt["authority_boundary"],
+            },
+        )
+        return {**result, "receipt": receipt}
 
     def record_evidence_status_event(
         self, command: RecordEvidenceStatusEvent, inquiry_id: str | None = None

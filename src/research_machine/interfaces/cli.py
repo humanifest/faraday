@@ -23,6 +23,7 @@ from research_machine.application.commands import (
     RecordEthicsReviewEvent,
     RecordEvidenceStatusEvent,
     RecordEvidence,
+    ExportSherlockEvidence,
     RecordRun,
     RegisterDataset,
     ReviewClaim,
@@ -648,6 +649,28 @@ def build_parser() -> argparse.ArgumentParser:
     synthesis_commands = synthesis.add_subparsers(dest="action", required=True)
     synthesis_build = synthesis_commands.add_parser("build")
     _add_inquiry_option(synthesis_build)
+
+    sherlock = groups.add_parser(
+        "sherlock", help="Export read-only Faraday bridge material for Sherlock"
+    )
+    sherlock_commands = sherlock.add_subparsers(dest="action", required=True)
+    sherlock_export_evidence = sherlock_commands.add_parser(
+        "export-evidence",
+        help="Write a Sherlock-ready evidence summary and bridge-link receipt",
+    )
+    sherlock_export_evidence.add_argument("--evidence", required=True)
+    sherlock_export_evidence.add_argument("--output", type=Path, required=True)
+    sherlock_export_evidence.add_argument(
+        "--sherlock-case", default="faraday-research-bridge"
+    )
+    sherlock_export_evidence.add_argument(
+        "--sherlock-kind",
+        choices=["artifact", "assertion", "claim", "finding", "annotation", "report"],
+        default="annotation",
+    )
+    sherlock_export_evidence.add_argument("--sherlock-id")
+    sherlock_export_evidence.add_argument("--sherlock-artifact-sha256")
+    _add_inquiry_option(sherlock_export_evidence)
 
     addon = groups.add_parser(
         "addon", help="Inspect bundled and installed discipline extensions"
@@ -2569,6 +2592,19 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
 
     if args.group == "synthesis" and args.action == "build":
         return service.build_synthesis(args.inquiry)
+
+    if args.group == "sherlock" and args.action == "export-evidence":
+        return service.export_sherlock_evidence(
+            ExportSherlockEvidence(
+                evidence_id=args.evidence,
+                output_dir=str(args.output),
+                sherlock_case_id=args.sherlock_case,
+                sherlock_kind=args.sherlock_kind,
+                sherlock_id=args.sherlock_id,
+                sherlock_artifact_sha256=args.sherlock_artifact_sha256,
+            ),
+            args.inquiry,
+        )
     raise ValueError("unhandled command")
 
 

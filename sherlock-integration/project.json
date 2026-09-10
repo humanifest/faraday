@@ -1,0 +1,48 @@
+{
+  "format_version": 1,
+  "workspace": "workspace",
+  "case_id": "faraday-research-bridge",
+  "title": "Faraday research bridge",
+  "charter_file": "CHARTER.md",
+  "charter_sha256": "sha256:158aaed7b482924f6f812ade62424cafa0de75a1cce1f6ff18065386b6315f01",
+  "question_ids": [
+    "question-q01",
+    "question-q02",
+    "question-q03"
+  ],
+  "agent_id": "faraday-sherlock-agent",
+  "charter_fields": {
+    "question": "Which source materials, investigative assertions, contradictions, provenance gaps, and review questions should be preserved around Faraday work without entering Faraday canonical scientific state?",
+    "decision": "Track external source preservation and bridge links while leaving Faraday protocols, runs, evidence, rigor audits, and synthesis under Faraday's own service boundary.",
+    "decision_owner": "Faraday project owner",
+    "finding_standard": "corroborated_factual_finding",
+    "minimum_evidence": "A locally authorized source or immutable Faraday summary receipt, plus any known contrary material or unresolved provenance gaps.",
+    "change_criterion": "A Faraday receipt changes or fails verification, a source correction changes the assertion, or Faraday's decision owner resolves the tracked question.",
+    "exclusions": [
+      "No Sherlock mutation of Faraday canonical state",
+      "No Faraday evidence admission from Sherlock notes without Faraday gates",
+      "No publication, review promotion, outreach, or automatic acceptance"
+    ],
+    "required_review_roles": [
+      "Faraday decision owner",
+      "source reviewer"
+    ],
+    "constraints": {
+      "legal": [
+        "Use only locally authorized research material and Faraday summaries."
+      ],
+      "ethical": [
+        "Preserve unresolved alternatives, contradictions, and limitations."
+      ],
+      "privacy": [
+        "Keep Sherlock workspace material inside the approved local project workspace."
+      ],
+      "source_safety": [
+        "No source contact or external synchronization from this integration."
+      ],
+      "retention": [
+        "Retain bridge receipts and Sherlock workspace material according to the Faraday project owner's recorded retention policy."
+      ]
+    }
+  }
+}
