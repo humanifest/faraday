@@ -324,8 +324,8 @@ def test_collaborator_context_redacts_operational_review_roots(
     assert context["evidence_status_events"][0]["review_artifact_sha256"] == (
         event.review_artifact_sha256
     )
-    assert context["evidence_status_events"][0]["review_artifact_root"].startswith(
-        "[redacted:"
+    assert context["evidence_status_events"][0]["review_artifact_root"] == (
+        "[redacted: retained in canonical store]"
     )
     assert str(review_root) not in json.dumps(context)
     assert {
@@ -337,8 +337,15 @@ def test_collaborator_context_redacts_operational_review_roots(
     ] == str(review_root.resolve())
 
 
+@pytest.mark.parametrize(
+    "root_value",
+    [
+        "/private/review-root",
+        "[redacted: /private/review-root]",
+    ],
+)
 def test_context_snapshot_rejects_unredacted_operational_roots(
-    tmp_path: Path,
+    tmp_path: Path, root_value: str,
 ) -> None:
     context = _context(
         context_reference_index=[
@@ -350,13 +357,13 @@ def test_context_snapshot_rejects_unredacted_operational_roots(
     )
     context["evidence_status_events"][0][
         "review_artifact_root"
-    ] = "/private/review-root"
+    ] = root_value
 
     with pytest.raises(
         ValidationError,
         match=(
             "context.evidence_status_events\\[0\\].review_artifact_root "
-            "must be redacted"
+            "must use the canonical redaction marker"
         ),
     ):
         create_context_snapshot(context, tmp_path / "context")

@@ -1192,7 +1192,9 @@ artifact roots and attestation-schema paths while retaining IDs, hashes, status
 history, and review-event handles, keeping provider-neutral review separate from
 local custody access. Freezing or later validating a collaborator context now
 fails closed if those operational roots or attestation-schema paths remain
-unredacted. The reference index is checked against the frozen
+unredacted or use any marker other than Faraday's exact
+`[redacted: retained in canonical store]` value. The published context schema
+preflights the same marker on known context record types. The reference index is checked against the frozen
 context body, so every citable handle must correspond to visible read-only
 record content and every visible citable record must appear in the index. When
 that index is nonempty, every proposal suggestion must cite at least one retained

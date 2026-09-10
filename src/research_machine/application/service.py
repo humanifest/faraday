@@ -27,6 +27,10 @@ from research_machine.application.commands import (
     RetireHypothesis,
     SetInquiryDecision,
 )
+from research_machine.collaboration.redaction import (
+    COLLABORATOR_CONTEXT_REDACTION_MARKER,
+    OPERATIONAL_CONTEXT_KEYS,
+)
 from research_machine.application.artifact_integrity import verify_run_artifacts
 from research_machine.application.policies import (
     is_canonical_sha256,
@@ -1315,21 +1319,11 @@ class ResearchService:
     ) -> dict[str, Any]:
         """Read-only context for a UI or optional local/remote model adapter."""
         def redact_operational_context(value: Any) -> Any:
-            redacted_keys = {
-                "artifact_root",
-                "attestation_schema_path",
-                "custody_artifact_root",
-                "ethics_artifact_root",
-                "review_artifact_root",
-                "run_artifact_root",
-                "run_attestation_schema_path",
-            }
-            marker = "[redacted: retained in canonical store]"
             if isinstance(value, dict):
                 return {
                     key: (
-                        marker
-                        if key in redacted_keys and item
+                        COLLABORATOR_CONTEXT_REDACTION_MARKER
+                        if key in OPERATIONAL_CONTEXT_KEYS and item
                         else redact_operational_context(item)
                     )
                     for key, item in value.items()

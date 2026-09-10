@@ -938,7 +938,9 @@ and attestation-schema paths while preserving stable IDs, hashes, statuses, and
 citable review-event records, so optional collaborators do not receive local
 custody paths merely to reason about the scientific state. Context freezing and
 proposal validation both reject any retained collaborator context that still
-contains an unredacted operational root or attestation-schema path. The frozen context
+contains an unredacted operational root or attestation-schema path, including
+near-redaction strings that do not equal Faraday's canonical
+`[redacted: retained in canonical store]` marker. The frozen context
 also carries a compact reference index such as
 `question:<id>`, `claim:<id>`, `hypothesis:<id>`, `evidence:<id>`,
 `evidence_status_event:<id>`, `protocol:<id>`, `run:<id>`, and

@@ -314,6 +314,26 @@ def test_collaborator_context_schema_preserves_exchange_boundaries(mutation):
         jsonschema.validate(context, schema)
 
 
+@pytest.mark.parametrize(
+    "root_value",
+    [
+        "/private/review-root",
+        "[redacted: /private/review-root]",
+    ],
+)
+def test_collaborator_context_schema_requires_canonical_root_redaction(root_value):
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    context["evidence_status_events"].append(
+        {
+            "event_id": "evidence-status-1",
+            "review_artifact_root": root_value,
+        }
+    )
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(context, schema)
+
+
 def test_collaborator_proposal_schema_preserves_review_only_boundary():
     schema = json.loads((SCHEMAS / "collaborator-proposal.schema.json").read_text())
     proposal = json.loads((EXAMPLES / "collaborator-proposal.json").read_text())

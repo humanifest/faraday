@@ -147,6 +147,19 @@
       "type": "string",
       "pattern": "^(?:\\S|\\S.*\\S)$"
     },
+    "redactedOperationalFields": {
+      "type": "object",
+      "properties": {
+        "artifact_root": {"const": "[redacted: retained in canonical store]"},
+        "attestation_schema_path": {"const": "[redacted: retained in canonical store]"},
+        "custody_artifact_root": {"const": "[redacted: retained in canonical store]"},
+        "ethics_artifact_root": {"const": "[redacted: retained in canonical store]"},
+        "review_artifact_root": {"const": "[redacted: retained in canonical store]"},
+        "run_artifact_root": {"const": "[redacted: retained in canonical store]"},
+        "run_attestation_schema_path": {"const": "[redacted: retained in canonical store]"}
+      },
+      "additionalProperties": true
+    },
     "contextRef": {
       "type": "string",
       "pattern": "^(inquiry|question|claim|hypothesis|evidence|dataset|protocol|run|evidence_status_event|ethics_review_event):(?:\\S|\\S.*\\S)$"
@@ -177,6 +190,7 @@
     },
     "openQuestion": {
       "type": "object",
+      "allOf": [{"$ref": "#/$defs/redactedOperationalFields"}],
       "required": ["question_id"],
       "properties": {
         "question_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
@@ -185,6 +199,7 @@
     },
     "claim": {
       "type": "object",
+      "allOf": [{"$ref": "#/$defs/redactedOperationalFields"}],
       "required": ["claim_id"],
       "properties": {
         "claim_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
@@ -193,6 +208,7 @@
     },
     "hypothesis": {
       "type": "object",
+      "allOf": [{"$ref": "#/$defs/redactedOperationalFields"}],
       "required": ["hypothesis_id"],
       "properties": {
         "hypothesis_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
@@ -201,6 +217,7 @@
     },
     "evidence": {
       "type": "object",
+      "allOf": [{"$ref": "#/$defs/redactedOperationalFields"}],
       "required": ["evidence_id"],
       "properties": {
         "evidence_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
@@ -209,6 +226,7 @@
     },
     "evidenceStatusEvent": {
       "type": "object",
+      "allOf": [{"$ref": "#/$defs/redactedOperationalFields"}],
       "required": ["event_id"],
       "properties": {
         "event_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
@@ -217,6 +235,7 @@
     },
     "dataset": {
       "type": "object",
+      "allOf": [{"$ref": "#/$defs/redactedOperationalFields"}],
       "required": ["dataset_id"],
       "properties": {
         "dataset_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
@@ -225,6 +244,7 @@
     },
     "protocol": {
       "type": "object",
+      "allOf": [{"$ref": "#/$defs/redactedOperationalFields"}],
       "required": ["protocol_id"],
       "properties": {
         "protocol_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
@@ -233,6 +253,7 @@
     },
     "run": {
       "type": "object",
+      "allOf": [{"$ref": "#/$defs/redactedOperationalFields"}],
       "required": ["run_id"],
       "properties": {
         "run_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
@@ -241,6 +262,7 @@
     },
     "ethicsReviewEvent": {
       "type": "object",
+      "allOf": [{"$ref": "#/$defs/redactedOperationalFields"}],
       "required": ["event_id"],
       "properties": {
         "event_id": {"$ref": "#/$defs/canonicalNonEmptyText"}

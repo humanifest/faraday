@@ -16,6 +16,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from research_machine.collaboration.redaction import (
+    COLLABORATOR_CONTEXT_REDACTION_MARKER,
+    OPERATIONAL_CONTEXT_KEYS,
+)
 from research_machine.domain.errors import ValidationError
 
 
@@ -193,18 +197,6 @@ _CONTEXT_RECORD_COLLECTIONS = {
     "runs": ("run:", "run_id"),
     "ethics_review_events": ("ethics_review_event:", "event_id"),
 }
-_OPERATIONAL_CONTEXT_KEYS = {
-    "artifact_root",
-    "attestation_schema_path",
-    "custody_artifact_root",
-    "ethics_artifact_root",
-    "review_artifact_root",
-    "run_artifact_root",
-    "run_attestation_schema_path",
-}
-_REDACTED_CONTEXT_PREFIX = "[redacted:"
-
-
 def _duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -588,14 +580,11 @@ def _validate_context_operational_redaction(value: Any, path: str) -> None:
     if isinstance(value, dict):
         for key, item in value.items():
             child_path = f"{path}.{key}" if path else key
-            if key in _OPERATIONAL_CONTEXT_KEYS and item:
-                if not (
-                    isinstance(item, str)
-                    and item.startswith(_REDACTED_CONTEXT_PREFIX)
-                ):
+            if key in OPERATIONAL_CONTEXT_KEYS and item:
+                if item != COLLABORATOR_CONTEXT_REDACTION_MARKER:
                     raise ValidationError(
                         "collaborator context operational field "
-                        f"{child_path} must be redacted before freezing"
+                        f"{child_path} must use the canonical redaction marker before freezing"
                     )
             else:
                 _validate_context_operational_redaction(item, child_path)
