@@ -2162,6 +2162,10 @@ receipt, and require exact equality with the service-generated registration
 receipt. Mutation or loss of raw sources, transformation implementations,
 derived outputs, calibration support, or gate evidence fails closed. Default
 replication exports redact the operational root.
+Rigor audit also flags legacy or imported non-synthetic confirmatory and
+replication datasets that lack a passed service-generated
+`dataset_artifact_verification` receipt, so a protected dataset cannot look
+analysis-ready on declared artifact hashes alone.
 
 Ethics-gate delivery: a human-subject protocol cannot freeze until its consent,
 withdrawal, privacy, retention/deletion, and risk plans are explicit and it

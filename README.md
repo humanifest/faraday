@@ -1802,6 +1802,10 @@ Protected observation-byte receipts also reject non-canonical verifier metadata:
 the retained actor, timestamp, and local root must be exact, unpadded text, and
 the verification time must include a UTC offset before the receipt can be
 generated or replayed.
+Rigor audit flags legacy or imported non-synthetic confirmatory and replication
+datasets whose metadata lacks a passed service-generated
+`dataset_artifact_verification` receipt. Declared artifact hashes alone do not
+authorize protected analysis or evidence.
 
 ## What works now
 

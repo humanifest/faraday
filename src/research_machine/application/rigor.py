@@ -71,6 +71,18 @@ def _protected_empirical(protocol: ExperimentProtocol) -> bool:
     )
 
 
+def _dataset_artifact_verification_passed(dataset: DatasetManifest) -> bool:
+    verification = dataset.metadata.get("dataset_artifact_verification")
+    if not isinstance(verification, dict):
+        return False
+    integrity = verification.get("artifact_integrity")
+    return (
+        isinstance(integrity, dict)
+        and integrity.get("status") == "passed"
+        and integrity.get("all_artifacts_match") is True
+    )
+
+
 def _has_preprocessing_conformance_gate(run: ResearchRun) -> bool:
     return any(
         isinstance(gate.details.get("preprocessing_conformance"), dict)
@@ -486,6 +498,20 @@ def audit_research_state(
                 remediation=(
                     "Restore the frozen protocol or register a new protected dataset "
                     "without rewriting this record."
+                ),
+            )
+        if (
+            not dataset.synthetic
+            and not _dataset_artifact_verification_passed(dataset)
+        ):
+            add(
+                "PROTECTED_DATASET_ARTIFACT_VERIFICATION_MISSING",
+                RigorSeverity.ERROR,
+                "Protected non-synthetic dataset lacks a passed service-generated artifact verification receipt for its registered observation bytes.",
+                entity_type="dataset",
+                entity_id=dataset.dataset_id,
+                remediation=(
+                    "Treat the dataset as unusable for protected analysis until it is registered through the canonical service with a local artifact root and current-byte verification; do not trust declared artifact hashes alone."
                 ),
             )
         seen_sources: set[str] = set()
