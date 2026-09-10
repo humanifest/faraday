@@ -263,7 +263,7 @@ def validate_evidence_annotations(
         raise ValidationError("control disclosures must not contain duplicates")
     if set(passed) & set(failed):
         raise ValidationError("control disclosures cannot list the same control as passed and failed")
-    ceilings = require_text_list(
+    ceilings = require_unique_text_list(
         higher_level_conclusions_unsupported,
         "higher_level_conclusions_unsupported",
     )

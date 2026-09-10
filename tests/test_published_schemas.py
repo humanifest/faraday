@@ -111,6 +111,27 @@ def test_evidence_command_schema_accepts_causal_estimate_tag_without_overclaimin
     jsonschema.validate(command, schema)
 
 
+def test_evidence_command_schema_rejects_duplicate_unsupported_conclusions():
+    schema = json.loads((SCHEMAS / "evidence-command.schema.json").read_text())
+    command = {
+        "hypothesis_id": "hyp-ceiling-fixture",
+        "direction": "inconclusive",
+        "summary": "The fixture remains inconclusive.",
+        "dataset_id": "dataset-ceiling-fixture",
+        "analysis_id": "analysis-ceiling-fixture",
+        "uncertainty": "Synthetic fixture uncertainty remains unresolved.",
+        "scope": "Synthetic schema fixture only.",
+        "higher_level_conclusions_unsupported": [
+            "Causality remains unsupported.",
+            "Causality remains unsupported.",
+        ],
+        "validation_tags": ["source_assessment"],
+        "exploratory": True,
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
 def test_empirical_protocol_command_matches_published_schema():
     from test_ethics_gate import _human_protocol
     from research_machine.interfaces.cli import _PROTOCOL_FIELDS

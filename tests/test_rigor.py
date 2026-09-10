@@ -818,6 +818,20 @@ def test_new_evidence_requires_scope_ceiling_and_classification(tmp_path: Path) 
                 validation_tags=[],
             )
         )
+    with pytest.raises(
+        ValidationError,
+        match="higher_level_conclusions_unsupported must not contain duplicates",
+    ):
+        service.record_evidence(
+            _classified_evidence(
+                hypothesis.hypothesis_id,
+                run.run_id,
+                higher_level_conclusions_unsupported=[
+                    "Mechanism remains unsupported.",
+                    " Mechanism remains unsupported. ",
+                ],
+            )
+        )
 
 
 def test_protocol_freeze_requires_controls_quality_gates_and_stop_rule(

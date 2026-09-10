@@ -238,6 +238,10 @@ contract consistency, not execution truth or scientific interpretation. The
 receipt hashes the complete immutable evidence payload outside the receipt
 itself, making post-admission edits to conclusions, scope, uncertainty,
 classification, selectors, or claim linkage semantically detectable.
+Evidence unsupported-conclusion ceilings are now unique at admission and in the
+published command schema. The service rejects duplicates after normalizing
+surrounding whitespace, preventing repeated limitation prose from being retained
+as if it were multiple independent scientific ceilings.
 Evidence and execution report-language delivery: new evidence summaries, run
 summaries, and quality-gate summaries now reject the overclaiming report verbs
 `proved`, `confirmed`, and `explained` before admission. Deterministic synthesis

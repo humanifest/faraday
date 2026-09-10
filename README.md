@@ -2163,7 +2163,7 @@ The package has no runtime dependencies. It supports Python 3.11 and newer.
 
 Evidence is classified by what it actually tests: `source_assessment`,
 `calibration`, `internal_consistency`, `controlled_benchmark`,
-`independent_replication`, `known_result_reproduction`, `novel_prediction`, or
+`independent_replication`, `known_result_reproduction`, `novel_prediction`,
 `empirical_test`, or `causal_estimate`. Higher tags have enforceable
 prerequisites. In particular,
 supporting evidence cannot target mechanism, adaptation, or attribution/intent
@@ -2171,7 +2171,10 @@ claims under the current validation-tag capability model; record lower-level
 support and keep those explanatory conclusions explicitly unsupported until a
 future reviewed authority path exists. Inconclusive, weakening, and refuting
 records remain admissible when their ordinary evidence requirements are met, so
-disconfirming material is preserved rather than promoted.
+disconfirming material is preserved rather than promoted. Each record must name
+at least one distinct unsupported higher-level conclusion; duplicates are
+rejected after text normalization so repeated ceiling prose cannot masquerade as
+multiple independent limitations.
 independent replication must name an eligible earlier run through
 `metadata.replicates_run_id`, use a different executor identity, and use a
 different analysis-code hash. It must also declare a clean-room design with
