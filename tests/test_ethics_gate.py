@@ -55,6 +55,17 @@ def _ethics_status_command(
     return RecordEthicsReviewEvent(**values)
 
 
+def _refresh_packaged_file(package, name: str) -> str:
+    manifest_path = package / "package-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"][name] = hashlib.sha256((package / name).read_bytes()).hexdigest()
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+
 def _human_protocol(**overrides: object) -> ExperimentProtocol:
     values: dict[str, object] = {
         "protocol_id": "ethics-v1",
@@ -630,3 +641,109 @@ def test_conditional_review_obligations_require_exact_artifact_backed_discharge_
         service.show_inquiry()
     with pytest.raises(ValidationError, match="artifact no longer matches its integrity receipt"):
         service.register_dataset(replace(blocked, dataset_id="blocked-after-artifact-mutation"))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("receipt_status", "condition results changed"),
+        ("discharge_status", "condition results changed"),
+        ("location_check", "location check no longer matches"),
+        ("monitoring_flag", "condition monitoring flag changed"),
+    ],
+)
+def test_redacted_replication_package_replays_condition_discharge_semantics(
+    tmp_path,
+    mutation,
+    message,
+) -> None:
+    from research_machine.application.commands import RegisterDataset
+    from research_machine.domain.models import DatasetArtifact, DatasetRole
+    from research_machine.replication.package import verify_replication_package
+    from test_execution import prepared_service
+
+    workspace = tmp_path / "workspace"
+    service, hypothesis_id = prepared_service(workspace)
+    review_root = tmp_path / "review-root"
+    review_artifact = review_root / "review" / "decision.pdf"
+    review_artifact.parent.mkdir(parents=True)
+    review_bytes = b"synthetic conditional independent review\n"
+    review_artifact.write_bytes(review_bytes)
+    condition = "Maintain the reviewed exclusion of minors throughout enrollment."
+    base = _human_protocol(
+        hypotheses_tested=[hypothesis_id],
+        independent_review_decision="approved_with_conditions",
+        independent_review_conditions=[condition],
+        independent_reviewed_at="2026-09-02T11:00:00Z",
+        independent_review_artifact_sha256=hashlib.sha256(review_bytes).hexdigest(),
+    )
+    values = {field.name: getattr(base, field.name) for field in fields(CreateProtocol)}
+    draft = service.create_protocol(CreateProtocol(**values))
+    frozen = service.freeze_protocol(
+        draft.protocol_id, review_artifact_root=str(review_root)
+    )
+    ethics_root = tmp_path / "ethics-evidence"
+    evidence = ethics_root / "eligibility-audit.json"
+    evidence.parent.mkdir(parents=True)
+    evidence_bytes = b'{"minors_enrolled":0,"synthetic_fixture":true}\n'
+    evidence.write_bytes(evidence_bytes)
+    evidence_sha256 = hashlib.sha256(evidence_bytes).hexdigest()
+    discharge = {
+        "discharge_id": "ethics-discharge-001",
+        "protocol_id": frozen.protocol_id,
+        "protocol_hash": frozen.protocol_hash,
+        "independent_review_receipt": frozen.independent_review_receipt,
+        "assessor": "fixture compliance reviewer",
+        "assessed_at": service.clock(),
+        "evidence_artifacts": [{
+            "locator": "eligibility-audit.json",
+            "sha256": evidence_sha256,
+            "size_bytes": len(evidence_bytes),
+            "media_type": "application/json",
+        }],
+        "conditions": [{
+            "condition": condition,
+            "compliance_status": "control_active",
+            "rationale": "The reviewed eligibility control is active and the audit contains no minors.",
+            "evidence_sha256": evidence_sha256,
+            "evidence_location": "/minors_enrolled",
+            "valid_through": "2026-12-31T23:59:59Z",
+        }],
+    }
+    service.register_dataset(RegisterDataset(
+        name="Synthetic conditional human data",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("human-data.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        metadata={"ethics_condition_discharge": discharge},
+        ethics_artifact_root=str(ethics_root),
+    ))
+    package = tmp_path / f"package-{mutation}"
+    exported = service.export_replication_package(frozen.protocol_id, str(package))
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    datasets_path = package / "datasets.json"
+    datasets = json.loads(datasets_path.read_text(encoding="utf-8"))
+    metadata = datasets[0]["metadata"]
+    verification = metadata["ethics_condition_verification"]
+    retained_discharge = metadata["ethics_condition_discharge"]
+    if mutation == "receipt_status":
+        verification["condition_results"][0]["compliance_status"] = "satisfied"
+        verification["condition_results"][0]["valid_through"] = None
+        verification["ongoing_controls_require_continued_monitoring"] = False
+    elif mutation == "discharge_status":
+        retained_discharge["conditions"][0]["compliance_status"] = "satisfied"
+        retained_discharge["conditions"][0]["valid_through"] = None
+    elif mutation == "location_check":
+        verification["evidence_location_checks"][0]["evidence_location"] = "/synthetic_fixture"
+    elif mutation == "monitoring_flag":
+        verification["ongoing_controls_require_continued_monitoring"] = False
+    datasets_path.write_text(
+        json.dumps(datasets, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    commitment = _refresh_packaged_file(package, "datasets.json")
+
+    with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)

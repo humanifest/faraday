@@ -1510,9 +1510,13 @@ measurement-validity, or analysis proof. Replication-package verification
 replays the same protocol-closed lineage boundary from packaged metadata and
 also checks the portable redacted semantics of protected observation-byte,
 measurement-custody, ethics-status, and conditional-ethics receipts before
-trusting a handoff. These package checks preserve what the original service
-verified and what remains unauthenticated; they do not re-open local roots or
-turn redacted metadata into fresh byte verification. Authoritative inquiry display, protocol-bound
+trusting a handoff. Conditional-ethics replay requires the retained discharge
+source and verification receipt to agree on the frozen conditions, compliance
+statuses, active-control horizons, evidence digests, exact evidence locations,
+machine-resolved JSON selections, and monitoring flag. These package checks
+preserve what the original service verified and what remains unauthenticated;
+they do not re-open local roots or turn redacted metadata into fresh byte
+verification. Authoritative inquiry display, protocol-bound
 execution checks, run intake, and evidence admission also walk the complete
 protected ancestor graph and reject resealed missing, duplicated, cyclic, or
 cross-boundary lineage before the dataset can support scientific use.

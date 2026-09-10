@@ -531,11 +531,95 @@ def _validate_packaged_protected_dataset_verification(
             raise ValidationError(
                 f"package human-subject dataset {dataset_id} lacks portable ethics condition verification"
             )
+        discharge = metadata.get("ethics_condition_discharge")
+        if not isinstance(discharge, dict) or set(discharge) != {
+            "discharge_id",
+            "protocol_id",
+            "protocol_hash",
+            "independent_review_receipt",
+            "assessor",
+            "assessed_at",
+            "evidence_artifacts",
+            "conditions",
+        }:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} lacks the retained ethics condition discharge"
+            )
+        if (
+            discharge.get("protocol_id") != protocol.protocol_id
+            or discharge.get("protocol_hash") != protocol.protocol_hash
+            or discharge.get("independent_review_receipt")
+            != protocol.independent_review_receipt
+        ):
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} retained ethics condition discharge does not match the protocol"
+            )
+        require_canonical_text(
+            discharge.get("discharge_id"),
+            f"package human-subject dataset {dataset_id} discharge_id",
+        )
+        require_canonical_text(
+            discharge.get("assessor"),
+            f"package human-subject dataset {dataset_id} retained condition assessor",
+        )
+        _validate_package_timestamp(
+            discharge.get("assessed_at"),
+            f"package human-subject dataset {dataset_id} retained condition assessed_at",
+        )
+        discharge_evidence = discharge.get("evidence_artifacts")
+        if not isinstance(discharge_evidence, list) or not discharge_evidence:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} retained condition evidence artifacts are missing"
+            )
+        discharge_evidence_hashes: set[str] = set()
+        for item in discharge_evidence:
+            if not isinstance(item, dict) or set(item) != {
+                "locator",
+                "sha256",
+                "size_bytes",
+                "media_type",
+            }:
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} retained condition evidence artifact is invalid"
+                )
+            _validate_packaged_root(
+                item.get("locator"),
+                f"package human-subject dataset {dataset_id} retained condition evidence locator",
+                locator_policy,
+            )
+            digest = require_sha256(
+                item.get("sha256"),
+                f"package human-subject dataset {dataset_id} retained condition evidence sha256",
+            )
+            if digest in discharge_evidence_hashes:
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} repeats condition evidence digest"
+                )
+            discharge_evidence_hashes.add(digest)
+            size = item.get("size_bytes")
+            if size is not None and (
+                isinstance(size, bool) or not isinstance(size, int) or size < 0
+            ):
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} retained condition evidence size is invalid"
+                )
+            require_canonical_text(
+                item.get("media_type"),
+                f"package human-subject dataset {dataset_id} retained condition evidence media_type",
+            )
+        discharge_conditions = discharge.get("conditions")
+        if (
+            not isinstance(discharge_conditions, list)
+            or not all(isinstance(item, dict) for item in discharge_conditions)
+        ):
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} retained condition results are missing"
+            )
         if condition_receipt.get("verification_version") != 1:
             raise ValidationError(
                 f"package human-subject dataset {dataset_id} ethics condition verification version is unsupported"
             )
-        _validate_package_timestamp(
+        condition_verified_at = _validate_package_timestamp(
             condition_receipt.get("verified_at"),
             f"package human-subject dataset {dataset_id} condition verification time",
         )
@@ -557,6 +641,8 @@ def _validate_packaged_protected_dataset_verification(
             or condition_receipt.get("protocol_hash") != protocol.protocol_hash
             or condition_receipt.get("independent_review_receipt")
             != protocol.independent_review_receipt
+            or condition_receipt.get("assessor") != discharge.get("assessor")
+            or condition_receipt.get("assessed_at") != discharge.get("assessed_at")
         ):
             raise ValidationError(
                 f"package human-subject dataset {dataset_id} ethics condition verification does not match the protocol"
@@ -574,6 +660,7 @@ def _validate_packaged_protected_dataset_verification(
         if (
             not isinstance(condition_results, list)
             or not all(isinstance(item, dict) for item in condition_results)
+            or condition_results != discharge_conditions
             or [item.get("condition") for item in condition_results]
             != list(protocol.independent_review_conditions)
         ):
@@ -589,20 +676,139 @@ def _validate_packaged_protected_dataset_verification(
             raise ValidationError(
                 f"package human-subject dataset {dataset_id} ethics condition location checks changed"
             )
-        for item in location_checks:
-            if item.get("location_kind") == "json_pointer":
-                require_sha256(
-                    item.get("selected_value_sha256"),
-                    f"package human-subject dataset {dataset_id} condition selected_value_sha256",
-                )
-            elif item.get("selected_value_sha256") is not None:
-                raise ValidationError(
-                    f"package human-subject dataset {dataset_id} condition non-JSON location cannot carry a selected value digest"
-                )
-        _validate_packaged_artifact_integrity(
+        verified_time = datetime.fromisoformat(
+            condition_verified_at.replace("Z", "+00:00")
+        )
+        reviewed_time = datetime.fromisoformat(
+            protocol.independent_reviewed_at.replace("Z", "+00:00")
+        )
+        assessed_time = datetime.fromisoformat(
+            condition_receipt["assessed_at"].replace("Z", "+00:00")
+        )
+        if assessed_time < reviewed_time or assessed_time > verified_time:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} ethics condition chronology changed"
+            )
+        artifact_integrity = _validate_packaged_artifact_integrity(
             condition_receipt.get("artifact_integrity"),
             label=f"package human-subject dataset {dataset_id} ethics condition verification",
         )
+        condition_artifact_digests = {
+            item.get("expected_sha256")
+            for item in artifact_integrity.get("artifacts", [])
+            if isinstance(item, dict)
+        }
+        if condition_artifact_digests != discharge_evidence_hashes:
+            raise ValidationError(
+                f"package human-subject dataset {dataset_id} condition evidence artifacts no longer match the integrity receipt"
+            )
+        location_by_condition = {
+            item.get("condition"): item for item in location_checks
+        }
+        any_active_control = False
+        for item in condition_results:
+            if set(item) != {
+                "condition",
+                "compliance_status",
+                "rationale",
+                "evidence_sha256",
+                "evidence_location",
+                "valid_through",
+            }:
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics condition result fields changed"
+                )
+            condition = require_canonical_text(
+                item.get("condition"),
+                f"package human-subject dataset {dataset_id} ethics condition",
+            )
+            status = require_canonical_text(
+                item.get("compliance_status"),
+                f"package human-subject dataset {dataset_id} ethics condition compliance_status",
+            )
+            if status not in {"satisfied", "control_active"}:
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics condition compliance_status changed"
+                )
+            require_canonical_text(
+                item.get("rationale"),
+                f"package human-subject dataset {dataset_id} ethics condition rationale",
+            )
+            evidence_sha = require_sha256(
+                item.get("evidence_sha256"),
+                f"package human-subject dataset {dataset_id} ethics condition evidence_sha256",
+            )
+            if evidence_sha not in condition_artifact_digests:
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics condition evidence digest is not packaged"
+                )
+            evidence_location = require_canonical_text(
+                item.get("evidence_location"),
+                f"package human-subject dataset {dataset_id} ethics condition evidence_location",
+            )
+            valid_through = item.get("valid_through")
+            if status == "control_active":
+                any_active_control = True
+                horizon = datetime.fromisoformat(
+                    _validate_package_timestamp(
+                        valid_through,
+                        f"package human-subject dataset {dataset_id} ethics condition valid_through",
+                    ).replace("Z", "+00:00")
+                )
+                if horizon < verified_time:
+                    raise ValidationError(
+                        f"package human-subject dataset {dataset_id} ethics condition control horizon predates verification"
+                    )
+            elif valid_through is not None:
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} satisfied ethics condition cannot carry a validity horizon"
+                )
+            check = location_by_condition.get(condition)
+            if not isinstance(check, dict):
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics condition location check is missing"
+                )
+            if set(check) != {
+                "condition",
+                "evidence_sha256",
+                "evidence_location",
+                "location_kind",
+                "selected_value_sha256",
+                "status",
+            }:
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics condition location check fields changed"
+                )
+            if (
+                check.get("evidence_sha256") != evidence_sha
+                or check.get("evidence_location") != evidence_location
+            ):
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics condition location check no longer matches the condition result"
+                )
+            location_kind = check.get("location_kind")
+            check_status = check.get("status")
+            if location_kind == "json_pointer":
+                require_sha256(
+                    check.get("selected_value_sha256"),
+                    f"package human-subject dataset {dataset_id} condition selected_value_sha256",
+                )
+                if check_status != "resolved":
+                    raise ValidationError(
+                        f"package human-subject dataset {dataset_id} JSON condition evidence must remain resolved"
+                    )
+            elif location_kind == "human_inspectable":
+                if (
+                    check.get("selected_value_sha256") is not None
+                    or check_status != "recorded_not_machine_resolved"
+                ):
+                    raise ValidationError(
+                        f"package human-subject dataset {dataset_id} human-inspectable condition evidence cannot claim machine resolution"
+                    )
+            else:
+                raise ValidationError(
+                    f"package human-subject dataset {dataset_id} ethics condition location kind changed"
+                )
         if condition_receipt.get("reviewer_identity_authenticated") is not False:
             raise ValidationError(
                 f"package human-subject dataset {dataset_id} condition verification must not authenticate reviewer identity"
@@ -611,9 +817,9 @@ def _validate_packaged_protected_dataset_verification(
             raise ValidationError(
                 f"package human-subject dataset {dataset_id} condition verification must not establish condition truth"
             )
-        if not isinstance(condition_receipt.get("ongoing_controls_require_continued_monitoring"), bool):
+        if condition_receipt.get("ongoing_controls_require_continued_monitoring") is not any_active_control:
             raise ValidationError(
-                f"package human-subject dataset {dataset_id} condition monitoring flag must be boolean"
+                f"package human-subject dataset {dataset_id} condition monitoring flag changed"
             )
     elif condition_receipt is not None:
         raise ValidationError(
