@@ -1056,8 +1056,9 @@ JSON Schemas for provider-neutral exchange artifacts live in
 `schemas/collaborator-proposal.schema.json`, and
 `schemas/collaborator-proposal-review.schema.json`, with synthetic examples in
 `examples/`. They let future plugins and apps preflight the frozen context
-shape, write boundary, proposal shape, and review-only authority boundary before
-the application service repeats hash, reference, and route validation. They do
+shape, typed reference-prefix matching, write boundary, proposal shape, and
+review-only authority boundary before the application service repeats hash,
+reference, and route validation. They do
 not call a provider, modify the inquiry,
 accept a finding, create evidence, or authorize an action. Any accepted idea
 must still be translated deliberately through the normal question, hypothesis,

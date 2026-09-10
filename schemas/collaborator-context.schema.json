@@ -186,6 +186,52 @@
         "ref": {"$ref": "#/$defs/contextRef"},
         "kind": {"$ref": "#/$defs/contextKind"}
       },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "inquiry"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^inquiry:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "open_question"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^question:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "claim"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^claim:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "active_hypothesis"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^hypothesis:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "pending_hypothesis"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^hypothesis:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "evidence"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^evidence:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "evidence_status_event"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^evidence_status_event:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "dataset"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^dataset:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "protocol"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^protocol:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "run"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^run:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "ethics_review_event"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^ethics_review_event:(?:\\S|\\S.*\\S)$"}}}
+        }
+      ],
       "additionalProperties": false
     },
     "openQuestion": {

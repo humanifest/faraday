@@ -1326,7 +1326,9 @@ local custody access. Freezing or later validating a collaborator context now
 fails closed if those operational roots or attestation-schema paths remain
 unredacted or use any marker other than Faraday's exact
 `[redacted: retained in canonical store]` value. The published context schema
-preflights the same marker on known context record types. The reference index is checked against the frozen
+preflights the same marker on known context record types and now requires each
+context-reference kind to use its exact handle prefix, so clients cannot label a
+claim, run, or review event as a different citable record class. The reference index is checked against the frozen
 context body, so every citable handle must correspond to visible read-only
 record content and every visible citable record must appear in the index. When
 that index is nonempty, every proposal suggestion must cite at least one retained

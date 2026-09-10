@@ -727,6 +727,23 @@ def test_collaborator_context_schema_requires_canonical_root_redaction(root_valu
         jsonschema.validate(context, schema)
 
 
+@pytest.mark.parametrize(
+    ("ref", "kind"),
+    [
+        ("claim:claim-1", "active_hypothesis"),
+        ("hypothesis:hyp-1", "claim"),
+        ("evidence:evidence-1", "evidence_status_event"),
+        ("ethics_review_event:event-1", "run"),
+    ],
+)
+def test_collaborator_context_schema_matches_reference_prefix_to_kind(ref, kind):
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    context["context_reference_index"][0] = {"ref": ref, "kind": kind}
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(context, schema)
+
+
 def test_collaborator_proposal_schema_preserves_review_only_boundary():
     schema = json.loads((SCHEMAS / "collaborator-proposal.schema.json").read_text())
     proposal = json.loads((EXAMPLES / "collaborator-proposal.json").read_text())
