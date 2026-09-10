@@ -1347,12 +1347,18 @@ for available and unavailable studies, so a pooled estimate cannot shed the
 reviewed claim boundary, rewrite padded provenance handles, launder source-byte
 anchors, hide malformed arm summaries, or hide studies with missing compatible
 statistics. The same table retains the mapped claim source provenance, the
-retained source-summary digest, plus the independent source-transcription and
-arithmetic verification status for each effect record, and pooling replays the
-retained effect-status contract:
+retained source-summary digest, the exact available-study effect estimate,
+standard error, and variance consumed by pooling, plus the independent
+source-transcription and arithmetic verification status for each effect record,
+and pooling replays the retained effect-status contract:
 available effects must carry clean source and calculation checks, while
 unavailable effects must remain not-applicable rather than acquiring
-after-the-fact numeric-looking verification.
+after-the-fact numeric-looking verification. The meta-analysis boundary also
+recomputes heterogeneity, the selected pooled estimate, confidence interval,
+prediction interval, leave-one-study-out estimates, executable planned
+sensitivities, and small-study-effect diagnostics from those retained numeric
+inputs, so a polished downstream summary cannot silently rewrite the arithmetic
+while preserving tidy-looking intervals.
 Effect records and effect-verification artifacts also carry explicit
 `scientific_evidence_eligible`, `conclusion_authorized`, and
 `publication_authorized` false boundaries plus retained limitations. Verification

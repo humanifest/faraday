@@ -1746,12 +1746,17 @@ three studies exist, leave-one-study-out estimates, and a study-provenance table
 spanning available and unavailable studies. That table retains the mapped claim
 IDs, study risk of bias, retained source-summary digest, and independent
 effect-verification assessment for each record, including mapped claim source
-provenance. It also replays the verification artifact's retained effect status,
-claim source anchors, frozen contrast, and source-summary digest against the
-effect records, so available studies require clean transcription and arithmetic
-checks, unavailable studies retain not-applicable checks, and source-byte,
-source-summary, or registered-comparison provenance cannot be rewritten between
-verification and pooling. Pooling now also requires
+provenance. For available studies it now also retains the exact effect estimate,
+standard error, and variance consumed by pooling, then replays heterogeneity,
+the selected pooled estimate, confidence interval, prediction interval,
+leave-one-study-out estimates, executable planned sensitivities, and
+small-study-effect diagnostics from those retained numeric inputs. It also
+replays the verification artifact's retained effect status, claim source
+anchors, frozen contrast, and source-summary digest against the effect records,
+so available studies require clean transcription and arithmetic checks,
+unavailable studies retain not-applicable checks, and source-byte,
+source-summary, registered-comparison provenance, or pooled arithmetic cannot be
+rewritten between verification and pooling. Pooling now also requires
 reproducibly derived effect records and replays the retained source-summary
 contract, then reports the canonical summaries alongside study provenance so
 malformed arm summaries cannot hide behind a clean verification label.

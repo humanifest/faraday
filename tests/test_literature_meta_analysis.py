@@ -195,6 +195,7 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     ]
     assert result["study_provenance"] == [
         {"study_id": "s1", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-1"],
+         "effect_estimate": 1.0, "effect_standard_error": 1.0, "effect_variance": 1.0,
          "retained_source_summary_sha256": source_summary_digest(source_summary("s1")),
          "mapped_claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim("s1")]}),
          "effect_verification": {"study_id": "s1", "effect_status": "available", "source_values_match": True,
@@ -203,6 +204,7 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
                                  "claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim("s1")]}),
                                  "checked_location": "table 1"}},
         {"study_id": "s2", "effect_status": "available", "risk_of_bias": "low", "mapped_claim_ids": ["claim-2"],
+         "effect_estimate": 2.0, "effect_standard_error": 1.0, "effect_variance": 1.0,
          "retained_source_summary_sha256": source_summary_digest(source_summary("s2")),
          "mapped_claim_source_provenance": claim_source_provenance({"mapped_claims": [mapped_claim("s2")]}),
          "effect_verification": {"study_id": "s2", "effect_status": "available", "source_values_match": True,
@@ -293,6 +295,13 @@ def test_egger_diagnostic_requires_ten_varying_precisions_and_never_declares_bia
     assert diagnostic["study_count"] == 10
     assert len(diagnostic["intercept_confidence_interval_95"]) == 2
     assert diagnostic["publication_bias_conclusion"] is False
+    candidate = copy.deepcopy(result)
+    candidate["small_study_effects"]["slope"] += 1.0
+    with pytest.raises(ValidationError):
+        validate_meta_analysis_boundary(
+            candidate,
+            planned_sensitivity_analyses=json.loads(plan.read_text())["sensitivity_analyses"],
+        )
 
 
 def test_egger_diagnostic_with_constant_precision_is_not_estimable(tmp_path):
@@ -378,19 +387,26 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     "deviation-plan-contrast",
     "deviation-plan-model",
     "model-drift",
+    "retained-effect-estimate",
+    "retained-effect-variance",
+    "unavailable-effect-input",
     "available-count",
     "unavailable-studies",
+    "pooled-estimate",
     "pooled-ci-drift",
+    "heterogeneity-q",
     "heterogeneity-df",
     "fixed-hk-se",
     "prediction-for-fixed",
     "loo-missing",
+    "loo-estimate",
     "loo-ci-drift",
     "retained-summary-digest",
     "planned-sensitivity-list",
     "planned-sensitivity-padding",
     "sensitivity-missing",
     "sensitivity-result-drift",
+    "sensitivity-estimate",
     "small-study-conclusion",
     "small-study-count",
 ])
@@ -431,12 +447,22 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["deviation_plan_commitments"]["statistical_model"] = "random_effects"
     elif tamper == "model-drift":
         candidate["statistical_model"] = "vote_count"
+    elif tamper == "retained-effect-estimate":
+        candidate["study_provenance"][0]["effect_estimate"] += 1.0
+    elif tamper == "retained-effect-variance":
+        candidate["study_provenance"][0]["effect_variance"] += 1.0
+    elif tamper == "unavailable-effect-input":
+        candidate["study_provenance"][-1]["effect_estimate"] = 0.0
     elif tamper == "available-count":
         candidate["available_study_count"] = 99
     elif tamper == "unavailable-studies":
         candidate["unavailable_studies"] = []
+    elif tamper == "pooled-estimate":
+        candidate["pooled_estimate"] += 1.0
     elif tamper == "pooled-ci-drift":
         candidate["confidence_interval_95"][0] = candidate["confidence_interval_95"][0] - 1.0
+    elif tamper == "heterogeneity-q":
+        candidate["heterogeneity"]["q"] += 1.0
     elif tamper == "heterogeneity-df":
         candidate["heterogeneity"]["degrees_of_freedom"] = 99
     elif tamper == "fixed-hk-se":
@@ -445,6 +471,8 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["prediction_interval_95"] = candidate["confidence_interval_95"]
     elif tamper == "loo-missing":
         candidate["leave_one_study_out"].pop()
+    elif tamper == "loo-estimate":
+        candidate["leave_one_study_out"][0]["estimate"] += 1.0
     elif tamper == "loo-ci-drift":
         candidate["leave_one_study_out"][0]["confidence_interval_95_normal_approximation"][1] += 1.0
     elif tamper == "retained-summary-digest":
@@ -457,6 +485,8 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["planned_sensitivity_results"].pop()
     elif tamper == "sensitivity-result-drift":
         candidate["planned_sensitivity_results"][0]["results"] = []
+    elif tamper == "sensitivity-estimate":
+        candidate["planned_sensitivity_results"][2]["estimate"] += 1.0
     elif tamper == "small-study-conclusion":
         candidate["small_study_effects"]["publication_bias_conclusion"] = True
     elif tamper == "small-study-count":
