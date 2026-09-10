@@ -184,6 +184,11 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
 
 
 @pytest.mark.parametrize("tamper", [
+    "version",
+    "input-hash",
+    "input-extra",
+    "plan-id",
+    "snapshot-id",
     "scientific-authority",
     "conclusion-authority",
     "publication-authority",
@@ -208,7 +213,17 @@ def test_literature_synthesis_boundary_replays_output_summaries(tmp_path, tamper
         deviations, deviations_sha, tmp_path / "synthesis",
     )
     candidate = copy.deepcopy(result)
-    if tamper == "scientific-authority":
+    if tamper == "version":
+        candidate["literature_synthesis_version"] = 2
+    elif tamper == "input-hash":
+        candidate["inputs"]["evidence_map_sha256"] = "A" * 64
+    elif tamper == "input-extra":
+        candidate["inputs"]["extra_sha256"] = "0" * 64
+    elif tamper == "plan-id":
+        candidate["plan_id"] = " p1 "
+    elif tamper == "snapshot-id":
+        candidate["snapshot_id"] = " snap "
+    elif tamper == "scientific-authority":
         candidate["scientific_evidence_eligible"] = True
     elif tamper == "conclusion-authority":
         candidate["conclusion_authorized"] = True

@@ -139,6 +139,27 @@ def _validate_extraction_boundary_and_records(
 
 def validate_literature_synthesis_boundary(synthesis: dict[str, Any]) -> None:
     """Replay qualitative synthesis non-authority and retained summary boundaries."""
+    if synthesis.get("literature_synthesis_version") != 1:
+        raise ValidationError("literature synthesis version is invalid")
+    inputs = synthesis.get("inputs")
+    required_inputs = {
+        "synthesis_plan_sha256",
+        "extraction_sha256",
+        "evidence_map_sha256",
+        "synthesis_deviations_sha256",
+    }
+    if not isinstance(inputs, dict) or set(inputs) != required_inputs:
+        raise ValidationError("literature synthesis inputs do not match the documented contract")
+    for key in sorted(required_inputs):
+        require_sha256(inputs.get(key), f"literature synthesis input {key}")
+    for field in (
+        "plan_id",
+        "snapshot_id",
+        "research_question",
+        "primary_outcome",
+        "conclusion_rule",
+    ):
+        _canonical_text(synthesis.get(field), f"literature synthesis {field}")
     if synthesis.get("scientific_evidence_eligible") is not False:
         raise ValidationError("literature synthesis must remain scientifically ineligible")
     if synthesis.get("conclusion_authorized") is not False:

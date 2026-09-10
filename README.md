@@ -1245,12 +1245,13 @@ input. This makes the review trail inspectable while still refusing to turn
 retrieved or reviewer-entered source claims into Faraday scientific evidence.
 The qualitative synthesis artifact now also replays its own retained summaries
 before it is written: scientific-evidence, conclusion, and publication authority
-must remain false; claim and independent-study counts, minimum-study status,
-deviation-derived review status, the embedded deviation-bound plan commitments,
-directional counts, ceiling counts, and the bounded-conclusion wording must
-derive from retained claims and deviation status. This keeps organized source
-claims from becoming an automated substantive conclusion or a rewritten
-prospective synthesis scope.
+must remain false; the versioned input-hash envelope and plan/snapshot/scope
+handles must be retained in canonical form; claim and independent-study counts,
+minimum-study status, deviation-derived review status, the embedded
+deviation-bound plan commitments, directional counts, ceiling counts, and the
+bounded-conclusion wording must derive from retained claims and deviation status.
+This keeps organized source claims from becoming an automated substantive
+conclusion or a rewritten prospective synthesis scope.
 Synthesis-plan freezing likewise rejects padded plan IDs, reviewer text,
 research questions, primary outcomes, effect measures, contrast definitions,
 subgroup and sensitivity entries, policy prose, conclusion rules, deviation
