@@ -2062,7 +2062,10 @@ commitments separate from artifact-bound feasibility review and from scientific
 evidence.
 Temporal-order classification delivery: `measurement assess-temporal-order` now
 binds an independently trusted timing-assessment hash plus a registered
-event-order specification. It compares uncertainty intervals instead of point
+event-order specification. It first replays the complete upstream
+stream-timing assessment record against that trusted hash, so a self-consistent
+timing file whose retained fields imply hidden failures cannot feed downstream
+order classification. It then compares uncertainty intervals instead of point
 timestamps alone, preserving clear first-before-second order, clear reversal,
 registered-window misses, and indeterminate order within measurement uncertainty
 as separate outcomes. Upstream failed timing, missing events, unexpected

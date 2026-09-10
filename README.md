@@ -1708,15 +1708,18 @@ after a trusted timing-feasibility review to classify registered event-order
 checks. Each check names two exact event IDs, an expected relation
 (`first_precedes_second`, `second_precedes_first`, or
 `indeterminate_within_uncertainty`), a minimum separation, a maximum registered
-separation, and the scientific question being protected. Faraday compares
-uncertainty intervals rather than point timestamps alone, so overlapping
-intervals or missed minimum separation are recorded as indeterminate within
-measurement uncertainty. Clear reversals, indeterminate directional checks,
-missing events, upstream failed timing, and clear order outside the registered
-window all fail closed. A passed temporal-order assessment may distinguish clear
-order from reversal or timing indeterminacy, but it still does not establish
-causality, mechanism, intent, calibration truth, dataset registration, or
-scientific evidence. When a run quality gate declares
+separation, and the scientific question being protected. Faraday first replays
+the complete upstream stream-timing assessment record against the trusted hash,
+so a hash-consistent timing file with hidden retained failures cannot become an
+order-classification input. It then compares uncertainty intervals rather than
+point timestamps alone, so overlapping intervals or missed minimum separation
+are recorded as indeterminate within measurement uncertainty. Clear reversals,
+indeterminate directional checks, missing events, upstream failed timing, and
+clear order outside the registered window all fail closed. A passed temporal-
+order assessment may distinguish clear order from reversal or timing
+indeterminacy, but it still does not establish causality, mechanism, intent,
+calibration truth, dataset registration, or scientific evidence. When a run
+quality gate declares
 `details.temporal_order_assessment`, canonical run intake requires the same
 record as a byte-verified output artifact under `artifact_root`, replays its
 retained record hash, upstream timing-assessment hash, specification hash, and

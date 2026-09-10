@@ -980,6 +980,7 @@ def assess_temporal_order(
         raise ValidationError(
             "stream timing assessment does not match expected_timing_assessment_sha256"
         )
+    verify_stream_timing_assessment_record(timing_assessment_file, retained_sha256)
     spec, spec_bytes, spec_sha256 = _load_json_object_and_sha256(
         spec_file, "temporal order assessment specification"
     )

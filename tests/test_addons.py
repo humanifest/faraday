@@ -1893,6 +1893,45 @@ def test_temporal_order_assessment_rejects_untrusted_timing_hash(
     assert not output.exists()
 
 
+def test_temporal_order_assessment_replays_upstream_timing_before_classifying(
+    tmp_path: Path,
+) -> None:
+    from research_machine.measurement.instrument import assess_temporal_order
+
+    events = [
+        {
+            "event_id": "state-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.000000Z",
+        },
+        {
+            "event_id": "sound-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.010000Z",
+        },
+    ]
+    _, timing_record = _write_timing_assessment_with_events(
+        tmp_path, events, name="upstream-hidden-failure"
+    )
+    record = json.loads(timing_record.read_text(encoding="utf-8"))
+    record["events"][0]["stream_start_time"] = "2026-09-06T12:00:04Z"
+    record["findings"] = []
+    record["status"] = "timing_feasibility_passed"
+    timing_record.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(timing_record.read_bytes()).hexdigest()
+
+    order_spec = _write_temporal_order_spec(
+        tmp_path, output_name="upstream-hidden-failure-order-spec.json"
+    )
+    output = tmp_path / "upstream-hidden-failure-order"
+    with pytest.raises(ValidationError, match="passed stream timing assessment record contains failures"):
+        assess_temporal_order(timing_record, trusted_hash, order_spec, output)
+    assert not output.exists()
+
+
 @pytest.mark.parametrize(
     "mutation",
     [

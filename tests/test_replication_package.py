@@ -282,7 +282,31 @@ def _stream_timing_assessment_record() -> dict:
 def _temporal_timing_assessment() -> dict:
     return {
         "stream_timing_assessment_version": 1,
-        "status": "timing_feasibility_passed",
+        "assessment_id": "temporal-order-upstream-timing",
+        "inspection": {
+            "sha256": "1" * 64,
+            "size_bytes": 100,
+            "stream_count": 1,
+            "temporal_metadata_status": "proposed_unverified",
+        },
+        "specification": {
+            "sha256": "2" * 64,
+            "size_bytes": 100,
+            "lag_window": {
+                "duration": 1,
+                "unit": "ms",
+                "seconds": 0.001,
+                "basis": "Synthetic fixture lag window.",
+            },
+            "maximum_uncertainty_fraction": 0.25,
+        },
+        "required_streams": [{
+            "stream_id": "stream-main",
+            "channel": "main",
+            "purpose": "Primary synchronized signal fixture.",
+            "observed_channel": "main",
+            "status": "present",
+        }],
         "events": [
             {
                 "event_id": "state-event",
@@ -290,6 +314,8 @@ def _temporal_timing_assessment() -> dict:
                 "event_time": "2026-09-06T12:00:03.000000Z",
                 "status": "assessed",
                 "clock_uncertainty_seconds": 0.00005,
+                "stream_start_time": "2026-09-06T12:00:00Z",
+                "uncertainty_fraction_of_lag_window": 0.05,
                 "overlapping_missing_intervals": [],
             },
             {
@@ -298,10 +324,20 @@ def _temporal_timing_assessment() -> dict:
                 "event_time": "2026-09-06T12:00:03.010000Z",
                 "status": "assessed",
                 "clock_uncertainty_seconds": 0.00005,
+                "stream_start_time": "2026-09-06T12:00:00Z",
+                "uncertainty_fraction_of_lag_window": 0.05,
                 "overlapping_missing_intervals": [],
             },
         ],
+        "findings": [],
+        "status": "timing_feasibility_passed",
         "scientific_evidence_eligible": False,
+        "authorized_actions": [],
+        "conclusion_ceiling": (
+            "Provider-free timing feasibility review from a trusted inspection record only. "
+            "It does not authenticate acquisition, verify calibration or drift correction, "
+            "clear a protocol gate, register a dataset, or authorize scientific evidence."
+        ),
     }
 
 
