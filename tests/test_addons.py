@@ -1394,6 +1394,7 @@ def test_stream_timing_assessment_preserves_feasible_review_as_non_evidence(
     assert record["specification"]["sha256"] == hashlib.sha256(spec_file.read_bytes()).hexdigest()
     assert record["required_streams"][0]["status"] == "present"
     assert record["events"][0]["clock_uncertainty_seconds"] == 0.00005
+    assert record["events"][0]["stream_start_time"] == "2026-09-06T12:00:00Z"
     assert record["events"][0]["overlapping_missing_intervals"] == []
     assert record["authorized_actions"] == []
     assert "does not authenticate acquisition" in record["conclusion_ceiling"]
@@ -1446,6 +1447,7 @@ def test_stream_timing_assessment_preserves_feasible_review_as_non_evidence(
             "calibration_record": "clock-sync-record-1",
             "quality_flags": ["synthetic-fixture"],
         }], "2026-09-06T12:00:03Z", "CLOCK_UNCERTAINTY_UNIT_NOT_ABSOLUTE"),
+        (None, "2026-09-06T11:59:59.999000Z", "EVENT_PRECEDES_STREAM_START"),
     ],
 )
 def test_stream_timing_assessment_fails_closed_for_unsafe_timing(
@@ -1514,6 +1516,12 @@ def test_stream_timing_assessment_rejects_untrusted_inspection_hash(
                         }
                     ]
                 }
+            ),
+            "contains failures",
+        ),
+        (
+            lambda record: record["events"][0].update(
+                {"stream_start_time": "2026-09-06T12:00:04Z"}
             ),
             "contains failures",
         ),

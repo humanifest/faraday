@@ -784,6 +784,7 @@ def _stream_timing_assessment_record(*, failed: bool = False) -> dict:
             "event_time": "2026-09-06T12:00:03.000000Z",
             "status": "assessed",
             "clock_uncertainty_seconds": 0.00005,
+            "stream_start_time": "2026-09-06T12:00:00Z",
             "uncertainty_fraction_of_lag_window": 0.05,
             "overlapping_missing_intervals": [],
         }],

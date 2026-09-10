@@ -112,6 +112,7 @@ _STREAM_TIMING_REQUIRED_STREAM_OBSERVED_FIELDS = (
 _STREAM_TIMING_EVENT_BASE_FIELDS = {"event_id", "stream_id", "event_time", "status"}
 _STREAM_TIMING_EVENT_ASSESSED_FIELDS = _STREAM_TIMING_EVENT_BASE_FIELDS | {
     "clock_uncertainty_seconds",
+    "stream_start_time",
     "uncertainty_fraction_of_lag_window",
     "overlapping_missing_intervals",
 }
@@ -1493,9 +1494,10 @@ def assess_stream_timing(
             ))
 
         _, parsed_event = _parse_time(event["event_time"], f"timing.events.{event_id}.event_time")
-        _, parsed_stream_start = _parse_time(
+        stream_start_time, parsed_stream_start = _parse_time(
             stream.get("start_time"), f"record.streams.{stream_id}.start_time"
         )
+        event_result["stream_start_time"] = stream_start_time
         if parsed_event < parsed_stream_start:
             findings.append(_finding(
                 "EVENT_PRECEDES_STREAM_START",
@@ -1746,7 +1748,7 @@ def verify_stream_timing_assessment_record(
             raise ValidationError("stream timing assessment events must be unique")
         seen_events.add(event_id)
         _stable_identifier(event.get("stream_id"), f"stream_timing events[{index}].stream_id")
-        _parse_time(event.get("event_time"), f"stream_timing events[{index}].event_time")
+        _, parsed_event = _parse_time(event.get("event_time"), f"stream_timing events[{index}].event_time")
         status = _text(event.get("status"), f"stream_timing events[{index}].status")
         if status not in {
             "assessed",
@@ -1786,6 +1788,14 @@ def verify_stream_timing_assessment_record(
                 event_condition_failures += 1
                 event_failed = True
                 required_error_codes.add("CLOCK_UNCERTAINTY_APPROACHES_LAG_WINDOW")
+            _, parsed_stream_start = _parse_time(
+                event.get("stream_start_time"),
+                f"stream_timing events[{index}].stream_start_time",
+            )
+            if parsed_event < parsed_stream_start:
+                event_condition_failures += 1
+                event_failed = True
+                required_error_codes.add("EVENT_PRECEDES_STREAM_START")
             overlaps = event.get("overlapping_missing_intervals")
             if not isinstance(overlaps, list):
                 raise ValidationError("stream timing assessment overlapping_missing_intervals must be an array")

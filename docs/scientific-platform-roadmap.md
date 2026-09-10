@@ -2021,8 +2021,9 @@ specification. It publishes a deterministic, non-evidentiary
 `stream-timing-assessment.json` that binds the inspection bytes and spec bytes,
 checks required stream/channel presence, converts absolute clock-uncertainty
 units against the registered lag window, rejects relative uncertainty such as
-`ppm` for lag-window comparison, and records failed findings when event
-uncertainty overlaps preserved missing intervals. A passed assessment remains a
+`ppm` for lag-window comparison, retains each assessed event's stream start time,
+and records failed findings when an event predates that start or its uncertainty
+overlaps preserved missing intervals. A passed assessment remains a
 feasibility review only: it does not authenticate acquisition, verify
 calibration or drift correction, clear a protocol gate, register a dataset, or
 authorize evidence. Canonical run intake now treats
@@ -2035,9 +2036,10 @@ a passed gate requires a verified `timing_feasibility_passed` record. The gate's
 unrelated output artifact from anchoring the timing gate. Replay now
 recomputes retained lag-window seconds and event uncertainty fractions, and
 derives retained channel mismatches, missing streams, unsupported uncertainty
-units, excessive uncertainty fractions, and missing-interval overlaps from the
-structured record, so tampered copied arithmetic, a tampered status label, or a
-copied findings list cannot hide timing infeasibility. Retained records whose
+units, excessive uncertainty fractions, event-before-stream-start failures, and
+missing-interval overlaps from the structured record, so tampered copied
+arithmetic, a tampered status label, or a copied findings list cannot hide
+timing infeasibility. Retained records whose
 structured contents imply a failure must also preserve the exact machine finding
 code that explains it. Retained stream, event, overlap, and finding entries must
 now match one exact status-dependent shape, preventing hidden annotations or
@@ -2047,11 +2049,12 @@ feasibility cannot be rewritten into gate clearance, dataset registration, or
 evidence authorization inside a trusted record. Failed
 stream-timing assessments remain recordable only as failed gates, preserving
 missing stream metadata, channel mismatches, unusable uncertainty units, and
-missing-interval overlaps without allowing a favorable summary to overwrite
-them. Rigor, deterministic synthesis, and replication-package verification now
-carry those gates with their exact artifact locator, record hash, inspection
-hash, specification hash, bounded status, and replay-derived counts of required
-streams, stream failures, events, event failures, and findings.
+events before stream starts, and missing-interval overlaps without allowing a
+favorable summary to overwrite them. Rigor, deterministic synthesis, and
+replication-package verification now carry those gates with their exact artifact
+locator, record hash, inspection hash, specification hash, bounded status, and
+replay-derived counts of required streams, stream failures, events, event
+failures, and findings.
 Rigor likewise warns when a protected empirical protocol declares clock-accuracy
 or control-window commitments and has recorded runs, but no run carries a
 structured stream-timing assessment gate; this keeps prospective timing

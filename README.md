@@ -1662,9 +1662,10 @@ event times. Faraday verifies the inspection bytes against the external trust
 anchor and writes a non-evidentiary `stream-timing-assessment.json` that fails
 closed when typed streams are absent, required channels are missing or mismatched,
 clock uncertainty reaches the registered lag-window threshold, uncertainty uses a
-relative unit such as `ppm`, or an event's uncertainty interval overlaps inspected
-missing or corrupted data. Passing this review only says the adapter-proposed
-timing metadata is feasible for the stated lag window; it does not authenticate
+relative unit such as `ppm`, an event predates the inspected stream start, or an
+event's uncertainty interval overlaps inspected missing or corrupted data.
+Passing this review only says the adapter-proposed timing metadata is feasible
+for the stated lag window; it does not authenticate
 acquisition, verify calibration or drift correction, clear a protocol gate,
 register a dataset, or authorize evidence. When a run quality gate declares
 `details.stream_timing_assessment`, canonical run intake requires the same
@@ -1675,8 +1676,9 @@ and rejects a passed gate unless the verified record itself passed. The
 independent verifier now recomputes retained lag-window seconds and event
 uncertainty fractions, and derives retained channel mismatches, absent streams,
 unsupported uncertainty units, excessive uncertainty fractions, and
-missing-interval overlaps from the structured record rather than trusting copied
-arithmetic, copied findings, or a status label. Any retained record whose
+event-before-stream-start failures from each retained event's `stream_start_time`,
+and missing-interval overlaps from the structured record rather than trusting
+copied arithmetic, copied findings, or a status label. Any retained record whose
 structured contents imply a failure must also preserve the exact machine finding
 code that explains it. It also rejects status-incompatible, missing, or hidden
 extra fields in retained stream, event, overlap, and finding entries, so
@@ -1686,7 +1688,8 @@ a trusted timing record from upgrading feasibility into gate clearance,
 registration, or evidence authorization.
 Failed stream-timing assessments may only be retained as failed gates, preserving
 missing stream metadata, channel mismatches, unusable uncertainty units, and
-missing-interval overlaps while blocking required-gate evidence eligibility.
+events before stream starts, and missing-interval overlaps while blocking
+required-gate evidence eligibility.
 Rigor, synthesis, and replication-package verification expose the record
 locator, assessment hash, inspection hash, specification hash, bounded status,
 and replay-derived counts of required streams, stream failures, events, event
