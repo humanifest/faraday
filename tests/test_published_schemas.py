@@ -215,6 +215,67 @@ def test_hypothesis_proposal_schema_pairs_contrast_definition_and_groups(
         jsonschema.validate(command, schema)
 
 
+def _protocol_command_with_component_calibration():
+    command = json.loads((EXAMPLES / "formal-protocol.json").read_text())
+    command["measurement_custody_requirements"] = ["field-map-check"]
+    command["calibration_acceptance_criteria"] = [
+        {
+            "criterion_id": "field-map-residuals",
+            "calibration_id": "field-map",
+            "quantity": "two-axis field-map residual",
+            "unit": "milliunit",
+            "rationale": "Every registered calibration axis remains inside tolerance.",
+            "component_bounds": [
+                {
+                    "component_id": "x-axis",
+                    "quantity": "x-axis residual",
+                    "unit": "milliunit",
+                    "lower_bound": -0.5,
+                    "upper_bound": 0.5,
+                },
+                {
+                    "component_id": "y-axis",
+                    "quantity": "y-axis residual",
+                    "unit": "milliunit",
+                    "lower_bound": -0.5,
+                    "upper_bound": 0.5,
+                },
+            ],
+        }
+    ]
+    return command
+
+
+def test_protocol_schema_accepts_component_calibration_bounds():
+    schema = json.loads((SCHEMAS / "protocol-command.schema.json").read_text())
+    jsonschema.validate(_protocol_command_with_component_calibration(), schema)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda command: command["calibration_acceptance_criteria"][0].update(
+            {"criterion_id": " field-map-residuals "}
+        ),
+        lambda command: command["calibration_acceptance_criteria"][0][
+            "component_bounds"
+        ][0].update({"component_id": " x-axis "}),
+        lambda command: command["calibration_acceptance_criteria"][0].update(
+            {"lower_bound": -0.5}
+        ),
+        lambda command: command["calibration_acceptance_criteria"][0][
+            "component_bounds"
+        ][0].update({"lower_bound": None, "upper_bound": None}),
+    ],
+)
+def test_protocol_schema_preflights_component_calibration_shape(mutation):
+    schema = json.loads((SCHEMAS / "protocol-command.schema.json").read_text())
+    command = _protocol_command_with_component_calibration()
+    mutation(command)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(command, schema)
+
+
 def test_evidence_command_schema_accepts_causal_estimate_tag_without_overclaiming():
     schema = json.loads((SCHEMAS / "evidence-command.schema.json").read_text())
     command = {

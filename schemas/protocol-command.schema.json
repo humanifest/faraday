@@ -5,6 +5,10 @@
   "description": "A domain-neutral protocol. Kind-specific freeze gates are enforced by the application service.",
   "type": "object",
   "$defs": {
+    "canonicalText": {
+      "type": "string",
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
     "causalIdentification": {
       "type": "object",
       "additionalProperties": false,
@@ -88,17 +92,51 @@
       "type": "object", "additionalProperties": false,
       "required": ["criterion_id", "calibration_id", "quantity", "unit", "rationale"],
       "properties": {
-        "criterion_id": {"type": "string", "minLength": 1},
-        "calibration_id": {"type": "string", "minLength": 1},
-        "quantity": {"type": "string", "minLength": 1},
-        "unit": {"type": "string", "minLength": 1},
-        "rationale": {"type": "string", "minLength": 1},
+        "criterion_id": {"$ref": "#/$defs/canonicalText"},
+        "calibration_id": {"$ref": "#/$defs/canonicalText"},
+        "quantity": {"$ref": "#/$defs/canonicalText"},
+        "unit": {"$ref": "#/$defs/canonicalText"},
+        "rationale": {"$ref": "#/$defs/canonicalText"},
         "lower_bound": {"type": ["number", "null"]},
-        "upper_bound": {"type": ["number", "null"]}
+        "upper_bound": {"type": ["number", "null"]},
+        "component_bounds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["component_id", "quantity", "unit", "lower_bound", "upper_bound"],
+            "properties": {
+              "component_id": {"$ref": "#/$defs/canonicalText"},
+              "quantity": {"$ref": "#/$defs/canonicalText"},
+              "unit": {"$ref": "#/$defs/canonicalText"},
+              "lower_bound": {"type": ["number", "null"]},
+              "upper_bound": {"type": ["number", "null"]}
+            },
+            "anyOf": [
+              {"properties": {"lower_bound": {"type": "number"}}},
+              {"properties": {"upper_bound": {"type": "number"}}}
+            ]
+          }
+        }
       },
-      "anyOf": [
-        {"required": ["lower_bound"], "properties": {"lower_bound": {"type": "number"}}},
-        {"required": ["upper_bound"], "properties": {"upper_bound": {"type": "number"}}}
+      "allOf": [
+        {
+          "if": {"required": ["component_bounds"]},
+          "then": {
+            "properties": {
+              "lower_bound": {"type": "null"},
+              "upper_bound": {"type": "null"}
+            }
+          },
+          "else": {
+            "anyOf": [
+              {"required": ["lower_bound"], "properties": {"lower_bound": {"type": "number"}}},
+              {"required": ["upper_bound"], "properties": {"upper_bound": {"type": "number"}}}
+            ]
+          }
+        }
       ]
     },
     "measurementValidityCheck": {

@@ -1618,6 +1618,9 @@ quality gates, and the exact transformation output behind each derived
 observation. Custody-bearing protocols freeze quantitative calibration criteria
 (criterion and calibration IDs, quantity, unit, rationale, and either scalar
 lower and/or upper bounds or an exact ordered set of component bounds).
+The published protocol-command schema exposes the same component-bound shape and
+rejects padded calibration/component handles or scalar-and-component mixing
+before provider-neutral clients submit the command.
 Registration checks each observed value and unit against the frozen scalar or
 component contract; a written `passed` status alone is insufficient. A protocol with calibration requirements must name the custody
 gates that clear registration. Protected registration now also requires
