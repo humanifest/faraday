@@ -41,6 +41,15 @@ family and must record `multiplicity_alpha`; exploratory protocols must classify
 every outcome as exploratory and use `exploratory_only` without an alpha. The
 provider-free design interview creates this structure before protocol review.
 
+Protocols that declare temporal control windows must also declare a prospective
+clock-accuracy or synchronization requirement before the draft can enter the
+canonical store. Sensor requirements and control-window labels are rejected when
+they duplicate another label after case-insensitive normalization, so acquisition
+plans cannot double-count a required stream or baseline by spelling variation.
+These commitments are hash-bound when the protocol is frozen. They document the
+required timing boundary; they do not prove clock accuracy, synchronization, or
+sensor custody.
+
 For Holm-controlled protocols, that outcome plan is now backed by a frozen
 multi-step analysis workflow. The primary effect estimate is distinct from each
 explicit `confirmatory_test`; every test binds its method, exact specification

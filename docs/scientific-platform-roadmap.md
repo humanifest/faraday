@@ -114,6 +114,13 @@ methods without changing its epistemic rules or canonical state.
   digest, byte count, and constrained `analysis-result.json` or redacted
   locator to match a declared packaged run artifact, and the retained result
   body must hash back to that exact output before structured gates may cite it.
+- Canonical protocol construction repeats the guided acquisition-timing boundary:
+  declared temporal control windows require an explicit clock-accuracy or
+  synchronization commitment, and sensor/control-window labels must remain
+  unique after case-insensitive normalization. This keeps copied review drafts
+  and hand-authored protocol JSON from weakening the prospective timing record;
+  it remains a design commitment, not proof that clocks, sensors, custody, or
+  synchronization were valid in execution.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit

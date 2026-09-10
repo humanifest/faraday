@@ -2174,6 +2174,73 @@ def test_design_declaration_roundtrips_and_is_hash_bound(tmp_path):
     assert service.verify_ledger()["valid"]
 
 
+def test_canonical_protocol_requires_clock_accuracy_for_control_windows(tmp_path):
+    service, hypothesis = prepared_service(tmp_path)
+    base = frozen_formal_protocol(service, hypothesis)
+    values = {field.name: getattr(base, field.name) for field in fields(CreateProtocol)}
+
+    with pytest.raises(ValidationError, match="clock_accuracy_requirement"):
+        service.create_protocol(CreateProtocol(**{
+            **values,
+            "experiment_id": "temporal-window-without-clock",
+            "clock_accuracy_requirement": "",
+            "control_windows": ["pre-event baseline"],
+        }))
+
+    draft = service.create_protocol(CreateProtocol(**{
+        **values,
+        "experiment_id": "temporal-window-with-clock",
+        "sensor_requirements": ["audio recorder at 48 kHz", "event marker stream"],
+        "clock_accuracy_requirement": "Clock drift remains below 10 ms.",
+        "control_windows": ["pre-event baseline"],
+    }))
+    frozen = service.freeze_protocol(draft.protocol_id)
+    restored = ExperimentProtocol.from_dict(frozen.to_dict())
+
+    assert restored.sensor_requirements == [
+        "audio recorder at 48 kHz",
+        "event marker stream",
+    ]
+    assert restored.clock_accuracy_requirement == "Clock drift remains below 10 ms."
+    assert restored.control_windows == ["pre-event baseline"]
+    assert _protocol_commitment(restored) == frozen.protocol_hash
+    assert _protocol_commitment(
+        replace(restored, clock_accuracy_requirement="Clock drift remains below 50 ms.")
+    ) != frozen.protocol_hash
+    assert service.verify_ledger()["valid"]
+
+
+@pytest.mark.parametrize(
+    ("override", "message"),
+    [
+        (
+            {"sensor_requirements": ["audio recorder", "Audio Recorder"]},
+            "sensor_requirements",
+        ),
+        (
+            {
+                "clock_accuracy_requirement": "Clock drift remains below 10 ms.",
+                "control_windows": ["pre-event baseline", "Pre-Event Baseline"],
+            },
+            "control_windows",
+        ),
+    ],
+)
+def test_canonical_protocol_rejects_duplicate_acquisition_labels(
+    tmp_path, override, message
+):
+    service, hypothesis = prepared_service(tmp_path)
+    base = frozen_formal_protocol(service, hypothesis)
+    values = {field.name: getattr(base, field.name) for field in fields(CreateProtocol)}
+
+    with pytest.raises(ValidationError, match=message):
+        service.create_protocol(CreateProtocol(**{
+            **values,
+            "experiment_id": f"duplicate-{message.replace('_', '-')}",
+            **override,
+        }))
+
+
 def test_protocol_design_check_rejects_internally_inconsistent_unit_receipt(tmp_path):
     service, hypothesis = prepared_service(tmp_path)
     base = frozen_formal_protocol(service, hypothesis)

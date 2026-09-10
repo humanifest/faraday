@@ -5624,6 +5624,31 @@ class ResearchService:
         else:
             sample_size_plan = {}
         protocol_id = f"{protocol_family_id}-v{version}"
+        sensor_requirements = require_text_list(
+            command.sensor_requirements, "sensor_requirements"
+        )
+        if len({item.casefold() for item in sensor_requirements}) != len(
+            sensor_requirements
+        ):
+            raise ValidationError(
+                "sensor_requirements must not contain duplicate labels ignoring case"
+            )
+        control_windows = require_text_list(
+            command.control_windows, "control_windows"
+        )
+        if len({item.casefold() for item in control_windows}) != len(
+            control_windows
+        ):
+            raise ValidationError(
+                "control_windows must not contain duplicate labels ignoring case"
+            )
+        clock_accuracy_requirement = normalize_text(
+            command.clock_accuracy_requirement, "clock_accuracy_requirement"
+        )
+        if control_windows and not clock_accuracy_requirement:
+            raise ValidationError(
+                "control_windows require a clock_accuracy_requirement"
+            )
         return ExperimentProtocol(
             protocol_id=protocol_id,
             protocol_family_id=protocol_family_id,
@@ -5706,9 +5731,7 @@ class ResearchService:
             exclusion_rules=require_text_list(
                 command.exclusion_rules, "exclusion_rules"
             ),
-            sensor_requirements=require_text_list(
-                command.sensor_requirements, "sensor_requirements"
-            ),
+            sensor_requirements=sensor_requirements,
             calibration_requirements=require_text_list(
                 command.calibration_requirements, "calibration_requirements"
             ),
@@ -5717,18 +5740,14 @@ class ResearchService:
                 command.measurement_custody_requirements,
                 "measurement_custody_requirements",
             ),
-            clock_accuracy_requirement=normalize_text(
-                command.clock_accuracy_requirement, "clock_accuracy_requirement"
-            ),
+            clock_accuracy_requirement=clock_accuracy_requirement,
             preprocessing_pipeline=normalize_text(
                 command.preprocessing_pipeline, "preprocessing_pipeline"
             ),
             statistical_model=normalize_text(
                 command.statistical_model, "statistical_model"
             ),
-            control_windows=require_text_list(
-                command.control_windows, "control_windows"
-            ),
+            control_windows=control_windows,
             multiple_testing_policy=normalize_text(
                 command.multiple_testing_policy, "multiple_testing_policy"
             ),
