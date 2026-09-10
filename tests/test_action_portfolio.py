@@ -52,6 +52,8 @@ def candidate(
     factor_interpretability_plan: str = "",
     distinguishes_hypotheses: list[str] | None = None,
     hypothesis_discrimination_targets: list[HypothesisDiscriminationTarget] | None = None,
+    prerequisite_evidence_refs: list[str] | None = None,
+    safety_review_refs: list[str] | None = None,
 ) -> ActionCandidate:
     return ActionCandidate(
         action_id=action_id,
@@ -65,6 +67,16 @@ def candidate(
         safety_risk=0.0,
         ambiguity_risk=0.1,
         rationale=f"Reduce uncertainty in {lane_id}.",
+        prerequisite_evidence_refs=(
+            [f"prerequisite-review:{action_id}"]
+            if prerequisite_evidence_refs is None
+            else prerequisite_evidence_refs
+        ),
+        safety_review_refs=(
+            [f"safety-review:{action_id}"]
+            if safety_review_refs is None
+            else safety_review_refs
+        ),
         safety_approved=safety_approved,
         lane_id=lane_id,
         depends_on=depends_on or [],
@@ -148,6 +160,11 @@ def test_portfolio_selects_one_action_per_active_lane_without_starvation(
     )
     assert "machine: utility 1.365" in synthesis
     assert "expected_discrimination 1" in synthesis
+    assert (
+        "Eligibility basis: machine: prerequisites_met=True via "
+        "prerequisite-review:machine-high; safety_approved=True via "
+        "safety-review:machine-high" in synthesis
+    )
     assert (
         "Payload commitment: " + recommendation.recommendation_payload_sha256
         in synthesis
@@ -378,6 +395,119 @@ def test_legacy_sealed_recommendation_without_workflow_states_remains_readable(
     )
     assert selected.hypothesis_workflow_states == {}
     assert "legacy_state_missing" in service.build_synthesis()["content"]
+
+
+def test_new_action_recommendations_require_eligibility_basis(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    with pytest.raises(
+        ValidationError,
+        match="must retain prerequisite_evidence_refs",
+    ):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate(
+                        "missing-prerequisite-basis",
+                        "machine",
+                        0.9,
+                        prerequisite_evidence_refs=[],
+                    ),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+    with pytest.raises(
+        ValidationError,
+        match="must retain safety_review_refs",
+    ):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate(
+                        "missing-safety-basis",
+                        "machine",
+                        0.9,
+                        safety_review_refs=[],
+                    ),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+
+
+def test_recommendation_reads_replay_eligibility_basis(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate("machine-high", "machine", 1.0),
+                candidate("theory-best", "theory", 0.6),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["candidates"][0]["prerequisite_evidence_refs"] = []
+    payload["recommendation_payload_sha256"] = ""
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="must retain prerequisite_evidence_refs",
+    ):
+        service.list_recommendations()
+
+
+def test_legacy_sealed_recommendation_without_eligibility_basis_remains_visible(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate("legacy-machine", "machine", 0.9),
+                candidate("legacy-theory", "theory", 0.7),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    for item in payload["candidates"]:
+        item.pop("prerequisite_evidence_refs", None)
+        item.pop("safety_review_refs", None)
+    payload_without_commitment = dict(payload)
+    payload_without_commitment.pop("recommendation_payload_sha256", None)
+    payload["recommendation_payload_sha256"] = hashlib.sha256(
+        json.dumps(
+            payload_without_commitment,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    recommendation = service.list_recommendations()[0]
+    assert recommendation.candidates[0].prerequisite_evidence_refs == []
+    synthesis = service.build_synthesis()["content"]
+    assert (
+        "Eligibility basis: machine: prerequisites_met=True via legacy_missing"
+        in synthesis
+    )
 
 
 def test_recommendation_reads_replay_ranked_score_components(
@@ -1102,6 +1232,32 @@ def test_multi_factor_actions_require_factorial_or_crossover_interpretability(
             ],
             [],
             "factor_interpretability_plan must be canonical",
+        ),
+        (
+            [ActionLane("machine", "Machine")],
+            [
+                candidate(
+                    "action-a",
+                    "machine",
+                    0.8,
+                    prerequisite_evidence_refs=[" review:a "],
+                )
+            ],
+            [],
+            "prerequisite_evidence_refs item must be canonical",
+        ),
+        (
+            [ActionLane("machine", "Machine")],
+            [
+                candidate(
+                    "action-a",
+                    "machine",
+                    0.8,
+                    safety_review_refs=[" review:a "],
+                )
+            ],
+            [],
+            "safety_review_refs item must be canonical",
         ),
     ],
 )

@@ -93,6 +93,10 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
                         "burden": 0.1,
                         "safety_risk": 0.0,
                         "ambiguity_risk": 0.1,
+                        "prerequisite_evidence_refs": [
+                            "design-review:machine-audit"
+                        ],
+                        "safety_review_refs": ["safety-review:machine-audit"],
                         "rationale": "Probe a machine invariant.",
                         "lane_id": "machine",
                     },
@@ -107,6 +111,10 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
                         "burden": 0.1,
                         "safety_risk": 0.0,
                         "ambiguity_risk": 0.1,
+                        "prerequisite_evidence_refs": [
+                            "design-review:science-falsifier"
+                        ],
+                        "safety_review_refs": ["safety-review:science-falsifier"],
                         "rationale": "Probe the cheapest scientific failure.",
                         "lane_id": "science",
                     },
@@ -789,6 +797,10 @@ def test_cli_records_general_protocol_run_and_next_action(
                         "burden": 0.1,
                         "safety_risk": 0.0,
                         "ambiguity_risk": 0.1,
+                        "prerequisite_evidence_refs": [
+                            "design-review:independent-check"
+                        ],
+                        "safety_review_refs": ["safety-review:independent-check"],
                         "rationale": "A second checker probes implementation dependence.",
                     }
                 ]

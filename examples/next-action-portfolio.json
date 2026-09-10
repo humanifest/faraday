@@ -21,6 +21,8 @@
       "burden": 0.2,
       "safety_risk": 0.0,
       "ambiguity_risk": 0.1,
+      "prerequisite_evidence_refs": ["design-review:measurement-contract-audit"],
+      "safety_review_refs": ["safety-review:software-only-audit"],
       "rationale": "Tests whether the machine rejects an omitted measurement parameter.",
       "lane_id": "machine"
     },
@@ -44,6 +46,8 @@
       "burden": 0.2,
       "safety_risk": 0.0,
       "ambiguity_risk": 0.1,
+      "prerequisite_evidence_refs": ["design-review:cheap-falsifier-ready"],
+      "safety_review_refs": ["safety-review:bounded-falsifier"],
       "rationale": "Eliminates an ill-typed or non-tangent candidate before expensive work.",
       "lane_id": "substantive",
       "depends_on": []

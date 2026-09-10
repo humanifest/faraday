@@ -842,6 +842,8 @@ class ActionCandidate(Serializable):
     hypothesis_workflow_states: dict[str, str] = field(default_factory=dict)
     prerequisites_met: bool = True
     safety_approved: bool = True
+    prerequisite_evidence_refs: list[str] = field(default_factory=list)
+    safety_review_refs: list[str] = field(default_factory=list)
     lane_id: str = "default"
     information_targets: list[str] = field(default_factory=list)
     depends_on: list[str] = field(default_factory=list)
@@ -855,6 +857,8 @@ class ActionCandidate(Serializable):
         copied = dict(value)
         copied.setdefault("hypothesis_discrimination_targets", [])
         copied.setdefault("hypothesis_workflow_states", {})
+        copied.setdefault("prerequisite_evidence_refs", [])
+        copied.setdefault("safety_review_refs", [])
         copied["hypothesis_discrimination_targets"] = [
             item
             if isinstance(item, HypothesisDiscriminationTarget)

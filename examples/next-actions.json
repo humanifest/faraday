@@ -19,6 +19,8 @@
       "burden": 0.1,
       "safety_risk": 0.0,
       "ambiguity_risk": 0.1,
+      "prerequisite_evidence_refs": ["design-review:independent-proof-check"],
+      "safety_review_refs": ["safety-review:noninterventional-replay"],
       "rationale": "Tests whether the result depends on one checker implementation."
     }
   ]

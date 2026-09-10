@@ -41,6 +41,8 @@
           "safety_risk",
           "ambiguity_risk",
           "rationale",
+          "prerequisite_evidence_refs",
+          "safety_review_refs",
           "lane_id"
         ],
         "properties": {
@@ -88,6 +90,18 @@
           "rationale": {"type": "string", "minLength": 1},
           "prerequisites_met": {"type": "boolean", "default": true},
           "safety_approved": {"type": "boolean", "default": true},
+          "prerequisite_evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          },
+          "safety_review_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          },
           "lane_id": {"type": "string", "minLength": 1},
           "depends_on": {
             "type": "array",

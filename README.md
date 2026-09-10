@@ -1980,6 +1980,12 @@ typed `information_targets` instead of pretending to distinguish a scientific
 hypothesis. Action IDs, lane IDs, hypothesis distinctions, information targets,
 dependency handles, completed-action IDs, and blocked-lane reasons must be
 canonical without surrounding whitespace before ranking or lane balancing.
+Each candidate must also retain at least one canonical
+`prerequisite_evidence_refs` handle and one canonical `safety_review_refs`
+handle for its declared prerequisite and safety status. These references make
+the selector's eligibility basis auditable; they do not prove that the cited
+review was correct, authenticate the reviewer, or authorize the work outside
+the relevant protocol, ethics, and execution gates.
 The single `next-action recommend` path has no completed-action graph, so it
 rejects candidates with `depends_on`; dependent actions must use portfolio
 selection where completed actions and dependency acyclicity can be replayed.
@@ -2006,9 +2012,10 @@ synthesis so pending-review proposals cannot be reported as approved hypotheses.
 The published next-action schemas expose the caller-supplied discriminator and
 factor-plan fields while continuing to reject service-derived workflow-state
 claims.
-Deterministic synthesis reports the selected actions' manipulated-factor plan
-and design status so later reviewers can see whether the recommendation changes
-one factor, no declared factor, or a declared factorial/crossover structure.
+Deterministic synthesis reports the selected actions' eligibility references,
+manipulated-factor plan, and design status so later reviewers can see why the
+action was selectable and whether the recommendation changes one factor, no
+declared factor, or a declared factorial/crossover structure.
 It also reports the selected actions' retained hypothesis-discrimination targets
 so action selection remains tied to falsifiable observations rather than only to
 utility scores.
@@ -2025,25 +2032,28 @@ Each ranked score preserves the signed weighted contribution of expected
 discrimination, uncertainty reduction, cost, burden, safety risk, and ambiguity
 risk, and deterministic synthesis reports the selected actions' components so
 the tradeoff remains inspectable. Authoritative recommendation reads revalidate
-those candidate identities, target declarations, weight inputs, and
-candidate-score inputs, then replay the selected action, lane selections, ranked
-utilities, and signed components from the stored candidates, lanes,
-dependencies, completed actions, weights, and hypothesis-discrimination targets,
-including the requirement that target and alternative expectations remain
-distinct. Portfolio replay also revalidates lane status, blocking reasons,
-candidate lane membership, completed-action IDs, and dependency acyclicity, so
-an edited recommendation cannot hide an unsafe or impossible work plan behind
-stale score arithmetic. Single-mode replay rejects portfolio-only lane
-selection fields and dependent candidates for the same reason. Mismatches fail
-before list, inquiry display, or synthesis can use a stale score record. New recommendations also
-retain a service-generated
+those candidate identities, eligibility references, target declarations, weight
+inputs, and candidate-score inputs, then replay the selected action, lane
+selections, ranked utilities, and signed components from the stored candidates,
+lanes, dependencies, completed actions, weights, and
+hypothesis-discrimination targets, including the requirement that target and
+alternative expectations remain distinct. Portfolio replay also revalidates
+lane status, blocking reasons, candidate lane membership, completed-action IDs,
+and dependency acyclicity, so an edited recommendation cannot hide an unsafe or
+impossible work plan behind stale score arithmetic. Single-mode replay rejects
+portfolio-only lane selection fields and dependent candidates for the same
+reason. Mismatches fail before list, inquiry display, or synthesis can use a
+stale score record. New recommendations also retain a service-generated
 `recommendation_payload_sha256` over the complete immutable recommendation
 outside that field itself, so a canonical rewrite of a candidate rationale,
-hypothesis-discrimination target, lane context, completed dependency, weight,
-score, or selected action fails before it can influence later reports. Legacy
+hypothesis-discrimination target, eligibility reference, lane context,
+completed dependency, weight, score, or selected action fails before it can
+influence later reports. Legacy
 uncommitted recommendations remain readable only as legacy records when their
 scoring inputs still satisfy the current utility contract; they are not silently
-upgraded. If the top utility is tied, Faraday
+upgraded, and older sealed records without eligibility references are reported
+with `legacy_missing` rather than treated as fully anchored. If the top utility
+is tied, Faraday
 rejects the selection until the utility model or candidate estimates distinguish
 the actions. The resulting recommendation remains an immutable, ledgered record;
 it does not establish scientific independence or satisfy a promotion gate.

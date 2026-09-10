@@ -1515,6 +1515,8 @@ def _action_candidates(spec: dict[str, Any]) -> list[ActionCandidate]:
         "rationale",
         "prerequisites_met",
         "safety_approved",
+        "prerequisite_evidence_refs",
+        "safety_review_refs",
         "lane_id",
         "information_targets",
         "depends_on",

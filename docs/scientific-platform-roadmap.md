@@ -18,7 +18,11 @@ methods without changing its epistemic rules or canonical state.
   feasible actions with explicit utility weights. Action IDs, lane IDs,
   hypothesis distinctions, information targets, dependency handles,
   completed-action IDs, blocked-lane reasons, and manipulated-factor handles
-  must be canonical before ranking or lane balancing. Candidates that claim to
+  must be canonical before ranking or lane balancing. Each candidate must also
+  retain canonical prerequisite and safety-review references for its declared
+  eligibility status; these references make selection auditable without
+  authenticating the reviewer, proving the judgment correct, or authorizing the
+  work outside protocol and ethics gates. Candidates that claim to
   distinguish hypotheses must now retain exact
   `hypothesis_discrimination_targets`: one canonical target for every named
   hypothesis, including the discriminating observation, the expected result
@@ -45,7 +49,10 @@ methods without changing its epistemic rules or canonical state.
   factor plan, design status, and retained hypothesis-discrimination targets,
   and protocol-level rigor and synthesis now expose frozen manipulated-factor
   interpretability plans while flagging legacy simultaneous interventions that
-  remain unresolved. The weight vector must contain finite,
+  remain unresolved. Synthesis also reports selected candidates' eligibility
+  references and marks older sealed recommendations without them as
+  `legacy_missing` rather than treating bare booleans as fully anchored. The
+  weight vector must contain finite,
   non-negative values with at least one positive utility term, so recommendation
   provenance does not depend on silent whitespace normalization, non-finite
   arithmetic, or lexicographic action identifiers. Ranked scores now retain the
@@ -58,17 +65,19 @@ methods without changing its epistemic rules or canonical state.
   targets before list, inquiry display, or synthesis can trust them. Replay now
   revalidates unique candidate identities, target declarations, discriminator
   contrast, lane status, blocking reasons, candidate lane membership,
-  completed-action IDs, dependency acyclicity, weight vector, and candidate
-  score inputs before recomputing those choices, so a legacy record cannot
-  remain trusted merely because invalid work-plan structure, weights, and scores
-  were rewritten consistently. Single-mode replay also rejects portfolio-only
+  completed-action IDs, dependency acyclicity, eligibility references, weight
+  vector, and candidate score inputs before recomputing those choices, so a
+  legacy record cannot remain trusted merely because invalid work-plan
+  structure, weights, and scores were rewritten consistently. Single-mode
+  replay also rejects portfolio-only
   lane selection fields and dependent candidates, preventing a stored
   single-action recommendation from smuggling in unreplayed work-plan state.
   New recommendations also carry
   a service-generated payload commitment over the complete immutable
   recommendation, excluding only that commitment field, so canonical rewrites of
-  rationales, discriminator targets, lane context, dependencies, weights,
-  scores, or selections are detected even when utility replay still matches.
+  rationales, discriminator targets, eligibility references, lane context,
+  dependencies, weights, scores, or selections are detected even when utility
+  replay still matches.
   Legacy uncommitted recommendations remain visible only when they satisfy the
   current scoring-input contract and are not silently upgraded. The selected
   action must have a unique highest utility; tied top candidates require a

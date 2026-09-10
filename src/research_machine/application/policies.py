@@ -2473,6 +2473,22 @@ def validate_action_candidates(
             raise ValidationError("prerequisites_met must be true or false")
         if not isinstance(candidate.safety_approved, bool):
             raise ValidationError("safety_approved must be true or false")
+        prerequisite_evidence_refs = require_unique_canonical_text_list(
+            candidate.prerequisite_evidence_refs, "prerequisite_evidence_refs"
+        )
+        safety_review_refs = require_unique_canonical_text_list(
+            candidate.safety_review_refs, "safety_review_refs"
+        )
+        if not prerequisite_evidence_refs:
+            raise ValidationError(
+                f"action {action_id} must retain prerequisite_evidence_refs "
+                "for its prerequisite status"
+            )
+        if not safety_review_refs:
+            raise ValidationError(
+                f"action {action_id} must retain safety_review_refs for its "
+                "safety approval status"
+            )
         if not isinstance(candidate.factorial_or_crossover_design, bool):
             raise ValidationError(
                 "factorial_or_crossover_design must be true or false"
@@ -2531,6 +2547,8 @@ def validate_action_candidates(
                 hypothesis_workflow_states=hypothesis_workflow_states,
                 prerequisites_met=candidate.prerequisites_met,
                 safety_approved=candidate.safety_approved,
+                prerequisite_evidence_refs=prerequisite_evidence_refs,
+                safety_review_refs=safety_review_refs,
                 lane_id=require_canonical_text(candidate.lane_id, "lane_id"),
                 information_targets=information_targets,
                 depends_on=depends_on,

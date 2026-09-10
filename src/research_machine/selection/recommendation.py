@@ -98,7 +98,11 @@ def _validate_selection_weights_for_replay(weights: SelectionWeights) -> None:
         )
 
 
-def _validate_candidate_score_inputs_for_replay(candidate: ActionCandidate) -> None:
+def _validate_candidate_score_inputs_for_replay(
+    candidate: ActionCandidate,
+    *,
+    allow_legacy_missing_eligibility_basis: bool = False,
+) -> None:
     if not isinstance(candidate, ActionCandidate):
         raise ValidationError("candidates must contain ActionCandidate values")
     _require_canonical_text(candidate.action_id, "action_id")
@@ -125,6 +129,25 @@ def _validate_candidate_score_inputs_for_replay(candidate: ActionCandidate) -> N
         raise ValidationError("prerequisites_met must be true or false")
     if not isinstance(candidate.safety_approved, bool):
         raise ValidationError("safety_approved must be true or false")
+    prerequisite_evidence_refs = _require_unique_canonical_text_list(
+        candidate.prerequisite_evidence_refs, "prerequisite_evidence_refs"
+    )
+    safety_review_refs = _require_unique_canonical_text_list(
+        candidate.safety_review_refs, "safety_review_refs"
+    )
+    if (
+        not allow_legacy_missing_eligibility_basis
+        and not prerequisite_evidence_refs
+    ):
+        raise ValidationError(
+            f"action {candidate.action_id} must retain prerequisite_evidence_refs "
+            "for its prerequisite status"
+        )
+    if not allow_legacy_missing_eligibility_basis and not safety_review_refs:
+        raise ValidationError(
+            f"action {candidate.action_id} must retain safety_review_refs for "
+            "its safety approval status"
+        )
     if not isinstance(candidate.factorial_or_crossover_design, bool):
         raise ValidationError("factorial_or_crossover_design must be true or false")
     if not isinstance(candidate.factor_interpretability_plan, str):
@@ -261,14 +284,22 @@ def _validate_discrimination_text_contrast(
 
 
 def rank_actions(
-    candidates: list[ActionCandidate], weights: SelectionWeights
+    candidates: list[ActionCandidate],
+    weights: SelectionWeights,
+    *,
+    allow_legacy_missing_eligibility_basis: bool = False,
 ) -> list[ActionScore]:
     """Rank safe, currently feasible actions using an auditable utility function."""
 
     _validate_selection_weights_for_replay(weights)
     seen_action_ids: set[str] = set()
     for candidate in candidates:
-        _validate_candidate_score_inputs_for_replay(candidate)
+        _validate_candidate_score_inputs_for_replay(
+            candidate,
+            allow_legacy_missing_eligibility_basis=(
+                allow_legacy_missing_eligibility_basis
+            ),
+        )
         _validate_discrimination_target_replay(candidate)
         if (
             not candidate.distinguishes_hypotheses
@@ -318,11 +349,20 @@ def rank_actions_by_lane(
     lanes: list[ActionLane],
     completed_action_ids: list[str],
     weights: SelectionWeights,
+    *,
+    allow_legacy_missing_eligibility_basis: bool = False,
 ) -> dict[str, list[ActionScore]]:
     """Rank feasible actions separately so one active lane cannot starve another."""
 
     _validate_selection_weights_for_replay(weights)
-    _validate_portfolio_replay_inputs(candidates, lanes, completed_action_ids)
+    _validate_portfolio_replay_inputs(
+        candidates,
+        lanes,
+        completed_action_ids,
+        allow_legacy_missing_eligibility_basis=(
+            allow_legacy_missing_eligibility_basis
+        ),
+    )
     completed = set(completed_action_ids)
     rankings: dict[str, list[ActionScore]] = {}
     for lane in lanes:
@@ -341,7 +381,13 @@ def rank_actions_by_lane(
             raise ValidationError(
                 f"active lane {lane.lane_id} has no safe, dependency-complete action"
             )
-        rankings[lane.lane_id] = rank_actions(eligible, weights)
+        rankings[lane.lane_id] = rank_actions(
+            eligible,
+            weights,
+            allow_legacy_missing_eligibility_basis=(
+                allow_legacy_missing_eligibility_basis
+            ),
+        )
     return rankings
 
 
@@ -364,6 +410,8 @@ def _validate_portfolio_replay_inputs(
     candidates: list[ActionCandidate],
     lanes: list[ActionLane],
     completed_action_ids: list[str],
+    *,
+    allow_legacy_missing_eligibility_basis: bool = False,
 ) -> None:
     if not lanes:
         raise ValidationError("at least one action lane is required")
@@ -379,7 +427,12 @@ def _validate_portfolio_replay_inputs(
         raise ValidationError("at least one action lane must be active")
     action_ids: set[str] = set()
     for candidate in candidates:
-        _validate_candidate_score_inputs_for_replay(candidate)
+        _validate_candidate_score_inputs_for_replay(
+            candidate,
+            allow_legacy_missing_eligibility_basis=(
+                allow_legacy_missing_eligibility_basis
+            ),
+        )
         _validate_discrimination_target_replay(candidate)
         if candidate.action_id in action_ids:
             raise ValidationError(f"duplicate action_id: {candidate.action_id}")
@@ -434,6 +487,7 @@ def _recommendation_payload(
     recommendation: ActionRecommendation,
     *,
     include_hypothesis_workflow_states: bool = True,
+    include_eligibility_basis: bool = True,
 ) -> dict[str, object]:
     payload = recommendation.to_dict()
     payload.pop("recommendation_payload_sha256", None)
@@ -441,6 +495,11 @@ def _recommendation_payload(
         for candidate in payload.get("candidates", []):
             if isinstance(candidate, dict):
                 candidate.pop("hypothesis_workflow_states", None)
+    if not include_eligibility_basis:
+        for candidate in payload.get("candidates", []):
+            if isinstance(candidate, dict):
+                candidate.pop("prerequisite_evidence_refs", None)
+                candidate.pop("safety_review_refs", None)
     return payload
 
 
@@ -465,18 +524,50 @@ def validate_recommendation_payload_commitment(
         return None
     expected = recommendation_payload_sha256(recommendation)
     if retained != expected:
-        legacy_expected = _sha256_json_payload(
-            _recommendation_payload(
-                recommendation, include_hypothesis_workflow_states=False
-            )
-        )
-        if (
-            retained == legacy_expected
-            and all(
-                not candidate.hypothesis_workflow_states
-                for candidate in recommendation.candidates
-            )
-        ):
+        legacy_variants = [
+            (
+                _sha256_json_payload(
+                    _recommendation_payload(
+                        recommendation,
+                        include_hypothesis_workflow_states=False,
+                    )
+                ),
+                all(
+                    not candidate.hypothesis_workflow_states
+                    for candidate in recommendation.candidates
+                ),
+            ),
+            (
+                _sha256_json_payload(
+                    _recommendation_payload(
+                        recommendation,
+                        include_eligibility_basis=False,
+                    )
+                ),
+                _recommendation_has_legacy_missing_eligibility_basis(
+                    recommendation
+                ),
+            ),
+            (
+                _sha256_json_payload(
+                    _recommendation_payload(
+                        recommendation,
+                        include_hypothesis_workflow_states=False,
+                        include_eligibility_basis=False,
+                    )
+                ),
+                (
+                    all(
+                        not candidate.hypothesis_workflow_states
+                        for candidate in recommendation.candidates
+                    )
+                    and _recommendation_has_legacy_missing_eligibility_basis(
+                        recommendation
+                    )
+                ),
+            ),
+        ]
+        if any(retained == digest and allowed for digest, allowed in legacy_variants):
             return retained
         raise ValidationError(
             f"recommendation {recommendation.recommendation_id} payload no "
@@ -485,15 +576,55 @@ def validate_recommendation_payload_commitment(
     return retained
 
 
+def _recommendation_has_legacy_missing_eligibility_basis(
+    recommendation: ActionRecommendation,
+) -> bool:
+    return all(
+        not candidate.prerequisite_evidence_refs and not candidate.safety_review_refs
+        for candidate in recommendation.candidates
+    )
+
+
+def _recommendation_allows_legacy_missing_eligibility_basis(
+    recommendation: ActionRecommendation,
+) -> bool:
+    retained = recommendation.recommendation_payload_sha256
+    if retained == "" or not _recommendation_has_legacy_missing_eligibility_basis(
+        recommendation
+    ):
+        return False
+    legacy_expected = _sha256_json_payload(
+        _recommendation_payload(
+            recommendation,
+            include_eligibility_basis=False,
+        )
+    )
+    legacy_without_workflow_expected = _sha256_json_payload(
+        _recommendation_payload(
+            recommendation,
+            include_hypothesis_workflow_states=False,
+            include_eligibility_basis=False,
+        )
+    )
+    return retained in {legacy_expected, legacy_without_workflow_expected}
+
+
 def verify_recommendation_score_replay(
     recommendation: ActionRecommendation,
 ) -> None:
     """Replay stored recommendation scores from retained candidates and weights."""
 
+    allow_legacy_missing_eligibility_basis = (
+        _recommendation_allows_legacy_missing_eligibility_basis(recommendation)
+    )
     if recommendation.selection_mode == "single":
         _validate_single_replay_inputs(recommendation)
         expected_scores = rank_actions(
-            recommendation.candidates, recommendation.weights
+            recommendation.candidates,
+            recommendation.weights,
+            allow_legacy_missing_eligibility_basis=(
+                allow_legacy_missing_eligibility_basis
+            ),
         )
         expected_selected_action_id = expected_scores[0].action_id
         expected_selected_by_lane: dict[str, str] = {}
@@ -503,6 +634,9 @@ def verify_recommendation_score_replay(
             recommendation.lanes,
             recommendation.completed_action_ids,
             recommendation.weights,
+            allow_legacy_missing_eligibility_basis=(
+                allow_legacy_missing_eligibility_basis
+            ),
         )
         expected_selected_by_lane = {
             lane.lane_id: rankings[lane.lane_id][0].action_id

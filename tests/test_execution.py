@@ -75,6 +75,25 @@ def action_discrimination_target(
     )
 
 
+def next_action_candidate(**overrides) -> ActionCandidate:
+    action_id = str(overrides.get("action_id", "candidate"))
+    values = {
+        "title": action_id.replace("-", " ").title(),
+        "distinguishes_hypotheses": [],
+        "expected_discrimination": 0.8,
+        "uncertainty_reduction": 0.7,
+        "cost": 0.1,
+        "burden": 0.1,
+        "safety_risk": 0.0,
+        "ambiguity_risk": 0.1,
+        "rationale": f"Evaluate {action_id}.",
+        "prerequisite_evidence_refs": [f"prerequisite-review:{action_id}"],
+        "safety_review_refs": [f"safety-review:{action_id}"],
+    }
+    values.update(overrides)
+    return ActionCandidate(**values)
+
+
 def _measurement_contract(**overrides):
     contract = {
         "measurement_id": "m1",
@@ -2354,7 +2373,7 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
 ) -> None:
     service, hypothesis_id = prepared_service(tmp_path)
     candidates = [
-        ActionCandidate(
+        next_action_candidate(
             action_id="unsafe-high-score",
             title="Unsafe intervention",
             distinguishes_hypotheses=[hypothesis_id],
@@ -2370,7 +2389,7 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
             rationale="Would score highly, but lacks approval.",
             safety_approved=False,
         ),
-        ActionCandidate(
+        next_action_candidate(
             action_id="cheap-ambiguous",
             title="Cheap but ambiguous check",
             distinguishes_hypotheses=[hypothesis_id],
@@ -2385,7 +2404,7 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
             ambiguity_risk=0.8,
             rationale="Low cost but difficult to interpret.",
         ),
-        ActionCandidate(
+        next_action_candidate(
             action_id="decisive-proof-check",
             title="Independent proof check",
             distinguishes_hypotheses=[hypothesis_id],
@@ -2466,7 +2485,7 @@ def test_next_action_selection_handles_must_be_canonical(tmp_path: Path) -> None
         service.recommend_next_action(
             RecommendNextAction(
                 candidates=[
-                    ActionCandidate(
+                    next_action_candidate(
                         action_id="padded-hypothesis",
                         title="Padded hypothesis",
                         distinguishes_hypotheses=[f" {hypothesis_id} "],
@@ -2494,7 +2513,7 @@ def test_next_action_selection_rejects_dependent_single_actions(
     ):
         service.recommend_next_action(
             RecommendNextAction(candidates=[
-                ActionCandidate(
+                next_action_candidate(
                     action_id="dependent-action",
                     title="Dependent action",
                     distinguishes_hypotheses=[hypothesis_id],
@@ -2525,7 +2544,7 @@ def test_next_action_selection_rejects_degenerate_utility_weights(
         service.recommend_next_action(
             RecommendNextAction(
                 candidates=[
-                    ActionCandidate(
+                    next_action_candidate(
                         action_id="lexicographic-first",
                         title="Lexicographic first",
                         distinguishes_hypotheses=[hypothesis_id],
@@ -2540,7 +2559,7 @@ def test_next_action_selection_rejects_degenerate_utility_weights(
                         ambiguity_risk=0.1,
                         rationale="Would be selected only by identifier order.",
                     ),
-                    ActionCandidate(
+                    next_action_candidate(
                         action_id="more-informative",
                         title="More informative",
                         distinguishes_hypotheses=[hypothesis_id],
@@ -2581,7 +2600,7 @@ def test_next_action_selection_weights_must_be_finite(
         service.recommend_next_action(
             RecommendNextAction(
                 candidates=[
-                    ActionCandidate(
+                    next_action_candidate(
                         action_id="finite-score",
                         title="Finite score",
                         distinguishes_hypotheses=[hypothesis_id],
@@ -2612,7 +2631,7 @@ def test_next_action_selection_rejects_tied_top_utility(tmp_path: Path) -> None:
         service.recommend_next_action(
             RecommendNextAction(
                 candidates=[
-                    ActionCandidate(
+                    next_action_candidate(
                         action_id="alpha-action",
                         title="Alpha action",
                         distinguishes_hypotheses=[hypothesis_id],
@@ -2627,7 +2646,7 @@ def test_next_action_selection_rejects_tied_top_utility(tmp_path: Path) -> None:
                         ambiguity_risk=0.1,
                         rationale="One equally informative option.",
                     ),
-                    ActionCandidate(
+                    next_action_candidate(
                         action_id="beta-action",
                         title="Beta action",
                         distinguishes_hypotheses=[hypothesis_id],
@@ -2653,7 +2672,7 @@ def test_next_action_replay_rejects_legacy_candidate_without_target(
     service, hypothesis_id = prepared_service(tmp_path)
     service.recommend_next_action(
         RecommendNextAction(candidates=[
-            ActionCandidate(
+            next_action_candidate(
                 action_id="targeted-action",
                 title="Targeted action",
                 distinguishes_hypotheses=[hypothesis_id],
@@ -2695,7 +2714,7 @@ def test_next_action_replay_rejects_legacy_duplicate_action_ids(
     service, hypothesis_id = prepared_service(tmp_path)
     service.recommend_next_action(
         RecommendNextAction(candidates=[
-            ActionCandidate(
+            next_action_candidate(
                 action_id="first-action",
                 title="First action",
                 distinguishes_hypotheses=[hypothesis_id],
@@ -2710,7 +2729,7 @@ def test_next_action_replay_rejects_legacy_duplicate_action_ids(
                 ambiguity_risk=0.1,
                 rationale="The original selected action.",
             ),
-            ActionCandidate(
+            next_action_candidate(
                 action_id="second-action",
                 title="Second action",
                 distinguishes_hypotheses=[hypothesis_id],
@@ -2746,7 +2765,7 @@ def test_next_action_replay_rejects_legacy_single_portfolio_fields(
     service, hypothesis_id = prepared_service(tmp_path)
     service.recommend_next_action(
         RecommendNextAction(candidates=[
-            ActionCandidate(
+            next_action_candidate(
                 action_id="single-action",
                 title="Single action",
                 distinguishes_hypotheses=[hypothesis_id],

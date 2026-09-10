@@ -169,6 +169,8 @@ def test_next_action_schema_requires_discrimination_targets(schema_name):
         "safety_risk": 0.0,
         "ambiguity_risk": 0.1,
         "rationale": "Separate the registered hypothesis from an alternative.",
+        "prerequisite_evidence_refs": ["design-review:hypothesis-target"],
+        "safety_review_refs": ["safety-review:hypothesis-target"],
         "lane_id": "science",
     }
     command = {"candidates": [candidate]}
@@ -205,6 +207,8 @@ def test_next_action_schema_rejects_service_derived_workflow_states(schema_name)
         "safety_risk": 0.0,
         "ambiguity_risk": 0.1,
         "rationale": "Separate the registered hypothesis from an alternative.",
+        "prerequisite_evidence_refs": ["design-review:hypothesis-target"],
+        "safety_review_refs": ["safety-review:hypothesis-target"],
         "lane_id": "science",
     }
     command = {"candidates": [candidate]}
@@ -238,6 +242,8 @@ def test_next_action_schema_rejects_single_action_dependencies():
                 "safety_risk": 0.0,
                 "ambiguity_risk": 0.1,
                 "rationale": "This action depends on a previous step.",
+                "prerequisite_evidence_refs": ["design-review:dependent-action"],
+                "safety_review_refs": ["safety-review:dependent-action"],
                 "depends_on": ["previous-action"],
             }
         ]

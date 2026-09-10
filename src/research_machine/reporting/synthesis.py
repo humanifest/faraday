@@ -902,6 +902,11 @@ def _recommendation_summary(
             for lane_id, action_id in latest.selected_action_ids_by_lane.items()
             if action_id in scores_by_id
         )
+        eligibility = "; ".join(
+            f"{lane_id}: {_action_eligibility_summary(candidates_by_id[action_id])}"
+            for lane_id, action_id in latest.selected_action_ids_by_lane.items()
+            if action_id in candidates_by_id
+        )
         return (
             "- Selected next actions by lane: "
             + selected
@@ -915,6 +920,8 @@ def _recommendation_summary(
             )
             + ". Utility components: "
             + (score_summaries or "not available")
+            + ". Eligibility basis: "
+            + (eligibility or "not available")
             + ". Payload commitment: "
             + commitment
             + "."
@@ -943,6 +950,12 @@ def _recommendation_summary(
         )
         + ". Utility components: "
         + score_summary
+        + ". Eligibility basis: "
+        + (
+            _action_eligibility_summary(selected)
+            if selected is not None
+            else "not available"
+        )
         + ". Payload commitment: "
         + commitment
         + "."
@@ -995,4 +1008,21 @@ def _action_discrimination_summary(candidate: ActionCandidate) -> str:
         f"{target.discriminating_observation}; "
         f"weakens if {target.would_weaken_if}"
         for target in targets
+    )
+
+
+def _action_eligibility_summary(candidate: ActionCandidate) -> str:
+    prerequisite_refs = (
+        ", ".join(candidate.prerequisite_evidence_refs)
+        if candidate.prerequisite_evidence_refs
+        else "legacy_missing"
+    )
+    safety_refs = (
+        ", ".join(candidate.safety_review_refs)
+        if candidate.safety_review_refs
+        else "legacy_missing"
+    )
+    return (
+        f"prerequisites_met={candidate.prerequisites_met} via {prerequisite_refs}; "
+        f"safety_approved={candidate.safety_approved} via {safety_refs}"
     )
