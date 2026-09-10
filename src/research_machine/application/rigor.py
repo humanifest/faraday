@@ -82,6 +82,34 @@ def _has_structured_gate_detail(run: ResearchRun, key: str) -> bool:
     return any(isinstance(gate.details.get(key), dict) for gate in run.quality_gates)
 
 
+def _has_structured_gate_detail_for_gate_ids(
+    run: ResearchRun,
+    key: str,
+    gate_ids: set[str],
+) -> bool:
+    return any(
+        gate.gate_id in gate_ids and isinstance(gate.details.get(key), dict)
+        for gate in run.quality_gates
+    )
+
+
+def _causal_temporal_order_gate_ids(protocol: ExperimentProtocol) -> set[str]:
+    if not protocol.causal_claim:
+        return set()
+    audit = protocol.causal_identification_audit
+    register = audit.get("assumption_register") if isinstance(audit, dict) else None
+    if not isinstance(register, list):
+        return set()
+    return {
+        gate_id
+        for item in register
+        if isinstance(item, dict)
+        and item.get("category") == "temporal_order"
+        and isinstance((gate_id := item.get("assessment_gate_id")), str)
+        and gate_id
+    }
+
+
 def _factor_interpretability_state(protocol: ExperimentProtocol) -> str:
     factors = protocol.manipulated_factors
     has_plan = bool(protocol.factor_interpretability_plan.strip())
@@ -884,6 +912,31 @@ def audit_research_state(
                 entity_id=protocol.protocol_id,
                 remediation=(
                     "In the next run, attach a byte-verified stream-timing assessment to a quality gate; do not infer timing feasibility from declared windows or favorable results."
+                ),
+            )
+        temporal_order_gate_ids = _causal_temporal_order_gate_ids(protocol)
+        if (
+            _protected_empirical(protocol)
+            and temporal_order_gate_ids
+            and runs_by_protocol[protocol.protocol_id] > 0
+            and not any(
+                _has_structured_gate_detail_for_gate_ids(
+                    run,
+                    "temporal_order_assessment",
+                    temporal_order_gate_ids,
+                )
+                for run in runs
+                if run.protocol_id == protocol.protocol_id
+            )
+        ):
+            add(
+                "PROTECTED_CAUSAL_TEMPORAL_ORDER_UNASSESSED",
+                RigorSeverity.WARNING,
+                "Protected causal protocol has a frozen temporal-order assessment gate, but recorded runs expose no structured temporal-order assessment for that gate.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "In the next run, attach a byte-verified temporal-order assessment to the registered causal temporal-order gate; do not infer causal direction from timing prose, assumptions, or favorable results."
                 ),
             )
         if runs_by_protocol[protocol.protocol_id] == 0:

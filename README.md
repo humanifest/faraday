@@ -1634,6 +1634,12 @@ findings, rejecting any caller-supplied summary that disagrees with the verified
 record. Rigor, synthesis, and replication-package verification expose these
 gates by run, artifact locator, record hash, timing-assessment hash,
 specification hash, bounded status, and check-summary counts.
+When a protected causal protocol's frozen assumption register maps
+`temporal_order` to a required gate, rigor warns once recorded runs exist but no
+run exposes a structured `details.temporal_order_assessment` on that exact gate.
+The warning prevents causal direction from being inferred from timing prose,
+registered assumptions, or favorable results without an artifact-bound
+order-classification record.
 
 Use `measurement assess-preprocessing --registered-pipeline-file REGISTERED
 --expected-registered-pipeline-sha256 HASH --observed-pipeline-file OBSERVED

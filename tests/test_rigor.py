@@ -1464,6 +1464,97 @@ def test_audit_warns_when_acquisition_and_timing_commitments_are_unassessed() ->
     assert "PROTECTED_EMPIRICAL_STREAM_TIMING_UNASSESSED" not in assessed_codes
 
 
+def test_audit_warns_when_causal_temporal_order_gate_is_unassessed() -> None:
+    from research_machine.design.causal import audit_causal_identification
+    from test_causal_identification import _confounded
+    from test_ethics_gate import _human_protocol
+
+    graph = _confounded(["baseline"])
+    protocol = replace(
+        _human_protocol(
+            human_subjects=False,
+            causal_claim=True,
+            causal_identification=graph,
+            causal_identification_audit=audit_causal_identification(graph),
+        ),
+        status=ProtocolStatus.FROZEN,
+    )
+    run = ResearchRun(
+        run_id="causal-run",
+        protocol_id=protocol.protocol_id,
+        protocol_hash=protocol.protocol_hash or "f" * 64,
+        analysis_mode=protocol.analysis_mode,
+        started_at="2026-09-02T12:01:00Z",
+        completed_at="2026-09-02T12:02:00Z",
+        executed_by="fixture",
+        analysis_code_hash="a" * 64,
+        environment_hash="b" * 64,
+        quality_gates=[
+            QualityGateResult(
+                "integrity",
+                QualityGateStatus.PASSED,
+                "Synthetic fixture gate.",
+                details={"evidence_sha256": "c" * 64},
+            )
+        ],
+        synthetic=True,
+        metadata={
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared",
+                "deviations": [],
+            }
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Temporal-order audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[run],
+    )
+    assert "PROTECTED_CAUSAL_TEMPORAL_ORDER_UNASSESSED" in {
+        finding.code for finding in audit.findings
+    }
+
+    assessed_run = replace(
+        run,
+        quality_gates=[
+            QualityGateResult(
+                "integrity",
+                QualityGateStatus.PASSED,
+                "Synthetic fixture gate.",
+                details={
+                    "evidence_sha256": "c" * 64,
+                    "temporal_order_assessment": {
+                        "status": "temporal_order_passed"
+                    },
+                },
+            )
+        ],
+    )
+    assessed_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[assessed_run],
+    )
+    assert "PROTECTED_CAUSAL_TEMPORAL_ORDER_UNASSESSED" not in {
+        finding.code for finding in assessed_audit.findings
+    }
+
+
 def test_retrospectively_amended_evidence_cannot_raise_prospective_ceiling(tmp_path: Path) -> None:
     service, hypothesis, predecessor_run = _prepared_run(tmp_path)
     predecessor = service.get_protocol(predecessor_run.protocol_id)

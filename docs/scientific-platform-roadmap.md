@@ -1991,6 +1991,11 @@ deterministic synthesis, and replication-package verification now carry those
 gates with their exact artifact locator, record hash, timing-assessment hash,
 specification hash, bounded status, and replay-derived counts of registered
 checks, failed checks, warnings, and findings.
+Rigor now also warns when a protected causal protocol's frozen assumption
+register maps `temporal_order` to a required gate and recorded runs exist, but
+none carries a structured temporal-order assessment on that exact gate. Causal
+direction therefore cannot be inferred from a registered assumption, timing
+prose, or favorable results without artifact-bound order classification.
 Canary-target delivery: canonical protocols may now freeze a generic masked
 canary target plan. The plan binds canonical candidate target IDs, a separately
 committed random seed, the SHA-256 of the hidden assignment artifact, masking
