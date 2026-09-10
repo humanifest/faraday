@@ -6,7 +6,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.extraction import create_extraction
+from research_machine.literature.extraction import (
+    create_extraction,
+    validate_extraction_boundary,
+)
 from research_machine.literature.screening import create_screening
 from research_machine.literature.snapshot import create_snapshot
 
@@ -74,6 +77,29 @@ def test_extraction_preserves_canonical_source_study_and_record_ids(tmp_path):
     assert source_review["source_retained_file_sha256"] == retained_source_sha
     assert source_review["records"][0]["extraction_id"] == "ext-1"
     assert source_review["records"][0]["study_id"] == "study-1"
+
+
+@pytest.mark.parametrize("tamper", [
+    "version",
+    "screening-hash",
+    "snapshot-id",
+    "status",
+])
+def test_extraction_boundary_replays_artifact_anchors(tmp_path, tamper):
+    screening, digest = prepared_screening(tmp_path)
+    result = create_extraction(screening, digest, extraction_review(), tmp_path / "extraction")
+    candidate = json.loads(json.dumps(result))
+    if tamper == "version":
+        candidate["extraction_version"] = 2
+    elif tamper == "screening-hash":
+        candidate["screening_sha256"] = "A" * 64
+    elif tamper == "snapshot-id":
+        candidate["snapshot_id"] = " fixture "
+    elif tamper == "status":
+        candidate["status"] = "extraction_reviewed"
+
+    with pytest.raises(ValidationError):
+        validate_extraction_boundary(candidate, candidate["record_count"])
 
 
 @pytest.mark.parametrize("failure", [

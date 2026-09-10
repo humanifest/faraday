@@ -48,7 +48,8 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
     source_review = {"source_id": "s1", "records": [extraction_record]}
     if source_sha != "legacy_missing":
         source_review["source_retained_file_sha256"] = source_sha
-    extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded", "snapshot_id": "snap",
+    extraction_sha = write_json(extraction, {"extraction_version": 1, "status": "extraction_recorded",
+        "screening_sha256": "1" * 64, "snapshot_id": "snap",
         "record_count": 1, "scientific_evidence_eligible": False,
         "conclusion_authorized": False, "publication_authorized": False,
         "limitations": [

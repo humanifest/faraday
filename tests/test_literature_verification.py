@@ -12,6 +12,7 @@ from research_machine.literature.verification import create_citation_verificatio
 def extraction_file(tmp_path):
     value = {
         "extraction_version": 1, "status": "extraction_recorded",
+        "screening_sha256": "1" * 64,
         "snapshot_id": "snapshot-fixture", "reviewer": "Extractor One",
         "record_count": 2,
         "scientific_evidence_eligible": False,

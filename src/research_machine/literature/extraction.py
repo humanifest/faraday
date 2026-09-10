@@ -32,6 +32,12 @@ def validate_extraction_boundary(
     require_source_review_contract: bool = False,
 ) -> None:
     """Replay extraction non-authority and retained record-count boundaries."""
+    if extraction.get("extraction_version") != 1:
+        raise ValidationError("extraction version is invalid")
+    require_sha256(extraction.get("screening_sha256"), "extraction screening_sha256")
+    _canonical_text(extraction.get("snapshot_id"), "extraction snapshot_id")
+    if extraction.get("status") != "extraction_recorded":
+        raise ValidationError("extraction status is invalid")
     if extraction.get("scientific_evidence_eligible") is not False:
         raise ValidationError("extraction record must remain scientifically ineligible")
     if extraction.get("conclusion_authorized") is not False:
