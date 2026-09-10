@@ -123,6 +123,18 @@ def _replay_deviations(value: Any, *, synthesis_type: str | None = None) -> tupl
     return [by_id[item] for item in sorted(by_id)], timing_counts, status
 
 
+def validate_retained_synthesis_deviations(
+    value: Any, *, synthesis_type: str | None = None
+) -> tuple[list[dict[str, str]], dict[str, int], str]:
+    """Replay embedded downstream deviation rows without needing local review metadata."""
+    retained, timing_counts, status = _replay_deviations(
+        value, synthesis_type=synthesis_type
+    )
+    if value != retained:
+        raise ValidationError("embedded synthesis deviations must retain canonical rows")
+    return retained, timing_counts, status
+
+
 def validate_synthesis_deviations_boundary(
     deviations: dict[str, Any], *, synthesis_type: str | None = None
 ) -> None:
@@ -152,11 +164,9 @@ def validate_synthesis_deviations_boundary(
         raise ValidationError("synthesis deviations require retained boundary limitations")
     for index, limitation in enumerate(limitations):
         _canonical_text(limitation, f"synthesis-deviation limitation {index + 1}")
-    retained, timing_counts, status = _replay_deviations(
+    _retained, timing_counts, status = validate_retained_synthesis_deviations(
         deviations.get("deviations"), synthesis_type=synthesis_type
     )
-    if deviations.get("deviations") != retained:
-        raise ValidationError("synthesis deviations must retain canonical deviation rows")
     if deviations.get("timing_counts") != timing_counts:
         raise ValidationError("synthesis-deviation timing_counts do not replay from deviations")
     if deviations.get("status") != status:

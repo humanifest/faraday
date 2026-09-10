@@ -1835,8 +1835,10 @@ The artifact now also replays its own retained boundary before it is written:
 version and trusted plan hash, plan and snapshot handles, reviewer text, exact
 frozen-plan commitment fields, canonical included source IDs, timing counts,
 status, and non-authority fields must all remain internally consistent.
-Downstream qualitative synthesis and quantitative pooling replay that embedded
-snapshot again against their retained output fields before trusting it.
+Downstream qualitative synthesis and quantitative pooling replay the embedded
+departure rows and frozen-plan snapshot again against their retained output
+fields before trusting them, so copied outputs cannot drop, pad, or recategorize
+departure history while preserving a plausible deviation status.
 Both qualitative synthesis and quantitative pooling now require this declaration,
 including an immutable `no_deviations_declared` artifact when none are reported.
 The declaration hash and frozen-plan snapshot are embedded in the result and

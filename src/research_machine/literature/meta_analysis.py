@@ -12,6 +12,7 @@ from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.deviations import (
+    validate_retained_synthesis_deviations,
     validate_frozen_plan_commitments_boundary,
     validate_synthesis_deviations_boundary,
 )
@@ -216,6 +217,11 @@ def validate_meta_analysis_boundary(
     deviation_status = meta_analysis.get("deviation_status")
     if deviation_status not in _DEVIATION_STATUSES:
         raise ValidationError("meta-analysis deviation_status is invalid")
+    _retained_deviations, _timing_counts, retained_deviation_status = validate_retained_synthesis_deviations(
+        meta_analysis.get("deviations"), synthesis_type="quantitative"
+    )
+    if retained_deviation_status != deviation_status:
+        raise ValidationError("meta-analysis deviation_status does not replay from retained deviations")
     expected_status = (
         "meta_analysis_deviation_review_required"
         if deviation_status == "retrospective_or_uncertain_deviation_review_required"

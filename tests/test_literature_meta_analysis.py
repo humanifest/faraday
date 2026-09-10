@@ -382,6 +382,8 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     "publication-authority",
     "limitations-missing",
     "deviation-status",
+    "deviation-row-added",
+    "deviation-row-padding",
     "status-drift",
     "deviation-plan-effect-measure",
     "deviation-plan-contrast",
@@ -436,6 +438,31 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["limitations"] = []
     elif tamper == "deviation-status":
         candidate["deviation_status"] = "review_complete"
+    elif tamper == "deviation-row-added":
+        candidate["deviations"] = [{
+            "deviation_id": "d1",
+            "stage": "synthesis",
+            "frozen_commitment": "Use the frozen pooling rule",
+            "actual_method": "Added a reviewer note",
+            "reason": "Reviewer requested disclosure",
+            "timing": "before_synthesis",
+            "impact_assessment": "May affect interpretation",
+            "corrective_action": "Retain review status",
+            "evidence_location": "review log section 4",
+        }]
+    elif tamper == "deviation-row-padding":
+        candidate["deviation_status"] = "prospective_deviations_recorded"
+        candidate["deviations"] = [{
+            "deviation_id": " d1",
+            "stage": "synthesis",
+            "frozen_commitment": "Use the frozen pooling rule",
+            "actual_method": "Added a reviewer note",
+            "reason": "Reviewer requested disclosure",
+            "timing": "before_synthesis",
+            "impact_assessment": "May affect interpretation",
+            "corrective_action": "Retain review status",
+            "evidence_location": "review log section 4",
+        }]
     elif tamper == "status-drift":
         candidate["status"] = "meta_analysis_recorded"
         candidate["deviation_status"] = "retrospective_or_uncertain_deviation_review_required"

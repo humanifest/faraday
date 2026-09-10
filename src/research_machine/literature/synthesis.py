@@ -10,6 +10,7 @@ from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.deviations import (
+    validate_retained_synthesis_deviations,
     validate_frozen_plan_commitments_boundary,
     validate_synthesis_deviations_boundary,
 )
@@ -175,6 +176,11 @@ def validate_literature_synthesis_boundary(synthesis: dict[str, Any]) -> None:
     deviation_status = synthesis.get("deviation_status")
     if deviation_status not in _DEVIATION_STATUSES:
         raise ValidationError("literature synthesis deviation_status is invalid")
+    _retained_deviations, _timing_counts, retained_deviation_status = validate_retained_synthesis_deviations(
+        synthesis.get("deviations"), synthesis_type="qualitative"
+    )
+    if retained_deviation_status != deviation_status:
+        raise ValidationError("literature synthesis deviation_status does not replay from retained deviations")
     minimum = synthesis.get("minimum_independent_studies")
     if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
         raise ValidationError("literature synthesis minimum_independent_studies is invalid")

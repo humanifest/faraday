@@ -199,6 +199,8 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     "publication-authority",
     "limitations-missing",
     "deviation-status",
+    "deviation-row-added",
+    "deviation-row-padding",
     "claim-count",
     "study-count",
     "minimum-met",
@@ -238,6 +240,31 @@ def test_literature_synthesis_boundary_replays_output_summaries(tmp_path, tamper
         candidate["limitations"] = []
     elif tamper == "deviation-status":
         candidate["deviation_status"] = "review_complete"
+    elif tamper == "deviation-row-added":
+        candidate["deviations"] = [{
+            "deviation_id": "d1",
+            "stage": "synthesis",
+            "frozen_commitment": "Use the frozen qualitative rule",
+            "actual_method": "Added a reviewer note",
+            "reason": "Reviewer requested disclosure",
+            "timing": "before_synthesis",
+            "impact_assessment": "May affect interpretation",
+            "corrective_action": "Retain review status",
+            "evidence_location": "review log section 3",
+        }]
+    elif tamper == "deviation-row-padding":
+        candidate["deviation_status"] = "prospective_deviations_recorded"
+        candidate["deviations"] = [{
+            "deviation_id": " d1",
+            "stage": "synthesis",
+            "frozen_commitment": "Use the frozen qualitative rule",
+            "actual_method": "Added a reviewer note",
+            "reason": "Reviewer requested disclosure",
+            "timing": "before_synthesis",
+            "impact_assessment": "May affect interpretation",
+            "corrective_action": "Retain review status",
+            "evidence_location": "review log section 3",
+        }]
     elif tamper == "claim-count":
         candidate["claim_count"] = 2
     elif tamper == "study-count":
