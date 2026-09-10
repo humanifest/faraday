@@ -141,6 +141,10 @@ def test_citation_verification_binds_retained_source_bytes_when_available(tmp_pa
     "extraction-count-drift",
     "extraction-limitations-missing",
     "extraction-padded-limitation",
+    "extraction-source-status-drift",
+    "extraction-source-padded-reason",
+    "extraction-source-duplicate-empty",
+    "extraction-source-retained-hash",
     "unknown",
     "location",
     "padded-location",
@@ -170,6 +174,10 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
         "extraction-count-drift",
         "extraction-limitations-missing",
         "extraction-padded-limitation",
+        "extraction-source-status-drift",
+        "extraction-source-padded-reason",
+        "extraction-source-duplicate-empty",
+        "extraction-source-retained-hash",
         "missing-claim-field",
     }:
         value = json.loads(extraction.read_text())
@@ -201,6 +209,19 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
             value["limitations"] = []
         elif failure == "extraction-padded-limitation":
             value["limitations"][0] = " " + value["limitations"][0]
+        elif failure == "extraction-source-status-drift":
+            value["source_reviews"][0]["status"] = "no_extractable_claim"
+        elif failure == "extraction-source-padded-reason":
+            value["source_reviews"][0]["reason"] = " fixture "
+        elif failure == "extraction-source-duplicate-empty":
+            value["source_reviews"].append({
+                "source_id": "source-1",
+                "status": "no_extractable_claim",
+                "reason": "duplicate empty source review",
+                "records": [],
+            })
+        elif failure == "extraction-source-retained-hash":
+            value["source_reviews"][0]["source_retained_file_sha256"] = "A" * 64
         encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
         extraction.write_bytes(encoded)
         digest = hashlib.sha256(encoded).hexdigest()

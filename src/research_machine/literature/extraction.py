@@ -15,6 +15,7 @@ from research_machine.literature.snapshot import _text
 
 _LAYERS = {"observed", "derived", "model-dependent", "inferred", "hypothesized", "speculative"}
 _DIRECTIONS = {"supports", "weakens", "mixed", "null", "not_applicable"}
+_LEGACY_SOURCE_ANCHOR = "legacy_missing"
 
 
 def _canonical_text(value: Any, field: str) -> str:
@@ -27,6 +28,8 @@ def _canonical_text(value: Any, field: str) -> str:
 def validate_extraction_boundary(
     extraction: dict[str, Any],
     extracted_record_count: int | None = None,
+    *,
+    require_source_review_contract: bool = False,
 ) -> None:
     """Replay extraction non-authority and retained record-count boundaries."""
     if extraction.get("scientific_evidence_eligible") is not False:
@@ -40,8 +43,65 @@ def validate_extraction_boundary(
         raise ValidationError("extraction record requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
         _canonical_text(limitation, f"extraction limitation {index + 1}")
-    if extracted_record_count is not None and extraction.get("record_count") != extracted_record_count:
+    if (
+        extracted_record_count is not None
+        and extraction.get("record_count") != extracted_record_count
+    ):
         raise ValidationError("extraction record_count does not replay from extracted claims")
+    if require_source_review_contract:
+        source_reviews = extraction.get("source_reviews")
+        if not isinstance(source_reviews, list):
+            raise ValidationError("extraction source_reviews must be an array")
+        source_ids: set[str] = set()
+        replayed_record_count = 0
+        allowed_keys = {
+            "source_id",
+            "source_retained_file_sha256",
+            "status",
+            "reason",
+            "records",
+        }
+        required_keys = {"source_id", "status", "reason", "records"}
+        for source_review in source_reviews:
+            if not isinstance(source_review, dict):
+                raise ValidationError("extraction source review must be an object")
+            keys = set(source_review)
+            if not required_keys <= keys <= allowed_keys:
+                raise ValidationError(
+                    "extraction source review fields do not match the documented contract"
+                )
+            source_id = _canonical_text(
+                source_review.get("source_id"), "extraction source_id"
+            )
+            if source_id in source_ids:
+                raise ValidationError("extraction source_reviews contain duplicate source_id")
+            source_ids.add(source_id)
+            if "source_retained_file_sha256" in source_review:
+                source_anchor = source_review.get("source_retained_file_sha256")
+                if source_anchor != _LEGACY_SOURCE_ANCHOR:
+                    require_sha256(
+                        source_anchor,
+                        "extraction source_retained_file_sha256",
+                    )
+            status = source_review.get("status")
+            records = source_review.get("records")
+            if status not in {"extracted", "no_extractable_claim"} or not isinstance(
+                records, list
+            ):
+                raise ValidationError("source extraction status or records are invalid")
+            _canonical_text(source_review.get("reason"), "source extraction reason")
+            if (status == "extracted") != bool(records):
+                raise ValidationError(
+                    "extracted sources require records; no_extractable_claim sources require none"
+                )
+            replayed_record_count += len(records)
+        if (
+            extracted_record_count is not None
+            and replayed_record_count != extracted_record_count
+        ):
+            raise ValidationError(
+                "extraction source_reviews record count does not replay from extracted claims"
+            )
 
 
 def create_extraction(screening_path: Path, expected_sha256: str,
@@ -148,7 +208,11 @@ def create_extraction(screening_path: Path, expected_sha256: str,
             "Extraction does not perform risk-of-bias assessment, resolve disagreements, accept claims as facts, or conduct synthesis.",
         ],
     }
-    validate_extraction_boundary(result, len(extraction_ids))
+    validate_extraction_boundary(
+        result,
+        len(extraction_ids),
+        require_source_review_contract=True,
+    )
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("extraction output already exists")

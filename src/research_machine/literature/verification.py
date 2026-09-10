@@ -167,7 +167,11 @@ def create_citation_verification(
             }
     if not records:
         raise ValidationError("citation verification requires at least one extracted claim")
-    validate_extraction_boundary(extraction, len(records))
+    validate_extraction_boundary(
+        extraction,
+        len(records),
+        require_source_review_contract=True,
+    )
     if not isinstance(review, dict) or set(review) != {"reviewer", "assessments"}:
         raise ValidationError("citation review requires exactly reviewer and assessments")
     reviewer = _canonical_text(review["reviewer"], "citation reviewer")
