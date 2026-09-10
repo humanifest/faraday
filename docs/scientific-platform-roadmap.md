@@ -119,8 +119,10 @@ methods without changing its epistemic rules or canonical state.
   synchronization commitment, and sensor/control-window labels must remain
   unique after case-insensitive normalization. This keeps copied review drafts
   and hand-authored protocol JSON from weakening the prospective timing record;
-  it remains a design commitment, not proof that clocks, sensors, custody, or
-  synchronization were valid in execution.
+  rigor audit and deterministic synthesis expose the commitments and flag legacy
+  control windows that lack clock accuracy. It remains a design commitment, not
+  proof that clocks, sensors, custody, or synchronization were valid in
+  execution.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit
@@ -736,6 +738,9 @@ The protocol draft, data dictionary, and collection plan preserve those
 commitments. Duplicate or padded sensor/window labels block readiness, and
 control windows without a clock-accuracy commitment fail closed rather than
 letting timing comparisons proceed without a prospective uncertainty boundary.
+Rigor and synthesis now publish those frozen acquisition commitments as
+provenance and preserve legacy missing-clock cases as audit findings instead of
+letting them disappear behind later numerical results.
 For causal studies it can also collect the DAG and complete typed assumption
 register interactively, validate variable and edge references, and feed the same
 deterministic audit used by file-based and canonical workflows. Declining this

@@ -46,6 +46,19 @@ def _protocol_factor_summary(protocol: ExperimentProtocol) -> str:
     return ", ".join(factors) + f" ({design})"
 
 
+def _list_text(values: list[str]) -> str:
+    return ", ".join(values) if values else "none"
+
+
+def _protocol_acquisition_timing_summary(protocol: ExperimentProtocol) -> str:
+    clock = protocol.clock_accuracy_requirement.strip() or "missing"
+    return (
+        f"sensors/streams: {_list_text(protocol.sensor_requirements)}; "
+        f"clock accuracy/synchronization: {clock}; "
+        f"control windows: {_list_text(protocol.control_windows)}"
+    )
+
+
 def _protected_lineage_state(
     dataset: DatasetManifest, datasets_by_id: dict[str, DatasetManifest]
 ) -> str:
@@ -355,6 +368,23 @@ def build_synthesis(
                 f"- Protocol `{protocol.protocol_id}`: "
                 f"{_protocol_factor_summary(protocol)}. This is prospective "
                 "interpretability provenance, not proof that factor effects are separable."
+            )
+    acquisition_protocols = [
+        protocol for protocol in protocols
+        if (
+            protocol.sensor_requirements
+            or protocol.clock_accuracy_requirement
+            or protocol.control_windows
+        )
+    ]
+    if acquisition_protocols:
+        lines.extend(["", "### Acquisition timing commitments", ""])
+        for protocol in sorted(acquisition_protocols, key=lambda item: item.protocol_id):
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}`: "
+                f"{_protocol_acquisition_timing_summary(protocol)}. "
+                "This is prospective acquisition provenance, not proof of sensor "
+                "custody, calibration, synchronization, or clock accuracy."
             )
     planned_runs = [
         run for run in runs

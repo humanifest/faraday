@@ -251,6 +251,106 @@ def test_rigor_and_synthesis_expose_protocol_factor_interpretability(
     assert "not proof that factor effects are separable" in synthesis
 
 
+def test_rigor_and_synthesis_expose_protocol_acquisition_timing(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(
+        tmp_path / "workspace",
+        protocol_overrides={
+            "sensor_requirements": [
+                "audio recorder at 48 kHz",
+                "event marker stream",
+            ],
+            "clock_accuracy_requirement": (
+                "Clock drift remains below 10 ms across the tested lag window."
+            ),
+            "control_windows": ["pre-event baseline", "random-time negative window"],
+        },
+    )
+    repository = service.repository
+    inquiry_id = repository.resolve_inquiry_id(None)
+    protocols = repository.list_protocols(inquiry_id)
+    audit = audit_research_state(
+        inquiry=repository.load_inquiry(inquiry_id),
+        claims=repository.load_claims(inquiry_id),
+        hypotheses=[hypothesis],
+        evidence=repository.list_evidence(inquiry_id),
+        datasets=repository.list_datasets(inquiry_id),
+        protocols=protocols,
+        runs=[run],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "PROTOCOL_ACQUISITION_TIMING_DECLARED"
+    )
+    assert finding.entity_id == run.protocol_id
+    synthesis = build_synthesis(
+        repository.load_inquiry(inquiry_id),
+        repository.load_questions(inquiry_id),
+        repository.load_claims(inquiry_id),
+        [hypothesis],
+        repository.list_evidence(inquiry_id),
+        repository.list_datasets(inquiry_id),
+        protocols,
+        [run],
+        [],
+        [],
+        audit,
+        [],
+    )
+    assert "Acquisition timing commitments" in synthesis
+    assert "audio recorder at 48 kHz, event marker stream" in synthesis
+    assert "Clock drift remains below 10 ms" in synthesis
+    assert "pre-event baseline, random-time negative window" in synthesis
+    assert (
+        "not proof of sensor custody, calibration, synchronization, or clock accuracy"
+        in synthesis
+    )
+
+
+def test_rigor_flags_legacy_control_windows_without_clock_accuracy(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis, run = _prepared_run(tmp_path / "workspace")
+    repository = service.repository
+    inquiry_id = repository.resolve_inquiry_id(None)
+    legacy = replace(
+        repository.list_protocols(inquiry_id)[0],
+        control_windows=["pre-event baseline"],
+        clock_accuracy_requirement="",
+    )
+    audit = audit_research_state(
+        inquiry=repository.load_inquiry(inquiry_id),
+        claims=repository.load_claims(inquiry_id),
+        hypotheses=[hypothesis],
+        evidence=repository.list_evidence(inquiry_id),
+        datasets=repository.list_datasets(inquiry_id),
+        protocols=[legacy],
+        runs=[run],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "PROTOCOL_CONTROL_WINDOWS_WITHOUT_CLOCK_ACCURACY"
+    )
+    assert finding.severity is RigorSeverity.ERROR
+    synthesis = build_synthesis(
+        repository.load_inquiry(inquiry_id),
+        repository.load_questions(inquiry_id),
+        repository.load_claims(inquiry_id),
+        [hypothesis],
+        repository.list_evidence(inquiry_id),
+        repository.list_datasets(inquiry_id),
+        [legacy],
+        [run],
+        [],
+        [],
+        audit,
+        [],
+    )
+    assert "clock accuracy/synchronization: missing" in synthesis
+    assert "pre-event baseline" in synthesis
+
+
 def test_rigor_flags_inverted_claim_dependency_levels(tmp_path: Path) -> None:
     inquiry = CreateInquiry(
         "Claim ladder",

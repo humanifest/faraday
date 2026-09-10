@@ -48,7 +48,10 @@ they duplicate another label after case-insensitive normalization, so acquisitio
 plans cannot double-count a required stream or baseline by spelling variation.
 These commitments are hash-bound when the protocol is frozen. They document the
 required timing boundary; they do not prove clock accuracy, synchronization, or
-sensor custody.
+sensor custody. Rigor audit and deterministic synthesis expose the frozen
+sensor, clock, and control-window commitments; legacy frozen protocols that
+retain control windows without clock accuracy are flagged instead of being
+silently treated as timing-bounded.
 
 For Holm-controlled protocols, that outcome plan is now backed by a frozen
 multi-step analysis workflow. The primary effect estimate is distinct from each
@@ -552,7 +555,10 @@ instrument, stream, or channel declarations; an exact clock-accuracy or
 synchronization requirement; and named baseline, sham, replay, random-time, or
 negative-control windows. Control windows without a timing-accuracy commitment
 block review readiness, because window labels cannot establish whether timing
-uncertainty is small enough for the intended comparison.
+uncertainty is small enough for the intended comparison. Canonical synthesis
+later reports those acquisition commitments as provenance only, alongside the
+reminder that they do not prove sensor custody, calibration, synchronization, or
+clock accuracy.
 
 The provider-free interview and JSON scaffold distinguish measurement units
 from scale type. They preserve categorical admissible values, numeric ranges,

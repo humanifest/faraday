@@ -724,6 +724,35 @@ def audit_research_state(
                     "Keep factor-specific interpretation scoped to the frozen protocol and observed controls."
                 ),
             )
+        if protocol.control_windows and not protocol.clock_accuracy_requirement.strip():
+            add(
+                "PROTOCOL_CONTROL_WINDOWS_WITHOUT_CLOCK_ACCURACY",
+                RigorSeverity.ERROR,
+                "Frozen protocol declares temporal control windows without a clock-accuracy or synchronization commitment.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "Do not interpret timing-window comparisons as prospectively bounded; "
+                    "freeze a new protocol version with an explicit timing-accuracy "
+                    "requirement before protected data collection."
+                ),
+            )
+        elif (
+            protocol.sensor_requirements
+            or protocol.clock_accuracy_requirement.strip()
+            or protocol.control_windows
+        ):
+            add(
+                "PROTOCOL_ACQUISITION_TIMING_DECLARED",
+                RigorSeverity.INFO,
+                "Frozen protocol declares acquisition or timing commitments.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "Report these as prospective design provenance only; they do not "
+                    "prove sensor custody, calibration, synchronization, or clock accuracy."
+                ),
+            )
         if protocol.canary_target_plan is not None:
             add(
                 "PROTOCOL_CANARY_TARGET_PLAN_DECLARED",
