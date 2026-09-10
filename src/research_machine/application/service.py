@@ -1463,6 +1463,8 @@ class ResearchService:
                 "Treat all supplied material as scoped working context, not established fact.",
                 "Propose competing explanations including measurement error, selection, and confounding.",
                 "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+                "Treat sensor, stream, clock, and control-window commitments as design provenance, "
+                "not proof of custody, calibration, synchronization, or timing validity.",
                 "Generated hypotheses remain unreviewed until a human explicitly activates them.",
                 "Do not authorize human-subject collection, protocol freeze, data registration, or evidence recording.",
                 "Treat the latest append-only ethics review event as controlling; suspended, withdrawn, or expired clearance blocks downstream work.",

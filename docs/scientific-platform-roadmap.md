@@ -1272,9 +1272,12 @@ review records bind to it exactly. The write boundary is now exact and retained:
 the context must be read-only, provider-free, and explicit about the canonical
 commands and review gates required for real changes. New proposal and review
 records retain that boundary, and review verification replays a digest over it
-alongside the retained scientific constraints and reference index. Older records
-without the retained boundary remain visible as `legacy_missing` rather than
-being silently upgraded. The
+alongside the retained scientific constraints and reference index. The context
+scientific constraints now also preserve the acquisition-timing boundary:
+frozen sensor, stream, clock, and control-window commitments may guide review,
+but they remain design provenance rather than proof of custody, calibration,
+synchronization, or timing validity. Older records without the retained boundary
+remain visible as `legacy_missing` rather than being silently upgraded. The
 write-once file has a separately reported SHA-256. `research collaborator
 validate-proposal` requires that trusted hash and strictly validates an untrusted
 human/LLM/hybrid response. Responses must expose uncertainty, alternatives,

@@ -18,6 +18,7 @@ from research_machine.application.commands import (
     AddClaim,
     AddQuestion,
     CreateInquiry,
+    CreateProtocol,
     RecordEvidence,
     RecordEvidenceStatusEvent,
     RegisterDataset,
@@ -26,10 +27,12 @@ from research_machine.application.commands import (
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
+    AnalysisMode,
     ClaimLevel,
     DatasetArtifact,
     DatasetRole,
     EvidenceDirection,
+    ProtocolKind,
     ValidationTag,
 )
 from research_machine.interfaces.cli import main
@@ -149,6 +152,86 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
         {"ref": f"claim:{claim.claim_id}", "kind": "claim"},
     ]
     assert any("causality" in item for item in context["scientific_constraints"])
+
+
+def test_collaborator_context_exposes_acquisition_timing_as_non_authority(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    inquiry = service.create_inquiry(
+        CreateInquiry("Timing review", "Can timing commitments be reviewed?", "timing")
+    )
+    hypothesis = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement="The temporal ordering check is prospectively bounded.",
+            observable_prediction="The registered control window remains outside the tolerated clock uncertainty.",
+            null_model="Timing uncertainty is too large to order the observed events.",
+            falsification_conditions=["Clock drift exceeds the registered tolerance."],
+        ),
+        inquiry.inquiry_id,
+    )
+    service.activate_hypothesis(hypothesis.hypothesis_id, inquiry.inquiry_id)
+    draft = service.create_protocol(
+        CreateProtocol(
+            experiment_id="timing-review",
+            title="Timing review protocol",
+            analysis_mode=AnalysisMode.CONFIRMATORY,
+            hypotheses_tested=[hypothesis.hypothesis_id],
+            primary_outcome="Temporal order classification",
+            protocol_kind=ProtocolKind.FORMAL,
+            methodology="Review the registered timing commitments before analysis.",
+            quality_requirements=["timing-review"],
+            controls=["Random-time control window"],
+            expected_outputs=["Timing review memo"],
+            success_conditions=["Report whether the timing plan is reviewable."],
+            environment_requirements=["Pinned review fixture"],
+            sample_size_or_stopping_rule="One frozen timing review.",
+            sensor_requirements=["audio recorder at 48 kHz", "event marker stream"],
+            clock_accuracy_requirement="Clock drift remains below 10 ms.",
+            control_windows=["pre-event baseline", "random-time control"],
+            failure_conditions=["Clock uncertainty exceeds the registered lag window."],
+            safety_constraints=["No physical intervention."],
+            analysis_code_hash="a" * 64,
+        ),
+        inquiry.inquiry_id,
+    )
+    protocol = service.freeze_protocol(draft.protocol_id, inquiry.inquiry_id)
+
+    context = service.collaborator_context(
+        inquiry.inquiry_id, purpose="Review acquisition timing boundaries."
+    )
+
+    assert any(
+        "not proof of custody, calibration, synchronization, or timing validity" in item
+        for item in context["scientific_constraints"]
+    )
+    assert context["protocols"][0]["protocol_id"] == protocol.protocol_id
+    assert context["protocols"][0]["sensor_requirements"] == [
+        "audio recorder at 48 kHz",
+        "event marker stream",
+    ]
+    assert (
+        context["protocols"][0]["clock_accuracy_requirement"]
+        == "Clock drift remains below 10 ms."
+    )
+    assert context["protocols"][0]["control_windows"] == [
+        "pre-event baseline",
+        "random-time control",
+    ]
+    assert {
+        "ref": f"protocol:{protocol.protocol_id}",
+        "kind": "protocol",
+    } in context["context_reference_index"]
+
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    frozen = json.loads(
+        Path(snapshot["context_file"]).read_text(encoding="utf-8")
+    )
+    assert frozen["protocols"][0]["control_windows"] == [
+        "pre-event baseline",
+        "random-time control",
+    ]
 
 
 def test_proposal_can_cite_body_backed_evidence_status_event(

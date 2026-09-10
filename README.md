@@ -991,9 +991,11 @@ nonempty scientific constraints that include explicit inferential-boundary and
 authorization-boundary prohibitions: the constraints must tell collaborators not
 to claim causality, mechanism, or replication beyond recorded evidence and not
 to authorize collection, protocol freeze, data registration, evidence recording,
-or other canonical action. The frozen write boundary must also be exact:
-read-only, provider-free, and explicit about the canonical commands and review
-gates required for real changes. Validation replays those constraints and the
+or other canonical action. The constraints also warn that sensor, stream, clock,
+and control-window commitments are design provenance, not proof of custody,
+calibration, synchronization, or timing validity. The frozen write boundary must
+also be exact: read-only, provider-free, and explicit about the canonical
+commands and review gates required for real changes. Validation replays those constraints and the
 write boundary from the trusted context bytes, and proposal/review records retain
 them for later inspection. The frozen context redacts operational artifact roots
 and attestation-schema paths while preserving stable IDs, hashes, statuses, and
