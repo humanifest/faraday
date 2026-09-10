@@ -1720,7 +1720,9 @@ generated or replayed.
   conflict, falsification, confidence, and review metadata. A claim cannot enter
   or move into the accepted disposition unless the review time and decision
   owner are explicit; accepted documented facts and source claims also require
-  source references.
+  source references. Claim dependency, source, conflict, and falsifier handles
+  must be canonical without surrounding whitespace before they can enter the
+  canonical claim spine.
 - Propose structured hypotheses as unreviewed candidates.
 - Prevent incomplete hypotheses from entering the active model set.
 - Support an auditable `pending_review` lane for delegated autonomous

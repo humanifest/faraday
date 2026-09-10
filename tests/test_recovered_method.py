@@ -243,6 +243,59 @@ def test_accepted_claims_require_review_authority_on_creation(tmp_path: Path) ->
         )
 
 
+def test_claim_reference_handles_must_be_canonical(tmp_path: Path) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Claim handle canonicalization",
+            initial_statement="Can claim provenance handles be padded?",
+            inquiry_id="claim-handles",
+        )
+    )
+    first = service.add_claim(
+        AddClaim(
+            statement="The baseline claim exists.",
+            level=ClaimLevel.OTHER,
+        )
+    )
+    with pytest.raises(ValidationError, match="parent_claims item must be canonical"):
+        service.add_claim(
+            AddClaim(
+                statement="A padded dependency must not be silently normalized.",
+                level=ClaimLevel.OTHER,
+                parent_claims=[f" {first.claim_id} "],
+            )
+        )
+    claim = service.add_claim(
+        AddClaim(
+            statement="A claim with reviewable provenance handles.",
+            level=ClaimLevel.OTHER,
+        )
+    )
+    with pytest.raises(ValidationError, match="source_refs item must be canonical"):
+        service.review_claim(
+            ReviewClaim(
+                claim_id=claim.claim_id,
+                source_refs=[" source:one "],
+            )
+        )
+    with pytest.raises(ValidationError, match="conflicts_with item must be canonical"):
+        service.review_claim(
+            ReviewClaim(
+                claim_id=claim.claim_id,
+                conflicts_with=[f" {first.claim_id} "],
+            )
+        )
+    with pytest.raises(ValidationError, match="falsified_by item must be canonical"):
+        service.review_claim(
+            ReviewClaim(
+                claim_id=claim.claim_id,
+                falsified_by=[" falsifier:one "],
+            )
+        )
+
+
 def test_audit_detects_corrupted_claim_spine() -> None:
     inquiry = Inquiry(
         inquiry_id="corrupted",

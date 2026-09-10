@@ -332,6 +332,9 @@ claim cannot be silently rewritten through direct state-file mutation.
 Accepted-claim authority delivery: new claim writes and reviews now reject an
 accepted disposition unless the retained claim has a review time and decision
 owner. Source-grounded accepted claims continue to require source references.
+Claim dependency, source, conflict, and falsifier handles must be canonical
+before writing or review, so whitespace padding cannot silently rewrite the
+claim spine or provenance trail.
 Legacy or externally corrupted records remain detectable through rigor findings,
 but the canonical service no longer records a bare accepted flag as if it were a
 reviewed scientific judgment.

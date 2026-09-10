@@ -1489,8 +1489,10 @@ class ResearchService:
     def add_claim(self, command: AddClaim, inquiry_id: str | None = None) -> Claim:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         claims = self.repository.load_claims(resolved)
-        parent_claims = require_text_list(command.parent_claims, "parent_claims")
-        conflicts_with = require_unique_text_list(
+        parent_claims = require_unique_canonical_text_list(
+            command.parent_claims, "parent_claims"
+        )
+        conflicts_with = require_unique_canonical_text_list(
             command.conflicts_with, "conflicts_with"
         )
         known = {claim.claim_id for claim in claims}
@@ -1517,9 +1519,13 @@ class ResearchService:
             epistemic_layer=command.epistemic_layer,
             disposition=command.disposition,
             confidence=normalize_confidence(command.confidence),
-            source_refs=require_unique_text_list(command.source_refs, "source_refs"),
+            source_refs=require_unique_canonical_text_list(
+                command.source_refs, "source_refs"
+            ),
             conflicts_with=conflicts_with,
-            falsified_by=require_unique_text_list(command.falsified_by, "falsified_by"),
+            falsified_by=require_unique_canonical_text_list(
+                command.falsified_by, "falsified_by"
+            ),
             last_reviewed=(
                 require_text(command.last_reviewed, "last_reviewed")
                 if command.last_reviewed is not None
@@ -1571,7 +1577,9 @@ class ResearchService:
             conflicts_with = (
                 claim.conflicts_with
                 if command.conflicts_with is None
-                else require_unique_text_list(command.conflicts_with, "conflicts_with")
+                else require_unique_canonical_text_list(
+                    command.conflicts_with, "conflicts_with"
+                )
             )
             if claim.claim_id in conflicts_with:
                 raise ValidationError("a claim cannot conflict with itself")
@@ -1596,13 +1604,17 @@ class ResearchService:
                 source_refs=(
                     claim.source_refs
                     if command.source_refs is None
-                    else require_unique_text_list(command.source_refs, "source_refs")
+                    else require_unique_canonical_text_list(
+                        command.source_refs, "source_refs"
+                    )
                 ),
                 conflicts_with=conflicts_with,
                 falsified_by=(
                     claim.falsified_by
                     if command.falsified_by is None
-                    else require_unique_text_list(command.falsified_by, "falsified_by")
+                    else require_unique_canonical_text_list(
+                        command.falsified_by, "falsified_by"
+                    )
                 ),
                 last_reviewed=(
                     require_text(command.reviewed_at, "reviewed_at")
