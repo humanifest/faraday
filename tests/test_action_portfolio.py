@@ -115,6 +115,7 @@ def discrimination_target(hypothesis_id: str, label: str) -> HypothesisDiscrimin
         expected_if_hypothesis=f"{label} follows the target hypothesis prediction.",
         expected_if_alternative=f"{label} follows the competing model prediction.",
         would_weaken_if=f"{label} is absent or follows the competing model.",
+        competing_model_ref="competing model",
     )
 
 
@@ -944,6 +945,7 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                     "Expected target",
                     "Expected alternative",
                     "Weakening condition",
+                    "alternative:model",
                 )
             ],
             "hypothesis_discrimination_target hypothesis_id",
@@ -956,6 +958,7 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                     "Expected target",
                     "Expected alternative",
                     "Weakening condition",
+                    "alternative:model",
                 )
             ],
             "hypothesis_discrimination_target discriminating_observation",
@@ -968,6 +971,7 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                     "Target and alternative both produce the same pattern.",
                     "Target and alternative both produce the same pattern.",
                     "Weakening condition",
+                    "alternative:model",
                 )
             ],
             "must state different expected observations",
@@ -980,9 +984,23 @@ def test_portfolio_rejects_tied_top_utility_within_lane(tmp_path: Path) -> None:
                     "Target-favorable pattern appears.",
                     "Competing model pattern appears.",
                     "Target-favorable pattern appears.",
+                    "alternative:model",
                 )
             ],
             "cannot use the hypothesis-favorable expectation",
+        ),
+        (
+            [
+                HypothesisDiscriminationTarget(
+                    "hyp-placeholder",
+                    "Observation",
+                    "Target-favorable pattern appears.",
+                    "Competing model pattern appears.",
+                    "Target-favorable pattern disappears.",
+                    " alternative:model ",
+                )
+            ],
+            "hypothesis_discrimination_target competing_model_ref",
         ),
     ],
 )
@@ -1002,6 +1020,7 @@ def test_hypothesis_distinguishing_actions_require_discrimination_targets(
             target.expected_if_hypothesis,
             target.expected_if_alternative,
             target.would_weaken_if,
+            target.competing_model_ref,
         )
         for target in targets
     ]

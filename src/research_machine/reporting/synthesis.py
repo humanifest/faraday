@@ -1126,6 +1126,7 @@ def _action_discrimination_summary(candidate: ActionCandidate) -> str:
         f"{target.hypothesis_id}"
         f" [{candidate.hypothesis_workflow_states.get(target.hypothesis_id, 'legacy_state_missing')}]: "
         f"{target.discriminating_observation}; "
+        f"alternative {target.competing_model_ref}; "
         f"weakens if {target.would_weaken_if}"
         for target in targets
     )

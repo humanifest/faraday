@@ -789,6 +789,7 @@ def test_cli_records_general_protocol_run_and_next_action(
                                     "The independent checker fails the registered "
                                     "proof or accepts the invalid control."
                                 ),
+                                "competing_model_ref": "implementation-dependent result",
                             }
                         ],
                         "expected_discrimination": 0.9,

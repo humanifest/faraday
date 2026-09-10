@@ -10,7 +10,8 @@
           "discriminating_observation": "The independent checker reproduces the registered result without sharing implementation state.",
           "expected_if_hypothesis": "The registered effect appears with the independent checker.",
           "expected_if_alternative": "The effect disappears or follows an implementation-specific artifact.",
-          "would_weaken_if": "The independent checker fails to reproduce the registered result."
+          "would_weaken_if": "The independent checker fails to reproduce the registered result.",
+          "competing_model_ref": "implementation-specific artifact"
         }
       ],
       "expected_discrimination": 0.9,

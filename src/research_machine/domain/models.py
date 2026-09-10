@@ -818,6 +818,7 @@ class HypothesisDiscriminationTarget(Serializable):
     expected_if_hypothesis: str
     expected_if_alternative: str
     would_weaken_if: str
+    competing_model_ref: str = ""
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "HypothesisDiscriminationTarget":

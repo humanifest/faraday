@@ -72,6 +72,7 @@ def action_discrimination_target(
         would_weaken_if=(
             "The independent checker fails the registered derivation or accepts the invalid control."
         ),
+        competing_model_ref="implementation-dependent result",
     )
 
 

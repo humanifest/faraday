@@ -584,6 +584,7 @@ def test_next_action_schema_rejects_service_derived_workflow_states(schema_name)
                 "expected_if_hypothesis": "The target pattern remains.",
                 "expected_if_alternative": "The target pattern follows the alternative.",
                 "would_weaken_if": "The target pattern disappears.",
+                "competing_model_ref": "alternative",
             }
         ],
         "hypothesis_workflow_states": {"hyp-active": "active"},
@@ -620,6 +621,7 @@ def test_next_action_schema_rejects_single_action_dependencies():
                         "expected_if_hypothesis": "The target pattern appears.",
                         "expected_if_alternative": "The target pattern follows the alternative.",
                         "would_weaken_if": "The target pattern disappears.",
+                        "competing_model_ref": "alternative",
                     }
                 ],
                 "expected_discrimination": 0.8,

@@ -62,14 +62,16 @@
                 "discriminating_observation",
                 "expected_if_hypothesis",
                 "expected_if_alternative",
-                "would_weaken_if"
+                "would_weaken_if",
+                "competing_model_ref"
               ],
               "properties": {
                 "hypothesis_id": {"type": "string", "minLength": 1},
                 "discriminating_observation": {"type": "string", "minLength": 1},
                 "expected_if_hypothesis": {"type": "string", "minLength": 1},
                 "expected_if_alternative": {"type": "string", "minLength": 1},
-                "would_weaken_if": {"type": "string", "minLength": 1}
+                "would_weaken_if": {"type": "string", "minLength": 1},
+                "competing_model_ref": {"type": "string", "minLength": 1}
               },
               "additionalProperties": false
             },

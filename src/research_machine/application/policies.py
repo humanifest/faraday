@@ -2644,6 +2644,10 @@ def _validate_hypothesis_discrimination_targets(
                     target.would_weaken_if,
                     "hypothesis_discrimination_target would_weaken_if",
                 ),
+                competing_model_ref=require_canonical_text(
+                    target.competing_model_ref,
+                    "hypothesis_discrimination_target competing_model_ref",
+                ),
             )
         )
         _validate_discriminating_observation_shape(normalized[-1], action_id)

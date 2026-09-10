@@ -36,7 +36,8 @@
           "discriminating_observation": "The cheapest registered falsifier separates the target hypothesis from the competing ordinary process.",
           "expected_if_hypothesis": "The target pattern survives the falsifier.",
           "expected_if_alternative": "The pattern follows the ordinary competing process or disappears.",
-          "would_weaken_if": "The target pattern disappears or follows the competing process under the falsifier."
+          "would_weaken_if": "The target pattern disappears or follows the competing process under the falsifier.",
+          "competing_model_ref": "ordinary competing process"
         }
       ],
       "information_targets": ["theory:first-failing-gate"],

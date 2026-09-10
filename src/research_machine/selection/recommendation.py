@@ -256,6 +256,10 @@ def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
             target.would_weaken_if,
             "hypothesis_discrimination_target would_weaken_if",
         )
+        _require_canonical_text(
+            target.competing_model_ref,
+            "hypothesis_discrimination_target competing_model_ref",
+        )
         _validate_discrimination_text_contrast(target, candidate.action_id)
     if seen != set(hypotheses):
         raise ValidationError(
