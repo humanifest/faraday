@@ -371,6 +371,9 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     "limitations-missing",
     "deviation-status",
     "status-drift",
+    "deviation-plan-effect-measure",
+    "deviation-plan-contrast",
+    "deviation-plan-model",
     "model-drift",
     "available-count",
     "unavailable-studies",
@@ -415,6 +418,12 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
     elif tamper == "status-drift":
         candidate["status"] = "meta_analysis_recorded"
         candidate["deviation_status"] = "retrospective_or_uncertain_deviation_review_required"
+    elif tamper == "deviation-plan-effect-measure":
+        candidate["deviation_plan_commitments"]["effect_measure"] = "log_risk_ratio"
+    elif tamper == "deviation-plan-contrast":
+        candidate["deviation_plan_commitments"]["contrast_definition"] = "other contrast"
+    elif tamper == "deviation-plan-model":
+        candidate["deviation_plan_commitments"]["statistical_model"] = "random_effects"
     elif tamper == "model-drift":
         candidate["statistical_model"] = "vote_count"
     elif tamper == "available-count":

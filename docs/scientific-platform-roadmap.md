@@ -1623,9 +1623,9 @@ The qualitative synthesis artifact now replays its own non-authority and summary
 boundary before it is written: false scientific-evidence, conclusion, and
 publication authorization; claim and independent-study counts; the frozen
 minimum-study requirement status; deviation-derived review status; directional
-and interpretive-ceiling counts; and bounded-conclusion wording must all derive
-from retained claims and deviation status rather than being trusted summary
-fields.
+and interpretive-ceiling counts; embedded deviation-bound plan commitments; and
+bounded-conclusion wording must all derive from retained claims and deviation
+status rather than being trusted summary fields.
 The quantitative branch begins with `research literature prepare-effects`. It
 requires canonical lowercase trusted hashes for the frozen quantitative plan and
 exact evidence-map lineage, then records exactly one effect measure, standard
@@ -1738,6 +1738,10 @@ and publication authorization, count/status summaries, reviewer independence,
 and mismatch IDs. A recomputed file hash therefore cannot bless an upstream
 artifact whose summary fields were rewritten to imply evidence eligibility,
 clean review, publication readiness, or a different study count.
+The pooled artifact also replays its embedded deviation-bound plan commitments
+against the retained effect measure, contrast definition, and statistical model,
+so a copied deviation snapshot cannot rewrite the registered quantitative scope
+after pooling.
 Random-effects confidence and prediction intervals now use a conservative
 modified Hartung-Knapp standard error with tabulated Student-t critical values;
 the conventional standard error remains reported for auditability. Leave-one-out
@@ -1753,11 +1757,11 @@ normal approximations.
 The meta-analysis artifact now replays its own non-authority and summary
 boundary before it is written: false scientific-evidence, conclusion, and
 publication authorization; deviation-derived review status; available-study
-counts; unavailable-study disclosure; retained source-summary digest coverage;
-exact frozen sensitivity-result coverage; and the small-study diagnostic's
-explicit refusal to conclude publication bias. This keeps the pooled arithmetic
-inspectable without turning the result into evidence, a conclusion, or
-publication clearance.
+counts; unavailable-study disclosure; deviation-bound plan commitments; retained
+source-summary digest coverage; exact frozen sensitivity-result coverage; and
+the small-study diagnostic's explicit refusal to conclude publication bias. This
+keeps the pooled arithmetic inspectable without turning the result into
+evidence, a conclusion, or publication clearance.
 It also replays retained numeric-result shape: trusted input hashes, plan and
 snapshot handles, finite pooled estimates and uncertainty, confidence-interval
 arithmetic, heterogeneity degrees of freedom, prediction-interval eligibility,
@@ -1789,6 +1793,8 @@ The artifact now also replays its own retained boundary before it is written:
 version and trusted plan hash, plan and snapshot handles, reviewer text, exact
 frozen-plan commitment fields, canonical included source IDs, timing counts,
 status, and non-authority fields must all remain internally consistent.
+Downstream qualitative synthesis and quantitative pooling replay that embedded
+snapshot again against their retained output fields before trusting it.
 Both qualitative synthesis and quantitative pooling now require this declaration,
 including an immutable `no_deviations_declared` artifact when none are reported.
 The declaration hash and frozen-plan snapshot are embedded in the result and

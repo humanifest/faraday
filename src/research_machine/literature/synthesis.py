@@ -9,7 +9,10 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
-from research_machine.literature.deviations import validate_synthesis_deviations_boundary
+from research_machine.literature.deviations import (
+    validate_frozen_plan_commitments_boundary,
+    validate_synthesis_deviations_boundary,
+)
 from research_machine.literature.evidence_map import validate_evidence_map_boundary
 from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
@@ -230,6 +233,17 @@ def validate_literature_synthesis_boundary(synthesis: dict[str, Any]) -> None:
     )
     if synthesis.get("status") != expected_status:
         raise ValidationError("literature synthesis status does not replay from deviation and study counts")
+    commitments = synthesis.get("deviation_plan_commitments")
+    validate_frozen_plan_commitments_boundary(commitments)
+    if (commitments.get("synthesis_type") != "qualitative"
+            or commitments.get("research_question") != synthesis.get("research_question")
+            or commitments.get("primary_outcome") != synthesis.get("primary_outcome")
+            or commitments.get("effect_measure") not in {None, "not_applicable"}
+            or commitments.get("contrast_definition") not in {None, "not_applicable"}
+            or commitments.get("statistical_model") not in {None, "not_applicable"}
+            or commitments.get("minimum_independent_studies") != minimum
+            or commitments.get("conclusion_rule") != synthesis.get("conclusion_rule")):
+        raise ValidationError("literature synthesis deviation-plan commitments do not replay")
     bounded_conclusion = synthesis.get("bounded_conclusion")
     if not isinstance(bounded_conclusion, str) or not bounded_conclusion.strip():
         raise ValidationError("literature synthesis requires a bounded conclusion boundary")

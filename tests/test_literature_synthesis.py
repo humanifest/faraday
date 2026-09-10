@@ -193,6 +193,9 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     "study-count",
     "minimum-met",
     "status-drift",
+    "deviation-plan-question",
+    "deviation-plan-statistical-model",
+    "deviation-plan-minimum",
     "bounded-conclusion",
     "direction-count",
     "ceiling-count",
@@ -224,6 +227,12 @@ def test_literature_synthesis_boundary_replays_output_summaries(tmp_path, tamper
     elif tamper == "status-drift":
         candidate["status"] = "qualitative_synthesis_recorded"
         candidate["deviation_status"] = "retrospective_or_uncertain_deviation_review_required"
+    elif tamper == "deviation-plan-question":
+        candidate["deviation_plan_commitments"]["research_question"] = "Other question?"
+    elif tamper == "deviation-plan-statistical-model":
+        candidate["deviation_plan_commitments"]["statistical_model"] = "fixed_effect"
+    elif tamper == "deviation-plan-minimum":
+        candidate["deviation_plan_commitments"]["minimum_independent_studies"] = 2
     elif tamper == "bounded-conclusion":
         candidate["bounded_conclusion"] = "Synthetic claim supported."
     elif tamper == "direction-count":

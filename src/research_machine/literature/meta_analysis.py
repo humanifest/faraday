@@ -11,7 +11,10 @@ import tempfile
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
-from research_machine.literature.deviations import validate_synthesis_deviations_boundary
+from research_machine.literature.deviations import (
+    validate_frozen_plan_commitments_boundary,
+    validate_synthesis_deviations_boundary,
+)
 from research_machine.literature.effect_verification import validate_effect_verification_boundary
 from research_machine.literature.effects import (
     retained_source_summary_sha256,
@@ -217,6 +220,13 @@ def validate_meta_analysis_boundary(
     )
     if meta_analysis.get("status") != expected_status:
         raise ValidationError("meta-analysis status does not replay from deviation status")
+    commitments = meta_analysis.get("deviation_plan_commitments")
+    validate_frozen_plan_commitments_boundary(commitments)
+    if (commitments.get("synthesis_type") != "quantitative"
+            or commitments.get("effect_measure") != meta_analysis.get("effect_measure")
+            or commitments.get("contrast_definition") != contrast_definition
+            or commitments.get("statistical_model") != meta_analysis.get("statistical_model")):
+        raise ValidationError("meta-analysis deviation-plan commitments do not replay")
 
     study_provenance = meta_analysis.get("study_provenance")
     if not isinstance(study_provenance, list) or not study_provenance:

@@ -1246,10 +1246,11 @@ retrieved or reviewer-entered source claims into Faraday scientific evidence.
 The qualitative synthesis artifact now also replays its own retained summaries
 before it is written: scientific-evidence, conclusion, and publication authority
 must remain false; claim and independent-study counts, minimum-study status,
-deviation-derived review status, directional counts, ceiling counts, and the
-bounded-conclusion wording must derive from retained claims and deviation
-status. This keeps organized source claims from becoming an automated
-substantive conclusion.
+deviation-derived review status, the embedded deviation-bound plan commitments,
+directional counts, ceiling counts, and the bounded-conclusion wording must
+derive from retained claims and deviation status. This keeps organized source
+claims from becoming an automated substantive conclusion or a rewritten
+prospective synthesis scope.
 Synthesis-plan freezing likewise rejects padded plan IDs, reviewer text,
 research questions, primary outcomes, effect measures, contrast definitions,
 subgroup and sensitivity entries, policy prose, conclusion rules, deviation
@@ -1330,10 +1331,12 @@ hash-consistent rewrite cannot turn source-summary arithmetic into evidence,
 conclusion authorization, or publication clearance.
 The meta-analysis artifact now replays its own boundary before publication to
 disk: scientific-evidence, conclusion, and publication authority must remain
-false; deviation status must derive the meta-analysis review status; available
-study counts, unavailable-study disclosures, retained source-summary digests,
-planned sensitivity coverage, and small-study diagnostic non-conclusion status
-must all replay from the artifact's retained provenance.
+false; deviation status must derive the meta-analysis review status; the
+embedded deviation-bound plan commitments must match the retained quantitative
+effect measure, contrast, and model; available study counts, unavailable-study
+disclosures, retained source-summary digests, planned sensitivity coverage, and
+small-study diagnostic non-conclusion status must all replay from the artifact's
+retained provenance.
 It also replays retained numeric-result shape: trusted input hashes, plan and
 snapshot handles, finite pooled estimates and uncertainty, confidence-interval
 arithmetic, heterogeneity degrees of freedom, prediction-interval eligibility,
@@ -1353,7 +1356,10 @@ The deviation artifact now also replays its own retained boundary before it is
 written: version and trusted plan hash, plan and snapshot handles, reviewer
 text, exact frozen-plan commitment fields, canonical included source IDs,
 timing counts, status, and non-authority fields must all remain internally
-consistent.
+consistent. Downstream qualitative synthesis and quantitative pooling replay the
+embedded frozen-plan snapshot again, so a copied deviation summary cannot later
+rewrite the synthesis question, conclusion rule, effect measure, contrast, or
+statistical model inside an otherwise hash-consistent output artifact.
 Qualitative synthesis artifacts also carry explicit false evidence,
 conclusion-authorization, and publication-authorization flags, keeping organized
 source claims visibly separate from Faraday evidence or conclusions.

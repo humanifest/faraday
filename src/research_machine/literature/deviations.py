@@ -72,6 +72,11 @@ def _validate_frozen_plan_commitments(value: Any) -> None:
             raise ValidationError("frozen plan included_source_ids_at_freeze must be unique canonical text")
 
 
+def validate_frozen_plan_commitments_boundary(value: Any) -> None:
+    """Replay the retained synthesis-plan snapshot embedded in downstream artifacts."""
+    _validate_frozen_plan_commitments(value)
+
+
 def _replay_deviations(value: Any, *, synthesis_type: str | None = None) -> tuple[list[dict[str, str]], dict[str, int], str]:
     if not isinstance(value, list):
         raise ValidationError("retained synthesis deviations must be an array")
