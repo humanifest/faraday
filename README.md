@@ -207,6 +207,11 @@ set: each registered control appears exactly once in `controls_passed` or
 `controls_failed`, as determined by its structured result. Omissions, duplicates,
 overlap between passed and failed controls, invented controls, and favorable
 relabeling are rejected.
+Rigor audit also warns when a protected empirical protocol freezes structured
+controls and has recorded runs, but those runs do not expose structured
+`control_results` for every frozen control on the registered evaluation gates.
+Expected behavior, a passed unrelated gate, or favorable analysis output cannot
+stand in for an observed control evaluation.
 
 Evidence attached to an execution-backed run must supply the verified analysis
 output SHA-256 plus the effect-estimate and uncertainty JSON Pointers frozen in

@@ -136,6 +136,32 @@ def _reported_measurement_validity_check_ids(
     return reported
 
 
+def _reported_control_result_ids(
+    protocol: ExperimentProtocol,
+    runs: list[ResearchRun],
+) -> set[str]:
+    gate_ids = {
+        control.evaluation_gate_id
+        for control in protocol.control_definitions
+    }
+    reported: set[str] = set()
+    for run in runs:
+        if run.protocol_id != protocol.protocol_id:
+            continue
+        for gate in run.quality_gates:
+            if gate.gate_id not in gate_ids:
+                continue
+            results = gate.details.get("control_results")
+            if not isinstance(results, dict):
+                continue
+            reported.update(
+                control_id
+                for control_id, result in results.items()
+                if isinstance(control_id, str) and isinstance(result, dict)
+            )
+    return reported
+
+
 def _factor_interpretability_state(protocol: ExperimentProtocol) -> str:
     factors = protocol.manipulated_factors
     has_plan = bool(protocol.factor_interpretability_plan.strip())
@@ -746,6 +772,27 @@ def audit_research_state(
                             "freeze a future protocol with a falsifying control family."
                         ),
                     )
+                if runs_by_protocol[protocol.protocol_id] > 0:
+                    expected_control_ids = {
+                        control.control_id for control in protocol.control_definitions
+                    }
+                    missing_control_ids = sorted(
+                        expected_control_ids
+                        - _reported_control_result_ids(protocol, runs)
+                    )
+                    if missing_control_ids:
+                        add(
+                            "PROTECTED_EMPIRICAL_CONTROL_RESULTS_UNASSESSED",
+                            RigorSeverity.WARNING,
+                            "Protected empirical protocol has frozen structured controls, but recorded runs do not expose structured results for every control.",
+                            entity_type="protocol",
+                            entity_id=protocol.protocol_id,
+                            remediation=(
+                                "Record artifact-bound control_results for "
+                                + ", ".join(missing_control_ids)
+                                + "; do not infer control passage from expected behavior, gate labels, or favorable analysis output."
+                            ),
+                        )
         factor_state = _factor_interpretability_state(protocol)
         if factor_state == "invalid":
             add(

@@ -177,6 +177,11 @@ the complete frozen control set into `controls_passed` and `controls_failed`
 according to those structured results; omissions, duplicates, invented controls,
 and contradictory classifications fail closed. Existing synthetic-evidence
 restrictions still apply.
+Rigor audit now also flags protected empirical protocols that freeze structured
+controls and have recorded runs without structured `control_results` for every
+frozen control on the registered evaluation gates, preventing expected behavior
+or favorable numerical output from silently replacing observed control
+evaluation.
 Replication-package verification now replays passed control-gate metadata against
 the frozen control definitions: every mapped control must have exactly one
 evaluation, no invented controls may appear, `matches_expected` must remain a

@@ -1901,6 +1901,111 @@ def test_audit_warns_when_missingness_assessment_is_unassessed() -> None:
     }
 
 
+def test_audit_warns_when_control_results_are_unassessed() -> None:
+    from test_ethics_gate import _human_protocol
+
+    control = ControlDefinition(
+        control_id="negative-1",
+        registered_control="Registered negative control",
+        family="negative",
+        purpose="Detect false acceptance of the fixture pipeline.",
+        expected_behavior="The deliberately invalid fixture is rejected.",
+        evaluation_gate_id="control-evaluated",
+    )
+    protocol = replace(
+        _human_protocol(
+            human_subjects=False,
+            controls=[control.registered_control],
+            control_definitions=[control],
+            quality_requirements=["integrity", "control-evaluated"],
+        ),
+        status=ProtocolStatus.FROZEN,
+    )
+    run = ResearchRun(
+        run_id="control-run",
+        protocol_id=protocol.protocol_id,
+        protocol_hash=protocol.protocol_hash or "f" * 64,
+        analysis_mode=protocol.analysis_mode,
+        started_at="2026-09-02T12:01:00Z",
+        completed_at="2026-09-02T12:02:00Z",
+        executed_by="fixture",
+        analysis_code_hash="a" * 64,
+        environment_hash="b" * 64,
+        quality_gates=[
+            QualityGateResult(
+                "integrity",
+                QualityGateStatus.PASSED,
+                "Synthetic fixture gate.",
+                details={"evidence_sha256": "c" * 64},
+            )
+        ],
+        synthetic=True,
+        metadata={
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared",
+                "deviations": [],
+            }
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Control audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[run],
+    )
+    assert "PROTECTED_EMPIRICAL_CONTROL_RESULTS_UNASSESSED" in {
+        finding.code for finding in audit.findings
+    }
+
+    assessed_run = replace(
+        run,
+        quality_gates=[
+            *run.quality_gates,
+            QualityGateResult(
+                "control-evaluated",
+                QualityGateStatus.PASSED,
+                "Synthetic control evaluation.",
+                details={
+                    "evidence_sha256": "d" * 64,
+                    "control_results": {
+                        "negative-1": {
+                            "observed_behavior": (
+                                "The deliberately invalid fixture was rejected."
+                            ),
+                            "interpretation": "Fixture control behaved as expected.",
+                            "matches_expected": True,
+                            "evidence_sha256": "d" * 64,
+                            "evidence_location": "/controls/negative-1",
+                        }
+                    },
+                },
+            ),
+        ],
+    )
+    assessed_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[protocol],
+        runs=[assessed_run],
+    )
+    assert "PROTECTED_EMPIRICAL_CONTROL_RESULTS_UNASSESSED" not in {
+        finding.code for finding in assessed_audit.findings
+    }
+
+
 def test_retrospectively_amended_evidence_cannot_raise_prospective_ceiling(tmp_path: Path) -> None:
     service, hypothesis, predecessor_run = _prepared_run(tmp_path)
     predecessor = service.get_protocol(predecessor_run.protocol_id)
