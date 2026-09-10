@@ -1229,7 +1229,9 @@ handles before joining or counting claims, so the final map cannot reintroduce
 hidden duplicate identities. It also replays the non-authority flags, retained
 limitations, and summary counts for extraction, citation verification, bias
 assessment, and study reconciliation before joining the terminal review
-artifact, so a clean hash chain cannot hide rewritten boundary summaries.
+artifact. The map's own boundary replay checks its versioned input-hash
+envelope, canonical snapshot handle, status, claim count, study count, and
+ceiling counts, so a clean hash chain cannot hide rewritten boundary summaries.
 Qualitative synthesis also requires canonical
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims.

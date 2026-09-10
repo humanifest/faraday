@@ -84,7 +84,12 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
         "This deterministic map joins reviewed assertions without authorizing conclusions."
     ]
     map_sha = write_json(evidence_map, {"evidence_map_version": 1, "status": "evidence_map_recorded",
-        "snapshot_id": "snap", "inputs": {"extraction_sha256": extraction_sha}, "claims": [claim],
+        "snapshot_id": "snap", "inputs": {
+            "extraction_sha256": extraction_sha,
+            "citation_verification_sha256": "2" * 64,
+            "bias_assessment_sha256": "3" * 64,
+            "study_reconciliation_sha256": "4" * 64,
+        }, "claims": [claim],
         "claim_count": 1, "study_count": 1,
         "interpretive_ceiling_counts": {"insufficient_for_conclusion": 1},
         "scientific_evidence_eligible": False, "conclusion_authorized": False,

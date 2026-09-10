@@ -1580,7 +1580,10 @@ preventing padded upstream artifacts from creating apparent new claims or
 studies. It also replays the non-authority flags, retained limitations, and
 summary counts for extraction, citation verification, bias assessment, and
 study reconciliation before joining the terminal review artifact, so a clean
-hash chain cannot hide rewritten boundary summaries.
+hash chain cannot hide rewritten boundary summaries. The evidence-map boundary
+now also replays the map artifact's versioned input-hash envelope, canonical
+snapshot handle, status, claim count, study count, and ceiling counts before
+downstream synthesis can rely on the retained map.
 `research literature plan-synthesis` freezes the research question, primary
 outcome, qualitative or quantitative mode, effect measure, contrast definition, statistical model,
 minimum independent-study count, eligibility, missing-statistics, heterogeneity,

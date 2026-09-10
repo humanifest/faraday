@@ -86,7 +86,12 @@ def artifacts(tmp_path, minimum=1):
         "citation_checked_location": "page fixture",
         }
     map_sha = write_json(evidence_map, {"evidence_map_version": 1, "status": "evidence_map_recorded",
-        "snapshot_id": "snap", "inputs": {"extraction_sha256": extraction_sha},
+        "snapshot_id": "snap", "inputs": {
+            "extraction_sha256": extraction_sha,
+            "citation_verification_sha256": "2" * 64,
+            "bias_assessment_sha256": "3" * 64,
+            "study_reconciliation_sha256": "4" * 64,
+        },
         "claims": [
             mapped_claim("claim-1", "study-1", claim_digest("source-fixture", extraction_records[0])),
             mapped_claim("claim-2", "study-2", claim_digest("source-fixture", extraction_records[1])),

@@ -6,7 +6,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.evidence_map import create_evidence_map
+from research_machine.literature.evidence_map import (
+    create_evidence_map,
+    validate_evidence_map_boundary,
+)
 
 
 def write_json(path, value):
@@ -174,6 +177,40 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
         json.loads(extraction.read_text())["source_reviews"][0]["records"][0],
         "b" * 64,
     )
+
+
+@pytest.mark.parametrize("tamper", [
+    "version",
+    "input-hash",
+    "input-extra",
+    "snapshot-id",
+    "status",
+    "study-count",
+    "claim-study-padding",
+])
+def test_evidence_map_boundary_replays_artifact_envelope(tmp_path, tamper):
+    extraction, verification, bias, reconciliation, digest = chain(tmp_path)
+    result = create_evidence_map(
+        extraction, verification, bias, reconciliation, digest, tmp_path / "map"
+    )
+    candidate = json.loads(json.dumps(result))
+    if tamper == "version":
+        candidate["evidence_map_version"] = 2
+    elif tamper == "input-hash":
+        candidate["inputs"]["bias_assessment_sha256"] = "A" * 64
+    elif tamper == "input-extra":
+        candidate["inputs"]["extra_sha256"] = "0" * 64
+    elif tamper == "snapshot-id":
+        candidate["snapshot_id"] = " snap "
+    elif tamper == "status":
+        candidate["status"] = "map_reviewed"
+    elif tamper == "study-count":
+        candidate["study_count"] = 99
+    elif tamper == "claim-study-padding":
+        candidate["claims"][0]["study_id"] = " study-1 "
+
+    with pytest.raises(ValidationError):
+        validate_evidence_map_boundary(candidate, candidate["claims"])
 
 
 @pytest.mark.parametrize("failure", [

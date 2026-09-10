@@ -107,6 +107,22 @@ def validate_evidence_map_boundary(
     claims: list[dict[str, Any]],
 ) -> None:
     """Replay evidence-map non-authority and summary counts."""
+    if evidence_map.get("evidence_map_version") != 1:
+        raise ValidationError("evidence map version is invalid")
+    inputs = evidence_map.get("inputs")
+    required_inputs = {
+        "extraction_sha256",
+        "citation_verification_sha256",
+        "bias_assessment_sha256",
+        "study_reconciliation_sha256",
+    }
+    if not isinstance(inputs, dict) or set(inputs) != required_inputs:
+        raise ValidationError("evidence map inputs do not match the documented contract")
+    for key in sorted(required_inputs):
+        require_sha256(inputs.get(key), f"evidence map input {key}")
+    _canonical_text(evidence_map.get("snapshot_id"), "evidence map snapshot_id")
+    if evidence_map.get("status") != "evidence_map_recorded":
+        raise ValidationError("evidence map status is invalid")
     if evidence_map.get("scientific_evidence_eligible") is not False:
         raise ValidationError("evidence map must remain scientifically ineligible")
     if evidence_map.get("conclusion_authorized") is not False:
@@ -122,6 +138,23 @@ def validate_evidence_map_boundary(
     claim_count = evidence_map.get("claim_count")
     if isinstance(claim_count, bool) or claim_count != len(claims):
         raise ValidationError("evidence map claim_count does not replay from claims")
+    study_ids = set()
+    for index, claim in enumerate(claims):
+        if not isinstance(claim, dict):
+            raise ValidationError("evidence map claim is malformed")
+        study_ids.add(
+            _canonical_text(
+                claim.get("study_id"),
+                f"evidence map claim {index + 1} study_id",
+            )
+        )
+    study_count = evidence_map.get("study_count")
+    if (
+        isinstance(study_count, bool)
+        or not isinstance(study_count, int)
+        or study_count != len(study_ids)
+    ):
+        raise ValidationError("evidence map study_count does not replay from claims")
     ceilings = evidence_map.get("interpretive_ceiling_counts")
     if not isinstance(ceilings, dict):
         raise ValidationError("evidence map interpretive_ceiling_counts must be an object")
@@ -376,6 +409,7 @@ def create_evidence_map(
             "No qualitative conclusion, meta-analysis, causal conclusion, recommendation, or publication is authorized by this artifact.",
         ],
     }
+    validate_evidence_map_boundary(result, result["claims"])
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("evidence map output already exists")
