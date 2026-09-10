@@ -5502,7 +5502,7 @@ class ResearchService:
                 "evidence status artifact verification failed: "
                 + ", ".join(item["code"] for item in report.findings)
             )
-        reason = require_canonical_text(
+        reason = require_canonical_bounded_report_text(
             command.reason, "evidence status reason"
         )
         event = EvidenceStatusEvent(
