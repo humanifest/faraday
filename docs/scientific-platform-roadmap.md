@@ -102,9 +102,9 @@ methods without changing its epistemic rules or canonical state.
   method-enforced ceiling status, or altered non-authority missing-data scope
   before downstream run, evidence, replication, or rigor paths can trust it.
   Replication packages additionally require retained execution handoff output
-  digest, locator, and byte count to match a declared packaged run artifact,
-  and the retained result body must hash back to that exact output before
-  structured gates may cite it.
+  digest, byte count, and constrained `analysis-result.json` or redacted
+  locator to match a declared packaged run artifact, and the retained result
+  body must hash back to that exact output before structured gates may cite it.
 - Separation between machine-development history and external experiment state.
 
 ## Phase 1 — complete the general empirical toolkit

@@ -2158,7 +2158,7 @@ def test_replication_package_verifies_sample_size_plan_check_metadata(
         ("handoff_output_missing_locator", "execution_handoff output is invalid"),
         (
             "handoff_output_locator_mismatch",
-            "execution_handoff output is not a declared run artifact",
+            "execution_handoff output is invalid",
         ),
         (
             "handoff_output_size_mismatch",

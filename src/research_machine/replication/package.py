@@ -995,7 +995,8 @@ def _verified_handoff_results_by_output_sha(
     output = receipt.get("output")
     if (
         not isinstance(output, dict)
-        or not isinstance(output.get("locator"), str)
+        or output.get("locator")
+        not in {"analysis-result.json", _REDACTED_ARTIFACT_LOCATOR}
         or isinstance(output.get("size_bytes"), bool)
         or not isinstance(output.get("size_bytes"), int)
         or output["size_bytes"] <= 0

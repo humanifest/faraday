@@ -818,7 +818,8 @@ receipt-matching authority identity: unsupported inference levels, extra
 authority fields, rewritten method-enforced ceiling status, altered
 non-authority missing-data scope, receipt/result identity drift, or disagreement
 between the retained result body and the declared packaged run output digest,
-locator, and byte count reject before any packaged gate can rely on that body.
+byte count, and constrained `analysis-result.json` or redacted locator reject
+before any packaged gate can rely on that body.
 Retained workflow-adjudication handoffs
 similarly must keep their exact completed receipt semantics, false evidence
 eligibility, `reviewed_composite_run_required` status, and bounded composite
