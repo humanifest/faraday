@@ -419,8 +419,8 @@ def build_parser() -> argparse.ArgumentParser:
         choices=[value.value for value in RejectionType],
     )
     retire.add_argument("--reason", required=True)
-    retire.add_argument("--limitations", default="")
-    retire.add_argument("--resurrection-condition", action="append", default=[])
+    retire.add_argument("--limitations", required=True)
+    retire.add_argument("--resurrection-condition", action="append", required=True)
     retire.add_argument("--superseded-by")
     _add_inquiry_option(retire)
     hypothesis_list = hypothesis_commands.add_parser("list")

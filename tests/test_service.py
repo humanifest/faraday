@@ -267,6 +267,81 @@ def test_complete_inquiry_loop_preserves_rejected_hypotheses(tmp_path: Path) -> 
     }
 
 
+def test_hypothesis_retirement_requires_bounded_limitations_and_resurrection(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry("Retirement boundary", "Can rejection memory drift?", "retire")
+    )
+    hypothesis = service.propose_hypothesis(
+        ProposeHypothesis(
+            statement="The fixture hypothesis has a testable alternative.",
+            observable_prediction="The bounded fixture statistic changes.",
+            null_model="The bounded fixture statistic does not change.",
+            falsification_conditions=["The fixture statistic remains unchanged."],
+        )
+    )
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+
+    with pytest.raises(ValidationError, match="retirement limitations"):
+        service.retire_hypothesis(
+            RetireHypothesis(
+                hypothesis_id=hypothesis.hypothesis_id,
+                rejection_type=RejectionType.INSUFFICIENT_DATA,
+                reason="The fixture is underpowered.",
+                limitations="",
+                resurrection_conditions=["Reconsider with more independent units."],
+            )
+        )
+    with pytest.raises(ValidationError, match="at least one item"):
+        service.retire_hypothesis(
+            RetireHypothesis(
+                hypothesis_id=hypothesis.hypothesis_id,
+                rejection_type=RejectionType.INSUFFICIENT_DATA,
+                reason="The fixture is underpowered.",
+                limitations="This does not refute the scoped alternative.",
+                resurrection_conditions=[],
+            )
+        )
+    with pytest.raises(ValidationError, match="overclaiming"):
+        service.retire_hypothesis(
+            RetireHypothesis(
+                hypothesis_id=hypothesis.hypothesis_id,
+                rejection_type=RejectionType.INSUFFICIENT_DATA,
+                reason="The fixture confirmed the null model.",
+                limitations="This does not refute the scoped alternative.",
+                resurrection_conditions=["Reconsider with more independent units."],
+            )
+        )
+
+    retired = service.retire_hypothesis(
+        RetireHypothesis(
+            hypothesis_id=hypothesis.hypothesis_id,
+            rejection_type=RejectionType.INSUFFICIENT_DATA,
+            reason="The fixture did not meet its registered information target.",
+            limitations="This does not refute the scoped alternative.",
+            resurrection_conditions=["Reconsider with more independent units."],
+        )
+    )
+    assert retired.workflow_state.value == "retired"
+
+    hypothesis_path = (
+        tmp_path
+        / "inquiries"
+        / "retire"
+        / "hypotheses"
+        / "retired"
+        / f"{hypothesis.hypothesis_id}.json"
+    )
+    stored = json.loads(hypothesis_path.read_text(encoding="utf-8"))
+    stored["retirement"]["resurrection_conditions"] = []
+    hypothesis_path.write_text(json.dumps(stored), encoding="utf-8")
+    with pytest.raises(ValidationError, match="at least one item"):
+        service.list_hypotheses(state="retired")
+
+
 def test_hypothesis_proposal_rejects_noncanonical_lineage_and_contrast_handles(
     tmp_path: Path,
 ) -> None:

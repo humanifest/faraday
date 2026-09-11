@@ -2026,8 +2026,11 @@ gate evidence.
   and empirical-test labels rather than accepting them as self-attestations.
 - Publish a deterministic epistemic audit and conservative conclusion ceiling in
   every synthesis.
-- Retire hypotheses without erasing them, including rejection type, limitations,
-  lineage, and resurrection conditions.
+- Retire hypotheses without erasing them, including a bounded rejection reason,
+  explicit limitations, lineage, and at least one concrete resurrection
+  condition. Authoritative hypothesis reads replay that retirement boundary, so
+  later edits cannot turn rejected-hypothesis memory into proof, confirmation,
+  validation, or an unrecoverable dead end.
 - Build deterministic, claim-scoped Markdown syntheses.
 - Record every state-changing command in a hash-chained append-only ledger and
   detect later tampering.

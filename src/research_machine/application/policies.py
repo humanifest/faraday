@@ -37,6 +37,7 @@ from research_machine.domain.models import (
     QualityGateResult,
     QualityGateStatus,
     ResearchRun,
+    RejectionType,
     SelectionWeights,
     ValidationTag,
 )
@@ -61,6 +62,15 @@ _METHOD_INFERENCE_CLAIM_CEILINGS: dict[str, ClaimLevel | None] = {
     "descriptive": ClaimLevel.MEASUREMENT_VALIDITY,
     "association": ClaimLevel.STATISTICAL_ASSOCIATION,
     "design_conditional_effect": ClaimLevel.CAUSAL_DIRECTION,
+}
+_RETIREMENT_FIELDS = {
+    "rejection_type",
+    "reason",
+    "limitations",
+    "resurrection_conditions",
+    "superseded_by",
+    "decided_at",
+    "decided_by",
 }
 
 
@@ -134,6 +144,40 @@ def validate_hypothesis_pending_review_boundary(hypothesis: Hypothesis) -> None:
     require_pending_review_rationale(hypothesis.pending_review_rationale)
 
 
+def validate_hypothesis_retirement_boundary(hypothesis: Hypothesis) -> None:
+    if hypothesis.workflow_state is not HypothesisWorkflowState.RETIRED:
+        return
+    retirement = hypothesis.retirement
+    if not isinstance(retirement, dict):
+        raise ValidationError("retired hypothesis must retain retirement metadata")
+    missing = sorted(_RETIREMENT_FIELDS - set(retirement))
+    unknown = sorted(set(retirement) - _RETIREMENT_FIELDS)
+    if missing:
+        raise ValidationError("retirement metadata missing fields: " + ", ".join(missing))
+    if unknown:
+        raise ValidationError("retirement metadata has unknown fields: " + ", ".join(unknown))
+    try:
+        RejectionType(
+            require_canonical_text(
+                retirement["rejection_type"], "retirement rejection_type"
+            )
+        )
+    except ValueError as exc:
+        raise ValidationError("retirement rejection_type is unsupported") from exc
+    require_canonical_bounded_report_text(retirement["reason"], "retirement reason")
+    require_canonical_bounded_report_text(
+        retirement["limitations"], "retirement limitations"
+    )
+    require_nonempty_unique_bounded_report_text_list(
+        retirement["resurrection_conditions"], "resurrection_conditions"
+    )
+    superseded_by = retirement["superseded_by"]
+    if superseded_by is not None:
+        require_canonical_text(superseded_by, "retirement superseded_by")
+    require_canonical_text(retirement["decided_at"], "retirement decided_at")
+    require_canonical_text(retirement["decided_by"], "retirement decided_by")
+
+
 def require_bounded_evidence_summary(value: str) -> str:
     return require_bounded_report_text(value, "evidence summary")
 
@@ -184,6 +228,22 @@ def require_unique_bounded_report_text_list(
         require_bounded_report_text(value, f"{field_name} item")
         for value in require_text_list(values, field_name)
     ]
+    if len(set(normalized)) != len(normalized):
+        raise ValidationError(f"{field_name} must not contain duplicates")
+    return normalized
+
+
+def require_nonempty_unique_bounded_report_text_list(
+    values: Sequence[str], field_name: str
+) -> list[str]:
+    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
+        raise ValidationError(f"{field_name} must be a list of text values")
+    normalized = [
+        require_canonical_bounded_report_text(value, f"{field_name} item")
+        for value in values
+    ]
+    if not normalized:
+        raise ValidationError(f"{field_name} must contain at least one item")
     if len(set(normalized)) != len(normalized):
         raise ValidationError(f"{field_name} must not contain duplicates")
     return normalized

@@ -1912,6 +1912,10 @@ def test_frozen_protocol_binds_hypothesis_science_but_allows_lifecycle_change(
         hypothesis_id=hypothesis_id,
         rejection_type=RejectionType.WEAKENED,
         reason="Later evidence weakened the hypothesis without rewriting it.",
+        limitations="This does not determine whether revised scope conditions could still hold.",
+        resurrection_conditions=[
+            "Reconsider if a future protocol directly tests the revised scope."
+        ],
     ))
     service.show_inquiry()
 

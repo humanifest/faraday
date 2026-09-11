@@ -358,7 +358,11 @@ estimand, expected effect direction, time window, covariates, known confounds,
 falsification and support conditions, boundary conditions, and replication
 requirement. Workflow state, later evidence assessment, replication status, and
 retirement metadata are excluded so legitimate scientific lifecycle decisions
-remain possible without rewriting the preregistered proposition. Direct protocol
+remain possible without rewriting the preregistered proposition. Retirement
+metadata now has its own replayed boundary: rejected hypotheses must retain a
+bounded reason, explicit limitations, and at least one concrete resurrection
+condition, so later lifecycle prose cannot become proof, confirmation,
+validation, or an unreviewable dead end. Direct protocol
 reads, inquiry display, amendment, run intake, and evidence admission fail when
 current hypothesis science differs from the frozen commitment. The protocol hash
 binds the commitment map itself.
