@@ -2325,8 +2325,11 @@ explicit validity horizon; canonical run intake rejects analysis completed after
 that horizon and persists its service-generated ethics check. JSON evidence
 locations are required to resolve as absolute pointers in the verified bytes and
 the selected value is hashed; other media retain explicitly non-machine-resolved
-locations. The machine still
-does not authenticate assessors or independently establish compliance truth.
+locations. Condition-discharge rationales are now canonical bounded report text
+at dataset intake, local replay, and redacted package verification, so a retained
+discharge cannot be strengthened into proof or validation of compliance. The
+machine still does not authenticate assessors or independently establish
+compliance truth.
 Condition-discharge verification now retains its evidence-artifact root and is
 fully replayed from the preserved receipt and current bytes before inquiry
 display and every run. Replay rechecks exact condition coverage, original

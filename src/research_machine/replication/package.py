@@ -731,7 +731,7 @@ def _validate_packaged_protected_dataset_verification(
                 raise ValidationError(
                     f"package human-subject dataset {dataset_id} ethics condition compliance_status changed"
                 )
-            require_canonical_text(
+            require_canonical_bounded_report_text(
                 item.get("rationale"),
                 f"package human-subject dataset {dataset_id} ethics condition rationale",
             )

@@ -244,7 +244,10 @@ def verify_ethics_condition_discharge(
             raise ValidationError(
                 "satisfied ethics conditions must use null valid_through"
             )
-        _text(item.get("rationale"), "condition rationale")
+        require_canonical_bounded_report_text(
+            item.get("rationale"),
+            "condition rationale",
+        )
         digest = _digest(item.get("evidence_sha256"), "condition evidence_sha256")
         if digest not in evidence_hashes:
             raise ValidationError("ethics condition result must reference a listed evidence artifact")

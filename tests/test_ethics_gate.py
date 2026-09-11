@@ -580,6 +580,18 @@ def test_conditional_review_obligations_require_exact_artifact_backed_discharge_
             ethics_artifact_root=f" {ethics_root} ",
         ))
     assert ledger.read_bytes() == before
+    overclaiming_rationale = dict(discharge)
+    overclaiming_rationale["conditions"] = [{
+        **discharge["conditions"][0],
+        "rationale": "The reviewed eligibility control validated ethical compliance.",
+    }]
+    with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
+        service.register_dataset(replace(
+            command,
+            metadata={"ethics_condition_discharge": overclaiming_rationale},
+            ethics_artifact_root=str(ethics_root),
+        ))
+    assert ledger.read_bytes() == before
     accepted = service.register_dataset(replace(
         command, ethics_artifact_root=str(ethics_root)
     ))
@@ -599,6 +611,20 @@ def test_conditional_review_obligations_require_exact_artifact_backed_discharge_
         metadata={**accepted.metadata, "ethics_condition_verification": tampered_verification},
     )
     with pytest.raises(ValidationError, match="condition verification actor.*canonical"):
+        reverify_ethics_condition_discharge(frozen, tampered)
+    overclaiming_discharge = dict(accepted.metadata["ethics_condition_discharge"])
+    overclaiming_discharge["conditions"] = [{
+        **overclaiming_discharge["conditions"][0],
+        "rationale": "The reviewed eligibility control validated ethical compliance.",
+    }]
+    tampered = replace(
+        accepted,
+        metadata={
+            **accepted.metadata,
+            "ethics_condition_discharge": overclaiming_discharge,
+        },
+    )
+    with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
         reverify_ethics_condition_discharge(frozen, tampered)
     from research_machine.application.ethics import validate_ethics_conditions_for_run
     current = validate_ethics_conditions_for_run(
@@ -733,6 +759,7 @@ def test_conditional_review_obligations_require_exact_artifact_backed_discharge_
         ("discharge_status", "condition results changed"),
         ("location_check", "location check no longer matches"),
         ("monitoring_flag", "condition monitoring flag changed"),
+        ("rationale_overclaim", "report-prohibited overclaiming"),
     ],
 )
 def test_redacted_replication_package_replays_condition_discharge_semantics(
@@ -822,6 +849,13 @@ def test_redacted_replication_package_replays_condition_discharge_semantics(
         verification["evidence_location_checks"][0]["evidence_location"] = "/synthetic_fixture"
     elif mutation == "monitoring_flag":
         verification["ongoing_controls_require_continued_monitoring"] = False
+    elif mutation == "rationale_overclaim":
+        verification["condition_results"][0]["rationale"] = (
+            "The reviewed eligibility control validated ethical compliance."
+        )
+        retained_discharge["conditions"][0]["rationale"] = (
+            "The reviewed eligibility control validated ethical compliance."
+        )
     datasets_path.write_text(
         json.dumps(datasets, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

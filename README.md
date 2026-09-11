@@ -1533,8 +1533,11 @@ must declare `valid_through`; run intake refuses analyses completed after that
 horizon. Evidence artifacts declare a canonical media type; for `application/json`, the
 location must be an absolute JSON Pointer that resolves in the verified bytes
 and Faraday records a digest of the selected value. Other formats retain an exact
-human-inspectable location without pretending to parse them. These checks enforce documented obligations without claiming the
-assessor's identity or the truth of the compliance judgment.
+human-inspectable location without pretending to parse them. Condition-discharge
+rationales are canonical bounded report text, so a discharge cannot claim that
+the assessor proved or validated ethical compliance. These checks enforce
+documented obligations without claiming the assessor's identity or the truth of
+the compliance judgment.
 The service-generated dataset verification retains the condition-evidence root.
 Inquiry display and every run replay the complete original discharge validation
 from the preserved receipt and present bytes, including coverage, chronology,
