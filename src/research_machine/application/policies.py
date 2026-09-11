@@ -138,6 +138,50 @@ def require_pending_review_rationale(value: str) -> str:
     return rationale
 
 
+def _bounded_json_metadata(value: Any, field_name: str) -> Any:
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValidationError(f"{field_name} must contain only finite numbers")
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        if value != value.strip():
+            raise ValidationError(
+                f"{field_name} text must be canonical without surrounding whitespace"
+            )
+        if value and _metadata_overclaim_terms(value):
+            raise ValidationError(
+                f"{field_name} uses report-prohibited overclaiming language; "
+                "metadata is caller-authored context, not scientific authority"
+            )
+        return value
+    if isinstance(value, list):
+        return [
+            _bounded_json_metadata(item, field_name)
+            for item in value
+        ]
+    if isinstance(value, dict) and all(isinstance(key, str) for key in value):
+        normalized: dict[str, Any] = {}
+        for key, item in value.items():
+            if not key.strip() or key != key.strip():
+                raise ValidationError(
+                    f"{field_name} keys must be canonical non-empty text"
+                )
+            if _metadata_overclaim_terms(key):
+                raise ValidationError(
+                    f"{field_name} keys use report-prohibited overclaiming language; "
+                    "metadata is caller-authored context, not scientific authority"
+                )
+            normalized[key] = _bounded_json_metadata(item, field_name)
+        return normalized
+    raise ValidationError(f"{field_name} must be JSON-compatible")
+
+
+def validate_action_metadata(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValidationError("action metadata must be an object")
+    return _bounded_json_metadata(value, "action metadata")
+
+
 def validate_hypothesis_pending_review_boundary(hypothesis: Hypothesis) -> None:
     if hypothesis.workflow_state is not HypothesisWorkflowState.PENDING_REVIEW:
         return
@@ -193,6 +237,12 @@ def report_overclaim_terms(value: str) -> list[str]:
             seen.add(term)
             terms.append(term)
     return terms
+
+
+def _metadata_overclaim_terms(value: str) -> list[str]:
+    return report_overclaim_terms(value) or report_overclaim_terms(
+        value.replace("_", " ").replace("-", " ")
+    )
 
 
 def evidence_summary_overclaim_terms(value: str) -> list[str]:
@@ -2921,8 +2971,7 @@ def validate_action_candidates(
             raise ValidationError(
                 "factorial_or_crossover_design must be true or false"
             )
-        if not isinstance(candidate.metadata, dict):
-            raise ValidationError("action metadata must be an object")
+        metadata = validate_action_metadata(candidate.metadata)
         depends_on = require_unique_canonical_text_list(
             candidate.depends_on, "depends_on"
         )
@@ -2985,7 +3034,7 @@ def validate_action_candidates(
                     candidate.factorial_or_crossover_design
                 ),
                 factor_interpretability_plan=factor_interpretability_plan,
-                metadata=dict(candidate.metadata),
+                metadata=metadata,
             )
         )
     return normalized

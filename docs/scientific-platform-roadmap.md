@@ -52,7 +52,11 @@ methods without changing its epistemic rules or canonical state.
   factor-interpretability plans, and retained discrimination-target prose are
   canonical and bounded for recommendation reporting, so action selection cannot
   claim proof, confirmation, validation, or explanation where it only records
-  expected information gain. Deterministic synthesis now reports the selected actions'
+  expected information gain. Caller-supplied candidate metadata is likewise
+  bounded as JSON-compatible, canonical, finite, non-authoritative context and
+  replayed on authoritative reads, so hidden metadata cannot preserve proof,
+  confirmation, validation, or explanation claims outside the auditable target
+  declarations. Deterministic synthesis now reports the selected actions'
   factor plan, design status, and retained hypothesis-discrimination targets,
   and protocol-level rigor and synthesis now expose frozen manipulated-factor
   interpretability plans while flagging legacy simultaneous interventions that

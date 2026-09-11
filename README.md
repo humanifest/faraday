@@ -2259,6 +2259,12 @@ retained discrimination-target prose are canonical and bounded for
 recommendation reporting: they may describe expected information gain or
 uncertainty reduction, but they cannot claim that the recommended action has
 proved, confirmed, validated, or explained a scientific proposition.
+Caller-supplied action `metadata` is retained only as non-authoritative context:
+metadata keys and text values must be JSON-compatible, canonical, finite where
+numeric, and free of the same overclaiming language. Recommendation replay
+rechecks this boundary before list, inquiry display, or synthesis can trust an
+older record, so metadata cannot smuggle in proof, confirmation, validation, or
+explanation outside the scored and reviewed scientific structure.
 When a candidate claims to distinguish specific hypotheses, it must also provide
 exact `hypothesis_discrimination_targets`: one canonical target per named
 hypothesis with the discriminating observation, expected result if the hypothesis

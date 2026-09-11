@@ -54,6 +54,7 @@ def candidate(
     hypothesis_discrimination_targets: list[HypothesisDiscriminationTarget] | None = None,
     prerequisite_evidence_refs: list[str] | None = None,
     safety_review_refs: list[str] | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> ActionCandidate:
     return ActionCandidate(
         action_id=action_id,
@@ -84,6 +85,7 @@ def candidate(
         factorial_or_crossover_design=factorial_or_crossover_design,
         factor_interpretability_plan=factor_interpretability_plan,
         hypothesis_discrimination_targets=hypothesis_discrimination_targets or [],
+        metadata=metadata or {},
     )
 
 
@@ -1329,6 +1331,77 @@ def test_recommendation_candidates_reject_overclaiming_prose(
                 ],
             )
         )
+
+
+@pytest.mark.parametrize(
+    ("metadata", "message"),
+    [
+        (
+            {"review_note": "Validated that this action is safe."},
+            "action metadata uses report-prohibited",
+        ),
+        (
+            {" confirmed_status": "bounded context"},
+            "action metadata keys must be canonical",
+        ),
+        (
+            {"nested": {"confirmed_status": "bounded context"}},
+            "action metadata keys use report-prohibited",
+        ),
+    ],
+)
+def test_recommendation_candidates_reject_authority_smuggling_metadata(
+    tmp_path: Path,
+    metadata: dict[str, object],
+    message: str,
+) -> None:
+    service = prepared_service(tmp_path)
+    with pytest.raises(ValidationError, match=message):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate(
+                        "metadata-side-channel",
+                        "machine",
+                        0.9,
+                        metadata=metadata,
+                    ),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+
+
+def test_recommendation_replay_rejects_legacy_overclaiming_metadata(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate("machine-high", "machine", 1.0),
+                candidate("theory-best", "theory", 0.6),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][0]["metadata"] = {
+        "review_note": "Confirmed that this action is scientifically valid."
+    }
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="action metadata uses recommendation-prohibited",
+    ):
+        service.list_recommendations()
 
 
 def test_recommendation_discrimination_targets_reject_overclaiming_prose(

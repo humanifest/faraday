@@ -71,6 +71,52 @@ def _require_unique_canonical_text_list(value: object, field: str) -> list[str]:
     return normalized
 
 
+def _validate_bounded_metadata(value: object, field: str = "action metadata") -> None:
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValidationError(f"{field} must contain only finite numbers")
+    if value is None or isinstance(value, (bool, int, float)):
+        return
+    if isinstance(value, str):
+        if value != value.strip():
+            raise ValidationError(
+                f"{field} text must be canonical without surrounding whitespace"
+            )
+        if value and _metadata_overclaim(value):
+            raise ValidationError(
+                f"{field} uses recommendation-prohibited overclaiming language; "
+                "metadata is caller-authored context, not scientific authority"
+            )
+        return
+    if isinstance(value, list):
+        for item in value:
+            _validate_bounded_metadata(item, field)
+        return
+    if isinstance(value, dict) and all(isinstance(key, str) for key in value):
+        for key, item in value.items():
+            if not key.strip() or key != key.strip():
+                raise ValidationError(
+                    f"{field} keys must be canonical non-empty text"
+                )
+            if _metadata_overclaim(key):
+                raise ValidationError(
+                    f"{field} keys use recommendation-prohibited overclaiming "
+                    "language; metadata is caller-authored context, not "
+                    "scientific authority"
+                )
+            _validate_bounded_metadata(item, field)
+        return
+    raise ValidationError(f"{field} must be JSON-compatible")
+
+
+def _metadata_overclaim(value: str) -> bool:
+    return bool(
+        _RECOMMENDATION_OVERCLAIM.search(value)
+        or _RECOMMENDATION_OVERCLAIM.search(
+            value.replace("_", " ").replace("-", " ")
+        )
+    )
+
+
 _CANDIDATE_SCORE_FIELDS = (
     "expected_discrimination",
     "uncertainty_reduction",
@@ -119,6 +165,9 @@ def _validate_candidate_score_inputs_for_replay(
     _require_canonical_text(candidate.action_id, "action_id")
     _require_bounded_recommendation_text(candidate.title, "action title")
     _require_bounded_recommendation_text(candidate.rationale, "action rationale")
+    if not isinstance(candidate.metadata, dict):
+        raise ValidationError("action metadata must be an object")
+    _validate_bounded_metadata(candidate.metadata)
     _require_unique_canonical_text_list(
         candidate.information_targets, "information_targets"
     )
