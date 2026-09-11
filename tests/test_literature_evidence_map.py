@@ -249,7 +249,8 @@ def test_evidence_map_boundary_replays_artifact_envelope(tmp_path, tamper):
     "padded-bias-duplicate", "padded-reconciliation-duplicate",
     "padded-extraction-source", "padded-extraction-study", "padded-extraction-location",
     "padded-citation-id", "padded-citation-source", "padded-citation-study",
-    "padded-citation-location", "padded-citation-rationale", "padded-bias-study",
+    "padded-citation-location", "padded-citation-rationale",
+    "overclaim-citation-rationale", "padded-bias-study",
     "padded-bias-domain", "padded-bias-location", "padded-reconciliation-study",
     "citation-provenance", "bias-provenance", "claim-digest", "claim-payload",
     "source-anchor-mismatch",
@@ -441,6 +442,7 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
     elif failure in {
         "padded-citation-id", "padded-citation-source", "padded-citation-study",
         "padded-citation-location", "padded-citation-rationale",
+        "overclaim-citation-rationale",
     }:
         value = json.loads(verification.read_text())
         if failure == "padded-citation-id":
@@ -453,6 +455,8 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
             value["assessments"][0]["checked_location"] = " page 4 "
         elif failure == "padded-citation-rationale":
             value["assessments"][0]["rationale"] = " fixture citation check "
+        elif failure == "overclaim-citation-rationale":
+            value["assessments"][0]["rationale"] = "Confirmed source support"
         verification_sha = write_json(verification, value)
         value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)

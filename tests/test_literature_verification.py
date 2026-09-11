@@ -151,6 +151,21 @@ def test_citation_verification_boundary_replays_artifact_envelope(tmp_path):
             validate_citation_verification_boundary(candidate, candidate["assessments"])
 
 
+def test_citation_verification_boundary_rejects_retained_overclaiming_rationale(tmp_path):
+    extraction, digest = extraction_file(tmp_path)
+    result = create_citation_verification(
+        extraction, digest, review(), tmp_path / "verification"
+    )
+    result["assessments"][0]["rationale"] = "Validated source support"
+
+    with pytest.raises(ValidationError, match="prohibited overclaiming language"):
+        validate_citation_verification_boundary(
+            result,
+            result["assessments"],
+            require_assessment_contract=True,
+        )
+
+
 @pytest.mark.parametrize("failure", [
     "hash",
     "same-reviewer",
@@ -178,6 +193,7 @@ def test_citation_verification_boundary_replays_artifact_envelope(tmp_path):
     "location",
     "padded-location",
     "padded-rationale",
+    "overclaim-rationale",
     "verdict",
     "missing-claim-field",
 ])
@@ -258,6 +274,7 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
     elif failure == "location": candidate["assessments"][0]["checked_location"] = ""
     elif failure == "padded-location": candidate["assessments"][0]["checked_location"] = " page 1 "
     elif failure == "padded-rationale": candidate["assessments"][0]["rationale"] = " Text checked "
+    elif failure == "overclaim-rationale": candidate["assessments"][0]["rationale"] = "Confirmed source support"
     elif failure == "verdict": candidate["assessments"][0]["verdict"] = "true"
     output = tmp_path / "verification"
     with pytest.raises(ValidationError):

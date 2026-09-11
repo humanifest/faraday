@@ -1237,7 +1237,10 @@ claims or study groupings. Citation verification also requires canonical
 extraction reviewer, source, study, claim, evidence-location, citation-reviewer,
 checked-location, and rationale text before coverage and duplicate checks, so
 the independent review cannot trim a second apparent assessment or rewrite the
-pinned extraction trail. It also replays each extraction source-review envelope:
+pinned extraction trail. Citation rationales also reject report-prohibited
+overclaiming language, so a source-support check cannot claim proof,
+confirmation, validation, or explanation beyond the bounded verdict. It also
+replays each extraction source-review envelope:
 source IDs must remain duplicate-free, source-review reasons must remain
 canonical, retained source-file hashes must still be valid when present, and
 the declared extracted/no-extractable status must agree with the retained record

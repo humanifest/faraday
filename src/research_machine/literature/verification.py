@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -26,12 +27,27 @@ _EXTRACTION_RECORD_FIELDS = {
     "notes",
 }
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
+_CITATION_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 
 
 def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_citation_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _CITATION_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses citation-verification prohibited overclaiming language; "
+            "describe the citation check and bounded verdict without claiming "
+            "proof, confirmation, validation, or explanation"
+        )
     return text
 
 
@@ -181,7 +197,7 @@ def validate_citation_verification_boundary(
                 "citation extraction_claim_sha256",
             )
             _canonical_text(item.get("checked_location"), "checked_location")
-            _canonical_text(item.get("rationale"), "citation rationale")
+            _bounded_citation_text(item.get("rationale"), "citation rationale")
 
 
 def create_citation_verification(
@@ -280,7 +296,9 @@ def create_citation_verification(
             **records[extraction_id],
             "verdict": verdict,
             "checked_location": _canonical_text(assessment["checked_location"], "checked_location"),
-            "rationale": _canonical_text(assessment["rationale"], "citation rationale"),
+            "rationale": _bounded_citation_text(
+                assessment["rationale"], "citation rationale"
+            ),
         }
     if set(by_id) != set(records):
         raise ValidationError("citation assessments must cover exactly all extracted claims")

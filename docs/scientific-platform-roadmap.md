@@ -1559,8 +1559,11 @@ false reviewer-identity-authentication boundary.
 Citation verification requires canonical extraction reviewer, source, study,
 claim, evidence-location, citation-reviewer, checked-location, and rationale
 text before coverage and duplicate checks, so a second review cannot trim a
-different apparent assessment or rewrite the pinned extraction trail. It also
-replays each extraction source-review envelope before creating the review
+different apparent assessment or rewrite the pinned extraction trail. Citation
+rationales also reject report-prohibited overclaiming language, so a
+source-support check cannot claim proof, confirmation, validation, or
+explanation beyond the bounded verdict. It also replays each extraction
+source-review envelope before creating the review
 artifact: duplicate source IDs, padded source-review reasons, malformed retained
 source-file hashes, and extracted/no-extractable status drift fail closed even
 when the retained claim rows still look reviewable.

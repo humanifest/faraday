@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -28,6 +29,10 @@ _EXTRACTION_RECORD_FIELDS = {
     "notes",
 }
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
+_CITATION_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 _INTERPRETIVE_CEILINGS = {
     "reviewed_source_claim",
     "qualified_source_claim",
@@ -51,6 +56,15 @@ def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_citation_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _CITATION_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses citation-verification prohibited overclaiming language"
+        )
     return text
 
 
@@ -98,7 +112,9 @@ def _validate_citation_verification_boundary(
     assessments: list[dict[str, Any]],
 ) -> None:
     validate_citation_verification_boundary(
-        verification, assessments, require_clean_verdicts=True
+        verification,
+        assessments,
+        require_clean_verdicts=True,
     )
 
 
@@ -339,7 +355,9 @@ def create_evidence_map(
                 raise ValidationError("evidence map bias judgment is invalid")
             extracted_location = normalized_record["evidence_location"]
             checked_location = citation.get("checked_location")
-            citation_rationale = citation.get("rationale")
+            citation_rationale = _bounded_citation_text(
+                citation.get("rationale"), "citation rationale"
+            )
             if any(not isinstance(value, str) or not value.strip()
                    or value != value.strip()
                    for value in (extracted_location, checked_location, citation_rationale)):
