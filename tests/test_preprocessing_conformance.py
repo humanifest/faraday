@@ -193,6 +193,55 @@ def test_preprocessing_conformance_rejects_untrusted_registered_hash(
     assert not output.exists()
 
 
+@pytest.mark.parametrize(
+    ("target", "message"),
+    [
+        ("purpose", "registered.purpose uses preprocessing-prohibited"),
+        ("operation", "registered.steps\\[0\\].operation uses preprocessing-prohibited"),
+        (
+            "input_role",
+            "registered.steps\\[0\\].input_artifacts\\[0\\].role uses preprocessing-prohibited",
+        ),
+        (
+            "observed_output_role",
+            "observed.steps\\[1\\].output_artifacts\\[0\\].role uses preprocessing-prohibited",
+        ),
+    ],
+)
+def test_preprocessing_declaration_rejects_overclaiming_prose(
+    tmp_path: Path, target: str, message: str
+) -> None:
+    registered_payload = _pipeline()
+    observed_payload = _pipeline()
+    if target == "purpose":
+        registered_payload["purpose"] = "Validated preprocessing pipeline."
+    elif target == "operation":
+        registered_payload["steps"][0]["operation"] = "Confirmed source loading"
+    elif target == "input_role":
+        registered_payload["steps"][0]["input_artifacts"][0]["role"] = (
+            "Input that proved acquisition quality"
+        )
+    elif target == "observed_output_role":
+        observed_payload["steps"][1]["output_artifacts"][0]["role"] = (
+            "Output that explained the association"
+        )
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha = _write_json(registered, registered_payload)
+    observed_sha = _write_json(observed, observed_payload)
+    output = tmp_path / "preprocessing-conformance"
+
+    with pytest.raises(ValidationError, match=message):
+        assess_preprocessing_conformance(
+            registered,
+            registered_sha,
+            observed,
+            observed_sha,
+            output,
+        )
+    assert not output.exists()
+
+
 def test_preprocessing_conformance_record_verifier_replays_current_bytes(
     tmp_path: Path,
 ) -> None:
@@ -221,6 +270,34 @@ def test_preprocessing_conformance_record_verifier_replays_current_bytes(
     assert verified["observed_pipeline_sha256"] == observed_sha
     assert verified["comparison_replay"] == "verified"
     assert verified["scientific_evidence_eligible"] is False
+
+
+def test_preprocessing_conformance_record_replays_bounded_declaration_prose(
+    tmp_path: Path,
+) -> None:
+    registered = tmp_path / "registered-pipeline.json"
+    observed = tmp_path / "observed-pipeline.json"
+    registered_sha = _write_json(registered, _pipeline())
+    observed_sha = _write_json(observed, _pipeline())
+    result = assess_preprocessing_conformance(
+        registered,
+        registered_sha,
+        observed,
+        observed_sha,
+        tmp_path / "preprocessing-conformance",
+    )
+    record = Path(result["path"]) / "preprocessing-conformance.json"
+    retained = json.loads(record.read_text())
+    retained["registered_pipeline_snapshot"]["steps"][0]["operation"] = (
+        "Validated source loading"
+    )
+    tampered_sha = _write_json(record, retained)
+
+    with pytest.raises(
+        ValidationError,
+        match="registered_pipeline_snapshot.steps\\[0\\].operation uses preprocessing-prohibited",
+    ):
+        verify_preprocessing_conformance_record(record, tampered_sha)
 
 
 def test_preprocessing_conformance_record_replays_retained_comparison(

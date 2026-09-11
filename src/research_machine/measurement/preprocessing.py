@@ -45,6 +45,10 @@ _STEP_FIELDS = {
     "implementation_sha256",
 }
 _ARTIFACT_FIELDS = {"artifact_id", "sha256", "media_type", "role"}
+_PREPROCESSING_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 _CONFORMANCE_CONCLUSION_CEILING = (
     "Provider-free preprocessing conformance check only. It detects whether an "
     "observed preprocessing declaration matches the trusted registered pipeline, "
@@ -63,6 +67,17 @@ def _text(value: Any, field: str, *, optional: bool = False) -> str:
             f"preprocessing {field} must be canonical without surrounding whitespace"
         )
     return value
+
+
+def _bounded_declaration_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if _PREPROCESSING_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"preprocessing {field} uses preprocessing-prohibited overclaiming language; "
+            "describe the retained declaration without claiming proof, "
+            "confirmation, validation, or explanation"
+        )
+    return text
 
 
 def _stable_identifier(value: Any, field: str) -> str:
@@ -274,7 +289,9 @@ def _normalize_artifacts(value: Any, label: str) -> list[dict[str, str]]:
             "artifact_id": artifact_id,
             "sha256": _sha256(artifact["sha256"], f"{item_label}.sha256"),
             "media_type": _text(artifact["media_type"], f"{item_label}.media_type"),
-            "role": _text(artifact["role"], f"{item_label}.role"),
+            "role": _bounded_declaration_text(
+                artifact["role"], f"{item_label}.role"
+            ),
         })
     return artifacts
 
@@ -297,7 +314,9 @@ def _normalize_pipeline(value: dict[str, Any], label: str) -> dict[str, Any]:
         seen.add(step_id)
         normalized_steps.append({
             "step_id": step_id,
-            "operation": _text(step["operation"], f"{step_label}.operation"),
+            "operation": _bounded_declaration_text(
+                step["operation"], f"{step_label}.operation"
+            ),
             "parameters": _json_safe(step["parameters"], f"{step_label}.parameters"),
             "input_artifacts": _normalize_artifacts(
                 step["input_artifacts"], f"{step_label}.input_artifacts"
@@ -311,7 +330,9 @@ def _normalize_pipeline(value: dict[str, Any], label: str) -> dict[str, Any]:
         })
     return {
         "pipeline_id": _stable_identifier(value["pipeline_id"], f"{label}.pipeline_id"),
-        "purpose": _text(value["purpose"], f"{label}.purpose"),
+        "purpose": _bounded_declaration_text(
+            value["purpose"], f"{label}.purpose"
+        ),
         "steps": normalized_steps,
     }
 

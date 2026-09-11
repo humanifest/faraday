@@ -1785,8 +1785,10 @@ observed preprocessing declaration against a separately trusted registered
 pipeline. Both files must be strict JSON objects with a stable `pipeline_id`,
 purpose, and ordered `steps`; every step names a stable step ID, operation,
 JSON-compatible parameters, implementation SHA-256, and explicit input and
-output artifact IDs, media types, roles, and hashes. Faraday verifies both files
-against their independent hashes, then writes non-evidentiary
+output artifact IDs, media types, roles, and hashes. Purpose, operation, and
+artifact-role prose are bounded declaration text: they may describe the retained
+pipeline, but cannot claim proof, confirmation, validation, or explanation.
+Faraday verifies both files against their independent hashes, then writes non-evidentiary
 `preprocessing-conformance.json` with retained normalized snapshots of both
 pipeline declarations. Pipeline ID mismatch, missing, extra, reordered, or
 changed steps, altered parameters, artifact changes, and implementation-hash

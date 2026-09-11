@@ -2200,13 +2200,16 @@ pipeline identity, missing, extra, reordered, or changed steps, altered
 parameters, artifact drift, and implementation drift produce a failed
 non-evidentiary `preprocessing-conformance.json` instead of letting an analysis
 claim silent adherence to the registered pipeline. Current conformance records
-retain normalized snapshots of both pipeline declarations and verification
-recomputes the step results, findings, and status from those snapshots; legacy
-records without retained snapshots remain visible as missing self-contained
-comparison replay rather than being silently upgraded. Every failed step must
-still retain at least one finding scoped to that exact step, so a legacy or
-current record cannot preserve a failed step while hiding what changed behind an
-unrelated summary. Replay also requires the exact non-evidentiary conclusion
+retain normalized snapshots of both pipeline declarations. Their purpose,
+operation, and artifact-role prose must remain bounded declaration text, so a
+trusted declaration cannot claim proof, confirmation, validation, or explanation
+while preserving a matching hash. Verification recomputes the step results,
+findings, and status from those snapshots; legacy records without retained
+snapshots remain visible as missing self-contained comparison replay rather
+than being silently upgraded. Every failed step must still retain at least one
+finding scoped to that exact step, so a legacy or current record cannot preserve
+a failed step while hiding what changed behind an unrelated summary. Replay also
+requires the exact non-evidentiary conclusion
 ceiling, so preprocessing declaration conformance cannot be rewritten into
 implementation correctness, gate clearance, or evidence authorization inside a
 trusted record. A pass only means the
