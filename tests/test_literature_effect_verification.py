@@ -89,7 +89,7 @@ def review(match=True):
         {"study_id": "s1", "source_values_match": match, "calculation_matches": True,
          "checked_location": "table 1", "rationale": "Checked source and arithmetic"},
         {"study_id": "s2", "source_values_match": None, "calculation_matches": None,
-         "checked_location": "results", "rationale": "Confirmed unavailable"}]}
+         "checked_location": "results", "rationale": "No compatible effect remained available"}]}
 
 
 def test_effect_verification_cli_records_clean_independent_review(tmp_path, capsys):
@@ -140,6 +140,7 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     "duplicate-claim-source",
     "padded-claim-location",
     "padded-rationale",
+    "overclaim-rationale",
     "availability-bool",
     "mismatch-drift",
     "status-drift",
@@ -180,6 +181,8 @@ def test_effect_verification_boundary_replays_retained_assessments(tmp_path, tam
         ] = " page 1 "
     elif tamper == "padded-rationale":
         candidate["assessments"][0]["rationale"] = " Checked source and arithmetic "
+    elif tamper == "overclaim-rationale":
+        candidate["assessments"][0]["rationale"] = "Validated source and arithmetic"
     elif tamper == "availability-bool":
         candidate["assessments"][1]["source_values_match"] = False
     elif tamper == "mismatch-drift":
@@ -218,6 +221,7 @@ def test_effect_verification_boundary_replays_retained_assessments(tmp_path, tam
     "location",
     "padded-location",
     "padded-rationale",
+    "overclaim-rationale",
     "authority",
     "conclusion-authority",
     "publication-authority",
@@ -348,6 +352,7 @@ def test_invalid_effect_verification_never_publishes(tmp_path, failure):
     elif failure == "location": candidate["assessments"][0]["checked_location"] = ""
     elif failure == "padded-location": candidate["assessments"][0]["checked_location"] = " table 1 "
     elif failure == "padded-rationale": candidate["assessments"][0]["rationale"] = " Checked source and arithmetic "
+    elif failure == "overclaim-rationale": candidate["assessments"][0]["rationale"] = "Confirmed source and arithmetic"
     output = tmp_path / "verification"
     with pytest.raises(ValidationError): create_effect_verification(effects, digest, candidate, output)
     assert not output.exists()

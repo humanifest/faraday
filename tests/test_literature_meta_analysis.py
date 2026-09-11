@@ -138,7 +138,7 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
               "retained_source_summary_sha256": source_summary_digest(source_summary("missing", "unavailable")),
               "claim_source_provenance": claim_source_provenance(records[-1]),
               "checked_location": "results",
-              "rationale": "Confirmed no compatible statistics"}]})
+              "rationale": "No compatible statistics remained available"}]})
     deviations = tmp_path / "deviations.json"
     deviations_sha = write_json(deviations, {"synthesis_deviations_version": 1,
         "synthesis_plan_sha256": plan_sha, "plan_id": "p1", "snapshot_id": "snap",
@@ -577,7 +577,7 @@ def test_meta_analysis_requires_canonical_effect_and_verification_handles(tmp_pa
         )
 
 
-@pytest.mark.parametrize("failure", ["plan-hash", "plan-authority", "plan-conclusion-authority", "plan-publication-authority", "plan-limitations-missing", "effects-hash", "model", "link", "measure", "contrast", "derivation-scope", "effects-authority", "effects-conclusion-authority", "effects-publication-authority", "effects-limitations-missing", "effects-count-drift", "effects-availability-count-drift", "effects-readiness-drift", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-authority", "verification-conclusion-authority", "verification-publication-authority", "verification-limitations-missing", "verification-contrast", "verification-independent-drift", "verification-reviewer-drift", "verification-mismatch-drift", "verification-status-rewrite", "verification-provenance", "verification-duplicate", "verification-missing-status", "verification-missing-source-summary-digest", "verification-source-summary-digest-drift", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "deviation-contrast", "deviation-authority", "deviation-conclusion-authority", "deviation-publication-authority", "deviation-plan-amended", "deviation-ceiling", "deviation-limitations-missing", "deviation-timing-counts", "deviation-status-rewrite", "deviation-padded-row", "unknown-sensitivity"])
+@pytest.mark.parametrize("failure", ["plan-hash", "plan-authority", "plan-conclusion-authority", "plan-publication-authority", "plan-limitations-missing", "effects-hash", "model", "link", "measure", "contrast", "derivation-scope", "effects-authority", "effects-conclusion-authority", "effects-publication-authority", "effects-limitations-missing", "effects-count-drift", "effects-availability-count-drift", "effects-readiness-drift", "source-summary-missing", "source-summary-status", "source-summary-arm", "one-study", "variance", "duplicate", "bias", "claim-provenance", "duplicate-claim", "verification-authority", "verification-conclusion-authority", "verification-publication-authority", "verification-limitations-missing", "verification-contrast", "verification-independent-drift", "verification-reviewer-drift", "verification-mismatch-drift", "verification-status-rewrite", "verification-provenance", "verification-overclaim-rationale", "verification-duplicate", "verification-missing-status", "verification-missing-source-summary-digest", "verification-source-summary-digest-drift", "verification-missing-claim-source", "verification-source-anchor-drift", "verification-status-drift", "verification-unclean-available", "verification-applicable-unavailable", "deviation-plan", "deviation-contrast", "deviation-authority", "deviation-conclusion-authority", "deviation-publication-authority", "deviation-plan-amended", "deviation-ceiling", "deviation-limitations-missing", "deviation-timing-counts", "deviation-status-rewrite", "deviation-padded-row", "unknown-sensitivity"])
 def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
     if failure == "plan-hash": plan_sha = "0" * 64
@@ -667,6 +667,10 @@ def test_invalid_meta_analysis_never_publishes(tmp_path, failure):
         verification_sha = write_json(verification, value)
     elif failure == "verification-provenance":
         value = json.loads(verification.read_text()); value["assessments"][0]["checked_location"] = ""; verification_sha = write_json(verification, value)
+    elif failure == "verification-overclaim-rationale":
+        value = json.loads(verification.read_text())
+        value["assessments"][0]["rationale"] = "Confirmed retained source summary and arithmetic"
+        verification_sha = write_json(verification, value)
     elif failure == "verification-duplicate":
         value = json.loads(verification.read_text()); value["assessments"][1]["study_id"] = " s1 "; verification_sha = write_json(verification, value)
     elif failure == "verification-missing-status":

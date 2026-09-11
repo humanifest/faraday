@@ -1748,7 +1748,10 @@ exact frozen contrast rather than a later reviewer-entered comparison. Effect
 verification also requires canonical effect reviewer, retained study IDs,
 source-summary study IDs, verification reviewer, checked locations, rationales,
 and service-derived claim source anchors before coverage checks, and it carries
-the same frozen contrast definition forward.
+the same frozen contrast definition forward. Verification rationales also reject
+report-prohibited overclaiming language, so a reviewer cannot turn an
+independent transcription or arithmetic check into a claim of proof,
+confirmation, validation, or explanation.
 `research literature derive-effects` provides a reproducible alternative for
 `mean_difference` and `log_risk_ratio`: it computes estimates and standard errors
 from source-reported experimental and comparator arm summaries under canonical

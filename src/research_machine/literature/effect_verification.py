@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -18,12 +19,27 @@ from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
+_EFFECT_VERIFICATION_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 
 
 def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_verification_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _EFFECT_VERIFICATION_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses effect-verification prohibited overclaiming language; "
+            "describe what was checked and whether retained values matched without "
+            "claiming proof, confirmation, validation, or explanation"
+        )
     return text
 
 
@@ -154,7 +170,7 @@ def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -
             assessment.get("checked_location"),
             "effect-verification assessment checked_location",
         )
-        _canonical_text(
+        _bounded_verification_text(
             assessment.get("rationale"),
             "effect-verification assessment rationale",
         )
@@ -262,7 +278,9 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
             "retained_source_summary_sha256": source_summary_digests[study_id],
             "claim_source_provenance": claim_provenance[study_id],
             "checked_location": _canonical_text(item["checked_location"], "effect checked_location"),
-            "rationale": _canonical_text(item["rationale"], "effect verification rationale")}
+            "rationale": _bounded_verification_text(
+                item["rationale"], "effect verification rationale"
+            )}
     if set(by_study) != set(statuses):
         raise ValidationError("effect verification must cover exactly all effect records")
     mismatches = [item["study_id"] for item in by_study.values()
