@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from research_machine.application.artifact_integrity import verify_run_artifacts
-from research_machine.application.policies import validate_dataset_artifacts
+from research_machine.application.policies import (
+    require_canonical_bounded_report_text,
+    validate_dataset_artifacts,
+)
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     DatasetArtifact,
@@ -496,12 +499,18 @@ def validate_ethics_review_event_chain(
                 raise ValidationError("active ethics review event expiry must follow its effective time")
         elif event.status != "active" and event.expires_at is not None:
             raise ValidationError("non-active ethics review event cannot expire")
-        _canonical_text(event.reason, "review event reason")
+        require_canonical_bounded_report_text(
+            event.reason,
+            "review event reason",
+        )
         _digest(event.review_artifact_sha256, "review event artifact SHA-256")
         _canonical_text(event.review_artifact_locator, "review event artifact locator")
         _canonical_text(event.review_artifact_root, "review event artifact root")
         _canonical_text(event.created_by, "review event created_by")
-        _canonical_text(event.conclusion_ceiling, "review event conclusion_ceiling")
+        require_canonical_bounded_report_text(
+            event.conclusion_ceiling,
+            "review event conclusion_ceiling",
+        )
         if not isinstance(event.artifact_integrity, dict) or event.artifact_integrity.get("status") != "passed":
             raise ValidationError("ethics review event lacks passed artifact integrity")
         if verify_current_artifacts:

@@ -280,6 +280,23 @@ def test_ethics_review_status_command_handles_must_be_canonical(
         service.record_ethics_review_event(replace(command, **{field: value}))
 
 
+def test_ethics_review_status_command_rejects_overclaiming_reason(tmp_path) -> None:
+    _, service, frozen = _frozen_reviewed_human_protocol(tmp_path)
+    status_root = tmp_path / "status-evidence"
+    status_root.mkdir()
+    command = _ethics_status_command(
+        frozen.protocol_id,
+        status_root,
+        "status.json",
+        "active",
+        expires_at="2026-12-31T23:59:59Z",
+        reason="Independent review validated the protocol's scientific adequacy.",
+    )
+
+    with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
+        service.record_ethics_review_event(command)
+
+
 def test_ethics_review_status_supersedes_handle_must_be_canonical(tmp_path) -> None:
     _, service, frozen = _frozen_reviewed_human_protocol(tmp_path)
     status_root = tmp_path / "status-evidence"
@@ -339,6 +356,28 @@ def test_ethics_review_status_reads_fail_closed_on_noncanonical_chain_tampering(
         service.show_inquiry()
 
 
+def test_ethics_review_status_reads_reject_overclaiming_reason_and_ceiling(
+    tmp_path,
+) -> None:
+    for field, value in (
+        ("reason", "Independent review validated the protocol's scientific adequacy."),
+        ("conclusion_ceiling", "This review event validated substantive adequacy."),
+    ):
+        workspace, service, frozen = _frozen_reviewed_human_protocol(tmp_path / field)
+        status_root = tmp_path / field / "status-evidence"
+        status_root.mkdir()
+        event = service.record_ethics_review_event(_ethics_status_command(
+            frozen.protocol_id, status_root, "suspension.json", "suspended",
+        ))
+        event_file = next(workspace.rglob(f"{event.event_id}.json"))
+        tampered = json.loads(event_file.read_text(encoding="utf-8"))
+        tampered[field] = value
+        event_file.write_text(json.dumps(tampered), encoding="utf-8")
+
+        with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
+            service.show_inquiry()
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
@@ -381,6 +420,50 @@ def test_redacted_replication_package_replays_ethics_event_canonical_semantics(
     commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
 
     with pytest.raises(ValidationError, match=message):
+        verify_replication_package(package, commitment)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("reason", "Independent review validated the protocol's scientific adequacy."),
+        ("conclusion_ceiling", "This review event validated substantive adequacy."),
+    ],
+)
+def test_redacted_replication_package_rejects_overclaiming_ethics_event_text(
+    tmp_path, field, value
+) -> None:
+    from research_machine.replication.package import verify_replication_package
+
+    _, service, frozen = _frozen_reviewed_human_protocol(tmp_path)
+    status_root = tmp_path / "status-evidence"
+    status_root.mkdir()
+    service.record_ethics_review_event(_ethics_status_command(
+        frozen.protocol_id, status_root, "suspension.json", "suspended",
+    ))
+    package = tmp_path / "package"
+    exported = service.export_replication_package(frozen.protocol_id, str(package))
+    verify_replication_package(package, exported["package_manifest_sha256"])
+
+    events_path = package / "ethics-review-events.json"
+    events = json.loads(events_path.read_text(encoding="utf-8"))
+    events[0][field] = value
+    events_path.write_text(
+        json.dumps(events, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = package / "package-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"]["ethics-review-events.json"] = hashlib.sha256(
+        events_path.read_bytes()
+    ).hexdigest()
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
         verify_replication_package(package, commitment)
 
 

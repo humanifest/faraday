@@ -1562,14 +1562,16 @@ Later review changes are append-only rather than edits to the frozen protocol:
 Statuses are `active`, `suspended`, `withdrawn`, or `expired`; an active renewal
 may declare `--expires-at`. Status, protocol, event, predecessor, review-time
 handles, reason, creator, retained locator/root, and bounded conclusion ceiling
-must be canonical without surrounding whitespace. Every event verifies its
-evidence bytes, binds the frozen protocol, receives a monotone sequence, and
-must supersede the exact latest event. Dataset and run intake recompute current
-clearance and reject non-active or expired states. Protocol-bound execution
-performs the same check before invoking an analysis method and embeds the
-resulting ethics receipt in the execution design check. Provider-neutral
-collaborator context includes the event history so an app or optional LLM cannot
-silently overlook a suspension.
+must be canonical without surrounding whitespace. Review-event reasons and
+conclusion ceilings also use the bounded report-language guard, so a local
+status artifact cannot be rewritten into proof of reviewer authority or
+substantive scientific adequacy. Every event verifies its evidence bytes, binds
+the frozen protocol, receives a monotone sequence, and must supersede the exact
+latest event. Dataset and run intake recompute current clearance and reject
+non-active or expired states. Protocol-bound execution performs the same check
+before invoking an analysis method and embeds the resulting ethics receipt in
+the execution design check. Provider-neutral collaborator context includes the
+event history so an app or optional LLM cannot silently overlook a suspension.
 Every local use re-hashes each status-review artifact and recomputes its complete
 integrity receipt; a stale `passed` flag is insufficient. Default replication
 exports redact both the artifact locator and retained local root, while package
