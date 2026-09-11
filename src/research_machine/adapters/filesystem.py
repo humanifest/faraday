@@ -404,6 +404,74 @@ class FileSystemRepository:
         ]
         return sorted(lessons, key=lambda item: (item.created_at, item.lesson_id))
 
+    def verify_cross_lane_lesson_integrity(
+        self,
+        inquiry_id: str,
+        lesson: CrossLaneLesson,
+        *,
+        events: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Bind a lesson projection to its unique hash-verified record event."""
+
+        verified_events = (
+            events if events is not None else self._verified_ledger_events(inquiry_id)
+        )
+        payload = self._creation_payload(
+            verified_events,
+            command="cross-lane-lesson.record",
+            aggregate_type="cross_lane_lesson",
+            aggregate_id=lesson.lesson_id,
+        )
+        path = (
+            self._inquiry_dir(inquiry_id)
+            / "cross_lane_lessons"
+            / f"{lesson.lesson_id}.json"
+        )
+        current_payload = self._read_json(path)
+        derived_fields = {
+            "transfer_authority_status",
+            "current_transfer_authority",
+            "report_prose_findings",
+        }
+        if derived_fields.intersection(payload):
+            raise IntegrityError(
+                f"cross-lane lesson {lesson.lesson_id} persists derived transfer authority"
+            )
+        if (
+            current_payload != payload
+            or CrossLaneLesson.from_dict(payload) != lesson
+        ):
+            raise IntegrityError(
+                f"cross-lane lesson {lesson.lesson_id} differs from its record event"
+            )
+        retained = payload.get("lesson_payload_sha256", "")
+        if retained:
+            if not isinstance(retained, str) or not re.fullmatch(
+                r"[0-9a-f]{64}", retained
+            ):
+                raise IntegrityError(
+                    f"cross-lane lesson {lesson.lesson_id} has an invalid payload commitment"
+                )
+            committed_payload = dict(payload)
+            committed_payload.pop("lesson_payload_sha256", None)
+            expected = hashlib.sha256(
+                canonical_json(committed_payload).encode("utf-8")
+            ).hexdigest()
+            if retained != expected:
+                raise IntegrityError(
+                    f"cross-lane lesson {lesson.lesson_id} payload no longer "
+                    "matches its service-generated commitment"
+                )
+        return {
+            "status": (
+                "ledger_bound_with_payload_commitment"
+                if retained
+                else "ledger_bound_without_payload_commitment"
+            ),
+            "lesson_id": lesson.lesson_id,
+            "payload_commitment_present": bool(retained),
+        }
+
     def save_ethics_review_event(
         self, inquiry_id: str, event: EthicsReviewEvent
     ) -> None:

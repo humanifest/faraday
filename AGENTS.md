@@ -280,6 +280,14 @@ canonical write path.
   condition into one prospectively defined signed scalar margin or register
   multiple named controls. This strengthens observable custody and
   inspectability; it cannot prove that producing code was not hardcoded.
+- Bind every cross-lane lesson projection to exactly one hash-verified
+  `cross-lane-lesson.record` event before it can influence a read, and replay its
+  payload commitment when present. Preserve an event-identical historical lesson
+  that fails only newer lexical report-prose semantics as legacy process history,
+  but give it no current transfer authority and expose that downgrade in rigor and
+  synthesis. Uncommitted historical lessons are likewise visible but
+  non-authoritative. Never use compatibility to admit a new overclaiming lesson,
+  excuse malformed structure, normalize old prose, or accept an edited projection.
 - Evidence derived from a run with typed controls must exactly partition every
   frozen registered control into `controls_passed` or `controls_failed` according
   to that run's structured `matches_expected` results. Reject omissions,

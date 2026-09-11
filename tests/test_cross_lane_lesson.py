@@ -1,12 +1,21 @@
+import hashlib
 import json
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import pytest
 
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import CreateInquiry, RecordCrossLaneLesson
+from research_machine.application.cross_lane_lesson_integrity import (
+    cross_lane_lesson_payload_sha256,
+)
 from research_machine.application.service import ResearchService
-from research_machine.domain.errors import ValidationError
+from research_machine.domain.errors import IntegrityError, ValidationError
+from research_machine.domain.models import (
+    CrossLaneLesson,
+    CrossLaneTransferAuthorityStatus,
+)
 
 
 def prepared_service(root: Path) -> ResearchService:
@@ -51,6 +60,38 @@ def valid_command(**overrides) -> RecordCrossLaneLesson:
     return RecordCrossLaneLesson(**values)
 
 
+def save_historical_lesson(
+    service: ResearchService,
+    command: RecordCrossLaneLesson,
+    *,
+    committed: bool = False,
+    lesson_id: str = "lesson-historical01",
+) -> CrossLaneLesson:
+    lesson = CrossLaneLesson(
+        lesson_id=lesson_id,
+        created_at="2026-08-01T00:00:00Z",
+        created_by="historical-runtime",
+        **asdict(command),
+    )
+    if committed:
+        lesson = replace(
+            lesson,
+            lesson_payload_sha256=cross_lane_lesson_payload_sha256(lesson),
+        )
+    inquiry_id = service.repository.resolve_inquiry_id(None)
+    service.repository.save_cross_lane_lesson(inquiry_id, lesson)
+    service.repository.append_event(
+        inquiry_id,
+        timestamp=lesson.created_at,
+        actor=lesson.created_by,
+        command="cross-lane-lesson.record",
+        aggregate_type="cross_lane_lesson",
+        aggregate_id=lesson.lesson_id,
+        payload=lesson.to_dict(),
+    )
+    return lesson
+
+
 def test_cross_lane_lesson_is_immutable_ledgered_process_state(tmp_path: Path) -> None:
     service = prepared_service(tmp_path)
     lesson = service.record_cross_lane_lesson(valid_command())
@@ -58,7 +99,16 @@ def test_cross_lane_lesson_is_immutable_ledgered_process_state(tmp_path: Path) -
     assert lesson.lesson_id == "lesson-lesson00"
     assert len(lesson.lesson_payload_sha256) == 64
     assert lesson.failure_class == "interface_ambiguity"
-    assert service.list_cross_lane_lessons() == [lesson]
+    assert lesson.current_transfer_authority is True
+    assert (
+        lesson.transfer_authority_status
+        is CrossLaneTransferAuthorityStatus.CURRENT
+    )
+    restored = service.list_cross_lane_lessons()[0]
+    assert restored == lesson
+    assert restored.current_transfer_authority is True
+    assert "current_transfer_authority" not in restored.to_dict()
+    assert "transfer_authority_status" not in restored.to_dict()
     assert service.show_inquiry()["cross_lane_lessons"] == [lesson.to_dict()]
     synthesis = service.build_synthesis()["content"]
     assert "Cross-lane process lessons: 1" in synthesis
@@ -75,11 +125,11 @@ def test_cross_lane_lesson_reads_replay_payload_commitment(tmp_path: Path) -> No
     payload["proposed_repair"] = "Silently rewrite the old target."
     lesson_file.write_text(json.dumps(payload), encoding="utf-8")
 
-    with pytest.raises(ValidationError, match="payload no longer matches"):
+    with pytest.raises(IntegrityError, match="differs from its record event"):
         service.list_cross_lane_lessons()
-    with pytest.raises(ValidationError, match="payload no longer matches"):
+    with pytest.raises(IntegrityError, match="differs from its record event"):
         service.show_inquiry()
-    with pytest.raises(ValidationError, match="payload no longer matches"):
+    with pytest.raises(IntegrityError, match="differs from its record event"):
         service.build_synthesis()
 
 
@@ -87,35 +137,159 @@ def test_legacy_cross_lane_lessons_without_payload_commitment_remain_readable(
     tmp_path: Path,
 ) -> None:
     service = prepared_service(tmp_path)
-    lesson = service.record_cross_lane_lesson(valid_command())
-    lesson_file = next(tmp_path.rglob("cross_lane_lessons/*.json"))
-    payload = json.loads(lesson_file.read_text(encoding="utf-8"))
-    payload.pop("lesson_payload_sha256")
-    lesson_file.write_text(json.dumps(payload), encoding="utf-8")
+    lesson = save_historical_lesson(service, valid_command())
 
     restored = service.list_cross_lane_lessons()[0]
     assert restored.lesson_id == lesson.lesson_id
     assert restored.lesson_payload_sha256 == ""
-    assert "payload commitment `legacy_missing`" in service.build_synthesis()["content"]
+    assert restored.current_transfer_authority is False
+    assert (
+        restored.transfer_authority_status
+        is CrossLaneTransferAuthorityStatus.LEGACY_UNCOMMITTED
+    )
+    synthesis = service.build_synthesis()["content"]
+    assert "payload commitment `legacy_missing`" in synthesis
+    assert "current transfer authority `denied` (`legacy_uncommitted`)" in synthesis
+    assert any(
+        item.code == "CROSS_LANE_LESSON_LEGACY_UNCOMMITTED"
+        and item.entity_id == lesson.lesson_id
+        for item in service.audit_rigor().findings
+    )
 
 
-def test_legacy_cross_lane_lesson_reads_replay_bounded_process_prose(
+@pytest.mark.parametrize("committed", [False, True])
+def test_ledger_bound_historical_report_prose_is_readable_but_not_authoritative(
+    tmp_path: Path, committed: bool
+) -> None:
+    service = prepared_service(tmp_path)
+    save_historical_lesson(
+        service,
+        valid_command(
+            proposed_repair=(
+                "Treat a component as independently validated before reuse."
+            )
+        ),
+        committed=committed,
+    )
+
+    restored = service.list_cross_lane_lessons()[0]
+    assert restored.current_transfer_authority is False
+    assert restored.report_prose_findings == ["proposed_repair:validated"]
+    expected_status = (
+        CrossLaneTransferAuthorityStatus.LEGACY_REPORT_PROSE
+        if committed
+        else CrossLaneTransferAuthorityStatus.LEGACY_PROSE_UNCOMMITTED
+    )
+    assert restored.transfer_authority_status is expected_status
+    assert service.show_inquiry()["cross_lane_lessons"] == [restored.to_dict()]
+    audit = service.audit_rigor()
+    finding = next(
+        item
+        for item in audit.findings
+        if item.code == "CROSS_LANE_LESSON_LEGACY_REPORT_PROSE"
+    )
+    assert finding.entity_id == restored.lesson_id
+    synthesis = service.build_synthesis()["content"]
+    assert "current transfer authority `denied`" in synthesis
+    assert expected_status.value in synthesis
+    assert "lexical legacy findings `proposed_repair:validated`" in synthesis
+
+
+def test_historical_report_prose_does_not_excuse_structural_invalidity(
     tmp_path: Path,
 ) -> None:
+    service = prepared_service(tmp_path)
+    save_historical_lesson(
+        service,
+        valid_command(
+            target_lane_ids=["theory"],
+            proposed_repair="Treat the old result as independently validated.",
+        ),
+    )
+
+    with pytest.raises(ValidationError, match="must target a different lane"):
+        service.list_cross_lane_lessons()
+
+
+def test_removed_current_commitment_cannot_claim_legacy_status(tmp_path: Path) -> None:
     service = prepared_service(tmp_path)
     service.record_cross_lane_lesson(valid_command())
     lesson_file = next(tmp_path.rglob("cross_lane_lessons/*.json"))
     payload = json.loads(lesson_file.read_text(encoding="utf-8"))
     payload.pop("lesson_payload_sha256")
-    payload["observation"] = "Confirmed that the machine lane is valid."
     lesson_file.write_text(json.dumps(payload), encoding="utf-8")
 
-    with pytest.raises(ValidationError, match="observation uses report-prohibited"):
+    with pytest.raises(IntegrityError, match="differs from its record event"):
         service.list_cross_lane_lessons()
-    with pytest.raises(ValidationError, match="observation uses report-prohibited"):
-        service.show_inquiry()
-    with pytest.raises(ValidationError, match="observation uses report-prohibited"):
-        service.build_synthesis()
+
+
+def test_projection_without_unique_record_event_cannot_claim_legacy_status(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    lesson = CrossLaneLesson(
+        lesson_id="lesson-unledgered01",
+        created_at="2026-08-01T00:00:00Z",
+        created_by="historical-runtime",
+        **asdict(
+            valid_command(
+                proposed_repair="Treat this component as independently validated."
+            )
+        ),
+    )
+    inquiry_id = service.repository.resolve_inquiry_id(None)
+    service.repository.save_cross_lane_lesson(inquiry_id, lesson)
+
+    with pytest.raises(IntegrityError, match="exactly one hash-verified"):
+        service.list_cross_lane_lessons()
+
+
+def test_projection_with_duplicate_record_events_cannot_claim_legacy_status(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    lesson = save_historical_lesson(
+        service,
+        valid_command(
+            proposed_repair="Treat this component as independently validated."
+        ),
+    )
+    inquiry_id = service.repository.resolve_inquiry_id(None)
+    service.repository.append_event(
+        inquiry_id,
+        timestamp="2026-08-01T00:00:01Z",
+        actor=lesson.created_by,
+        command="cross-lane-lesson.record",
+        aggregate_type="cross_lane_lesson",
+        aggregate_id=lesson.lesson_id,
+        payload=lesson.to_dict(),
+    )
+
+    with pytest.raises(IntegrityError, match="exactly one hash-verified"):
+        service.list_cross_lane_lessons()
+
+
+def test_ledger_bound_lesson_with_bad_payload_commitment_fails_closed(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    lesson = save_historical_lesson(service, valid_command())
+    inquiry_id = service.repository.resolve_inquiry_id(None)
+    lesson_file = next(tmp_path.rglob("cross_lane_lessons/*.json"))
+    payload = lesson.to_dict()
+    payload["lesson_payload_sha256"] = "b" * 64
+    lesson_file.write_text(json.dumps(payload), encoding="utf-8")
+    ledger = tmp_path / "inquiries" / inquiry_id / "ledger.jsonl"
+    events = [json.loads(line) for line in ledger.read_text().splitlines()]
+    events[-1]["payload"] = payload
+    body = {key: value for key, value in events[-1].items() if key != "event_hash"}
+    events[-1]["event_hash"] = hashlib.sha256(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    ledger.write_text("\n".join(json.dumps(item) for item in events) + "\n")
+
+    with pytest.raises(IntegrityError, match="payload no longer matches"):
+        service.list_cross_lane_lessons()
 
 
 @pytest.mark.parametrize(

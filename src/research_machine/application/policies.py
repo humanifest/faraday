@@ -3489,7 +3489,7 @@ def validate_selection_weights(weights: SelectionWeights) -> SelectionWeights:
     return SelectionWeights(**values)
 
 
-def validate_cross_lane_lesson(
+def _normalize_cross_lane_lesson(
     *,
     origin_lane_id: str,
     target_lane_ids: Sequence[str],
@@ -3505,7 +3505,13 @@ def validate_cross_lane_lesson(
     proposed_repair: str,
     repair_falsifier: str,
     conclusion_ceiling: str,
+    enforce_report_prose: bool,
 ) -> dict[str, object]:
+    report_text = (
+        require_canonical_bounded_report_text
+        if enforce_report_prose
+        else require_canonical_text
+    )
     origin_lane = require_canonical_text(origin_lane_id, "origin_lane_id")
     target_lanes = require_unique_canonical_text_list(
         target_lane_ids, "target_lane_ids"
@@ -3561,26 +3567,111 @@ def validate_cross_lane_lesson(
             origin_artifact_sha256, "origin_artifact_sha256"
         ),
         "origin_integrity_status": integrity_status,
-        "observation": require_canonical_bounded_report_text(
-            observation, "observation"
-        ),
+        "observation": report_text(observation, "observation"),
         "failure_class": failure,
-        "strongest_alternative_explanation": require_canonical_bounded_report_text(
+        "strongest_alternative_explanation": report_text(
             strongest_alternative_explanation,
             "strongest_alternative_explanation",
         ),
-        "challenged_invariant": require_canonical_bounded_report_text(
+        "challenged_invariant": report_text(
             challenged_invariant, "challenged_invariant"
         ),
         "first_permitted_future_versions": future_versions,
         "prohibited_retroactive_targets": prohibited_targets,
-        "proposed_repair": require_canonical_bounded_report_text(
-            proposed_repair, "proposed_repair"
-        ),
-        "repair_falsifier": require_canonical_bounded_report_text(
-            repair_falsifier, "repair_falsifier"
-        ),
-        "conclusion_ceiling": require_canonical_bounded_report_text(
-            conclusion_ceiling, "conclusion_ceiling"
-        ),
+        "proposed_repair": report_text(proposed_repair, "proposed_repair"),
+        "repair_falsifier": report_text(repair_falsifier, "repair_falsifier"),
+        "conclusion_ceiling": report_text(conclusion_ceiling, "conclusion_ceiling"),
     }
+
+
+def validate_cross_lane_lesson(
+    *,
+    origin_lane_id: str,
+    target_lane_ids: Sequence[str],
+    origin_artifact_locator: str,
+    origin_artifact_sha256: str,
+    origin_integrity_status: str,
+    observation: str,
+    failure_class: str,
+    strongest_alternative_explanation: str,
+    challenged_invariant: str,
+    first_permitted_future_versions: Sequence[str],
+    prohibited_retroactive_targets: Sequence[str],
+    proposed_repair: str,
+    repair_falsifier: str,
+    conclusion_ceiling: str,
+) -> dict[str, object]:
+    """Validate current cross-lane lesson writes and authoritative reads."""
+
+    return _normalize_cross_lane_lesson(
+        origin_lane_id=origin_lane_id,
+        target_lane_ids=target_lane_ids,
+        origin_artifact_locator=origin_artifact_locator,
+        origin_artifact_sha256=origin_artifact_sha256,
+        origin_integrity_status=origin_integrity_status,
+        observation=observation,
+        failure_class=failure_class,
+        strongest_alternative_explanation=strongest_alternative_explanation,
+        challenged_invariant=challenged_invariant,
+        first_permitted_future_versions=first_permitted_future_versions,
+        prohibited_retroactive_targets=prohibited_retroactive_targets,
+        proposed_repair=proposed_repair,
+        repair_falsifier=repair_falsifier,
+        conclusion_ceiling=conclusion_ceiling,
+        enforce_report_prose=True,
+    )
+
+
+def validate_historical_cross_lane_lesson_structure(
+    *,
+    origin_lane_id: str,
+    target_lane_ids: Sequence[str],
+    origin_artifact_locator: str,
+    origin_artifact_sha256: str,
+    origin_integrity_status: str,
+    observation: str,
+    failure_class: str,
+    strongest_alternative_explanation: str,
+    challenged_invariant: str,
+    first_permitted_future_versions: Sequence[str],
+    prohibited_retroactive_targets: Sequence[str],
+    proposed_repair: str,
+    repair_falsifier: str,
+    conclusion_ceiling: str,
+) -> list[str]:
+    """Validate all current structure while reporting lexical prose drift.
+
+    This compatibility validator is only for a projection already bound to its
+    unique hash-verified record event.  It does not authorize writes.
+    """
+
+    normalized = _normalize_cross_lane_lesson(
+        origin_lane_id=origin_lane_id,
+        target_lane_ids=target_lane_ids,
+        origin_artifact_locator=origin_artifact_locator,
+        origin_artifact_sha256=origin_artifact_sha256,
+        origin_integrity_status=origin_integrity_status,
+        observation=observation,
+        failure_class=failure_class,
+        strongest_alternative_explanation=strongest_alternative_explanation,
+        challenged_invariant=challenged_invariant,
+        first_permitted_future_versions=first_permitted_future_versions,
+        prohibited_retroactive_targets=prohibited_retroactive_targets,
+        proposed_repair=proposed_repair,
+        repair_falsifier=repair_falsifier,
+        conclusion_ceiling=conclusion_ceiling,
+        enforce_report_prose=False,
+    )
+    findings: list[str] = []
+    for field_name in (
+        "observation",
+        "strongest_alternative_explanation",
+        "challenged_invariant",
+        "proposed_repair",
+        "repair_falsifier",
+        "conclusion_ceiling",
+    ):
+        terms = report_overclaim_terms(str(normalized[field_name]))
+        if terms:
+            findings.append(f"{field_name}:" + ",".join(terms))
+    return findings

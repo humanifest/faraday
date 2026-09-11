@@ -16,6 +16,8 @@ from research_machine.domain.models import (
     Claim,
     ClaimDisposition,
     ClaimEpistemicLayer,
+    CrossLaneLesson,
+    CrossLaneTransferAuthorityStatus,
     DatasetManifest,
     DatasetRole,
     EvidenceDirection,
@@ -319,6 +321,7 @@ def audit_research_state(
     datasets: list[DatasetManifest],
     protocols: list[ExperimentProtocol],
     runs: list[ResearchRun],
+    cross_lane_lessons: list[CrossLaneLesson] | None = None,
 ) -> RigorAudit:
     findings: list[RigorFinding] = []
 
@@ -374,6 +377,67 @@ def audit_research_state(
             "The inquiry names a decision but not the person responsible for it.",
             entity_type="inquiry",
             entity_id=inquiry.inquiry_id,
+        )
+
+    for lesson in cross_lane_lessons or []:
+        if (
+            lesson.current_transfer_authority
+            and lesson.transfer_authority_status
+            is CrossLaneTransferAuthorityStatus.CURRENT
+        ):
+            continue
+        if (
+            lesson.transfer_authority_status
+            is CrossLaneTransferAuthorityStatus.UNVERIFIED
+        ):
+            add(
+                "CROSS_LANE_LESSON_TRANSFER_AUTHORITY_UNVERIFIED",
+                RigorSeverity.ERROR,
+                (
+                    "Cross-lane lesson transfer authority was not derived from "
+                    "its hash-verified ledger event."
+                ),
+                entity_type="cross_lane_lesson",
+                entity_id=lesson.lesson_id,
+                remediation=(
+                    "Load the lesson through the canonical service; do not use an "
+                    "unverified projection to change another research lane."
+                ),
+            )
+            continue
+        if lesson.report_prose_findings:
+            add(
+                "CROSS_LANE_LESSON_LEGACY_REPORT_PROSE",
+                RigorSeverity.WARNING,
+                (
+                    "Ledger-bound historical cross-lane lesson fails only current "
+                    "lexical report-prose semantics and has no current transfer "
+                    "authority: "
+                    + ", ".join(lesson.report_prose_findings)
+                    + "."
+                ),
+                entity_type="cross_lane_lesson",
+                entity_id=lesson.lesson_id,
+                remediation=(
+                    "Preserve the historical lesson unchanged. Record a new bounded "
+                    "lesson for any prospective transfer; do not treat legacy prose "
+                    "as current machine or scientific authority."
+                ),
+            )
+            continue
+        add(
+            "CROSS_LANE_LESSON_LEGACY_UNCOMMITTED",
+            RigorSeverity.WARNING,
+            (
+                "Ledger-bound historical cross-lane lesson lacks a retained payload "
+                "commitment and has no current transfer authority."
+            ),
+            entity_type="cross_lane_lesson",
+            entity_id=lesson.lesson_id,
+            remediation=(
+                "Preserve the historical lesson unchanged. Record a new committed "
+                "lesson if the process observation should influence future work."
+            ),
         )
 
     claim_ids = [claim.claim_id for claim in claims]

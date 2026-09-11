@@ -106,12 +106,15 @@ methods without changing its epistemic rules or canonical state.
   proof, confirmation, validation, or explanation of a scientific proposition.
   New lesson records carry a
   service-generated payload commitment, and authoritative reads replay that
-  commitment before list, inquiry display, or synthesis can trust the lesson.
-  Legacy records without payload commitments still replay the same bounded
-  process-prose contract.
-  Deterministic synthesis exposes each lesson's lane transfer, failure class,
-  origin artifact digest, conclusion ceiling, and commitment status. Legacy
-  uncommitted lessons remain visible without being silently upgraded.
+  commitment before list, inquiry display, audit, or synthesis can trust the
+  lesson. Every projection must also equal exactly one hash-verified record-event
+  payload. Only after that binding may a lesson that passes all current structure
+  and fails solely later lexical report-prose semantics remain readable as
+  historical process state. Such a record, and every uncommitted historical
+  lesson, receives no current cross-lane transfer authority. Deterministic
+  synthesis and rigor expose the status. Current writes retain the strict prose
+  guard; edited projections, malformed history, bad commitments, and records
+  without a unique event fail closed rather than claiming legacy status.
 - Cross-disciplinary CSV summaries, correlation, and seeded permutation testing;
   summary, correlation, two-group estimators, adjusted models, and missingness
   methods require requested column, comparison, covariate, unit, pair, family,

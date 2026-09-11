@@ -164,6 +164,14 @@ class RigorSeverity(StrEnum):
     INFO = "info"
 
 
+class CrossLaneTransferAuthorityStatus(StrEnum):
+    UNVERIFIED = "unverified"
+    CURRENT = "current"
+    LEGACY_UNCOMMITTED = "legacy_uncommitted"
+    LEGACY_REPORT_PROSE = "legacy_report_prose"
+    LEGACY_PROSE_UNCOMMITTED = "legacy_uncommitted_report_prose"
+
+
 def _jsonable(value: Any) -> Any:
     if isinstance(value, StrEnum):
         return value.value
@@ -1054,11 +1062,42 @@ class CrossLaneLesson(Serializable):
     created_at: str
     created_by: str
     lesson_payload_sha256: str = ""
+    # Derived by the application after exact ledger/projection verification.
+    # These fields are deliberately excluded from the immutable lesson payload.
+    transfer_authority_status: CrossLaneTransferAuthorityStatus = (
+        field(
+            default=CrossLaneTransferAuthorityStatus.UNVERIFIED,
+            compare=False,
+            repr=False,
+        )
+    )
+    current_transfer_authority: bool = field(
+        default=False, compare=False, repr=False
+    )
+    report_prose_findings: list[str] = field(
+        default_factory=list, compare=False, repr=False
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = super().to_dict()
+        payload.pop("transfer_authority_status", None)
+        payload.pop("current_transfer_authority", None)
+        payload.pop("report_prose_findings", None)
+        return payload
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "CrossLaneLesson":
         copied = dict(value)
         copied.setdefault("lesson_payload_sha256", "")
+        copied.setdefault(
+            "transfer_authority_status",
+            CrossLaneTransferAuthorityStatus.UNVERIFIED,
+        )
+        copied.setdefault("current_transfer_authority", False)
+        copied.setdefault("report_prose_findings", [])
+        copied["transfer_authority_status"] = CrossLaneTransferAuthorityStatus(
+            copied["transfer_authority_status"]
+        )
         return cls(**copied)
 
 

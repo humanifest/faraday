@@ -53,6 +53,7 @@ from research_machine.application.policies import (
     validate_action_lanes,
     validate_control_witness_evidence,
     validate_cross_lane_lesson,
+    validate_historical_cross_lane_lesson_structure,
     validate_dataset_artifacts,
     validate_evidence_annotations,
     validate_result_direction,
@@ -94,6 +95,7 @@ from research_machine.domain.models import (
     ClaimDisposition,
     ClaimEpistemicLayer,
     ClaimLevel,
+    CrossLaneTransferAuthorityStatus,
     DatasetArtifact,
     AnalysisContract,
     AnalysisStepContract,
@@ -4966,7 +4968,11 @@ class ResearchService:
             lesson.lesson_id,
             lesson.to_dict(),
         )
-        return lesson
+        return replace(
+            lesson,
+            transfer_authority_status=CrossLaneTransferAuthorityStatus.CURRENT,
+            current_transfer_authority=True,
+        )
 
     def list_cross_lane_lessons(
         self, inquiry_id: str | None = None
@@ -4978,31 +4984,75 @@ class ResearchService:
         self, inquiry_id: str
     ) -> list[CrossLaneLesson]:
         lessons = self.repository.list_cross_lane_lessons(inquiry_id)
+        verified: list[CrossLaneLesson] = []
         for lesson in lessons:
-            validate_cross_lane_lesson(
-                origin_lane_id=lesson.origin_lane_id,
-                target_lane_ids=lesson.target_lane_ids,
-                origin_artifact_locator=lesson.origin_artifact_locator,
-                origin_artifact_sha256=lesson.origin_artifact_sha256,
-                origin_integrity_status=lesson.origin_integrity_status,
-                observation=lesson.observation,
-                failure_class=lesson.failure_class,
-                strongest_alternative_explanation=(
+            self.repository.verify_cross_lane_lesson_integrity(inquiry_id, lesson)
+            commitment = validate_cross_lane_lesson_payload_commitment(lesson)
+            validation = {
+                "origin_lane_id": lesson.origin_lane_id,
+                "target_lane_ids": lesson.target_lane_ids,
+                "origin_artifact_locator": lesson.origin_artifact_locator,
+                "origin_artifact_sha256": lesson.origin_artifact_sha256,
+                "origin_integrity_status": lesson.origin_integrity_status,
+                "observation": lesson.observation,
+                "failure_class": lesson.failure_class,
+                "strongest_alternative_explanation": (
                     lesson.strongest_alternative_explanation
                 ),
-                challenged_invariant=lesson.challenged_invariant,
-                first_permitted_future_versions=(
+                "challenged_invariant": lesson.challenged_invariant,
+                "first_permitted_future_versions": (
                     lesson.first_permitted_future_versions
                 ),
-                prohibited_retroactive_targets=(
+                "prohibited_retroactive_targets": (
                     lesson.prohibited_retroactive_targets
                 ),
-                proposed_repair=lesson.proposed_repair,
-                repair_falsifier=lesson.repair_falsifier,
-                conclusion_ceiling=lesson.conclusion_ceiling,
-            )
-            validate_cross_lane_lesson_payload_commitment(lesson)
-        return lessons
+                "proposed_repair": lesson.proposed_repair,
+                "repair_falsifier": lesson.repair_falsifier,
+                "conclusion_ceiling": lesson.conclusion_ceiling,
+            }
+            try:
+                validate_cross_lane_lesson(**validation)
+            except ValidationError as current_error:
+                findings = validate_historical_cross_lane_lesson_structure(
+                    **validation
+                )
+                if not findings:
+                    raise current_error
+                status = (
+                    CrossLaneTransferAuthorityStatus.LEGACY_REPORT_PROSE
+                    if commitment is not None
+                    else CrossLaneTransferAuthorityStatus.LEGACY_PROSE_UNCOMMITTED
+                )
+                verified.append(
+                    replace(
+                        lesson,
+                        transfer_authority_status=status,
+                        current_transfer_authority=False,
+                        report_prose_findings=findings,
+                    )
+                )
+                continue
+            if commitment is None:
+                verified.append(
+                    replace(
+                        lesson,
+                        transfer_authority_status=(
+                            CrossLaneTransferAuthorityStatus.LEGACY_UNCOMMITTED
+                        ),
+                        current_transfer_authority=False,
+                    )
+                )
+            else:
+                verified.append(
+                    replace(
+                        lesson,
+                        transfer_authority_status=(
+                            CrossLaneTransferAuthorityStatus.CURRENT
+                        ),
+                        current_transfer_authority=True,
+                    )
+                )
+        return verified
 
     def list_recommendations(
         self, inquiry_id: str | None = None
@@ -5829,6 +5879,7 @@ class ResearchService:
         datasets = self.repository.list_datasets(resolved)
         protocols = self.repository.list_protocols(resolved)
         runs = self.repository.list_runs(resolved)
+        cross_lane_lessons = self._verified_cross_lane_lessons(resolved)
         rigor_audit = audit_research_state(
             inquiry=inquiry,
             claims=claims,
@@ -5837,6 +5888,7 @@ class ResearchService:
             datasets=datasets,
             protocols=protocols,
             runs=runs,
+            cross_lane_lessons=cross_lane_lessons,
         )
         content = build_synthesis(
             inquiry,
@@ -5848,7 +5900,7 @@ class ResearchService:
             protocols,
             runs,
             self._verified_recommendations(resolved),
-            self._verified_cross_lane_lessons(resolved),
+            cross_lane_lessons,
             rigor_audit,
             evidence_status_events,
         )
@@ -5883,6 +5935,7 @@ class ResearchService:
             datasets=self.repository.list_datasets(resolved),
             protocols=self.repository.list_protocols(resolved),
             runs=self.repository.list_runs(resolved),
+            cross_lane_lessons=self._verified_cross_lane_lessons(resolved),
         )
         if fail_on not in {"never", "error", "warning"}:
             raise ValidationError("fail_on must be never, error, or warning")

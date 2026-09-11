@@ -2413,14 +2413,21 @@ process state only: recording one does not create evidence, change an old
 verdict, or raise a synthesis conclusion ceiling. New lessons also retain a
 service-generated `lesson_payload_sha256` over the complete immutable lesson
 outside that field itself. Authoritative lesson reads replay the commitment
-before list, inquiry display, or synthesis can use the lesson, so an edited
-future-version target, repair, failure class, observation, or conclusion ceiling
-fails closed. Legacy records without payload commitments still replay the same
-bounded process-prose contract rather than being silently trusted. Deterministic synthesis reports each lesson's lane transfer,
+before list, inquiry display, audit, or synthesis can use the lesson. The exact
+projection must also match exactly one hash-verified
+`cross-lane-lesson.record` event, so an edited future-version target, repair,
+failure class, observation, conclusion ceiling, or removed commitment fails
+closed before compatibility is considered. A ledger-bound historical lesson
+that passes current structure but fails only a later lexical report-prose rule
+remains readable without rewriting its words. It receives
+`current_transfer_authority=false`; uncommitted historical lessons receive the
+same non-authoritative treatment. This exception is read-only: new lesson writes
+still fail the current bounded-prose validator. Deterministic synthesis and rigor
+report each lesson's transfer-authority status in addition to its lane transfer,
 failure class, origin artifact digest, retained conclusion ceiling, and payload
-commitment status. Historical lessons without this field remain readable as
-legacy process history, but they are not silently promoted to hash-replayed
-records.
+commitment status. The ledger binding preserves process history but does not
+authenticate chronology, scientific truth, or the author of the historical
+prose.
 
 `run template` and `run preflight` are read-only. The template deliberately
 contains invalid placeholders and skipped gates so it cannot be mistaken for an

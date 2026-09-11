@@ -100,6 +100,10 @@ class WorkspaceRepository(Protocol):
 
     def list_cross_lane_lessons(self, inquiry_id: str) -> list[CrossLaneLesson]: ...
 
+    def verify_cross_lane_lesson_integrity(
+        self, inquiry_id: str, lesson: CrossLaneLesson
+    ) -> dict[str, Any]: ...
+
     def write_report(self, inquiry_id: str, name: str, content: str) -> str: ...
 
     def append_event(

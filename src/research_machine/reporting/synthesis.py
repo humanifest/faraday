@@ -208,12 +208,25 @@ def _cross_lane_lesson_lines(lessons: list[CrossLaneLesson]) -> list[str]:
     lines = [f"- Cross-lane process lessons: {len(lessons)}"]
     for lesson in sorted(lessons, key=lambda item: (item.created_at, item.lesson_id)):
         commitment = lesson.lesson_payload_sha256 or "legacy_missing"
+        transfer_authority = (
+            "current" if lesson.current_transfer_authority else "denied"
+        )
+        prose_status = (
+            "; lexical legacy findings `"
+            + ", ".join(lesson.report_prose_findings)
+            + "`"
+            if lesson.report_prose_findings
+            else ""
+        )
         lines.append(
             f"  - `{lesson.lesson_id}`: `{lesson.origin_lane_id}` -> "
             f"{', '.join(f'`{lane}`' for lane in lesson.target_lane_ids)}; "
             f"failure class `{lesson.failure_class}`; origin artifact "
             f"`{lesson.origin_artifact_sha256}` ({lesson.origin_integrity_status}); "
-            f"payload commitment `{commitment}`; ceiling: {lesson.conclusion_ceiling}"
+            f"payload commitment `{commitment}`; current transfer authority "
+            f"`{transfer_authority}` "
+            f"(`{lesson.transfer_authority_status.value}`){prose_status}; "
+            f"ceiling: {lesson.conclusion_ceiling}"
         )
     return lines
 
