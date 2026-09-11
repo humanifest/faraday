@@ -94,9 +94,15 @@ methods without changing its epistemic rules or canonical state.
 - Cross-lane process lessons preserve observed failures without rewriting prior
   conclusions. Lane IDs, artifact locators, integrity status, failure class,
   future-version handles, and prohibited-target handles must be canonical before
-  the lesson can influence later work. New lesson records carry a
+  the lesson can influence later work. Observation, alternative-explanation,
+  challenged-invariant, repair, repair-falsifier, and conclusion-ceiling prose
+  must also remain canonical and bounded, so a process lesson cannot claim
+  proof, confirmation, validation, or explanation of a scientific proposition.
+  New lesson records carry a
   service-generated payload commitment, and authoritative reads replay that
   commitment before list, inquiry display, or synthesis can trust the lesson.
+  Legacy records without payload commitments still replay the same bounded
+  process-prose contract.
   Deterministic synthesis exposes each lesson's lane transfer, failure class,
   origin artifact digest, conclusion ceiling, and commitment status. Legacy
   uncommitted lessons remain visible without being silently upgraded.

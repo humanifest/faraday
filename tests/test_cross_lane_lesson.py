@@ -99,6 +99,25 @@ def test_legacy_cross_lane_lessons_without_payload_commitment_remain_readable(
     assert "payload commitment `legacy_missing`" in service.build_synthesis()["content"]
 
 
+def test_legacy_cross_lane_lesson_reads_replay_bounded_process_prose(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.record_cross_lane_lesson(valid_command())
+    lesson_file = next(tmp_path.rglob("cross_lane_lessons/*.json"))
+    payload = json.loads(lesson_file.read_text(encoding="utf-8"))
+    payload.pop("lesson_payload_sha256")
+    payload["observation"] = "Confirmed that the machine lane is valid."
+    lesson_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="observation uses report-prohibited"):
+        service.list_cross_lane_lessons()
+    with pytest.raises(ValidationError, match="observation uses report-prohibited"):
+        service.show_inquiry()
+    with pytest.raises(ValidationError, match="observation uses report-prohibited"):
+        service.build_synthesis()
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
@@ -141,6 +160,35 @@ def test_legacy_cross_lane_lessons_without_payload_commitment_remain_readable(
         (
             {"prohibited_retroactive_targets": [" protocol-v1 "]},
             "prohibited_retroactive_targets item must be canonical",
+        ),
+        ({"observation": " Confirmed failure."}, "observation must be canonical"),
+        (
+            {"observation": "Confirmed failure."},
+            "observation uses report-prohibited",
+        ),
+        (
+            {
+                "strongest_alternative_explanation": (
+                    "Validated that the interface caused the issue."
+                )
+            },
+            "strongest_alternative_explanation uses report-prohibited",
+        ),
+        (
+            {"challenged_invariant": "This proved a missing invariant."},
+            "challenged_invariant uses report-prohibited",
+        ),
+        (
+            {"proposed_repair": "Validated repair path."},
+            "proposed_repair uses report-prohibited",
+        ),
+        (
+            {"repair_falsifier": "Confirmed by the next validator."},
+            "repair_falsifier uses report-prohibited",
+        ),
+        (
+            {"conclusion_ceiling": "Explained the scientific result."},
+            "conclusion_ceiling uses report-prohibited",
         ),
     ],
 )

@@ -4902,6 +4902,28 @@ class ResearchService:
     ) -> list[CrossLaneLesson]:
         lessons = self.repository.list_cross_lane_lessons(inquiry_id)
         for lesson in lessons:
+            validate_cross_lane_lesson(
+                origin_lane_id=lesson.origin_lane_id,
+                target_lane_ids=lesson.target_lane_ids,
+                origin_artifact_locator=lesson.origin_artifact_locator,
+                origin_artifact_sha256=lesson.origin_artifact_sha256,
+                origin_integrity_status=lesson.origin_integrity_status,
+                observation=lesson.observation,
+                failure_class=lesson.failure_class,
+                strongest_alternative_explanation=(
+                    lesson.strongest_alternative_explanation
+                ),
+                challenged_invariant=lesson.challenged_invariant,
+                first_permitted_future_versions=(
+                    lesson.first_permitted_future_versions
+                ),
+                prohibited_retroactive_targets=(
+                    lesson.prohibited_retroactive_targets
+                ),
+                proposed_repair=lesson.proposed_repair,
+                repair_falsifier=lesson.repair_falsifier,
+                conclusion_ceiling=lesson.conclusion_ceiling,
+            )
             validate_cross_lane_lesson_payload_commitment(lesson)
         return lessons
 

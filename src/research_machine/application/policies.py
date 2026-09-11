@@ -3306,20 +3306,26 @@ def validate_cross_lane_lesson(
             origin_artifact_sha256, "origin_artifact_sha256"
         ),
         "origin_integrity_status": integrity_status,
-        "observation": require_text(observation, "observation"),
+        "observation": require_canonical_bounded_report_text(
+            observation, "observation"
+        ),
         "failure_class": failure,
-        "strongest_alternative_explanation": require_text(
+        "strongest_alternative_explanation": require_canonical_bounded_report_text(
             strongest_alternative_explanation,
             "strongest_alternative_explanation",
         ),
-        "challenged_invariant": require_text(
+        "challenged_invariant": require_canonical_bounded_report_text(
             challenged_invariant, "challenged_invariant"
         ),
         "first_permitted_future_versions": future_versions,
         "prohibited_retroactive_targets": prohibited_targets,
-        "proposed_repair": require_text(proposed_repair, "proposed_repair"),
-        "repair_falsifier": require_text(repair_falsifier, "repair_falsifier"),
-        "conclusion_ceiling": require_text(
+        "proposed_repair": require_canonical_bounded_report_text(
+            proposed_repair, "proposed_repair"
+        ),
+        "repair_falsifier": require_canonical_bounded_report_text(
+            repair_falsifier, "repair_falsifier"
+        ),
+        "conclusion_ceiling": require_canonical_bounded_report_text(
             conclusion_ceiling, "conclusion_ceiling"
         ),
     }
