@@ -117,6 +117,10 @@ class AnalysisMode(StrEnum):
 class ProtocolStatus(StrEnum):
     DRAFT = "draft"
     FROZEN = "frozen"
+    # Retained for historical workspace readability.  Current Faraday does not
+    # need to expose the retired abandonment workflow in order to preserve its
+    # terminal records as part of the scientific audit trail.
+    ABANDONED = "abandoned"
 
 
 class ProtocolKind(StrEnum):
@@ -581,6 +585,17 @@ CONTROL_FAMILIES = (
 
 
 @dataclass(frozen=True)
+class RuntimePreflightRequirement(Serializable):
+    """Historical typed commitment to a retained no-analysis runtime receipt."""
+
+    receipt_sha256: str
+    probe_id: str
+    interpreter_path: str
+    kernel_name: str
+    working_directory: str
+
+
+@dataclass(frozen=True)
 class ExperimentProtocol(Serializable):
     protocol_id: str
     protocol_family_id: str
@@ -611,6 +626,8 @@ class ExperimentProtocol(Serializable):
     expected_outputs: list[str] = field(default_factory=list)
     success_conditions: list[str] = field(default_factory=list)
     environment_requirements: list[str] = field(default_factory=list)
+    runtime_preflight_requirement: RuntimePreflightRequirement | None = None
+    notebook_freeze_input_bundle_sha256: str | None = None
     secondary_outcomes: list[str] = field(default_factory=list)
     confirmatory_outcomes: list[str] = field(default_factory=list)
     exploratory_outcomes: list[str] = field(default_factory=list)
@@ -680,6 +697,25 @@ class ExperimentProtocol(Serializable):
     amendment_reason: str | None = None
     amendment_timing: str | None = None
     evidence_exposure: str | None = None
+    abandoned_at: str | None = None
+    abandoned_by: str | None = None
+    abandonment_reason: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = super().to_dict()
+        # These compatibility-only fields did not exist in older or current
+        # protocols.  Omitting absent values keeps those serialized forms and
+        # their scientific commitments stable while retaining historical values.
+        for field_name in (
+            "runtime_preflight_requirement",
+            "notebook_freeze_input_bundle_sha256",
+            "abandoned_at",
+            "abandoned_by",
+            "abandonment_reason",
+        ):
+            if getattr(self, field_name) is None:
+                payload.pop(field_name, None)
+        return payload
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "ExperimentProtocol":
@@ -721,6 +757,12 @@ class ExperimentProtocol(Serializable):
         ):
             copied["conclusion_contract"] = ConclusionContract.from_dict(
                 copied["conclusion_contract"]
+            )
+        if copied.get("runtime_preflight_requirement") is not None and not isinstance(
+            copied["runtime_preflight_requirement"], RuntimePreflightRequirement
+        ):
+            copied["runtime_preflight_requirement"] = RuntimePreflightRequirement(
+                **copied["runtime_preflight_requirement"]
             )
         copied["analysis_mode"] = AnalysisMode(copied["analysis_mode"])
         copied["status"] = ProtocolStatus(copied.get("status", ProtocolStatus.DRAFT))

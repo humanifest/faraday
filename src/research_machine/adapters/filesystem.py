@@ -92,6 +92,7 @@ class FileSystemRepository:
             "datasets",
             "protocols/draft",
             "protocols/frozen",
+            "protocols/abandoned",
             "runs",
             "recommendations",
             "cross_lane_lessons",
@@ -300,7 +301,7 @@ class FileSystemRepository:
     def find_protocol(self, inquiry_id: str, protocol_id: str) -> ExperimentProtocol:
         self._validate_id(protocol_id, "protocol_id")
         base = self._inquiry_dir(inquiry_id) / "protocols"
-        for status in ("draft", "frozen"):
+        for status in ("draft", "frozen", "abandoned"):
             path = base / status / f"{protocol_id}.json"
             if path.is_file():
                 return ExperimentProtocol.from_dict(self._read_json(path))
@@ -322,7 +323,7 @@ class FileSystemRepository:
     def list_protocols(self, inquiry_id: str) -> list[ExperimentProtocol]:
         base = self._inquiry_dir(inquiry_id) / "protocols"
         protocols: list[ExperimentProtocol] = []
-        for status in ("draft", "frozen"):
+        for status in ("draft", "frozen", "abandoned"):
             protocols.extend(
                 ExperimentProtocol.from_dict(self._read_json(path))
                 for path in sorted((base / status).glob("*.json"))
@@ -471,9 +472,18 @@ class FileSystemRepository:
         return event
 
     def verify_ledger(self, inquiry_id: str) -> dict[str, Any]:
+        events = self._verified_ledger_events(inquiry_id)
+        return {
+            "valid": True,
+            "events": len(events),
+            "head_hash": events[-1]["event_hash"] if events else None,
+        }
+
+    def _verified_ledger_events(self, inquiry_id: str) -> list[dict[str, Any]]:
         ledger = self._inquiry_dir(inquiry_id) / "ledger.jsonl"
         previous_hash: str | None = None
         count = 0
+        events: list[dict[str, Any]] = []
         with ledger.open(encoding="utf-8") as handle:
             for line_number, line in enumerate(handle, start=1):
                 if not line.strip():
@@ -502,7 +512,204 @@ class FileSystemRepository:
                         f"ledger event hash mismatch at line {line_number}"
                     )
                 previous_hash = expected
-        return {"valid": True, "events": count, "head_hash": previous_hash}
+                events.append(event)
+        return events
+
+    @staticmethod
+    def _creation_payload(
+        events: list[dict[str, Any]],
+        *,
+        command: str,
+        aggregate_type: str,
+        aggregate_id: str,
+    ) -> dict[str, Any]:
+        matches = [
+            event
+            for event in events
+            if event.get("command") == command
+            and event.get("aggregate_type") == aggregate_type
+            and event.get("aggregate_id") == aggregate_id
+        ]
+        if len(matches) != 1 or not isinstance(matches[0].get("payload"), dict):
+            raise IntegrityError(
+                f"legacy {aggregate_type} {aggregate_id} does not have exactly one "
+                f"hash-verified {command} event"
+            )
+        return matches[0]["payload"]
+
+    def verify_legacy_protocol_integrity(
+        self,
+        inquiry_id: str,
+        protocol: ExperimentProtocol,
+        *,
+        events: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Validate a pre-hypothesis-commitment protocol against its sealed event.
+
+        Modern model defaults cannot safely reconstruct the historical hash input.
+        The hash-verified freeze event is therefore the only authoritative v0.8
+        serialization, and the current projection must match it exactly.
+        """
+
+        if protocol.hypothesis_commitments:
+            raise IntegrityError(
+                f"protocol {protocol.protocol_id} is not a legacy uncommitted protocol"
+            )
+        verified_events = (
+            events if events is not None else self._verified_ledger_events(inquiry_id)
+        )
+        payload = self._creation_payload(
+            verified_events,
+            command="protocol.freeze",
+            aggregate_type="protocol",
+            aggregate_id=protocol.protocol_id,
+        )
+        recorded = ExperimentProtocol.from_dict(payload)
+        if recorded.hypothesis_commitments:
+            raise IntegrityError(
+                f"protocol {protocol.protocol_id} lost its hypothesis commitments"
+            )
+        path = (
+            self._inquiry_dir(inquiry_id)
+            / "protocols"
+            / "frozen"
+            / f"{protocol.protocol_id}.json"
+        )
+        current_payload = self._read_json(path)
+        if current_payload != payload:
+            raise IntegrityError(
+                f"legacy protocol {protocol.protocol_id} differs from its freeze event"
+            )
+        committed_payload = dict(payload)
+        for field_name in (
+            "status",
+            "protocol_hash",
+            "registration_timestamp",
+            "external_anchor",
+        ):
+            committed_payload.pop(field_name, None)
+        legacy_commitment = hashlib.sha256(
+            canonical_json(committed_payload).encode("utf-8")
+        ).hexdigest()
+        if not protocol.protocol_hash or legacy_commitment != protocol.protocol_hash:
+            raise IntegrityError(
+                f"legacy protocol {protocol.protocol_id} does not match its v0.8 commitment"
+            )
+        return {
+            "status": "legacy_protocol_without_prospective_hypothesis_commitments",
+            "protocol_id": protocol.protocol_id,
+            "protocol_hash": protocol.protocol_hash,
+            "new_runs_or_evidence_permitted": False,
+        }
+
+    def verify_legacy_evidence_integrity(
+        self,
+        inquiry_id: str,
+        evidence: EvidenceRecord,
+        *,
+        events: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Bind a pre-admission-receipt record to its hash-verified ledger event."""
+
+        if evidence.admission_checks:
+            raise IntegrityError(
+                f"evidence {evidence.evidence_id} is not a legacy unreceipted record"
+            )
+        verified_events = (
+            events if events is not None else self._verified_ledger_events(inquiry_id)
+        )
+        payload = self._creation_payload(
+            verified_events,
+            command="evidence.record",
+            aggregate_type="evidence",
+            aggregate_id=evidence.evidence_id,
+        )
+        recorded = EvidenceRecord.from_dict(payload)
+        if recorded.admission_checks:
+            raise IntegrityError(
+                f"legacy evidence {evidence.evidence_id} lost its admission receipt"
+            )
+        path = (
+            self._inquiry_dir(inquiry_id)
+            / "evidence"
+            / f"{evidence.evidence_id}.json"
+        )
+        if self._read_json(path) != payload or recorded.to_dict() != evidence.to_dict():
+            raise IntegrityError(
+                f"legacy evidence {evidence.evidence_id} differs from its record event"
+            )
+        return {
+            "status": "legacy_evidence_without_admission_receipt",
+            "evidence_id": evidence.evidence_id,
+            "current_scientific_admission": False,
+        }
+
+    def verify_legacy_recommendation_integrity(
+        self,
+        inquiry_id: str,
+        recommendation: ActionRecommendation,
+        *,
+        events: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Preserve an uncommitted historical selection without upgrading it."""
+
+        if recommendation.recommendation_payload_sha256:
+            raise IntegrityError(
+                f"recommendation {recommendation.recommendation_id} is not legacy"
+            )
+        verified_events = (
+            events if events is not None else self._verified_ledger_events(inquiry_id)
+        )
+        payload = self._recommendation_selection_payload(
+            verified_events, recommendation.recommendation_id
+        )
+        if payload.get("recommendation_payload_sha256"):
+            raise IntegrityError(
+                f"recommendation {recommendation.recommendation_id} has a "
+                "modern committed selection event"
+            )
+        path = (
+            self._inquiry_dir(inquiry_id)
+            / "recommendations"
+            / f"{recommendation.recommendation_id}.json"
+        )
+        if self._read_json(path) != payload:
+            raise IntegrityError(
+                f"legacy recommendation {recommendation.recommendation_id} "
+                "differs from its selection event"
+            )
+        return {
+            "status": "legacy_recommendation_without_payload_commitment",
+            "recommendation_id": recommendation.recommendation_id,
+            "current_selection_authority": False,
+        }
+
+    def has_legacy_recommendation_event(
+        self, inquiry_id: str, recommendation_id: str
+    ) -> bool:
+        payload = self._recommendation_selection_payload(
+            self._verified_ledger_events(inquiry_id), recommendation_id
+        )
+        return not bool(payload.get("recommendation_payload_sha256"))
+
+    @staticmethod
+    def _recommendation_selection_payload(
+        events: list[dict[str, Any]], recommendation_id: str
+    ) -> dict[str, Any]:
+        matches = [
+            event
+            for event in events
+            if event.get("command")
+            in {"next-action.recommend", "next-action.portfolio"}
+            and event.get("aggregate_type") == "recommendation"
+            and event.get("aggregate_id") == recommendation_id
+        ]
+        if len(matches) != 1 or not isinstance(matches[0].get("payload"), dict):
+            raise IntegrityError(
+                f"recommendation {recommendation_id} does not have exactly one "
+                "hash-verified selection event"
+            )
+        return matches[0]["payload"]
 
     def _inquiry_dir(self, inquiry_id: str) -> Path:
         self._validate_id(inquiry_id, "inquiry_id")

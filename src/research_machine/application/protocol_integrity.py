@@ -133,6 +133,9 @@ def protocol_commitment(protocol: ExperimentProtocol) -> str:
         "protocol_hash",
         "registration_timestamp",
         "external_anchor",
+        "abandoned_at",
+        "abandoned_by",
+        "abandonment_reason",
     ):
         payload.pop(field_name, None)
     return _sha256_json(payload)

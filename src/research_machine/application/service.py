@@ -1248,14 +1248,22 @@ class ResearchService:
         )
         for protocol in protocols:
             if protocol.status is ProtocolStatus.FROZEN:
-                if (
-                    not protocol.protocol_hash
-                    or _protocol_commitment(protocol) != protocol.protocol_hash
-                ):
+                if not protocol.protocol_hash:
                     raise ValidationError(
                         f"frozen protocol {protocol.protocol_id} no longer matches its commitment"
                     )
-                validate_protocol_hypothesis_commitments(protocol, hypotheses_by_id)
+                if protocol.hypothesis_commitments:
+                    if _protocol_commitment(protocol) != protocol.protocol_hash:
+                        raise ValidationError(
+                            f"frozen protocol {protocol.protocol_id} no longer matches its commitment"
+                        )
+                    validate_protocol_hypothesis_commitments(
+                        protocol, hypotheses_by_id
+                    )
+                else:
+                    self.repository.verify_legacy_protocol_integrity(
+                        resolved, protocol
+                    )
         from research_machine.application.ethics import (
             reverify_ethics_condition_discharge,
         )
@@ -1303,18 +1311,31 @@ class ResearchService:
         )
         for run in runs:
             validate_run_payload_commitment(run)
+            protocol = protocols_by_id.get(run.protocol_id)
+            legacy_protocol = (
+                protocol is not None and not protocol.hypothesis_commitments
+            )
             artifact_integrity_replayed = False
-            if "artifact_integrity" in run.metadata:
+            if "artifact_integrity" in run.metadata and not legacy_protocol:
                 reverify_run_artifacts(run)
                 artifact_integrity_replayed = True
             if not run.scientific_evidence_eligible:
                 continue
-            protocol = protocols_by_id.get(run.protocol_id)
             if (
                 protocol is None
                 or run.protocol_hash != protocol.protocol_hash
-                or _protocol_commitment(protocol) != protocol.protocol_hash
             ):
+                raise ValidationError(
+                    f"evidence-eligible run {run.run_id} no longer matches its frozen protocol"
+                )
+            if not protocol.hypothesis_commitments:
+                self.repository.verify_legacy_protocol_integrity(
+                    resolved, protocol
+                )
+                # The historical run remains ledger-bound and visible, but the
+                # missing prospective hypothesis commitment is never inferred.
+                continue
+            if _protocol_commitment(protocol) != protocol.protocol_hash:
                 raise ValidationError(
                     f"evidence-eligible run {run.run_id} no longer matches its frozen protocol"
                 )
@@ -1328,9 +1349,15 @@ class ResearchService:
         from research_machine.application.evidence_admission import (
             validate_evidence_admission_receipts,
         )
+        current_evidence = [item for item in evidence if item.admission_checks]
         validate_evidence_admission_receipts(
-            evidence, claims, runs, protocols, datasets, ethics_events
+            current_evidence, claims, runs, protocols, datasets, ethics_events
         )
+        for record in evidence:
+            if not record.admission_checks:
+                self.repository.verify_legacy_evidence_integrity(
+                    resolved, record
+                )
         return {
             "inquiry": self.repository.load_inquiry(resolved).to_dict(),
             "questions": [
@@ -2597,22 +2624,29 @@ class ResearchService:
     def _validate_frozen_protocol_integrity(
         self, inquiry_id: str, protocol: ExperimentProtocol
     ) -> None:
-        if not protocol.protocol_hash or _protocol_commitment(protocol) != protocol.protocol_hash:
+        if not protocol.protocol_hash:
             raise ValidationError(
                 f"frozen protocol {protocol.protocol_id} no longer matches its commitment"
             )
         from research_machine.application.hypothesis_integrity import (
             validate_protocol_hypothesis_commitments,
         )
-        validate_protocol_hypothesis_commitments(
-            protocol,
-            {
-                hypothesis_id: self.repository.find_hypothesis(
-                    inquiry_id, hypothesis_id
+        if protocol.hypothesis_commitments:
+            if _protocol_commitment(protocol) != protocol.protocol_hash:
+                raise ValidationError(
+                    f"frozen protocol {protocol.protocol_id} no longer matches its commitment"
                 )
-                for hypothesis_id in protocol.hypotheses_tested
-            },
-        )
+            validate_protocol_hypothesis_commitments(
+                protocol,
+                {
+                    hypothesis_id: self.repository.find_hypothesis(
+                        inquiry_id, hypothesis_id
+                    )
+                    for hypothesis_id in protocol.hypotheses_tested
+                },
+            )
+        else:
+            self.repository.verify_legacy_protocol_integrity(inquiry_id, protocol)
 
     def record_ethics_review_event(
         self, command: RecordEthicsReviewEvent, inquiry_id: str | None = None
@@ -4941,10 +4975,20 @@ class ResearchService:
             self.repository.list_hypotheses(inquiry_id)
         )
         for recommendation in recommendations:
-            verify_recommendation_score_replay(
-                recommendation,
-                hypothesis_alternatives=hypothesis_alternatives,
-            )
+            if (
+                recommendation.recommendation_payload_sha256
+                or not self.repository.has_legacy_recommendation_event(
+                    inquiry_id, recommendation.recommendation_id
+                )
+            ):
+                verify_recommendation_score_replay(
+                    recommendation,
+                    hypothesis_alternatives=hypothesis_alternatives,
+                )
+            else:
+                self.repository.verify_legacy_recommendation_integrity(
+                    inquiry_id, recommendation
+                )
         return recommendations
 
     def record_evidence(

@@ -56,6 +56,12 @@ _PENDING_REVIEW_AUTHORITY_CLAIM = re.compile(
     r"created evidence",
     re.IGNORECASE,
 )
+_PENDING_REVIEW_NEGATION_PREFIX = re.compile(
+    r"\b(?:does|do|did|is|are|was|were|has|have|had|can|could|will|would|"
+    r"shall|should|must)\s+not(?!\s+only\b)(?:\s+\w+){0,6}\s*$|"
+    r"\bcannot(?:\s+\w+){0,6}\s*$|\bno(?:\s+\w+){0,3}\s*$",
+    re.IGNORECASE,
+)
 _INDEPENDENT_REVIEW_DECISIONS = {"approved", "approved_with_conditions"}
 _METHOD_INFERENCE_CLAIM_CEILINGS: dict[str, ClaimLevel | None] = {
     "computation_only": None,
@@ -129,7 +135,17 @@ def require_canonical_bounded_report_text(value: str, field_name: str) -> str:
 
 def require_pending_review_rationale(value: str) -> str:
     rationale = require_canonical_text(value, "pending-review rationale")
-    if _PENDING_REVIEW_AUTHORITY_CLAIM.search(rationale):
+    authority_claims = list(_PENDING_REVIEW_AUTHORITY_CLAIM.finditer(rationale))
+    unnegated_claims = []
+    for match in authority_claims:
+        boundary = max(
+            rationale.rfind(separator, 0, match.start())
+            for separator in (".", ";", "!", "?", "\n")
+        )
+        clause_prefix = rationale[boundary + 1 : match.start()]
+        if not _PENDING_REVIEW_NEGATION_PREFIX.search(clause_prefix):
+            unnegated_claims.append(match)
+    if unnegated_claims:
         raise ValidationError(
             "pending-review rationale must not describe provisional staging as "
             "approval, validation, confirmation, human-reviewed acceptance, "

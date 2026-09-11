@@ -2366,13 +2366,15 @@ stale score record. New recommendations also retain a service-generated
 outside that field itself, so a canonical rewrite of a candidate rationale,
 hypothesis-discrimination target, eligibility reference, lane context,
 completed dependency, weight, score, or selected action fails before it can
-influence later reports. Legacy
-uncommitted recommendations remain readable only as legacy records when their
-scoring inputs and bounded recommendation prose still satisfy the current
-utility contract; they are not silently
-upgraded, and older sealed records without eligibility references are reported
-with `legacy_missing` rather than treated as fully anchored. If the top utility
-is tied, Faraday
+influence later reports. Legacy uncommitted recommendations remain readable only
+when their exact stored projection matches their hash-verified historical
+selection event and their bounded recommendation prose passes the applicable
+safety contract. They are not reinterpreted under a later scoring schema or
+silently upgraded to current selection authority; synthesis reports their
+missing commitment as `legacy_missing`, and a new committed recommendation is
+required before they direct current work. Older committed records without
+eligibility references are also reported with `legacy_missing` rather than
+treated as fully anchored. If the top utility is tied, Faraday
 rejects the selection until the utility model or candidate estimates distinguish
 the actions. The resulting recommendation remains an immutable, ledgered record;
 it does not establish scientific independence or satisfy a promotion gate.
@@ -2542,6 +2544,15 @@ visible for scientifically missing capabilities—such as absent independent
 replication—without making unfinished research impossible to commit.
 `structurally_valid=true` means only that no internal audit contradiction was
 found; it is not a scientific-success flag.
+
+For a runtime migration, `workspace verify` is necessary but insufficient: it
+checks the append-only ledger chain without proving that the new runtime can
+deserialize and validate every authoritative projection. Run a read-only
+`workspace audit --fail-on never` before changing a workspace pin. Historical
+frozen protocols, evidence, and recommendations that predate current commitment
+receipts remain usable only as exact ledger-bound audit history; compatibility
+loading never grants them prospective registration, evidence admission, or
+current next-action authority.
 
 ## Design principle
 
