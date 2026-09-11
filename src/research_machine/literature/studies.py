@@ -50,6 +50,13 @@ def validate_study_reconciliation_boundary(
         raise ValidationError("study reconciliation must not authorize conclusions")
     if reconciliation.get("publication_authorized") is not False:
         raise ValidationError("study reconciliation must not authorize publication")
+    reviewer_identity_authenticated = reconciliation.get(
+        "reviewer_identity_authenticated", False
+    )
+    if reviewer_identity_authenticated is not False:
+        raise ValidationError(
+            "study reconciliation must not authenticate reviewer identity"
+        )
     limitations = reconciliation.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("study reconciliation requires retained boundary limitations")
@@ -343,6 +350,7 @@ def create_study_reconciliation(
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "Pairwise identity judgments are reviewer assertions; metadata similarity cannot prove cohort independence.",
             "Overlap, duplicate, and unclear relationships are preserved and block a reconciled status rather than being silently deduplicated.",

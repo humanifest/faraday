@@ -1617,8 +1617,8 @@ recruitment periods, sample sizes, and cited locations support review but do not
 prove cohort independence or authorize synthesis.
 Study-reconciliation artifacts carry explicit false scientific-evidence,
 conclusion-authorization, and publication-authorization boundaries with retained
-limitations, and evidence-map construction replays those boundaries before
-joining claims.
+limitations, plus an explicit false reviewer-identity-authentication boundary;
+evidence-map construction replays those boundaries before joining claims.
 Bias assessment and study reconciliation require canonical prior reviewer,
 study/source, reviewer, registration, metadata, relationship-pair, rationale,
 and evidence-location text before coverage and duplicate checks, so

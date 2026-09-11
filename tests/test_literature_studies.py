@@ -99,6 +99,7 @@ def test_reconciliation_cli_covers_pairs_and_is_write_once(tmp_path, capsys):
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_study_reconciliation(bias, digest, review(), output)
 
@@ -131,6 +132,7 @@ def test_reconciliation_boundary_replays_artifact_envelope(tmp_path):
         (lambda candidate: candidate.update({"snapshot_id": " snap "}), "canonical"),
         (lambda candidate: candidate.update({"reviewer": " Identity reviewer "}), "canonical"),
         (lambda candidate: candidate.update({"independent_review": False}), "independent-review"),
+        (lambda candidate: candidate.update({"reviewer_identity_authenticated": True}), "authenticate reviewer identity"),
         (lambda candidate: candidate.__setitem__("studies", []), "requires retained studies"),
         (lambda candidate: candidate.pop("relationships"), "relationships must be retained"),
         (lambda candidate: candidate.update({"status": "review_required"}), "status does not replay"),

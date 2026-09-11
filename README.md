@@ -1220,8 +1220,9 @@ judgment recomputed from the domains must remain internally consistent before
 study identity review or evidence-map construction can proceed.
 Study-reconciliation artifacts themselves also carry explicit false
 scientific-evidence, conclusion-authorization, and publication-authorization
-boundaries with retained limitations, and evidence-map construction replays
-those boundaries before any claim join.
+boundaries, an explicit unauthenticated-reviewer boundary, and retained
+limitations, and evidence-map construction replays those boundaries before any
+claim join.
 Qualitative synthesis now requires the extraction source set to match the
 synthesis plan's frozen included sources, and preserves those provenance anchors
 instead of carrying only a ceiling label.
