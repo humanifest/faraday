@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 import hashlib
 import json
 import math
+import re
 
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
@@ -45,10 +46,15 @@ def _require_canonical_text(value: object, field: str) -> str:
     return value
 
 
-def _require_text(value: object, field: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise ValidationError(f"{field} must be non-empty text")
-    return value
+def _require_bounded_recommendation_text(value: object, field: str) -> str:
+    text = _require_canonical_text(value, field)
+    if _RECOMMENDATION_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses recommendation-prohibited overclaiming language; "
+            "state the information gained, alternative distinguished, or "
+            "uncertainty reduced instead"
+        )
+    return text
 
 
 def _require_unique_canonical_text_list(value: object, field: str) -> list[str]:
@@ -75,6 +81,10 @@ _CANDIDATE_SCORE_FIELDS = (
 )
 
 _RECOMMENDATION_HYPOTHESIS_STATES = {"active", "pending_review"}
+_RECOMMENDATION_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 
 
 def _validate_selection_weights_for_replay(weights: SelectionWeights) -> None:
@@ -107,8 +117,8 @@ def _validate_candidate_score_inputs_for_replay(
     if not isinstance(candidate, ActionCandidate):
         raise ValidationError("candidates must contain ActionCandidate values")
     _require_canonical_text(candidate.action_id, "action_id")
-    _require_text(candidate.title, "action title")
-    _require_text(candidate.rationale, "action rationale")
+    _require_bounded_recommendation_text(candidate.title, "action title")
+    _require_bounded_recommendation_text(candidate.rationale, "action rationale")
     _require_unique_canonical_text_list(
         candidate.information_targets, "information_targets"
     )
@@ -155,7 +165,7 @@ def _validate_candidate_score_inputs_for_replay(
         raise ValidationError("factor_interpretability_plan must be text")
     factor_interpretability_plan = ""
     if candidate.factor_interpretability_plan:
-        factor_interpretability_plan = _require_canonical_text(
+        factor_interpretability_plan = _require_bounded_recommendation_text(
             candidate.factor_interpretability_plan,
             "factor_interpretability_plan",
         )
@@ -248,19 +258,19 @@ def _validate_discrimination_target_replay_against_alternatives(
                 "hypothesis_discrimination_targets repeat a hypothesis_id"
             )
         seen.add(hypothesis_id)
-        _require_canonical_text(
+        _require_bounded_recommendation_text(
             target.discriminating_observation,
             "hypothesis_discrimination_target discriminating_observation",
         )
-        _require_canonical_text(
+        _require_bounded_recommendation_text(
             target.expected_if_hypothesis,
             "hypothesis_discrimination_target expected_if_hypothesis",
         )
-        _require_canonical_text(
+        _require_bounded_recommendation_text(
             target.expected_if_alternative,
             "hypothesis_discrimination_target expected_if_alternative",
         )
-        _require_canonical_text(
+        _require_bounded_recommendation_text(
             target.would_weaken_if,
             "hypothesis_discrimination_target would_weaken_if",
         )
@@ -421,7 +431,7 @@ def _validate_lane_replay(lane: ActionLane) -> None:
     if not isinstance(lane, ActionLane):
         raise ValidationError("lanes must contain ActionLane values")
     lane_id = _require_canonical_text(lane.lane_id, "lane_id")
-    _require_text(lane.title, "lane title")
+    _require_bounded_recommendation_text(lane.title, "lane title")
     status = _require_canonical_text(lane.status, "lane status")
     if status not in {"active", "blocked"}:
         raise ValidationError("lane status must be active or blocked")

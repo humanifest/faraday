@@ -48,7 +48,11 @@ methods without changing its epistemic rules or canonical state.
   Multi-factor candidates must declare a factorial or crossover design plus a canonical
   factor-interpretability plan before they can be ranked, so action selection
   cannot prefer a simultaneous intervention whose result would not distinguish
-  the changed factors. Deterministic synthesis now reports the selected actions'
+  the changed factors. Lane titles, candidate titles, rationales,
+  factor-interpretability plans, and retained discrimination-target prose are
+  canonical and bounded for recommendation reporting, so action selection cannot
+  claim proof, confirmation, validation, or explanation where it only records
+  expected information gain. Deterministic synthesis now reports the selected actions'
   factor plan, design status, and retained hypothesis-discrimination targets,
   and protocol-level rigor and synthesis now expose frozen manipulated-factor
   interpretability plans while flagging legacy simultaneous interventions that
@@ -82,7 +86,8 @@ methods without changing its epistemic rules or canonical state.
   dependencies, weights, scores, or selections are detected even when utility
   replay still matches.
   Legacy uncommitted recommendations remain visible only when they satisfy the
-  current scoring-input contract and are not silently upgraded. The selected
+  current scoring-input and bounded-prose contract and are not silently
+  upgraded. The selected
   action must have a unique highest utility; tied top candidates require a
   refined utility model or candidate estimates before any recommendation is
   recorded.

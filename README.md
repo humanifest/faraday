@@ -2240,6 +2240,11 @@ change more than one factor must declare `factorial_or_crossover_design: true`
 and a canonical `factor_interpretability_plan`
 before ranking, so an apparently high-yield follow-up cannot hide an
 uninterpretable simultaneous intervention.
+Lane titles, candidate titles, rationales, factor-interpretability plans, and
+retained discrimination-target prose are canonical and bounded for
+recommendation reporting: they may describe expected information gain or
+uncertainty reduction, but they cannot claim that the recommended action has
+proved, confirmed, validated, or explained a scientific proposition.
 When a candidate claims to distinguish specific hypotheses, it must also provide
 exact `hypothesis_discrimination_targets`: one canonical target per named
 hypothesis with the discriminating observation, expected result if the hypothesis
@@ -2300,7 +2305,8 @@ hypothesis-discrimination target, eligibility reference, lane context,
 completed dependency, weight, score, or selected action fails before it can
 influence later reports. Legacy
 uncommitted recommendations remain readable only as legacy records when their
-scoring inputs still satisfy the current utility contract; they are not silently
+scoring inputs and bounded recommendation prose still satisfy the current
+utility contract; they are not silently
 upgraded, and older sealed records without eligibility references are reported
 with `legacy_missing` rather than treated as fully anchored. If the top utility
 is tied, Faraday

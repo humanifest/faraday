@@ -1248,6 +1248,143 @@ def test_multi_factor_actions_require_factorial_or_crossover_interpretability(
 
 
 @pytest.mark.parametrize(
+    ("candidate_values", "message"),
+    [
+        (
+            {
+                "title": "Validated follow-up",
+            },
+            "action title uses recommendation-prohibited",
+        ),
+        (
+            {
+                "rationale": "Confirmed that this action is the right next step.",
+            },
+            "action rationale uses recommendation-prohibited",
+        ),
+        (
+            {
+                "manipulated_factors": ["room", "apparatus"],
+                "factorial_or_crossover_design": True,
+                "factor_interpretability_plan": (
+                    "Validated that any difference follows the person."
+                ),
+            },
+            "factor_interpretability_plan uses recommendation-prohibited",
+        ),
+    ],
+)
+def test_recommendation_candidates_reject_overclaiming_prose(
+    tmp_path: Path,
+    candidate_values: dict[str, object],
+    message: str,
+) -> None:
+    service = prepared_service(tmp_path)
+    base = candidate("overclaiming-action", "machine", 0.9).to_dict()
+    with pytest.raises(ValidationError, match=message):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    ActionCandidate(**{**base, **candidate_values}),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+
+
+def test_recommendation_discrimination_targets_reject_overclaiming_prose(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    hypothesis_id = reviewed_hypothesis(
+        service, "The target explanation must remain bounded."
+    )
+    target = discrimination_target(hypothesis_id, "Target channel")
+    with pytest.raises(
+        ValidationError,
+        match="discriminating_observation uses recommendation-prohibited",
+    ):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=lanes(),
+                candidates=[
+                    candidate(
+                        "overclaiming-discriminator",
+                        "machine",
+                        0.9,
+                        distinguishes_hypotheses=[hypothesis_id],
+                        hypothesis_discrimination_targets=[
+                            HypothesisDiscriminationTarget(
+                                target.hypothesis_id,
+                                "Confirmed the target channel.",
+                                target.expected_if_hypothesis,
+                                target.expected_if_alternative,
+                                target.would_weaken_if,
+                                target.competing_model_ref,
+                            )
+                        ],
+                    ),
+                    candidate("theory-next", "theory", 0.7),
+                ],
+            )
+        )
+
+
+def test_recommendation_lanes_reject_overclaiming_titles(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    with pytest.raises(
+        ValidationError,
+        match="lane title uses recommendation-prohibited",
+    ):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=[
+                    ActionLane("machine", "Validated lane"),
+                    ActionLane("theory", "Theory falsification"),
+                ],
+                candidates=[
+                    candidate("machine-high", "machine", 1.0),
+                    candidate("theory-best", "theory", 0.6),
+                ],
+            )
+        )
+
+
+def test_recommendation_replay_rejects_legacy_overclaiming_rationale(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate("machine-high", "machine", 1.0),
+                candidate("theory-best", "theory", 0.6),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][0]["rationale"] = (
+        "Validated that this action should be selected."
+    )
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="action rationale uses recommendation-prohibited",
+    ):
+        service.list_recommendations()
+
+
+@pytest.mark.parametrize(
     ("lane_values", "candidate_values", "completed", "message"),
     [
         (
