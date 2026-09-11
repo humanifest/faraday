@@ -1,13 +1,136 @@
-#!/usr/bin/env python3
-"""Repository-local launcher; installation is optional during development."""
+#!/bin/sh
+# Repository-local launcher for Research Machine.
+#
+# This file must remain valid POSIX shell until a supported Python interpreter
+# has been selected. In particular, do not restore an `env python3` shebang:
+# that would let PATH choose an unsupported interpreter before this contract
+# runs.
 
-from pathlib import Path
+set -u
+set -f
+
+minimum_python="3.11"
+selected_python=""
+probe_failures=""
+
+case "$0" in
+    */*) launcher_directory=${0%/*} ;;
+    *) launcher_directory=. ;;
+esac
+
+if ! repository_root=$(CDPATH= cd -- "$launcher_directory" 2>/dev/null && pwd -P); then
+    echo "research: cannot resolve the repository-local launcher directory" >&2
+    exit 126
+fi
+
+record_probe_failure() {
+    candidate_label=$1
+    candidate_detail=$2
+    probe_failures="${probe_failures}
+  - ${candidate_label}: ${candidate_detail}"
+}
+
+probe_python() {
+    candidate=$1
+    candidate_label=$2
+
+    if [ ! -f "$candidate" ] || [ ! -x "$candidate" ]; then
+        return 1
+    fi
+
+    probe_output=$(
+        "$candidate" -I -c '
+import platform
 import sys
 
+print("Python %s at %s" % (platform.python_version(), sys.executable))
+raise SystemExit(0 if sys.version_info >= (3, 11) else 64)
+' 2>&1
+    )
+    probe_status=$?
+    if [ "$probe_status" -eq 0 ]; then
+        selected_python=$candidate
+        return 0
+    fi
+    if [ "$probe_status" -eq 64 ]; then
+        record_probe_failure "$candidate_label" "${probe_output}; requires Python >= ${minimum_python}"
+    else
+        record_probe_failure "$candidate_label" "probe exited ${probe_status}: ${probe_output}"
+    fi
+    return 1
+}
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+fail_no_interpreter() {
+    echo "research: no usable Python >= ${minimum_python} interpreter was selected" >&2
+    if [ -n "$probe_failures" ]; then
+        echo "probed candidates:${probe_failures}" >&2
+    fi
+    echo "install Python >= ${minimum_python}, create .venv, or set FARADAY_PYTHON to an absolute interpreter path" >&2
+    exit 126
+}
 
-from research_machine.interfaces.cli import main  # noqa: E402
+if [ "${FARADAY_PYTHON+x}" = x ]; then
+    if [ -z "$FARADAY_PYTHON" ]; then
+        echo "research: FARADAY_PYTHON is set but empty; expected an absolute interpreter path" >&2
+        exit 126
+    fi
+    case "$FARADAY_PYTHON" in
+        /*) ;;
+        *)
+            echo "research: FARADAY_PYTHON must be an absolute interpreter path, without arguments" >&2
+            exit 126
+            ;;
+    esac
+    if [ ! -f "$FARADAY_PYTHON" ]; then
+        echo "research: FARADAY_PYTHON does not name a regular interpreter file: $FARADAY_PYTHON" >&2
+        exit 126
+    fi
+    if [ ! -x "$FARADAY_PYTHON" ]; then
+        echo "research: FARADAY_PYTHON is not executable: $FARADAY_PYTHON" >&2
+        exit 126
+    fi
+    if ! probe_python "$FARADAY_PYTHON" "FARADAY_PYTHON=$FARADAY_PYTHON"; then
+        echo "research: the explicit FARADAY_PYTHON override is not usable" >&2
+        echo "probe result:${probe_failures}" >&2
+        exit 126
+    fi
+else
+    # Prefer a repository-owned virtual environment, if present. These paths
+    # are relative to the launcher and do not encode a developer's machine.
+    probe_python "$repository_root/.venv/bin/python3" ".venv/bin/python3" || true
+    if [ -z "$selected_python" ]; then
+        probe_python "$repository_root/.venv/bin/python" ".venv/bin/python" || true
+    fi
 
+    # Versioned executables avoid a stale generic python3 where the platform
+    # provides them. For each name, inspect every PATH entry rather than only
+    # the first match, so an old shim cannot conceal a supported runtime.
+    for python_name in python3.14 python3.13 python3.12 python3.11 python3 python; do
+        [ -z "$selected_python" ] || break
+        old_ifs=$IFS
+        IFS=:
+        for path_entry in ${PATH-}; do
+            [ -n "$path_entry" ] || path_entry=.
+            candidate_path=$path_entry/$python_name
+            if probe_python "$candidate_path" "$candidate_path"; then
+                break
+            fi
+        done
+        IFS=$old_ifs
+    done
+
+    [ -n "$selected_python" ] || fail_no_interpreter
+fi
+
+# -I keeps ambient PYTHONPATH and user-site packages from changing which
+# research_machine package is imported. The only injected import root is this
+# launcher's own src directory. Remove that bootstrap argument before handing
+# the remaining argv to the canonical CLI.
+exec "$selected_python" -I -c '
+import sys
+
+sys.path.insert(0, sys.argv.pop(1))
+from research_machine.interfaces.cli import main
 
 raise SystemExit(main())
+' "$repository_root/src" "$@"

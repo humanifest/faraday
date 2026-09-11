@@ -2476,6 +2476,23 @@ python -m compileall -q src tests
 
 The package has no runtime dependencies. It supports Python 3.11 and newer.
 
+The repository-local `./research` launcher is a POSIX-shell bootstrap, so it
+does not inherit the Python chosen by an invoking virtual environment or a
+generic `python` command without checking it. It prefers a supported interpreter
+in the repository's `.venv`, then searches versioned and generic Python names on
+every `PATH` entry. Every candidate must report Python 3.11 or newer before any
+Research Machine module is imported; an old or unusable candidate is skipped,
+and the launcher fails closed with the probe results if none is suitable.
+
+For an explicit compatibility or audit run, `FARADAY_PYTHON` may name one
+absolute interpreter path (without command-line arguments). An override is
+verified under the same minimum-version contract and is authoritative: if it is
+invalid or too old, the launcher stops instead of silently falling back. The
+launcher starts Python in isolated mode and injects only its own `src` directory,
+so ambient `PYTHONPATH` and user-site packages cannot redirect the core import.
+Execute the launcher as `./research`; passing it as source to `python` bypasses
+the shell-launcher interface and is unsupported.
+
 ## Claim command integrity
 
 Claim commands keep inference level, epistemic layer, and project disposition as
