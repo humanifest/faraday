@@ -1025,7 +1025,8 @@ write-once as `pending_human_review`. Proposal summaries, uncertainty
 statements, grounded body claims, suggestion prose, and returned falsification
 conditions must not claim
 acceptance, approval, authorization, proof, confirmation, validation, evidence
-creation, or canonical action. The frozen context must carry canonical,
+creation, canonical action, human-review completion, or authenticated reviewer
+identity. The frozen context must carry canonical,
 nonempty scientific constraints that include explicit inferential-boundary and
 authorization-boundary prohibitions: the constraints must tell collaborators not
 to claim causality, mechanism, or replication beyond recorded evidence and not
@@ -1077,7 +1078,8 @@ shape, typed reference-prefix matching, write boundary, proposal shape, and
 review-only authority boundary, including case-insensitive rejection of summary,
 body-claim, suggestion, and review prose that claims acceptance, approval,
 authorization, proof, confirmation, validation, evidence creation, or canonical
-action, before the application service repeats hash, reference, and route validation. They do
+action, human-review completion, or authenticated reviewer identity, before the
+application service repeats hash, reference, and route validation. They do
 not call a provider, modify the inquiry,
 accept a finding, create evidence, or authorize an action. Any accepted idea
 must still be translated deliberately through the normal question, hypothesis,
@@ -1118,8 +1120,9 @@ retains one decision receipt per proposal suggestion, including the exact
 suggestion snapshot, its SHA-256, disposition, rationale, compatible route, and
 manual-review flag. Review assessments and rationales must not claim acceptance,
 approval, authorization, proof, confirmation, validation, evidence creation, or
-canonical action. It authenticates neither reviewer identity nor scientific
-adequacy, authorizes no action, and does not execute the named command.
+canonical action, and must not claim authenticated reviewer identity. It
+authenticates neither reviewer identity nor scientific adequacy, authorizes no
+action, and does not execute the named command.
 Replay a saved review record before relying on it as triage provenance:
 
 ```bash

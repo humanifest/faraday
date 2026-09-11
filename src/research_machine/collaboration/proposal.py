@@ -100,7 +100,9 @@ _REVIEW_CONCLUSION_CEILING = (
 _AUTHORITY_CLAIM = re.compile(
     r"\b(?:accepts?|accepted|approves?|approved|authorizes?|authorized|"
     r"confirms?|confirmed|proves?|proved|proof|validates?|validated)\b|"
-    r"canonical write|canonical action|evidence creation|creates evidence|created evidence"
+    r"canonical write|canonical action|evidence creation|creates evidence|created evidence|"
+    r"human[- ]reviewed|reviewed by human|reviewer identity authenticated|"
+    r"authenticated reviewer|authenticated identity"
 )
 _PROPOSAL_RECORD_FIELDS = {
     "collaborator_proposal_record_version",
@@ -469,7 +471,7 @@ def _review_boundary_text(value: Any, field: str) -> str:
         raise ValidationError(
             f"collaborator proposal {field} must not claim acceptance, approval, "
             "authorization, proof, confirmation, validation, evidence creation, "
-            "or canonical action"
+            "canonical action, human review completion, or authenticated reviewer identity"
         )
     return text
 
@@ -480,7 +482,7 @@ def _proposal_boundary_text(value: Any, field: str) -> str:
         raise ValidationError(
             f"collaborator proposal {field} must not claim acceptance, approval, "
             "authorization, proof, confirmation, validation, evidence creation, "
-            "or canonical action"
+            "canonical action, human review completion, or authenticated reviewer identity"
         )
     return text
 

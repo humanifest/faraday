@@ -897,6 +897,12 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
             "summary must not claim acceptance",
         ),
         (
+            lambda proposal: proposal.update(
+                {"summary": "This proposal is human-reviewed and ready for use."}
+            ),
+            "summary must not claim acceptance",
+        ),
+        (
             lambda proposal: proposal["competing_explanations"][0].update(
                 {"statement": "This validates the favored mechanism."}
             ),
@@ -1179,6 +1185,12 @@ def test_collaborator_review_prose_must_be_canonical(
                         "This review approves the claim and authorizes evidence creation."
                     )
                 }
+            ),
+            "must not claim acceptance",
+        ),
+        (
+            lambda review: review.update(
+                {"overall_assessment": "Reviewer identity authenticated for this triage."}
             ),
             "must not claim acceptance",
         ),

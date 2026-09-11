@@ -1356,8 +1356,9 @@ suggestion has `review_only` authority. Proposal summaries, uncertainty
 statements, grounded body claims, suggestion prose, and returned falsification
 conditions now also fail closed when they claim acceptance, approval,
 authorization, proof, confirmation, validation, evidence creation, or canonical
-action, and the published proposal schema preflights the same boundary for apps
-and plugins. The context now includes a compact
+action, human-review completion, or authenticated reviewer identity, and the
+published proposal schema preflights the same boundary for apps and plugins. The
+context now includes a compact
 reference index for inquiry, question, claim, hypothesis, evidence, dataset,
 evidence-status-event, protocol, run, and ethics-review-event records, and
 proposal `evidence_refs` must cite only those frozen typed handles; each handle
@@ -1437,8 +1438,9 @@ coverage, exact coverage of the retained ordered proposal suggestion IDs,
 compatible routes, and advanced-suggestion summary without performing canonical
 writes or authenticating the reviewer. Review assessments and rationales now
 also fail closed when they claim acceptance, approval, authorization, proof,
-confirmation, validation, evidence creation, or canonical action, and the
-published review schema preflights the same non-authority prose boundary. When the retained
+confirmation, validation, evidence creation, canonical action, or authenticated
+reviewer identity, and the published review schema preflights the same
+non-authority prose boundary. When the retained
 context index is nonempty, reviewed suggestions must retain at least one
 context-backed citation during replay, so a copied review record cannot become
 self-consistent by dropping the proposal's grounding. Replay also requires the
