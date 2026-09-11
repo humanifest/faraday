@@ -767,6 +767,14 @@ def build_synthesis(
                 f"- Protocol `{protocol.protocol_id}` frozen controls: "
                 + "; ".join(
                     f"`{control.control_id}` ({control.family})"
+                    + (
+                        f" witnesses intervention `{control.witness_contract.intervention_id}` "
+                        f"through measurement `{control.witness_contract.measurement_id}` "
+                        f"with `{control.witness_contract.comparator}` reference "
+                        f"`{control.witness_contract.reference_value}`"
+                        if control.witness_contract is not None
+                        else " (no prospective scalar witness contract)"
+                    )
                     for control in protocol.control_definitions
                 )
                 + ". Expected behavior is a scientific outcome, not a gate-pass criterion."
@@ -795,8 +803,20 @@ def build_synthesis(
                             + f": gate `{gate.gate_id}` {gate.status.value}; {disposition}; "
                             f"artifact `{result.get('evidence_sha256', 'unavailable')}` at "
                             f"`{result.get('evidence_location', 'unavailable')}`; "
-                            f"selected value `{result.get('selected_value_sha256', 'unavailable')}`."
+                            f"selected value `{result.get('selected_value_sha256', 'unavailable')}`"
+                            + (
+                                f"; scalar witness observed `{result['witness'].get('observed_value', 'unavailable')}` "
+                                f"`{result['witness'].get('comparator', 'unavailable')}` "
+                                f"reference `{result['witness'].get('reference_value', 'unavailable')}`; "
+                                f"decision `{result['witness'].get('decision', 'unavailable')}`"
+                                if isinstance(result.get("witness"), dict)
+                                else ""
+                            )
+                            + "."
                         )
+        lines.append(
+            "- Structured scalar witnesses bind an inspectable intervention, measurement, comparison, and decision to selected JSON bytes. They cannot prove that the producing code was not hardcoded. Compound controls must preregister one scalar margin or use multiple named controls."
+        )
     named_component_protocols = [
         protocol for protocol in protocols if protocol.named_component_contracts
     ]

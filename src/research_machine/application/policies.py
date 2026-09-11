@@ -21,6 +21,7 @@ from research_machine.domain.models import (
     DatasetManifest,
     DatasetArtifact,
     ControlDefinition,
+    ControlWitnessContract,
     CONTROL_FAMILIES,
     EvidenceDirection,
     ExperimentProtocol,
@@ -2168,8 +2169,17 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         for control in protocol.control_definitions:
             if not isinstance(control, ControlDefinition):
                 raise ValidationError("control_definitions must contain ControlDefinition objects")
-            for name, value in control.to_dict().items():
-                require_canonical_text(value, f"control definition {name}")
+            for name in (
+                "control_id",
+                "registered_control",
+                "family",
+                "purpose",
+                "expected_behavior",
+                "evaluation_gate_id",
+            ):
+                require_canonical_text(
+                    getattr(control, name), f"control definition {name}"
+                )
             if control.family not in CONTROL_FAMILIES:
                 raise ValidationError("unsupported control family")
             control_id = control.control_id
@@ -2183,6 +2193,8 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                 raise ValidationError(
                     "control evaluation gate must be a required protocol quality gate"
                 )
+            if control.witness_contract is not None:
+                _validate_control_witness_contract(protocol, control)
         if ordered_targets != registered_controls:
             raise ValidationError(
                 "control definitions must cover exactly the registered controls in order"
@@ -2312,6 +2324,184 @@ def _named_component_indices(
     component_ids: Sequence[str], selected_component_ids: Sequence[str]
 ) -> list[int]:
     return [component_ids.index(component_id) for component_id in selected_component_ids]
+
+
+_CONTROL_WITNESS_COMPARATORS = {
+    "eq",
+    "ne",
+    "lt",
+    "lte",
+    "gt",
+    "gte",
+}
+
+
+def _validate_control_witness_value(value: Any, field_name: str) -> int | float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValidationError(f"{field_name} must be a non-boolean finite number")
+    try:
+        finite = math.isfinite(float(value))
+    except (OverflowError, TypeError, ValueError) as exc:
+        raise ValidationError(
+            f"{field_name} must be representable as a finite number"
+        ) from exc
+    if not finite:
+        raise ValidationError(f"{field_name} must be finite")
+    return value
+
+
+def _control_witness_measurement(
+    protocol: ExperimentProtocol,
+    control: ControlDefinition,
+) -> MeasurementDefinition:
+    contract = control.witness_contract
+    if not isinstance(contract, ControlWitnessContract):
+        raise ValidationError(
+            f"control {control.control_id} witness_contract must be a ControlWitnessContract"
+        )
+    matches = [
+        measurement
+        for measurement in protocol.measurement_definitions
+        if measurement.measurement_id == contract.measurement_id
+    ]
+    if len(matches) != 1:
+        raise ValidationError(
+            f"control {control.control_id} witness_contract must bind one exact protocol measurement_id"
+        )
+    measurement = matches[0]
+    if measurement.role is not MeasurementRole.CONTROL:
+        raise ValidationError(
+            f"control {control.control_id} witness measurement must have role control"
+        )
+    if measurement.registered_target != control.registered_control:
+        raise ValidationError(
+            f"control {control.control_id} witness measurement must target its registered control"
+        )
+    require_canonical_text(
+        measurement.observable,
+        f"control {control.control_id} witness measurement observable",
+    )
+    require_canonical_text(
+        measurement.unit,
+        f"control {control.control_id} witness measurement unit",
+    )
+    return measurement
+
+
+def _validate_control_witness_contract(
+    protocol: ExperimentProtocol,
+    control: ControlDefinition,
+) -> MeasurementDefinition:
+    contract = control.witness_contract
+    if not isinstance(contract, ControlWitnessContract):
+        raise ValidationError(
+            f"control {control.control_id} witness_contract must be a ControlWitnessContract"
+        )
+    require_canonical_text(
+        contract.intervention_id,
+        f"control {control.control_id} witness intervention_id",
+    )
+    require_canonical_text(
+        contract.measurement_id,
+        f"control {control.control_id} witness measurement_id",
+    )
+    comparator = require_canonical_text(
+        contract.comparator,
+        f"control {control.control_id} witness comparator",
+    )
+    if comparator not in _CONTROL_WITNESS_COMPARATORS:
+        raise ValidationError(
+            f"control {control.control_id} witness comparator is unsupported"
+        )
+    _validate_control_witness_value(
+        contract.reference_value,
+        f"control {control.control_id} witness reference_value",
+    )
+    return _control_witness_measurement(protocol, control)
+
+
+def validate_control_witness_evidence(
+    *,
+    protocol: ExperimentProtocol,
+    control: ControlDefinition,
+    witness: Any,
+    matches_expected: Any,
+    context: str = "",
+) -> bool:
+    """Replay one artifact-selected control comparison without trusting its decision."""
+
+    measurement = _validate_control_witness_contract(protocol, control)
+    contract = control.witness_contract
+    assert contract is not None
+    label = f"{context} " if context else ""
+    required_fields = {
+        "control_id",
+        "intervention_id",
+        "measurement_id",
+        "quantity",
+        "unit",
+        "comparator",
+        "reference_value",
+        "observed_value",
+        "decision",
+    }
+    if not isinstance(witness, dict) or set(witness) != required_fields:
+        raise ValidationError(
+            f"{label}control {control.control_id} witness must be an exact structured JSON object"
+        )
+    frozen_text = {
+        "control_id": control.control_id,
+        "intervention_id": contract.intervention_id,
+        "measurement_id": contract.measurement_id,
+        "quantity": measurement.observable,
+        "unit": measurement.unit,
+        "comparator": contract.comparator,
+    }
+    for field_name, expected in frozen_text.items():
+        actual = require_canonical_text(
+            witness[field_name],
+            f"{label}control {control.control_id} witness {field_name}",
+        )
+        if actual != expected:
+            raise ValidationError(
+                f"{label}control {control.control_id} witness {field_name} does not match the frozen protocol"
+            )
+    reference = _validate_control_witness_value(
+        witness["reference_value"],
+        f"{label}control {control.control_id} witness reference_value",
+    )
+    if type(reference) is not type(contract.reference_value) or (
+        reference != contract.reference_value
+    ):
+        raise ValidationError(
+            f"{label}control {control.control_id} witness reference_value does not match the frozen protocol"
+        )
+    observed = _validate_control_witness_value(
+        witness["observed_value"],
+        f"{label}control {control.control_id} witness observed_value",
+    )
+    comparator = contract.comparator
+    derived_decision = {
+        "eq": observed == reference,
+        "ne": observed != reference,
+        "lt": observed < reference,
+        "lte": observed <= reference,
+        "gt": observed > reference,
+        "gte": observed >= reference,
+    }[comparator]
+    if type(witness["decision"]) is not bool:
+        raise ValidationError(
+            f"{label}control {control.control_id} witness decision must be a boolean"
+        )
+    if witness["decision"] is not derived_decision:
+        raise ValidationError(
+            f"{label}control {control.control_id} witness decision does not match the frozen comparison"
+        )
+    if type(matches_expected) is not bool or matches_expected is not derived_decision:
+        raise ValidationError(
+            f"{label}control {control.control_id} matches_expected does not match its structured witness decision"
+        )
+    return derived_decision
 
 
 def validate_named_component_contracts(protocol: ExperimentProtocol) -> None:

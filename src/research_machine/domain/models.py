@@ -445,6 +445,16 @@ class NamedComponentContract(Serializable):
 
 
 @dataclass(frozen=True)
+class ControlWitnessContract(Serializable):
+    """Prospective shape for one artifact-selected scalar control comparison."""
+
+    intervention_id: str
+    measurement_id: str
+    comparator: str
+    reference_value: int | float
+
+
+@dataclass(frozen=True)
 class ControlDefinition(Serializable):
     control_id: str
     registered_control: str
@@ -452,6 +462,21 @@ class ControlDefinition(Serializable):
     purpose: str
     expected_behavior: str
     evaluation_gate_id: str
+    witness_contract: ControlWitnessContract | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = super().to_dict()
+        if self.witness_contract is None:
+            payload.pop("witness_contract", None)
+        return payload
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "ControlDefinition":
+        copied = dict(value)
+        witness = copied.get("witness_contract")
+        if witness is not None and not isinstance(witness, ControlWitnessContract):
+            copied["witness_contract"] = ControlWitnessContract(**witness)
+        return cls(**copied)
 
 
 @dataclass(frozen=True)
@@ -703,6 +728,9 @@ class ExperimentProtocol(Serializable):
 
     def to_dict(self) -> dict[str, Any]:
         payload = super().to_dict()
+        for control in payload.get("control_definitions", []):
+            if control.get("witness_contract") is None:
+                control.pop("witness_contract", None)
         # These compatibility-only fields did not exist in older or current
         # protocols.  Omitting absent values keeps those serialized forms and
         # their scientific commitments stable while retaining historical values.
@@ -721,7 +749,7 @@ class ExperimentProtocol(Serializable):
     def from_dict(cls, value: dict[str, Any]) -> "ExperimentProtocol":
         copied = dict(value)
         copied["control_definitions"] = [
-            item if isinstance(item, ControlDefinition) else ControlDefinition(**item)
+            item if isinstance(item, ControlDefinition) else ControlDefinition.from_dict(item)
             for item in copied.get("control_definitions", [])
         ]
         copied["calibration_acceptance_criteria"] = [

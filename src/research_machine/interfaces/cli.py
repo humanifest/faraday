@@ -1294,8 +1294,8 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
     if not isinstance(control_values, list) or any(not isinstance(item, dict) for item in control_values):
         raise ValueError("control_definitions must be an array of objects")
     try:
-        control_definitions = [ControlDefinition(**item) for item in control_values]
-    except TypeError as exc:
+        control_definitions = [ControlDefinition.from_dict(item) for item in control_values]
+    except (KeyError, TypeError) as exc:
         raise ValueError(f"invalid control definition: {exc}") from exc
     if not isinstance(measurement_values, list):
         raise ValueError("measurement_definitions must be an array")

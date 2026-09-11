@@ -51,6 +51,7 @@ from research_machine.application.policies import (
     validate_action_candidates,
     adjudicate_conclusion_contract,
     validate_action_lanes,
+    validate_control_witness_evidence,
     validate_cross_lane_lesson,
     validate_dataset_artifacts,
     validate_evidence_annotations,
@@ -3560,11 +3561,13 @@ class ResearchService:
                     "observed_behavior", "interpretation", "matches_expected",
                     "evidence_sha256", "evidence_location",
                 }
-                derived_fields = {"selected_value_sha256"}
+                allowed_fields = required_fields | {"selected_value_sha256"}
+                if control.witness_contract is not None:
+                    allowed_fields.add("witness")
                 if (
                     not isinstance(evaluation, dict)
                     or not required_fields <= set(evaluation)
-                    or set(evaluation) - required_fields - derived_fields
+                    or set(evaluation) - allowed_fields
                 ):
                     raise ValidationError(
                         f"passed control gate requires an exact evaluation for {control.control_id}"
@@ -3622,6 +3625,23 @@ class ResearchService:
                             "control selected_value_sha256 does not match the verified analysis result value"
                         )
                     evaluation["selected_value_sha256"] = selected_value_sha256
+                    location_verified = True
+                if control.witness_contract is not None:
+                    witness = evaluation.get("witness")
+                    if not location_verified or not isinstance(selected_value, dict):
+                        raise ValidationError(
+                            f"control {control.control_id} witness requires retained, artifact-bound JSON object evidence"
+                        )
+                    validate_control_witness_evidence(
+                        protocol=protocol,
+                        control=control,
+                        witness=witness,
+                        matches_expected=evaluation["matches_expected"],
+                    )
+                    if selected_value != witness:
+                        raise ValidationError(
+                            f"control {control.control_id} witness does not match its retained JSON evidence"
+                        )
         validity_checks_by_gate: dict[str, list[Any]] = {}
         for check in protocol.measurement_validity_checks:
             validity_checks_by_gate.setdefault(
@@ -4551,6 +4571,27 @@ class ResearchService:
                                 "evidence_sha256": "<hash of a listed run output artifact>",
                                 "evidence_location": "<exact table, figure, section, record range, or JSON Pointer within that artifact>",
                                 "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
+                                **({"witness": {
+                                    "control_id": control.control_id,
+                                    "intervention_id": control.witness_contract.intervention_id,
+                                    "measurement_id": control.witness_contract.measurement_id,
+                                    "quantity": next(
+                                        measurement.observable
+                                        for measurement in protocol.measurement_definitions
+                                        if measurement.measurement_id
+                                        == control.witness_contract.measurement_id
+                                    ),
+                                    "unit": next(
+                                        measurement.unit
+                                        for measurement in protocol.measurement_definitions
+                                        if measurement.measurement_id
+                                        == control.witness_contract.measurement_id
+                                    ),
+                                    "comparator": control.witness_contract.comparator,
+                                    "reference_value": control.witness_contract.reference_value,
+                                    "observed_value": "<finite non-Boolean number>",
+                                    "decision": None,
+                                }} if control.witness_contract is not None else {}),
                             }
                             for control in protocol.control_definitions
                             if control.evaluation_gate_id == gate_id
@@ -4638,6 +4679,8 @@ class ResearchService:
                 "Set every gate status from observed output; skipped or failed required gates make the run invalid.",
                 "Every passed gate must cite one listed output artifact by details.evidence_sha256; declare prerequisite_gate_ids when its interpretation depends on other gates.",
                 "For control evaluations, record observed behavior and interpretation separately from the frozen expectation; never copy an expectation as an observation.",
+                "For a control with witness_contract, select the exact witness JSON object as evidence, report a finite scalar observed_value, and let the frozen comparator determine decision and matches_expected.",
+                "A structured control witness strengthens observable custody and inspectability; it cannot prove that producing code was not hardcoded.",
                 "For named-component evaluations, replace the suggested index maps with observed maps; the same frozen component names must be recovered after the adverse relabeling.",
                 "For every causal-assumption assessment, identify the exact location within its cited output artifact; when citing the verified analysis result, use an absolute JSON Pointer that resolves in that result.",
                 "For every performed measurement-validity check, record the observed diagnostic separately from interpretation, use the frozen evidence type, and cite the exact output location; a passed gate requires consistent_with_validity_claim, not proof of validity.",

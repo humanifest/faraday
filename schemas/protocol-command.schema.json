@@ -86,6 +86,16 @@
         }
       }
     },
+    "controlWitnessContract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["intervention_id", "measurement_id", "comparator", "reference_value"],
+      "properties": {
+        "intervention_id": {"$ref": "#/$defs/canonicalText"},
+        "measurement_id": {"$ref": "#/$defs/canonicalText"},
+        "comparator": {"enum": ["eq", "ne", "lt", "lte", "gt", "gte"]},
+        "reference_value": {"type": "number"}
+      }
+    },
     "controlDefinition": {
       "type": "object", "additionalProperties": false,
       "required": ["control_id", "registered_control", "family", "purpose", "expected_behavior", "evaluation_gate_id"],
@@ -95,7 +105,8 @@
         "family": {"enum": ["positive", "negative", "sham", "replay", "random_time", "adversarial", "apparatus_only", "reference", "other"]},
         "purpose": {"type": "string", "minLength": 1},
         "expected_behavior": {"type": "string", "minLength": 1},
-        "evaluation_gate_id": {"type": "string", "minLength": 1}
+        "evaluation_gate_id": {"type": "string", "minLength": 1},
+        "witness_contract": {"$ref": "#/$defs/controlWitnessContract"}
       }
     },
     "calibrationCriterion": {

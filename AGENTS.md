@@ -271,6 +271,15 @@ canonical write path.
   JSON Pointer that resolves in those bytes. Preserve unexpected control behavior
   as a scientific outcome and require downstream disclosure; do not redefine it
   as an execution-gate failure.
+- When a control's conclusion depends on one quantitative comparison, optionally
+  freeze a scalar `witness_contract` with the exact intervention, CONTROL-role
+  measurement, comparator, and finite non-Boolean reference value. Require the
+  selected JSON object to repeat those identities, carry the finite observed
+  value, and retain a decision recomputed by the core and equal to
+  `matches_expected`. A bare Boolean is not a witness. Collapse a compound
+  condition into one prospectively defined signed scalar margin or register
+  multiple named controls. This strengthens observable custody and
+  inspectability; it cannot prove that producing code was not hardcoded.
 - Evidence derived from a run with typed controls must exactly partition every
   frozen registered control into `controls_passed` or `controls_failed` according
   to that run's structured `matches_expected` results. Reject omissions,

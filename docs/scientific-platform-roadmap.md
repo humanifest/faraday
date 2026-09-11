@@ -190,6 +190,18 @@ remain recordable; failed or skipped evaluation gates remain invalid runs. These
 interpretation or establish that an unexpected control result permits downstream
 inference. Deterministic synthesis preserves each control's family, run, gate
 disposition, expected-behavior match, artifact digest, and exact location.
+Prospective controls decided by one quantitative comparison may additionally
+freeze a scalar `witness_contract`: exact intervention, CONTROL-role measurement,
+one of `eq`/`ne`/`lt`/`lte`/`gt`/`gte`, and a finite non-Boolean reference. Run
+intake then requires the selected JSON object to expose the frozen identities,
+quantity/unit, finite observed value, and a machine-recomputed decision equal to
+`matches_expected`; packages replay the same comparison and selected-value hash.
+This rejects a bare Boolean and makes the contrast inspectable, but cannot prove
+that producing code was not hardcoded. Compound criteria require one
+prospectively defined signed scalar margin or multiple named controls. Omission
+remains a legacy-compatible absence, not retroactive witness authority. `eq`
+and `ne` are exact numeric comparisons; tolerance-based controls must freeze a
+signed margin and use `lte` or `gte`.
 Evidence derived from such a run must retain the frozen control name in
 `controls_failed` when `matches_expected` is false and must not list it in
 `controls_passed`. This is disclosure of an unmet expectation, not an automatic

@@ -1543,6 +1543,46 @@ def audit_research_state(
                         entity_type="run", entity_id=run.run_id,
                         remediation=check.failure_response,
                     )
+        if protocol is not None and any(
+            control.witness_contract is not None
+            for control in protocol.control_definitions
+        ):
+            gates_by_id = {item.gate_id: item for item in run.quality_gates}
+            for control in protocol.control_definitions:
+                if control.witness_contract is None:
+                    continue
+                gate = gates_by_id.get(control.evaluation_gate_id)
+                results = (
+                    gate.details.get("control_results", {})
+                    if gate is not None else {}
+                )
+                result = (
+                    results.get(control.control_id)
+                    if isinstance(results, dict) else None
+                )
+                witness = result.get("witness") if isinstance(result, dict) else None
+                if not isinstance(witness, dict):
+                    add(
+                        "CONTROL_WITNESS_UNASSESSED",
+                        RigorSeverity.WARNING,
+                        f"Control {control.control_id} has a prospective scalar witness contract but this run does not expose its structured witness.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the run as incomplete or invalid; execute a new preregistered run with the exact artifact-selected scalar witness."
+                        ),
+                    )
+                elif witness.get("decision") is False:
+                    add(
+                        "CONTROL_WITNESS_ADVERSE",
+                        RigorSeverity.WARNING,
+                        f"Control {control.control_id} has an artifact-bound scalar witness whose frozen comparison was false.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve and disclose the adverse control result; do not treat execution quality as scientific support."
+                        ),
+                    )
         if protocol is not None and protocol.named_component_contracts:
             gates_by_id = {item.gate_id: item for item in run.quality_gates}
             for contract in protocol.named_component_contracts:

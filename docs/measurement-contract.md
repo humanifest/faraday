@@ -119,6 +119,35 @@ permutation. It does not prove that the labels denote the right scientific
 objects, that all necessary components were included, or that the downstream
 mathematics is correct.
 
+## Scalar control witnesses
+
+An optional `ControlDefinition.witness_contract` makes a single quantitative
+control decision inspectable. It freezes:
+
+- `intervention_id`: the exact adverse or reference intervention being reported;
+- `measurement_id`: one CONTROL-role measurement whose registered target is the
+  control and whose observable/unit define the scalar quantity;
+- `comparator`: exactly one of `eq`, `ne`, `lt`, `lte`, `gt`, or `gte`; and
+- `reference_value`: a finite non-Boolean number.
+
+The control's `evidence_location` must resolve to an exact JSON object containing
+`control_id`, `intervention_id`, `measurement_id`, `quantity`, `unit`,
+`comparator`, `reference_value`, `observed_value`, and `decision`. Identity and
+reference fields must equal the frozen protocol. `observed_value` must be a
+finite non-Boolean number. Faraday recomputes `decision` from the frozen
+comparison, requires `matches_expected` to equal it, and hashes the complete
+selected object. A scalar `true` therefore cannot stand in for the adverse
+contrast.
+
+This contract is deliberately quantitative and prospective. It does not cover
+categorical or compound controls, and it does not establish that the code which
+produced the JSON was not hardcoded. Define a compound criterion prospectively
+as one signed scalar margin, or use multiple named controls with one scalar
+witness apiece. `eq` and `ne` mean exact numeric equality and inequality; for a
+tolerance, preregister a signed margin and use `lte` or `gte` rather than
+assuming approximate equality. Omission remains readable for legacy protocols
+and records but confers no structured-witness authority.
+
 ## Raw-to-derived custody
 
 Every transformation in a new custody receipt names a stable ID and version,

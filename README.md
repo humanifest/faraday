@@ -214,6 +214,24 @@ controls and has recorded runs, but those runs do not expose structured
 Expected behavior, a passed unrelated gate, or favorable analysis output cannot
 stand in for an observed control evaluation.
 
+For a control decided by one quantitative comparison, a new protocol may add an
+optional `witness_contract` to its `ControlDefinition`. The contract freezes an
+exact intervention ID, a CONTROL-role `measurement_id` targeting that registered
+control, one comparator (`eq`, `ne`, `lt`, `lte`, `gt`, or `gte`), and a finite
+non-Boolean numeric `reference_value`. A performed control evaluation must then
+select an exact JSON object carrying the control, intervention, measurement,
+frozen measurement quantity and unit, comparator, reference, finite observed
+value, and Boolean decision. Faraday recomputes that decision and requires it to
+equal `matches_expected`; a bare `true` or Boolean observed value is rejected.
+The selected object and its digest remain visible in synthesis and replication
+verification. This makes the reported adverse contrast inspectable, but cannot
+show that the producing code was not hardcoded. Compound conditions must be
+reduced prospectively to one signed scalar margin or represented by multiple
+named controls. Protocols without this optional field retain their historical
+meaning and gain no retroactive witness authority. `eq` and `ne` are exact
+numeric comparisons, not approximate-equality tests; tolerance-based controls
+should freeze a signed margin and compare it with `lte` or `gte`.
+
 Evidence attached to an execution-backed run must supply the verified analysis
 output SHA-256 plus the effect-estimate and uncertainty JSON Pointers frozen in
 the analysis contract. Faraday resolves and stores those values directly from the hashed

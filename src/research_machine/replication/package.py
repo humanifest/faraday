@@ -32,6 +32,7 @@ from research_machine.application.policies import (
     require_canonical_text,
     require_unique_canonical_text_list,
     normalize_text,
+    validate_control_witness_evidence,
     validate_named_component_gate_metadata,
     validate_quality_gates,
 )
@@ -1788,6 +1789,8 @@ def _validate_control_gate_metadata(
             "evidence_location",
         }
         optional_fields = {"selected_value_sha256"}
+        if control.witness_contract is not None:
+            optional_fields.add("witness")
         if (
             not isinstance(result, dict)
             or not required_fields <= set(result)
@@ -1840,6 +1843,27 @@ def _validate_control_gate_metadata(
             if selected_value_sha256 != expected_selected_value_sha256:
                 raise ValidationError(
                     f"package run {run_id} gate {gate.gate_id} control {control.control_id} selected_value_sha256 disagrees with retained result body"
+                )
+        if control.witness_contract is not None:
+            witness = result.get("witness")
+            validate_control_witness_evidence(
+                protocol=protocol,
+                control=control,
+                witness=witness,
+                matches_expected=result["matches_expected"],
+                context=f"package run {run_id} gate {gate.gate_id}",
+            )
+            if selected_value_sha256 is None:
+                raise ValidationError(
+                    f"package run {run_id} gate {gate.gate_id} control {control.control_id} witness lacks selected_value_sha256"
+                )
+            if selected_value_sha256 != _result_body_sha256(witness):
+                raise ValidationError(
+                    f"package run {run_id} gate {gate.gate_id} control {control.control_id} witness hash disagrees with retained structured witness"
+                )
+            if selected_value is not None and selected_value != witness:
+                raise ValidationError(
+                    f"package run {run_id} gate {gate.gate_id} control {control.control_id} witness disagrees with retained result body"
                 )
 
 
