@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -16,12 +17,27 @@ from research_machine.literature.snapshot import _text
 _LAYERS = {"observed", "derived", "model-dependent", "inferred", "hypothesized", "speculative"}
 _DIRECTIONS = {"supports", "weakens", "mixed", "null", "not_applicable"}
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
+_EXTRACTION_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 
 
 def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_extraction_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _EXTRACTION_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses extraction-prohibited overclaiming language; "
+            "describe the extraction judgment without claiming proof, "
+            "confirmation, validation, or explanation"
+        )
     return text
 
 
@@ -97,11 +113,54 @@ def validate_extraction_boundary(
                 records, list
             ):
                 raise ValidationError("source extraction status or records are invalid")
-            _canonical_text(source_review.get("reason"), "source extraction reason")
+            _bounded_extraction_text(
+                source_review.get("reason"), "source extraction reason"
+            )
             if (status == "extracted") != bool(records):
                 raise ValidationError(
                     "extracted sources require records; no_extractable_claim sources require none"
                 )
+            required_record_fields = {
+                "extraction_id",
+                "study_id",
+                "claim_text",
+                "evidence_location",
+                "epistemic_layer",
+                "result_direction",
+                "uncertainty",
+                "notes",
+            }
+            seen_records: set[str] = set()
+            for record in records:
+                if not isinstance(record, dict) or set(record) != required_record_fields:
+                    raise ValidationError(
+                        "extraction record fields do not match the documented contract"
+                    )
+                extraction_id = _canonical_text(
+                    record.get("extraction_id"), "extraction extraction_id"
+                )
+                if extraction_id in seen_records:
+                    raise ValidationError("extraction records contain duplicate extraction_id")
+                seen_records.add(extraction_id)
+                _canonical_text(record.get("study_id"), "extraction study_id")
+                _canonical_text(record.get("claim_text"), "extraction claim_text")
+                _canonical_text(
+                    record.get("evidence_location"), "extraction evidence_location"
+                )
+                epistemic_layer = _canonical_text(
+                    record.get("epistemic_layer"), "extraction epistemic_layer"
+                )
+                if epistemic_layer not in _LAYERS:
+                    raise ValidationError("invalid extraction epistemic_layer")
+                result_direction = _canonical_text(
+                    record.get("result_direction"), "extraction result_direction"
+                )
+                if result_direction not in _DIRECTIONS:
+                    raise ValidationError("invalid extraction result_direction")
+                _bounded_extraction_text(
+                    record.get("uncertainty"), "extraction uncertainty"
+                )
+                _bounded_extraction_text(record.get("notes"), "extraction notes")
             replayed_record_count += len(records)
         if (
             extracted_record_count is not None
@@ -171,7 +230,9 @@ def create_extraction(screening_path: Path, expected_sha256: str,
         status, records = source_review["status"], source_review["records"]
         if status not in {"extracted", "no_extractable_claim"} or not isinstance(records, list):
             raise ValidationError("source extraction status or records are invalid")
-        reason = _canonical_text(source_review["reason"], "source extraction reason")
+        reason = _bounded_extraction_text(
+            source_review["reason"], "source extraction reason"
+        )
         if (status == "extracted") != bool(records):
             raise ValidationError("extracted sources require records; no_extractable_claim sources require none")
         normalized_records = []
@@ -184,6 +245,12 @@ def create_extraction(screening_path: Path, expected_sha256: str,
                 key: _canonical_text(record[key], f"extraction {key}")
                 for key in required
             }
+            normalized["uncertainty"] = _bounded_extraction_text(
+                record["uncertainty"], "extraction uncertainty"
+            )
+            normalized["notes"] = _bounded_extraction_text(
+                record["notes"], "extraction notes"
+            )
             identifier = normalized["extraction_id"]
             if identifier in extraction_ids:
                 raise ValidationError("duplicate extraction_id")

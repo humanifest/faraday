@@ -55,6 +55,15 @@ def test_screening_preserves_canonical_source_and_criterion_references(tmp_path)
     validate_screening_boundary(result)
 
 
+def test_screening_boundary_rejects_retained_overclaiming_reason(tmp_path):
+    snapshot, digest, review = setup_snapshot(tmp_path)
+    result = create_screening(snapshot, digest, review, tmp_path / "screening")
+    result["decisions"][0]["reason"] = "Confirmed source relevance"
+
+    with pytest.raises(ValidationError, match="prohibited overclaiming language"):
+        validate_screening_boundary(result)
+
+
 @pytest.mark.parametrize("tamper", [
     "scientific_evidence_eligible", "conclusion_authorized", "publication_authorized",
     "reviewer_identity_authenticated", "limitations", "source_record_counts",
@@ -83,7 +92,11 @@ def test_screening_boundary_replays_authority_counts_and_status(tmp_path, tamper
         validate_screening_boundary(result)
 
 
-@pytest.mark.parametrize("failure", ["hash", "missing", "duplicate", "padded_source", "reason", "criterion", "padded_criterion", "duplicate_criterion", "no_criterion"])
+@pytest.mark.parametrize("failure", [
+    "hash", "missing", "duplicate", "padded_source", "reason",
+    "overclaim_reason", "criterion", "padded_criterion",
+    "duplicate_criterion", "no_criterion",
+])
 def test_invalid_screening_never_publishes(tmp_path, failure):
     path, digest, review = setup_snapshot(tmp_path)
     if failure == "hash":
@@ -96,6 +109,8 @@ def test_invalid_screening_never_publishes(tmp_path, failure):
         review["decisions"][0]["source_id"] = " a "
     elif failure == "reason":
         review["decisions"][0]["reason"] = ""
+    elif failure == "overclaim_reason":
+        review["decisions"][0]["reason"] = "Confirmed source relevance"
     elif failure == "criterion":
         review["decisions"][0]["criterion_refs"] = ["inclusion:999"]
     elif failure == "padded_criterion":

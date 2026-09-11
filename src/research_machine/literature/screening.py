@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -11,10 +12,27 @@ from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text, validate_snapshot_boundary
 
 
+_SCREENING_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
+
+
 def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_screening_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _SCREENING_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses screening-prohibited overclaiming language; "
+            "describe the eligibility decision without claiming proof, "
+            "confirmation, validation, or explanation"
+        )
     return text
 
 
@@ -63,7 +81,7 @@ def validate_screening_boundary(screening: dict[str, Any]) -> None:
         if decision not in counts:
             raise ValidationError("screening decision must be include, exclude, or unresolved")
         counts[decision] += 1
-        _canonical_text(item.get("reason"), "screening reason")
+        _bounded_screening_text(item.get("reason"), "screening reason")
         source_hash = require_sha256(
             item.get("source_retained_file_sha256"),
             "screening source_retained_file_sha256",
@@ -143,7 +161,7 @@ def create_screening(snapshot_path: Path, expected_sha256: str, review: dict[str
             raise ValidationError("duplicate screening decision")
         if item["decision"] not in ("include", "exclude", "unresolved"):
             raise ValidationError("screening decision must be include, exclude, or unresolved")
-        reason = _canonical_text(item["reason"], "screening reason")
+        reason = _bounded_screening_text(item["reason"], "screening reason")
         refs = item["criterion_refs"]
         if not isinstance(refs, list) or any(not isinstance(ref, str) or not ref.strip() for ref in refs):
             raise ValidationError("screening criterion_refs must reference criteria in the pinned snapshot")

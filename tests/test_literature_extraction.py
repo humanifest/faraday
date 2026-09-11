@@ -80,6 +80,26 @@ def test_extraction_preserves_canonical_source_study_and_record_ids(tmp_path):
     assert source_review["records"][0]["study_id"] == "study-1"
 
 
+@pytest.mark.parametrize("field", ["source_reason", "uncertainty", "notes"])
+def test_extraction_boundary_rejects_retained_overclaiming_prose(tmp_path, field):
+    screening, digest = prepared_screening(tmp_path)
+    result = create_extraction(screening, digest, extraction_review(), tmp_path / "extraction")
+    candidate = json.loads(json.dumps(result))
+    if field == "source_reason":
+        candidate["source_reviews"][0]["reason"] = "Confirmed source relevance"
+    elif field == "uncertainty":
+        candidate["source_reviews"][0]["records"][0]["uncertainty"] = "Validated estimate"
+    else:
+        candidate["source_reviews"][0]["records"][0]["notes"] = "Explained the finding"
+
+    with pytest.raises(ValidationError, match="prohibited overclaiming language"):
+        validate_extraction_boundary(
+            candidate,
+            candidate["record_count"],
+            require_source_review_contract=True,
+        )
+
+
 @pytest.mark.parametrize("tamper", [
     "version",
     "screening-hash",
@@ -109,7 +129,9 @@ def test_extraction_boundary_replays_artifact_anchors(tmp_path, tamper):
 @pytest.mark.parametrize("failure", [
     "hash", "excluded", "missing", "duplicate", "padded_id", "duplicate_source",
     "duplicate_screening_source", "screening-conclusion", "screening-publication",
-    "screening-count", "location", "layer", "empty",
+    "screening-count", "screening-overclaim-reason", "location", "layer",
+    "overclaim-source-reason", "overclaim-uncertainty", "overclaim-notes",
+    "empty",
 ])
 def test_invalid_extraction_never_publishes(tmp_path, failure):
     screening, digest = prepared_screening(tmp_path)
@@ -145,8 +167,19 @@ def test_invalid_extraction_never_publishes(tmp_path, failure):
         value["source_record_counts"]["include"] = 2
         screening.write_text(json.dumps(value, sort_keys=True) + "\n")
         digest = hashlib.sha256(screening.read_bytes()).hexdigest()
+    elif failure == "screening-overclaim-reason":
+        value = json.loads(screening.read_text())
+        value["decisions"][0]["reason"] = "Confirmed source relevance"
+        screening.write_text(json.dumps(value, sort_keys=True) + "\n")
+        digest = hashlib.sha256(screening.read_bytes()).hexdigest()
     elif failure == "location": record["evidence_location"] = ""
     elif failure == "layer": record["epistemic_layer"] = "fact"
+    elif failure == "overclaim-source-reason":
+        review["source_reviews"][0]["reason"] = "Confirmed source relevance"
+    elif failure == "overclaim-uncertainty":
+        record["uncertainty"] = "Validated estimate"
+    elif failure == "overclaim-notes":
+        record["notes"] = "Explained the finding"
     elif failure == "empty":
         review["source_reviews"][0]["records"] = []
     output = tmp_path / "extraction"

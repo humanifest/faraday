@@ -1182,6 +1182,9 @@ the screening record's non-evidence, non-conclusion, non-publication boundary,
 false reviewer-identity-authentication boundary, retained limitations,
 source-record counts, duplicate-content conflicts, and derived status before
 trusting the screened-in source set.
+Screening reasons also reject report-prohibited overclaiming language, so an
+include/exclude decision cannot claim that a source proved, confirmed,
+validated, or explained a scientific proposition.
 The snapshot boundary itself also replays before publication and again before
 screening trusts retained sources: version, canonical handles, criteria, source
 classifications, retained source SHA-256 digests and sizes, byte-identity
@@ -1239,7 +1242,10 @@ before they can bind downstream review artifacts. Extraction reviewer text,
 pinned screening source IDs, extraction source IDs, study IDs, claim IDs,
 evidence locations, uncertainty, and notes must be canonical before coverage and
 duplicate checks, preventing whitespace-padded reports from becoming separate
-claims or study groupings. Citation verification also requires canonical
+claims or study groupings. Source-review reasons plus reviewer-entered
+uncertainty and notes also reject report-prohibited overclaiming language,
+while source `claim_text` remains preserved as source content for later
+citation review. Citation verification also requires canonical
 extraction reviewer, source, study, claim, evidence-location, citation-reviewer,
 checked-location, and rationale text before coverage and duplicate checks, so
 the independent review cannot trim a second apparent assessment or rewrite the
@@ -1248,9 +1254,10 @@ overclaiming language, so a source-support check cannot claim proof,
 confirmation, validation, or explanation beyond the bounded verdict. It also
 replays each extraction source-review envelope:
 source IDs must remain duplicate-free, source-review reasons must remain
-canonical, retained source-file hashes must still be valid when present, and
-the declared extracted/no-extractable status must agree with the retained record
-list before citation review can proceed. The citation-verification boundary
+canonical and bounded, retained source-file hashes must still be valid when
+present, extracted-record uncertainty and notes must remain bounded, and the
+declared extracted/no-extractable status must agree with the retained record list
+before citation review can proceed. The citation-verification boundary
 also replays its own version, retained extraction SHA-256, canonical snapshot
 handle, independent reviewer handles, retained assessment list, derived verdict
 counts, and derived status before downstream bias assessment or evidence-map

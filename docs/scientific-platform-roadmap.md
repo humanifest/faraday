@@ -1497,7 +1497,10 @@ authorize publication claims, or establish independent studies.
 Screening reviewer text, pinned source IDs, decision source IDs, reasons, and
 criterion references must be canonical without surrounding whitespace before
 coverage and duplicate checks, so whitespace padding cannot create a second
-apparent screening decision or criterion citation.
+apparent screening decision or criterion citation. Screening reasons also reject
+report-prohibited overclaiming language, so an include/exclude decision cannot
+claim that a source proved, confirmed, validated, or explained a scientific
+proposition.
 Screening now also carries each source's exact retained-file SHA-256 from the
 pinned snapshot into the downstream decision record. Extraction preserves that
 source-byte anchor by source review; citation verification retains it on each
@@ -1533,7 +1536,9 @@ Extraction reviewer text, pinned screening source IDs, extraction source IDs,
 study IDs, claim IDs, evidence locations, uncertainty, and notes must be
 canonical without surrounding whitespace before coverage and duplicate checks,
 preventing whitespace-padded reports from becoming separate claims or study
-groupings.
+groupings. Source-review reasons plus reviewer-entered uncertainty and notes
+also reject report-prohibited overclaiming language, while source `claim_text`
+remains preserved as source content for later citation review.
 `research literature verify-citations` adds a second, hash-bound review covering
 every extracted claim. The expected extraction hash must be canonical lowercase
 SHA-256 before it can pin the extraction bytes. The citation reviewer must
@@ -1565,7 +1570,8 @@ source-support check cannot claim proof, confirmation, validation, or
 explanation beyond the bounded verdict. It also replays each extraction
 source-review envelope before creating the review
 artifact: duplicate source IDs, padded source-review reasons, malformed retained
-source-file hashes, and extracted/no-extractable status drift fail closed even
+source-file hashes, overclaiming source-review reasons, overclaiming
+uncertainty or notes, and extracted/no-extractable status drift fail closed even
 when the retained claim rows still look reviewable.
 Citation-verification boundary replay now also validates its own version,
 retained extraction SHA-256, canonical snapshot handle, independent reviewer

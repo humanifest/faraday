@@ -187,8 +187,11 @@ def test_citation_verification_boundary_rejects_retained_overclaiming_rationale(
     "extraction-padded-limitation",
     "extraction-source-status-drift",
     "extraction-source-padded-reason",
+    "extraction-source-overclaim-reason",
     "extraction-source-duplicate-empty",
     "extraction-source-retained-hash",
+    "extraction-overclaim-uncertainty",
+    "extraction-overclaim-notes",
     "unknown",
     "location",
     "padded-location",
@@ -221,8 +224,11 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
         "extraction-padded-limitation",
         "extraction-source-status-drift",
         "extraction-source-padded-reason",
+        "extraction-source-overclaim-reason",
         "extraction-source-duplicate-empty",
         "extraction-source-retained-hash",
+        "extraction-overclaim-uncertainty",
+        "extraction-overclaim-notes",
         "missing-claim-field",
     }:
         value = json.loads(extraction.read_text())
@@ -258,6 +264,8 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
             value["source_reviews"][0]["status"] = "no_extractable_claim"
         elif failure == "extraction-source-padded-reason":
             value["source_reviews"][0]["reason"] = " fixture "
+        elif failure == "extraction-source-overclaim-reason":
+            value["source_reviews"][0]["reason"] = "Confirmed source relevance"
         elif failure == "extraction-source-duplicate-empty":
             value["source_reviews"].append({
                 "source_id": "source-1",
@@ -267,6 +275,10 @@ def test_invalid_citation_review_never_publishes(tmp_path, failure):
             })
         elif failure == "extraction-source-retained-hash":
             value["source_reviews"][0]["source_retained_file_sha256"] = "A" * 64
+        elif failure == "extraction-overclaim-uncertainty":
+            value["source_reviews"][0]["records"][0]["uncertainty"] = "Validated estimate"
+        elif failure == "extraction-overclaim-notes":
+            value["source_reviews"][0]["records"][0]["notes"] = "Explained the finding"
         encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
         extraction.write_bytes(encoded)
         digest = hashlib.sha256(encoded).hexdigest()
