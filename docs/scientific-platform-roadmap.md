@@ -1251,6 +1251,10 @@ disclosure metadata is also replayed before eligibility is trusted: legacy
 silence remains ineligible, explicit no-deviation declarations must retain the
 unauthenticated-assertion boundary, declared departures must preserve exact typed
 fields, and every departure's evidence hash must be a packaged run output.
+Canonical write intake and package replay now reject surrounding-whitespace
+normalization and report-prohibited overclaims in departure prose, so a
+transparent deviation cannot be rewritten into proof, confirmation, validation,
+or explanation.
 For plan-bearing protocols, the verifier now replays retained
 `sample_size_plan_check` metadata against the frozen planning receipt and any
 retained verified execution or workflow-adjudication handoff before trusting

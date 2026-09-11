@@ -1738,6 +1738,66 @@ def test_declared_protocol_deviation_is_preserved_and_blocks_evidence(tmp_path: 
     assert "potential impact: potentially_material" in synthesis
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("deviation_id", " dev-1", "deviation_id must be canonical"),
+        ("stage", " analysis", "deviation stage must be canonical"),
+        (
+            "actual_method",
+            "Validated the looser tolerance after convergence failed.",
+            "actual method uses report-prohibited",
+        ),
+        (
+            "reason",
+            "Confirmed the registered tolerance would not converge.",
+            "deviation reason uses report-prohibited",
+        ),
+        (
+            "corrective_action",
+            "Explain why the looser tolerance proved adequate.",
+            "corrective action uses report-prohibited",
+        ),
+        (
+            "evidence_location",
+            " /solver/tolerance",
+            "deviation evidence_location must be canonical",
+        ),
+    ],
+)
+def test_protocol_deviation_disclosure_rejects_noncanonical_or_overclaiming_text(
+    tmp_path: Path,
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    disclosure = {
+        "status": "deviations_declared",
+        "deviations": [{
+            "deviation_id": "dev-1",
+            "stage": "analysis",
+            "frozen_commitment": "Use the registered solver tolerance.",
+            "actual_method": "Used a looser tolerance after convergence failed.",
+            "reason": "The registered tolerance did not converge.",
+            "timing": "after_results_seen",
+            "potential_impact": "potentially_material",
+            "corrective_action": "Repeat both tolerances and report all results.",
+            "evidence_sha256": "c" * 64,
+            "evidence_location": "/solver/tolerance",
+        }],
+    }
+    disclosure["deviations"][0][field] = value
+
+    with pytest.raises(ValidationError, match=message):
+        service.record_run(run_command(
+            protocol.protocol_id,
+            QualityGateStatus.PASSED,
+            metadata={"protocol_deviation_disclosure": disclosure},
+        ))
+
+
 def test_ineligible_run_with_retained_artifact_receipt_replays_on_read(
     tmp_path: Path,
 ) -> None:

@@ -1999,6 +1999,7 @@ def test_replication_package_verifies_canary_target_gate_metadata(
         ("bad_timing", "timing is invalid"),
         ("bad_impact", "potential_impact is invalid"),
         ("padded_stage", "stage must be canonical"),
+        ("overclaim_actual_method", "actual_method uses report-prohibited"),
         ("unbound_evidence", "must reference a run output artifact"),
         ("blank_location", "evidence_location must not be empty"),
         ("rewritten_boundary", "boundary is invalid"),
@@ -2121,6 +2122,10 @@ def test_replication_package_verifies_protocol_deviation_disclosure(
         deviation["potential_impact"] = "beneficial"
     elif mutation == "padded_stage":
         deviation["stage"] = " analysis"
+    elif mutation == "overclaim_actual_method":
+        deviation["actual_method"] = (
+            "Validated the looser tolerance after convergence failed."
+        )
     elif mutation == "unbound_evidence":
         deviation["evidence_sha256"] = "f" * 64
     elif mutation == "blank_location":

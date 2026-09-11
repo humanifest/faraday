@@ -864,7 +864,11 @@ consistent. Structured
 protocol-deviation disclosure metadata is also checked: legacy silence remains
 ineligible, explicit no-deviation declarations must retain their interpretation
 boundary, declared departures must preserve exact typed fields, and every
-deviation evidence hash must cite a packaged run output. This keeps departures
+deviation evidence hash must cite a packaged run output. Deviation IDs,
+report-visible departure text, and evidence locations must be canonical rather
+than silently trimmed, and explanatory departure prose may not use report-
+prohibited overclaiming language such as proof, confirmation, validation, or
+explanation. This keeps departures
 visible in replication handoffs without treating a no-deviation assertion as
 authenticated protocol adherence. If the frozen protocol has a machine-
 recomputed `sample_size_plan`, package verification also replays the retained
@@ -1975,7 +1979,9 @@ gate evidence.
   metadata, or summary before those changes can affect evidence or synthesis.
 - Require an explicit protocol-deviation disclosure before a run can become
   evidence-eligible; preserve declared departures with output-bound support and
-  block their automatic promotion without erasing the run.
+  block their automatic promotion without erasing the run. Deviation disclosure
+  text is canonical and bounded for reporting, so the record cannot turn a
+  departure into proof, confirmation, validation, or explanation.
 - Generate exact frozen quality-gate templates and preflight complete run
   records without consuming a run ID or appending a ledger event.
 - Re-hash returned run artifacts, validate a hash-pinned clean-room attestation

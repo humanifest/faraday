@@ -2288,12 +2288,15 @@ def _validate_protocol_deviation_disclosure_metadata(
             "actual_method",
             "reason",
             "corrective_action",
-            "evidence_location",
         ):
-            require_canonical_text(
+            require_canonical_bounded_report_text(
                 deviation[field],
                 f"package run {run_id} protocol deviation {deviation_id} {field}",
             )
+        require_canonical_text(
+            deviation["evidence_location"],
+            f"package run {run_id} protocol deviation {deviation_id} evidence_location",
+        )
         timing = require_canonical_text(
             deviation["timing"],
             f"package run {run_id} protocol deviation {deviation_id} timing",

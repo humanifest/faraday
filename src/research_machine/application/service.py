@@ -195,7 +195,7 @@ def _validate_protocol_deviation_disclosure(value: Any) -> dict[str, Any]:
     for item in deviations:
         if not isinstance(item, dict) or set(item) != required:
             raise ValidationError("each protocol deviation must contain the exact documented fields")
-        deviation_id = require_text(item["deviation_id"], "deviation_id")
+        deviation_id = require_canonical_text(item["deviation_id"], "deviation_id")
         if deviation_id in seen:
             raise ValidationError(f"duplicate protocol deviation_id: {deviation_id}")
         seen.add(deviation_id)
@@ -205,15 +205,25 @@ def _validate_protocol_deviation_disclosure(value: Any) -> dict[str, Any]:
             raise ValidationError(f"protocol deviation {deviation_id} potential_impact is invalid")
         normalized.append({
             "deviation_id": deviation_id,
-            "stage": require_text(item["stage"], "deviation stage"),
-            "frozen_commitment": require_text(item["frozen_commitment"], "frozen commitment"),
-            "actual_method": require_text(item["actual_method"], "actual method"),
-            "reason": require_text(item["reason"], "deviation reason"),
+            "stage": require_canonical_bounded_report_text(item["stage"], "deviation stage"),
+            "frozen_commitment": require_canonical_bounded_report_text(
+                item["frozen_commitment"], "frozen commitment"
+            ),
+            "actual_method": require_canonical_bounded_report_text(
+                item["actual_method"], "actual method"
+            ),
+            "reason": require_canonical_bounded_report_text(
+                item["reason"], "deviation reason"
+            ),
             "timing": item["timing"],
             "potential_impact": item["potential_impact"],
-            "corrective_action": require_text(item["corrective_action"], "corrective action"),
+            "corrective_action": require_canonical_bounded_report_text(
+                item["corrective_action"], "corrective action"
+            ),
             "evidence_sha256": require_sha256(item["evidence_sha256"], "deviation evidence_sha256"),
-            "evidence_location": require_text(item["evidence_location"], "deviation evidence_location"),
+            "evidence_location": require_canonical_text(
+                item["evidence_location"], "deviation evidence_location"
+            ),
         })
     return {
         "status": status,
