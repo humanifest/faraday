@@ -19,6 +19,10 @@ from research_machine.domain.errors import ValidationError
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
+_ASSESSMENT_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 _TIME_BASES = {"device_metadata", "sidecar", "user_supplied", "filesystem_metadata"}
 _STREAM_FIELDS = {
     "stream_id",
@@ -213,6 +217,17 @@ def _text(value: Any, field: str, *, optional: bool = False) -> str:
             f"instrument inspection {field} must be canonical without surrounding whitespace"
         )
     return value
+
+
+def _bounded_assessment_text(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if _ASSESSMENT_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"instrument inspection {field} uses assessment-prohibited "
+            "overclaiming language; describe the timing or order assessment "
+            "without claiming proof, confirmation, validation, or explanation"
+        )
+    return text
 
 
 def _parse_time(value: Any, field: str) -> tuple[str, datetime]:
@@ -769,7 +784,9 @@ def _ordered_timing_streams(value: Any) -> list[dict[str, str]]:
         streams.append({
             "stream_id": stream_id,
             "channel": _text(stream["channel"], f"{label}.channel"),
-            "purpose": _text(stream["purpose"], f"{label}.purpose"),
+            "purpose": _bounded_assessment_text(
+                stream["purpose"], f"{label}.purpose"
+            ),
         })
     return streams
 
@@ -874,7 +891,9 @@ def _normalize_temporal_order_spec(spec: dict[str, Any]) -> dict[str, Any]:
             "expected_relation": expected_relation,
             "minimum_separation": minimum,
             "maximum_separation": maximum,
-            "scientific_question": _text(check["scientific_question"], f"{label}.scientific_question"),
+            "scientific_question": _bounded_assessment_text(
+                check["scientific_question"], f"{label}.scientific_question"
+            ),
         })
     return {
         "assessment_id": _stable_identifier(spec["assessment_id"], "temporal_order.assessment_id"),
@@ -1219,6 +1238,18 @@ def verify_temporal_order_assessment_record(
         )
         if expected_relation not in _EXPECTED_TEMPORAL_RELATIONS:
             raise ValidationError("temporal order assessment expected_relation is unsupported")
+        _stable_identifier(
+            check.get("first_event_id"),
+            f"temporal_order order_checks[{index}].first_event_id",
+        )
+        _stable_identifier(
+            check.get("second_event_id"),
+            f"temporal_order order_checks[{index}].second_event_id",
+        )
+        _bounded_assessment_text(
+            check.get("scientific_question"),
+            f"temporal_order order_checks[{index}].scientific_question",
+        )
         minimum_seconds = _retained_time_bound_seconds(
             check.get("minimum_separation"),
             f"temporal_order order_checks[{index}].minimum_separation",
@@ -1709,7 +1740,10 @@ def verify_stream_timing_assessment_record(
             raise ValidationError("stream timing assessment required_streams must be unique")
         seen_required_streams.add(stream_id)
         _text(stream.get("channel"), f"stream_timing required_streams[{index}].channel")
-        _text(stream.get("purpose"), f"stream_timing required_streams[{index}].purpose")
+        _bounded_assessment_text(
+            stream.get("purpose"),
+            f"stream_timing required_streams[{index}].purpose",
+        )
         status = _text(stream.get("status"), f"stream_timing required_streams[{index}].status")
         if status not in {"present", "absent", "channel_mismatch"}:
             raise ValidationError("stream timing assessment required stream status is unsupported")

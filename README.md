@@ -1684,8 +1684,10 @@ Use `measurement assess-timing --inspection-file FILE
 trusted inspection record into a provider-free timing-feasibility review. The
 specification names a stable assessment ID, a tested lag window, the maximum
 allowed clock-uncertainty fraction, required streams and channels, and exact
-event times. Faraday verifies the inspection bytes against the external trust
-anchor and writes a non-evidentiary `stream-timing-assessment.json` that fails
+event times. Required-stream purpose prose is bounded assessment text: it may
+describe why the stream is needed, but cannot claim proof, confirmation,
+validation, or explanation. Faraday verifies the inspection bytes against the
+external trust anchor and writes a non-evidentiary `stream-timing-assessment.json` that fails
 closed when typed streams are absent, required channels are missing or mismatched,
 clock uncertainty reaches the registered lag-window threshold, uncertainty uses a
 relative unit such as `ppm`, an event predates the inspected stream start, or an
@@ -1734,9 +1736,11 @@ after a trusted timing-feasibility review to classify registered event-order
 checks. Each check names two exact event IDs, an expected relation
 (`first_precedes_second`, `second_precedes_first`, or
 `indeterminate_within_uncertainty`), a minimum separation, a maximum registered
-separation, and the scientific question being protected. Faraday first replays
-the complete upstream stream-timing assessment record against the trusted hash,
-so a hash-consistent timing file with hidden retained failures cannot become an
+separation, and the scientific question being protected. The retained scientific
+question is bounded assessment text and cannot claim proof, confirmation,
+validation, or explanation. Faraday first replays the complete upstream
+stream-timing assessment record against the trusted hash, so a hash-consistent
+timing file with hidden retained failures cannot become an
 order-classification input. It then compares uncertainty intervals rather than
 point timestamps alone, so overlapping intervals or missed minimum separation
 are recorded as indeterminate within measurement uncertainty. Clear reversals,

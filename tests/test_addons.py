@@ -1300,6 +1300,7 @@ def _write_timing_spec(
     event_time: str = "2026-09-06T12:00:03Z",
     events: list[dict] | None = None,
     output_name: str = "timing-spec.json",
+    stream_purpose: str = "Primary synchronized signal fixture.",
 ) -> Path:
     timing_events = events if events is not None else [{
         "event_id": "event-main",
@@ -1318,7 +1319,7 @@ def _write_timing_spec(
         "required_streams": [{
             "stream_id": "stream-main",
             "channel": "main",
-            "purpose": "Primary synchronized signal fixture.",
+            "purpose": stream_purpose,
         }],
         "events": timing_events,
     }, indent=2, sort_keys=True) + "\n")
@@ -1333,6 +1334,7 @@ def _write_temporal_order_spec(
     second_event_id: str = "sound-event",
     expected_relation: str = "first_precedes_second",
     maximum_ms: float = 20,
+    scientific_question: str = "Synthetic fixture for temporal ordering.",
 ) -> Path:
     spec = tmp_path / output_name
     spec.write_text(json.dumps({
@@ -1344,7 +1346,7 @@ def _write_temporal_order_spec(
             "expected_relation": expected_relation,
             "minimum_separation": {"duration": 1, "unit": "ms"},
             "maximum_separation": {"duration": maximum_ms, "unit": "ms"},
-            "scientific_question": "Synthetic fixture for temporal ordering.",
+            "scientific_question": scientific_question,
         }],
     }, indent=2, sort_keys=True) + "\n")
     return spec
@@ -1484,6 +1486,32 @@ def test_stream_timing_assessment_rejects_untrusted_inspection_hash(
     output = tmp_path / "timing-assessment"
     with pytest.raises(ValidationError, match="expected_inspection_sha256"):
         assess_stream_timing(record_file, "0" * 64, spec_file, output)
+    assert not output.exists()
+
+
+def test_stream_timing_assessment_rejects_overclaiming_purpose(
+    tmp_path: Path,
+) -> None:
+    from research_machine.measurement.instrument import assess_stream_timing
+
+    inspection, record_file = _write_stream_timing_fixture(tmp_path)
+    spec_file = _write_timing_spec(
+        tmp_path,
+        output_name="overclaim-purpose-spec.json",
+        stream_purpose="Validated synchronized timing fixture.",
+    )
+    output = tmp_path / "timing-overclaim-purpose"
+
+    with pytest.raises(
+        ValidationError,
+        match="timing.required_streams\\[0\\].purpose uses assessment-prohibited",
+    ):
+        assess_stream_timing(
+            record_file,
+            inspection["inspection_sha256"],
+            spec_file,
+            output,
+        )
     assert not output.exists()
 
 
@@ -1630,6 +1658,12 @@ def test_stream_timing_verifier_replays_hidden_failure_conditions(
                 "conclusion_ceiling": "This timing record clears protocol gates."
             }),
             "conclusion ceiling has changed",
+        ),
+        (
+            lambda record: record["required_streams"][0].update({
+                "purpose": "Confirmed synchronized timing."
+            }),
+            "stream_timing required_streams\\[0\\].purpose uses assessment-prohibited",
         ),
     ],
 )
@@ -1893,6 +1927,44 @@ def test_temporal_order_assessment_rejects_untrusted_timing_hash(
     assert not output.exists()
 
 
+def test_temporal_order_assessment_rejects_overclaiming_scientific_question(
+    tmp_path: Path,
+) -> None:
+    from research_machine.measurement.instrument import assess_temporal_order
+
+    events = [
+        {
+            "event_id": "state-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.000000Z",
+        },
+        {
+            "event_id": "sound-event",
+            "stream_id": "stream-main",
+            "event_time": "2026-09-06T12:00:03.010000Z",
+        },
+    ]
+    timing_result, timing_record = _write_timing_assessment_with_events(tmp_path, events)
+    order_spec = _write_temporal_order_spec(
+        tmp_path,
+        output_name="order-overclaim-spec.json",
+        scientific_question="Validated causal direction from state to sound.",
+    )
+    output = tmp_path / "order-overclaim"
+
+    with pytest.raises(
+        ValidationError,
+        match="temporal_order.order_checks\\[0\\].scientific_question uses assessment-prohibited",
+    ):
+        assess_temporal_order(
+            timing_record,
+            timing_result["assessment_sha256"],
+            order_spec,
+            output,
+        )
+    assert not output.exists()
+
+
 def test_temporal_order_assessment_replays_upstream_timing_before_classifying(
     tmp_path: Path,
 ) -> None:
@@ -2016,6 +2088,12 @@ def test_temporal_order_verifier_replays_retained_order_status(
                 "conclusion_ceiling": "This temporal order record establishes causality."
             }),
             "conclusion ceiling has changed",
+        ),
+        (
+            lambda record: record["order_checks"][0].update({
+                "scientific_question": "Confirmed causal direction."
+            }),
+            "temporal_order order_checks\\[0\\].scientific_question uses assessment-prohibited",
         ),
     ],
 )

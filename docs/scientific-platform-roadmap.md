@@ -2061,7 +2061,9 @@ checks required stream/channel presence, converts absolute clock-uncertainty
 units against the registered lag window, rejects relative uncertainty such as
 `ppm` for lag-window comparison, retains each assessed event's stream start time,
 and records failed findings when an event predates that start or its uncertainty
-overlaps preserved missing intervals. A passed assessment remains a
+overlaps preserved missing intervals. Required-stream purpose prose must remain
+bounded assessment text, so a timing specification cannot claim proof,
+confirmation, validation, or explanation while retaining a trusted hash. A passed assessment remains a
 feasibility review only: it does not authenticate acquisition, verify
 calibration or drift correction, clear a protocol gate, register a dataset, or
 authorize evidence. Canonical run intake now treats
@@ -2127,7 +2129,9 @@ failure or warning must retain its exact visible finding code. Failed
 absent, not assessed upstream, or overlapped missing data; an unrelated error
 label cannot stand in for the missing order-classification reason. Unreviewed
 extra fields or missing replay inputs therefore cannot travel with a trusted
-assessment. Replay also requires the exact non-evidentiary conclusion ceiling,
+assessment. Retained scientific-question prose must also remain bounded and
+cannot claim proof, confirmation, validation, or explanation. Replay also
+requires the exact non-evidentiary conclusion ceiling,
 so temporal classification cannot be rewritten into causality, mechanism, or
 evidence authorization inside a trusted record.
 Failed temporal-order assessments remain recordable only as failed gates, so
