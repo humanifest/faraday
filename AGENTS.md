@@ -582,6 +582,12 @@ canonical write path.
   fail-closed tests. Update `docs/addons.md` when the extension contract changes.
 - Add tests for every new validation gate and every provenance-sensitive state
   transition. Run `pytest` and ledger verification before declaring completion.
+- Before promoting a runtime used by a live research workspace, prefer the
+  hash-pinned, read-only runtime-promotion audit. Require exact candidate
+  revision and cleanliness, ledger head and rigor ceiling, and a representative
+  run's expected effective eligibility; replay a notebook freeze bundle when it
+  is part of the intended workflow. Treat a pass as process compatibility only,
+  never scientific validity or evidence promotion.
 
 ## Publishing safety
 

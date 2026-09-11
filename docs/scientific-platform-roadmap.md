@@ -270,6 +270,13 @@ frozen protocol fields. Prose-only runtime or bundle hashes are rejected for
 new freezes and remain only historical text; the bundle establishes integrity
 relationships, not chronology, method quality, or scientific evidence.
 
+Runtime-promotion audit delivery: a standalone read-only command now consumes
+an independently hash-pinned manifest and combines exact candidate Git revision
+and cleanliness, workspace ledger and rigor-ceiling checks, representative run
+preflight with expected effective eligibility, and optional notebook
+freeze-bundle replay. It reuses existing validators, performs no target-workspace
+writes, and reports process compatibility rather than scientific validity.
+
 Run-output and evidence-admission delivery: scientific evidence eligibility now
 also requires a passed verification of every declared output under an explicit
 local artifact root. Runs lacking that verification remain recordable but cannot

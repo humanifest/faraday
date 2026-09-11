@@ -78,6 +78,51 @@ def test_protocol_schema_accepts_typed_runtime_and_freeze_bundle_requirements():
         jsonschema.validate(malformed_bundle, schema)
 
 
+def test_runtime_promotion_manifest_schema_pins_read_only_checks():
+    schema = json.loads(
+        (SCHEMAS / "runtime-promotion-audit-manifest.schema.json").read_text()
+    )
+    manifest = {
+        "schema_version": 1,
+        "runtime_repository": "/candidate/faraday",
+        "expected_runtime_revision": "a" * 40,
+        "expected_runtime_clean": True,
+        "workspace": {
+            "path": "/research/project/.research",
+            "inquiry_id": "bounded-inquiry",
+            "expected_ledger_head_sha256": "b" * 64,
+            "expected_conclusion_ceiling": "unclassified evidence only",
+        },
+        "representative_run": {
+            "record_path": "/research/project/run-record.json",
+            "expected_record_sha256": "c" * 64,
+            "expected_preflight_status": "ready",
+            "expected_record_status_if_submitted": "completed",
+            "expected_effective_evidence_eligibility": False,
+            "artifact_root": "/research/project/run-artifacts",
+        },
+        "notebook_freeze_bundle": {
+            "path": "/research/project/freeze-input-bundle.json",
+            "expected_sha256": "d" * 64,
+        },
+    }
+    jsonschema.validate(manifest, schema)
+
+    dirty_expected = {
+        **manifest,
+        "expected_runtime_clean": False,
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(dirty_expected, schema)
+
+    missing_attestation_digest = json.loads(json.dumps(manifest))
+    missing_attestation_digest["representative_run"][
+        "attestation_schema_path"
+    ] = "/research/project/attestation.schema.json"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(missing_attestation_digest, schema)
+
+
 @pytest.mark.parametrize(
     ("schema_name", "mutation"),
     [

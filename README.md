@@ -2645,6 +2645,15 @@ receipts remain usable only as exact ledger-bound audit history; compatibility
 loading never grants them prospective registration, evidence admission, or
 current next-action authority.
 
+For a repeatable runtime gate, the candidate checkout's repository-local
+`./research --json runtime-promotion audit` command accepts an independently
+hash-pinned manifest and combines exact candidate revision, loaded-source path,
+and cleanliness with ledger-head verification, rigor ceiling comparison,
+representative run preflight with expected effective eligibility, and optional
+notebook freeze-bundle replay. It performs no target-workspace writes and does
+not assess scientific validity. See
+[docs/runtime-promotion-audit.md](docs/runtime-promotion-audit.md).
+
 ## Design principle
 
 > The machine does not search for evidence that its current story is true. It

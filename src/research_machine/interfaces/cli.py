@@ -383,6 +383,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_inquiry_option(audit)
 
+    runtime_promotion = groups.add_parser(
+        "runtime-promotion",
+        help="Audit a candidate runtime without changing research state",
+    )
+    runtime_promotion_commands = runtime_promotion.add_subparsers(
+        dest="action", required=True
+    )
+    runtime_promotion_audit = runtime_promotion_commands.add_parser(
+        "audit",
+        help="Run one hash-pinned runtime-promotion compatibility audit",
+    )
+    runtime_promotion_audit.add_argument("--manifest", type=Path, required=True)
+    runtime_promotion_audit.add_argument(
+        "--expect-manifest-sha256",
+        required=True,
+        help="Require the independently reviewed promotion-manifest digest",
+    )
+
     inquiry = groups.add_parser("inquiry", help="Create and inspect inquiries")
     inquiry_commands = inquiry.add_subparsers(dest="action", required=True)
     create = inquiry_commands.add_parser("create", help="Create and select an inquiry")
@@ -2412,6 +2430,16 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
         )
         return create_snapshot(manifest, args.output)
 
+    if args.group == "runtime-promotion":
+        from research_machine.interfaces.runtime_promotion import (
+            audit_runtime_promotion,
+        )
+
+        return audit_runtime_promotion(
+            args.manifest,
+            expected_manifest_sha256=args.expect_manifest_sha256,
+        )
+
     if args.group == "workspace":
         if args.action == "init":
             return service.init_workspace()
@@ -2972,11 +3000,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: {exc}", file=sys.stderr)
         return 2
     _render(result, json_output=args.json)
-    if (
-        args.group == "run"
-        and args.action == "preflight"
-        and isinstance(result, dict)
-        and result.get("status") != "ready"
+    if isinstance(result, dict) and (
+        (
+            args.group == "run"
+            and args.action == "preflight"
+            and result.get("status") != "ready"
+        )
+        or (
+            args.group == "runtime-promotion"
+            and result.get("status") != "passed"
+        )
     ):
         return 1
     return 0

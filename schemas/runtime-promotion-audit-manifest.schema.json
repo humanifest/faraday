@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/runtime-promotion-audit-manifest.schema.json",
+  "title": "Read-only runtime-promotion audit manifest",
+  "description": "Pins one candidate runtime, research-workspace snapshot, representative run preflight, and optional notebook freeze bundle. Passing is a process compatibility result, not scientific evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "runtime_repository",
+    "expected_runtime_revision",
+    "expected_runtime_clean",
+    "workspace",
+    "representative_run"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "runtime_repository": {"type": "string", "pattern": "^/"},
+    "expected_runtime_revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "expected_runtime_clean": {"const": true},
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "inquiry_id",
+        "expected_ledger_head_sha256",
+        "expected_conclusion_ceiling"
+      ],
+      "properties": {
+        "path": {"type": "string", "pattern": "^/"},
+        "inquiry_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,95}$"
+        },
+        "expected_ledger_head_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "expected_conclusion_ceiling": {
+          "type": "string",
+          "pattern": "^\\S(?:.*\\S)?$"
+        }
+      }
+    },
+    "representative_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_path",
+        "expected_record_sha256",
+        "expected_preflight_status",
+        "expected_record_status_if_submitted",
+        "expected_effective_evidence_eligibility"
+      ],
+      "dependentRequired": {
+        "attestation_schema_path": ["expected_attestation_schema_sha256"],
+        "expected_attestation_schema_sha256": ["attestation_schema_path"]
+      },
+      "properties": {
+        "record_path": {"type": "string", "pattern": "^/"},
+        "expected_record_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "expected_preflight_status": {
+          "enum": ["ready", "would_record_invalid"]
+        },
+        "expected_record_status_if_submitted": {
+          "enum": ["completed", "invalid"]
+        },
+        "expected_effective_evidence_eligibility": {"type": "boolean"},
+        "artifact_root": {"type": "string", "pattern": "^/"},
+        "attestation_schema_path": {"type": "string", "pattern": "^/"},
+        "expected_attestation_schema_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "notebook_freeze_bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "expected_sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^/"},
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}
