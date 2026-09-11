@@ -99,6 +99,17 @@ def test_synthesis_plan_boundary_rejects_reviewer_authentication(tmp_path):
         validate_synthesis_plan_boundary(candidate)
 
 
+@pytest.mark.parametrize("field", ["eligibility_policy", "conclusion_rule", "deviation_policy"])
+def test_synthesis_plan_boundary_rejects_retained_overclaiming_policy(tmp_path, field):
+    screening, digest = screening_file(tmp_path)
+    result = create_synthesis_plan(screening, digest, spec(), tmp_path / "plan")
+    candidate = dict(result)
+    candidate[field] = "Validated final conclusion"
+
+    with pytest.raises(ValidationError, match="prohibited overclaiming language"):
+        validate_synthesis_plan_boundary(candidate)
+
+
 def test_qualitative_plan_rejects_quantitative_choices(tmp_path):
     screening, digest = screening_file(tmp_path)
     candidate = spec("qualitative")
@@ -111,6 +122,8 @@ def test_qualitative_plan_rejects_quantitative_choices(tmp_path):
     "hash", "screening", "no-included", "screening-conclusion",
     "screening-publication", "screening-count", "minimum", "sensitivity",
     "unknown-sensitivity", "same-model", "quant-effect", "quant-model",
+    "overclaim-eligibility", "overclaim-missing", "overclaim-heterogeneity",
+    "overclaim-multiplicity", "overclaim-conclusion", "overclaim-deviation",
 ])
 def test_invalid_synthesis_plan_never_publishes(tmp_path, failure):
     screening, digest = screening_file(tmp_path, "review_required" if failure == "screening" else "screening_recorded")
@@ -134,6 +147,12 @@ def test_invalid_synthesis_plan_never_publishes(tmp_path, failure):
     elif failure == "same-model": candidate["sensitivity_analyses"] = ["alternate_random_effects"]
     elif failure == "quant-effect": candidate["effect_measure"] = "not_applicable"
     elif failure == "quant-model": candidate["statistical_model"] = "not_applicable"
+    elif failure == "overclaim-eligibility": candidate["eligibility_policy"] = "Confirmed eligible sources only"
+    elif failure == "overclaim-missing": candidate["missing_statistics_policy"] = "Validated no missing statistics"
+    elif failure == "overclaim-heterogeneity": candidate["heterogeneity_policy"] = "Explained all heterogeneity"
+    elif failure == "overclaim-multiplicity": candidate["multiplicity_policy"] = "Confirmed no multiplicity risk"
+    elif failure == "overclaim-conclusion": candidate["conclusion_rule"] = "Validated final conclusion"
+    elif failure == "overclaim-deviation": candidate["deviation_policy"] = "Confirmed no deviations matter"
     output = tmp_path / "plan"
     with pytest.raises(ValidationError):
         create_synthesis_plan(screening, digest, candidate, output)

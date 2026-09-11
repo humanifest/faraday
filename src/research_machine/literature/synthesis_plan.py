@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -22,6 +23,18 @@ QUANTITATIVE_SENSITIVITIES = {
     "alternate_fixed_effect",
     "alternate_random_effects",
 }
+_SYNTHESIS_PLAN_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
+_BOUNDED_PLAN_FIELDS = (
+    "eligibility_policy",
+    "missing_statistics_policy",
+    "heterogeneity_policy",
+    "multiplicity_policy",
+    "conclusion_rule",
+    "deviation_policy",
+)
 
 
 def _text_list(value: Any, field: str, *, allow_empty: bool = True) -> list[str]:
@@ -38,6 +51,17 @@ def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"synthesis plan {field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_plan_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _SYNTHESIS_PLAN_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"synthesis plan {field} uses prohibited overclaiming language; "
+            "describe the prospective rule without claiming proof, "
+            "confirmation, validation, or explanation"
+        )
     return text
 
 
@@ -58,6 +82,10 @@ def validate_synthesis_plan_boundary(plan: dict[str, Any]) -> None:
         raise ValidationError("synthesis plan requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
         _canonical_text(limitation, f"limitation {index + 1}")
+    for field in _BOUNDED_PLAN_FIELDS:
+        value = plan.get(field)
+        if value is not None:
+            _bounded_plan_text(value, field)
 
 
 def create_synthesis_plan(
@@ -136,14 +164,14 @@ def create_synthesis_plan(
         "contrast_definition": contrast_definition,
         "statistical_model": model,
         "minimum_independent_studies": minimum,
-        "eligibility_policy": _canonical_text(specification["eligibility_policy"], "eligibility_policy"),
-        "missing_statistics_policy": _canonical_text(specification["missing_statistics_policy"], "missing_statistics_policy"),
-        "heterogeneity_policy": _canonical_text(specification["heterogeneity_policy"], "heterogeneity_policy"),
-        "multiplicity_policy": _canonical_text(specification["multiplicity_policy"], "multiplicity_policy"),
+        "eligibility_policy": _bounded_plan_text(specification["eligibility_policy"], "eligibility_policy"),
+        "missing_statistics_policy": _bounded_plan_text(specification["missing_statistics_policy"], "missing_statistics_policy"),
+        "heterogeneity_policy": _bounded_plan_text(specification["heterogeneity_policy"], "heterogeneity_policy"),
+        "multiplicity_policy": _bounded_plan_text(specification["multiplicity_policy"], "multiplicity_policy"),
         "subgroup_analyses": _text_list(specification["subgroup_analyses"], "subgroup_analyses"),
         "sensitivity_analyses": sensitivities,
-        "conclusion_rule": _canonical_text(specification["conclusion_rule"], "conclusion_rule"),
-        "deviation_policy": _canonical_text(specification["deviation_policy"], "deviation_policy"),
+        "conclusion_rule": _bounded_plan_text(specification["conclusion_rule"], "conclusion_rule"),
+        "deviation_policy": _bounded_plan_text(specification["deviation_policy"], "deviation_policy"),
         "status": "synthesis_plan_frozen",
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,

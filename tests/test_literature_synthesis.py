@@ -315,6 +315,7 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
     "plan-conclusion-authority",
     "plan-publication-authority",
     "plan-limitations-missing",
+    "plan-overclaim-conclusion-rule",
     "map-hash",
     "quantitative",
     "screening",
@@ -363,7 +364,8 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
     plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(tmp_path, synthesis_type="quantitative" if failure == "quantitative" else "qualitative")
     if failure == "plan-hash": plan_sha = "0" * 64
     elif failure in {"plan-authority", "plan-conclusion-authority",
-                     "plan-publication-authority", "plan-limitations-missing"}:
+                     "plan-publication-authority", "plan-limitations-missing",
+                     "plan-overclaim-conclusion-rule"}:
         value = json.loads(plan.read_text())
         if failure == "plan-authority":
             value["scientific_evidence_eligible"] = True
@@ -371,6 +373,8 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
             value["conclusion_authorized"] = True
         elif failure == "plan-publication-authority":
             value["publication_authorized"] = True
+        elif failure == "plan-overclaim-conclusion-rule":
+            value["conclusion_rule"] = "Validated final conclusion"
         else:
             value["limitations"] = []
         plan_sha = write_json(plan, value)

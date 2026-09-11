@@ -1684,7 +1684,10 @@ outcome, qualitative or quantitative mode, effect measure, contrast definition, 
 minimum independent-study count, eligibility, missing-statistics, heterogeneity,
 multiplicity, subgroup, sensitivity, conclusion, and deviation policies against
 the completed screening hash. It also requires a canonical lowercase SHA-256
-screening hash before binding the plan to those bytes. It belongs before extraction. The artifact records
+screening hash before binding the plan to those bytes. Policy prose, conclusion
+rules, and deviation policies now reject report-prohibited overclaiming
+language, so the prospective plan cannot preserve proof, confirmation,
+validation, or explanation claims before synthesis runs. It belongs before extraction. The artifact records
 commitments but cannot prove external chronology or that the chosen methods are
 appropriate; later synthesis must verify this plan and declare every departure.
 The plan now carries explicit scientific-evidence, conclusion, publication, and
