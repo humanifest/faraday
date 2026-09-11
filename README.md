@@ -1225,7 +1225,10 @@ validation, or explanation beyond the retained judgment.
 Study-reconciliation artifacts themselves also carry explicit false
 scientific-evidence, conclusion-authorization, and publication-authorization
 boundaries, explicit unauthenticated-reviewer boundaries, and retained
-limitations, and evidence-map construction replays those boundaries before any
+limitations. Their retained identity notes and pairwise relationship rationales
+also reject report-prohibited overclaiming language, so a study-identity review
+cannot claim proof, confirmation, validation, or explanation of cohort
+independence. Evidence-map construction replays those boundaries before any
 claim join.
 Qualitative synthesis now requires the extraction source set to match the
 synthesis plan's frozen included sources, and preserves those provenance anchors
@@ -1271,7 +1274,11 @@ study-level summary without failing boundary replay. Study reconciliation and ev
 construction now replay each retained study-identity record: source IDs,
 registration IDs, population, setting, recruitment period, sample size, identity
 notes, and every pairwise relationship with rationale and cited locations must
-remain canonical and complete before mapped claims can be joined. The
+remain canonical and complete before mapped claims can be joined. The identity
+notes and pairwise rationales must also remain free of overclaiming verbs such
+as proof, confirmation, validation, or explanation; a matched pair review
+remains a bounded reviewer assertion rather than evidence that cohorts are
+truly independent. The
 study-reconciliation boundary now also replays its own version, retained
 bias-assessment SHA-256, canonical snapshot handle, reviewer handle, retained
 study list, retained relationship list, derived relationship counts, and

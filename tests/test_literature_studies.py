@@ -121,6 +121,24 @@ def test_reconciliation_preserves_canonical_study_source_and_registration_handle
     assert result["relationships"][0]["study_ids"] == ["study-1", "study-2"]
 
 
+@pytest.mark.parametrize("field", ["identity_notes", "relationship_rationale"])
+def test_reconciliation_boundary_rejects_retained_overclaiming_prose(tmp_path, field):
+    bias, digest = bias_file(tmp_path)
+    result = create_study_reconciliation(bias, digest, review(), tmp_path / "reconciliation")
+    candidate = json.loads(json.dumps(result))
+    if field == "identity_notes":
+        candidate["studies"][0]["identity_notes"] = "Confirmed independent cohort"
+    else:
+        candidate["relationships"][0]["rationale"] = "Validated cohort independence"
+
+    with pytest.raises(ValidationError, match="prohibited overclaiming language"):
+        validate_study_reconciliation_boundary(
+            candidate,
+            candidate["relationships"],
+            require_reconciliation_contract=True,
+        )
+
+
 def test_reconciliation_boundary_replays_artifact_envelope(tmp_path):
     bias, digest = bias_file(tmp_path)
     result = create_study_reconciliation(bias, digest, review(), tmp_path / "reconciliation")
@@ -181,6 +199,7 @@ def test_reconciliation_boundary_replays_artifact_envelope(tmp_path):
     "padded-setting",
     "padded-recruitment",
     "padded-notes",
+    "overclaim-notes",
     "sample",
     "missing-pair",
     "duplicate-pair",
@@ -189,6 +208,7 @@ def test_reconciliation_boundary_replays_artifact_envelope(tmp_path):
     "location",
     "padded-location",
     "padded-rationale",
+    "overclaim-rationale",
 ])
 def test_invalid_reconciliation_never_publishes(tmp_path, failure):
     bias, digest = bias_file(tmp_path)
@@ -284,6 +304,7 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
     elif failure == "padded-setting": candidate["studies"][0]["setting"] = " Synthetic setting "
     elif failure == "padded-recruitment": candidate["studies"][0]["recruitment_period"] = " 2025-01 through 2025-06 "
     elif failure == "padded-notes": candidate["studies"][0]["identity_notes"] = " Fixture metadata only "
+    elif failure == "overclaim-notes": candidate["studies"][0]["identity_notes"] = "Confirmed independent cohort"
     elif failure == "sample": candidate["studies"][0]["sample_size"] = True
     elif failure == "missing-pair": candidate["relationships"] = []
     elif failure == "duplicate-pair": candidate["relationships"].append(dict(candidate["relationships"][0]))
@@ -295,6 +316,7 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
     elif failure == "location": candidate["relationships"][0]["evidence_locations"] = []
     elif failure == "padded-location": candidate["relationships"][0]["evidence_locations"] = [" methods "]
     elif failure == "padded-rationale": candidate["relationships"][0]["rationale"] = " Compared registrations and recruitment "
+    elif failure == "overclaim-rationale": candidate["relationships"][0]["rationale"] = "Validated cohort independence"
     output = tmp_path / "reconciliation"
     with pytest.raises(ValidationError):
         create_study_reconciliation(bias, digest, candidate, output)

@@ -244,7 +244,7 @@ def test_evidence_map_boundary_replays_artifact_envelope(tmp_path, tamper):
     "reconciliation-limitations-missing", "reconciliation-padded-limitation",
     "reconciliation-missing-contract-field", "reconciliation-padded-source",
     "reconciliation-padded-registration", "reconciliation-sample",
-    "reconciliation-padded-metadata",
+    "reconciliation-padded-metadata", "reconciliation-overclaim-notes",
     "coverage", "padded-extraction-duplicate", "padded-citation-duplicate",
     "padded-bias-duplicate", "padded-reconciliation-duplicate",
     "padded-extraction-source", "padded-extraction-study", "padded-extraction-location",
@@ -343,6 +343,7 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         "reconciliation-padded-limitation", "reconciliation-missing-contract-field",
         "reconciliation-padded-source", "reconciliation-padded-registration",
         "reconciliation-sample", "reconciliation-padded-metadata",
+        "reconciliation-overclaim-notes",
     }:
         value = json.loads(reconciliation.read_text())
         if failure == "reconciliation-authority":
@@ -369,6 +370,8 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
             value["studies"][0]["sample_size"] = True
         elif failure == "reconciliation-padded-metadata":
             value["studies"][0]["population"] = " Synthetic population "
+        elif failure == "reconciliation-overclaim-notes":
+            value["studies"][0]["identity_notes"] = "Confirmed independent cohort"
         digest = write_json(reconciliation, value)
     elif failure == "coverage":
         value = json.loads(verification.read_text()); value["assessments"] = []; verification_sha = write_json(verification, value)

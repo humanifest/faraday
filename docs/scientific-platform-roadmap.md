@@ -1626,7 +1626,10 @@ prove cohort independence or authorize synthesis.
 Study-reconciliation artifacts carry explicit false scientific-evidence,
 conclusion-authorization, publication-authorization, and
 reviewer-identity-authentication boundaries with retained limitations;
-evidence-map construction replays those boundaries before joining claims.
+their retained identity notes and pairwise relationship rationales also reject
+report-prohibited overclaiming language, so cohort matching cannot be rewritten
+as proof, confirmation, validation, or explanation of independence. Evidence-map
+construction replays those boundaries before joining claims.
 Bias assessment and study reconciliation require canonical prior reviewer,
 study/source, reviewer, registration, metadata, relationship-pair, rationale,
 and evidence-location text before coverage and duplicate checks, so
@@ -1635,7 +1638,10 @@ citation review. Study reconciliation and evidence-map construction now also
 replay each retained study-identity record: source IDs, registration IDs,
 population, setting, recruitment period, sample size, identity notes, and every
 pairwise relationship with rationale and cited locations must remain canonical
-and complete before mapped claims can be joined.
+and complete before mapped claims can be joined. The same replay requires
+identity notes and pairwise rationales to remain free of overclaiming verbs, so
+an identity-review artifact remains a bounded reviewer assertion rather than
+evidence that cohorts are truly independent.
 Study-reconciliation boundary replay now also validates its own version,
 retained bias-assessment SHA-256, canonical snapshot handle, reviewer handle,
 retained study list, retained relationship list, derived relationship counts,

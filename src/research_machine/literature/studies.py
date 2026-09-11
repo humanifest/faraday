@@ -6,6 +6,7 @@ import itertools
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -16,10 +17,27 @@ from research_machine.literature.snapshot import _text
 
 
 _RELATIONSHIPS = {"independent", "overlapping_cohort", "duplicate_report", "unclear"}
+_STUDY_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
+
+
 def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_study_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _STUDY_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses study-reconciliation prohibited overclaiming language; "
+            "describe the identity judgment without claiming proof, "
+            "confirmation, validation, or explanation"
+        )
     return text
 
 
@@ -151,7 +169,7 @@ def validate_study_reconciliation_boundary(
             _canonical_text(study.get("population"), "study population")
             _canonical_text(study.get("setting"), "study setting")
             _canonical_text(study.get("recruitment_period"), "recruitment_period")
-            _canonical_text(study.get("identity_notes"), "identity_notes")
+            _bounded_study_text(study.get("identity_notes"), "identity_notes")
             by_study[study_id] = study
 
         expected_pairs = {
@@ -200,7 +218,7 @@ def validate_study_reconciliation_boundary(
                 )
             ):
                 raise ValidationError("study relationships require evidence_locations")
-            _canonical_text(item.get("rationale"), "relationship rationale")
+            _bounded_study_text(item.get("rationale"), "relationship rationale")
             by_pair[key] = item
         if set(by_pair) != expected_pairs:
             raise ValidationError(
@@ -294,7 +312,7 @@ def create_study_reconciliation(
             "setting": _canonical_text(item["setting"], "study setting"),
             "recruitment_period": _canonical_text(item["recruitment_period"], "recruitment_period"),
             "sample_size": sample_size,
-            "identity_notes": _canonical_text(item["identity_notes"], "identity_notes"),
+            "identity_notes": _bounded_study_text(item["identity_notes"], "identity_notes"),
         }
     if set(by_study) != set(studies):
         raise ValidationError("reconciled study metadata must cover exactly all bias-assessed studies")
@@ -328,7 +346,7 @@ def create_study_reconciliation(
             raise ValidationError("study relationships require evidence_locations")
         by_pair[key] = {
             "study_ids": list(key), "relationship": relationship,
-            "rationale": _canonical_text(item["rationale"], "relationship rationale"),
+            "rationale": _bounded_study_text(item["rationale"], "relationship rationale"),
             "evidence_locations": locations,
         }
     if set(by_pair) != expected_pairs:
