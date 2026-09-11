@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -17,12 +18,27 @@ from research_machine.literature.synthesis_plan import validate_synthesis_plan_b
 _STAGES = {"extraction", "citation_verification", "bias_assessment", "study_reconciliation",
            "effect_preparation", "synthesis", "reporting"}
 _TIMINGS = {"before_extraction", "before_synthesis", "after_results_seen", "unknown"}
+_DEVIATION_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 
 
 def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_deviation_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _DEVIATION_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses deviation-prohibited overclaiming language; "
+            "state the departure, uncertainty, impact, or corrective action "
+            "without claiming proof, confirmation, validation, or explanation"
+        )
     return text
 
 
@@ -98,16 +114,20 @@ def _replay_deviations(value: Any, *, synthesis_type: str | None = None) -> tupl
         by_id[deviation_id] = {
             "deviation_id": deviation_id,
             "stage": stage,
-            "frozen_commitment": _canonical_text(
+            "frozen_commitment": _bounded_deviation_text(
                 item["frozen_commitment"], "retained frozen_commitment"
             ),
-            "actual_method": _canonical_text(item["actual_method"], "retained actual_method"),
-            "reason": _canonical_text(item["reason"], "retained deviation reason"),
+            "actual_method": _bounded_deviation_text(
+                item["actual_method"], "retained actual_method"
+            ),
+            "reason": _bounded_deviation_text(
+                item["reason"], "retained deviation reason"
+            ),
             "timing": timing,
-            "impact_assessment": _canonical_text(
+            "impact_assessment": _bounded_deviation_text(
                 item["impact_assessment"], "retained impact_assessment"
             ),
-            "corrective_action": _canonical_text(
+            "corrective_action": _bounded_deviation_text(
                 item["corrective_action"], "retained corrective_action"
             ),
             "evidence_location": _canonical_text(

@@ -1411,10 +1411,14 @@ The deviation artifact now also replays its own retained boundary before it is
 written: version and trusted plan hash, plan and snapshot handles, reviewer
 text, exact frozen-plan commitment fields, canonical included source IDs,
 timing counts, status, and non-authority fields must all remain internally
-consistent. Downstream qualitative synthesis and quantitative pooling replay the
-embedded departure rows and frozen-plan snapshot again, so a copied synthesis
-or pooling artifact cannot drop, pad, or recategorize departure history, or
-rewrite the synthesis question, conclusion rule, effect measure, contrast, or
+consistent. Departure commitments, actual methods, reasons, impact assessments,
+and corrective actions are bounded report prose as well as canonical text: they
+can disclose uncertainty and corrective work, but cannot claim proof,
+confirmation, validation, or explanation. Downstream qualitative synthesis and
+quantitative pooling replay the embedded departure rows and frozen-plan snapshot
+again, so a copied synthesis or pooling artifact cannot drop, pad, or
+recategorize departure history, or rewrite the synthesis question, conclusion
+rule, effect measure, contrast, or
 statistical model inside an otherwise hash-consistent output artifact.
 Qualitative synthesis artifacts also carry explicit false evidence,
 conclusion-authorization, and publication-authorization flags, keeping organized

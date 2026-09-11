@@ -1860,7 +1860,10 @@ commitment, actual method, reason, timing, impact, and corrective action. It als
 names an inspectable evidence location for the deviation review. Reviewer and
 departure text must be canonical without surrounding whitespace before the
 artifact is hashed, so Faraday rejects padded disclosures rather than silently
-rewriting them. Changes after results were seen—or with unknown timing—force
+rewriting them. Departure commitments, methods, reasons, impact assessments,
+and corrective actions must also be bounded report prose, so the artifact cannot
+claim proof, confirmation, validation, or explanation while disclosing a
+departure. Changes after results were seen—or with unknown timing—force
 heightened review. The artifact also retains a compact frozen-plan commitment
 snapshot, and rejects synthesis-type-incompatible stages such as qualitative
 effect preparation. It cannot amend the plan, retroactively preregister a choice,

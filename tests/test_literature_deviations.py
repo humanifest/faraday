@@ -91,6 +91,7 @@ def test_explicit_no_deviations_declaration_is_recorded(tmp_path):
     "plan-amended",
     "timing-counts",
     "status-drift",
+    "overclaim-retained",
 ])
 def test_synthesis_deviation_boundary_replays_retained_snapshot(tmp_path, tamper):
     plan, digest, _ = plan_file(tmp_path)
@@ -128,6 +129,10 @@ def test_synthesis_deviation_boundary_replays_retained_snapshot(tmp_path, tamper
         candidate["timing_counts"]["before_synthesis"] = 99
     elif tamper == "status-drift":
         candidate["status"] = "no_deviations_declared"
+    elif tamper == "overclaim-retained":
+        candidate["deviations"][0]["impact_assessment"] = (
+            "Validated the pooled result."
+        )
     with pytest.raises(ValidationError):
         validate_synthesis_deviations_boundary(candidate, synthesis_type="quantitative")
 
@@ -208,6 +213,48 @@ def test_deviation_disclosure_text_must_be_canonical(tmp_path, field, value, mes
         candidate[field] = value
     else:
         candidate["deviations"][0][field] = value
+    output = tmp_path / "deviations"
+    with pytest.raises(ValidationError, match=message):
+        create_synthesis_deviations(plan, digest, candidate, output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        (
+            "frozen_commitment",
+            "Use the validated standard-error derivation",
+            "retained frozen_commitment uses deviation-prohibited",
+        ),
+        (
+            "actual_method",
+            "Confirmed the effect with a confidence interval conversion",
+            "retained actual_method uses deviation-prohibited",
+        ),
+        (
+            "reason",
+            "Explained the discrepancy after seeing results",
+            "retained deviation reason uses deviation-prohibited",
+        ),
+        (
+            "impact_assessment",
+            "Validated the pooled result",
+            "retained impact_assessment uses deviation-prohibited",
+        ),
+        (
+            "corrective_action",
+            "Proved adequacy in a sensitivity note",
+            "retained corrective_action uses deviation-prohibited",
+        ),
+    ],
+)
+def test_deviation_disclosure_rejects_overclaiming_prose(
+    tmp_path, field, value, message
+):
+    plan, digest, _ = plan_file(tmp_path)
+    candidate = disclosure()
+    candidate["deviations"][0][field] = value
     output = tmp_path / "deviations"
     with pytest.raises(ValidationError, match=message):
         create_synthesis_deviations(plan, digest, candidate, output)
