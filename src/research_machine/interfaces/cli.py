@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import hashlib
 import json
 import os
@@ -41,6 +42,12 @@ from research_machine.design.precision import (
 )
 from research_machine.design.randomization import generate_blocked_assignment
 from research_machine.design.causal import audit_causal_identification
+from research_machine.executors.runtime_preflight import (
+    verify_runtime_preflight_report,
+)
+from research_machine.executors.notebook_freeze_bundle import (
+    verify_notebook_freeze_input_bundle,
+)
 from research_machine.measurement.custody import (
     create_measurement_custody_record,
     validate_measurement_custody,
@@ -74,6 +81,7 @@ from research_machine.domain.models import (
     QualityGateResult,
     QualityGateStatus,
     RejectionType,
+    RuntimePreflightRequirement,
     SelectionWeights,
     ValidationTag,
 )
@@ -134,6 +142,8 @@ _PROTOCOL_FIELDS = {
     "expected_outputs",
     "success_conditions",
     "environment_requirements",
+    "runtime_preflight_requirement",
+    "notebook_freeze_input_bundle_sha256",
     "secondary_outcomes",
     "confirmatory_outcomes",
     "exploratory_outcomes",
@@ -231,6 +241,96 @@ _CROSS_LANE_LESSON_SPEC_FIELDS = {
     "repair_falsifier",
     "conclusion_ceiling",
 }
+
+
+def _verify_protocol_runtime_preflight_binding(
+    runtime_requirement: RuntimePreflightRequirement | None,
+    *,
+    receipt_path: Path | None,
+    expected_receipt_sha256: str | None,
+) -> dict[str, Any] | None:
+    if runtime_requirement is None:
+        if receipt_path is not None or expected_receipt_sha256 is not None:
+            raise ValueError(
+                "runtime preflight arguments require a typed "
+                "runtime_preflight_requirement"
+            )
+        return None
+    if receipt_path is None:
+        raise ValueError(
+            "typed runtime_preflight_requirement requires "
+            "--runtime-preflight-receipt"
+        )
+    if (
+        expected_receipt_sha256 is not None
+        and expected_receipt_sha256 != runtime_requirement.receipt_sha256
+    ):
+        raise ValueError(
+            "expected runtime preflight receipt sha256 does not match the "
+            "typed protocol requirement"
+        )
+    verification = verify_runtime_preflight_report(
+        receipt_path,
+        expected_sha256=runtime_requirement.receipt_sha256,
+    )
+    expected_context = {
+        "probe_id": runtime_requirement.probe_id,
+        "interpreter_path": runtime_requirement.interpreter_path,
+        "kernel_name": runtime_requirement.kernel_name,
+        "working_directory": runtime_requirement.working_directory,
+    }
+    for field_name, expected_value in expected_context.items():
+        if getattr(verification, field_name) != expected_value:
+            raise ValueError(
+                "runtime preflight receipt does not match typed protocol "
+                f"requirement: {field_name}"
+            )
+    return {
+        **asdict(verification),
+        "typed_protocol_requirement": runtime_requirement.to_dict(),
+    }
+
+
+def _verify_protocol_notebook_freeze_bundle_binding(
+    bundle_sha256: str | None,
+    *,
+    bundle_path: Path | None,
+    expected_bundle_sha256: str | None,
+    runtime_requirement: RuntimePreflightRequirement | None,
+) -> dict[str, Any] | None:
+    if bundle_sha256 is None:
+        if bundle_path is not None or expected_bundle_sha256 is not None:
+            raise ValueError(
+                "freeze-input bundle arguments require "
+                "notebook_freeze_input_bundle_sha256 in the protocol"
+            )
+        return None
+    if bundle_path is None:
+        raise ValueError(
+            "notebook_freeze_input_bundle_sha256 requires "
+            "--notebook-freeze-input-bundle"
+        )
+    if (
+        expected_bundle_sha256 is not None
+        and expected_bundle_sha256 != bundle_sha256
+    ):
+        raise ValueError(
+            "expected freeze-input bundle sha256 does not match the typed "
+            "protocol commitment"
+        )
+    verification = verify_notebook_freeze_input_bundle(
+        bundle_path,
+        expected_sha256=bundle_sha256,
+    )
+    if runtime_requirement is None:
+        raise ValueError(
+            "notebook freeze-input bundle requires runtime_preflight_requirement"
+        )
+    if verification.runtime_preflight_requirement != runtime_requirement.to_dict():
+        raise ValueError(
+            "freeze-input bundle runtime requirement does not match protocol"
+        )
+    return asdict(verification)
 
 
 def _add_inquiry_option(parser: argparse.ArgumentParser) -> None:
@@ -474,9 +574,35 @@ def build_parser() -> argparse.ArgumentParser:
     _add_inquiry_option(dataset_list)
 
     protocol = groups.add_parser(
-        "protocol", help="Draft, freeze, and amend research protocols"
+        "protocol", help="Preflight, draft, freeze, and amend research protocols"
     )
     protocol_commands = protocol.add_subparsers(dest="action", required=True)
+    protocol_preflight = protocol_commands.add_parser(
+        "preflight",
+        help="Exercise create and freeze validation without canonical writes",
+    )
+    protocol_preflight.add_argument("--spec-file", type=Path, required=True)
+    protocol_preflight.add_argument("--external-anchor")
+    protocol_preflight.add_argument("--review-artifact-root", type=Path)
+    protocol_preflight.add_argument(
+        "--runtime-preflight-receipt",
+        type=Path,
+        help="Verify the passed no-analysis receipt committed by the protocol",
+    )
+    protocol_preflight.add_argument(
+        "--expect-runtime-preflight-receipt-sha256",
+        help="Require the runtime receipt and protocol commitment to match this digest",
+    )
+    protocol_preflight.add_argument(
+        "--notebook-freeze-input-bundle",
+        type=Path,
+        help="Verify the typed bundle and every underlying notebook input",
+    )
+    protocol_preflight.add_argument(
+        "--expect-notebook-freeze-input-bundle-sha256",
+        help="Require the bundle and protocol commitment to match this digest",
+    )
+    _add_inquiry_option(protocol_preflight)
     protocol_create = protocol_commands.add_parser("create")
     protocol_create.add_argument("--spec-file", type=Path, required=True)
     _add_inquiry_option(protocol_create)
@@ -484,6 +610,24 @@ def build_parser() -> argparse.ArgumentParser:
     protocol_freeze.add_argument("protocol_id")
     protocol_freeze.add_argument("--external-anchor")
     protocol_freeze.add_argument("--review-artifact-root", type=Path)
+    protocol_freeze.add_argument(
+        "--runtime-preflight-receipt",
+        type=Path,
+        help="Verify the passed no-analysis receipt committed by this draft",
+    )
+    protocol_freeze.add_argument(
+        "--expect-runtime-preflight-receipt-sha256",
+        help="Require the runtime receipt and protocol commitment to match this digest",
+    )
+    protocol_freeze.add_argument(
+        "--notebook-freeze-input-bundle",
+        type=Path,
+        help="Verify the typed bundle and every underlying notebook input",
+    )
+    protocol_freeze.add_argument(
+        "--expect-notebook-freeze-input-bundle-sha256",
+        help="Require the bundle and protocol commitment to match this digest",
+    )
     _add_inquiry_option(protocol_freeze)
     protocol_amend = protocol_commands.add_parser("amend")
     protocol_amend.add_argument("protocol_id")
@@ -1229,6 +1373,42 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             raise ValueError(f"invalid canary target plan: {exc}") from exc
     else:
         canary_plan = None
+    runtime_requirement_value = spec.get("runtime_preflight_requirement")
+    if runtime_requirement_value is not None:
+        if not isinstance(runtime_requirement_value, dict):
+            raise ValueError("runtime_preflight_requirement must be an object")
+        runtime_requirement_fields = {
+            "receipt_sha256",
+            "probe_id",
+            "interpreter_path",
+            "kernel_name",
+            "working_directory",
+        }
+        unknown = sorted(
+            set(runtime_requirement_value) - runtime_requirement_fields
+        )
+        if unknown:
+            raise ValueError(
+                "unknown runtime preflight requirement fields: "
+                + ", ".join(unknown)
+            )
+        try:
+            runtime_requirement = RuntimePreflightRequirement(
+                **runtime_requirement_value
+            )
+        except TypeError as exc:
+            raise ValueError(
+                f"invalid runtime preflight requirement: {exc}"
+            ) from exc
+    else:
+        runtime_requirement = None
+    notebook_freeze_input_bundle_sha256 = spec.get(
+        "notebook_freeze_input_bundle_sha256"
+    )
+    if notebook_freeze_input_bundle_sha256 is not None and not isinstance(
+        notebook_freeze_input_bundle_sha256, str
+    ):
+        raise ValueError("notebook_freeze_input_bundle_sha256 must be text")
     if not isinstance(calibration_values, list) or any(not isinstance(item, dict) for item in calibration_values):
         raise ValueError("calibration_acceptance_criteria must be an array of objects")
     try:
@@ -1408,6 +1588,10 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             expected_outputs=lists["expected_outputs"],
             success_conditions=lists["success_conditions"],
             environment_requirements=lists["environment_requirements"],
+            runtime_preflight_requirement=runtime_requirement,
+            notebook_freeze_input_bundle_sha256=(
+                notebook_freeze_input_bundle_sha256
+            ),
             secondary_outcomes=lists["secondary_outcomes"],
             confirmatory_outcomes=lists["confirmatory_outcomes"],
             exploratory_outcomes=lists["exploratory_outcomes"],
@@ -2461,11 +2645,88 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
         return [dataset.to_dict() for dataset in service.list_datasets(args.inquiry)]
 
     if args.group == "protocol":
-        if args.action in {"create", "amend"}:
-            spec = _read_json_object(
-                args.spec_file, allowed_fields=_PROTOCOL_FIELDS, label="protocol"
-            )
+        if args.action in {"preflight", "create", "amend"}:
+            if args.action == "preflight":
+                spec, spec_file_sha256, spec_file_size_bytes = (
+                    _read_json_object_and_hash(
+                        args.spec_file,
+                        allowed_fields=_PROTOCOL_FIELDS,
+                        label="protocol",
+                    )
+                )
+            else:
+                spec = _read_json_object(
+                    args.spec_file,
+                    allowed_fields=_PROTOCOL_FIELDS,
+                    label="protocol",
+                )
             protocol_command = _protocol_command(spec)
+            if args.action == "preflight":
+                bundle_verification = (
+                    _verify_protocol_notebook_freeze_bundle_binding(
+                        protocol_command.notebook_freeze_input_bundle_sha256,
+                        bundle_path=args.notebook_freeze_input_bundle,
+                        expected_bundle_sha256=(
+                            args.expect_notebook_freeze_input_bundle_sha256
+                        ),
+                        runtime_requirement=(
+                            protocol_command.runtime_preflight_requirement
+                        ),
+                    )
+                )
+                effective_runtime_receipt = args.runtime_preflight_receipt
+                if bundle_verification is not None:
+                    bundled_receipt = Path(
+                        bundle_verification["runtime_preflight_receipt_path"]
+                    )
+                    if (
+                        effective_runtime_receipt is not None
+                        and effective_runtime_receipt.resolve()
+                        != bundled_receipt.resolve()
+                    ):
+                        raise ValueError(
+                            "runtime preflight receipt does not match "
+                            "freeze-input bundle"
+                        )
+                    effective_runtime_receipt = bundled_receipt
+                runtime_verification = _verify_protocol_runtime_preflight_binding(
+                    protocol_command.runtime_preflight_requirement,
+                    receipt_path=effective_runtime_receipt,
+                    expected_receipt_sha256=(
+                        args.expect_runtime_preflight_receipt_sha256
+                    ),
+                )
+                report = service.preflight_protocol(
+                    protocol_command,
+                    args.inquiry,
+                    external_anchor=args.external_anchor,
+                    review_artifact_root=(
+                        str(args.review_artifact_root)
+                        if args.review_artifact_root
+                        else None
+                    ),
+                    runtime_preflight_receipt=(
+                        str(effective_runtime_receipt)
+                        if protocol_command.runtime_preflight_requirement
+                        is not None
+                        else None
+                    ),
+                    notebook_freeze_input_bundle=(
+                        str(args.notebook_freeze_input_bundle)
+                        if protocol_command.notebook_freeze_input_bundle_sha256
+                        is not None
+                        else None
+                    ),
+                )
+                report["spec_file_sha256"] = spec_file_sha256
+                report["spec_file_size_bytes"] = spec_file_size_bytes
+                if runtime_verification is not None:
+                    report["runtime_preflight_verification"] = runtime_verification
+                if bundle_verification is not None:
+                    report["notebook_freeze_input_bundle_verification"] = (
+                        bundle_verification
+                    )
+                return report
             if args.action == "create":
                 return service.create_protocol(protocol_command, args.inquiry).to_dict()
             return service.amend_protocol(
@@ -2473,9 +2734,49 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                 args.timing, args.evidence_exposure, args.inquiry
             ).to_dict()
         if args.action == "freeze":
+            draft = service.get_protocol(args.protocol_id, args.inquiry)
+            bundle_verification = _verify_protocol_notebook_freeze_bundle_binding(
+                draft.notebook_freeze_input_bundle_sha256,
+                bundle_path=args.notebook_freeze_input_bundle,
+                expected_bundle_sha256=(
+                    args.expect_notebook_freeze_input_bundle_sha256
+                ),
+                runtime_requirement=draft.runtime_preflight_requirement,
+            )
+            effective_runtime_receipt = args.runtime_preflight_receipt
+            if bundle_verification is not None:
+                bundled_receipt = Path(
+                    bundle_verification["runtime_preflight_receipt_path"]
+                )
+                if (
+                    effective_runtime_receipt is not None
+                    and effective_runtime_receipt.resolve()
+                    != bundled_receipt.resolve()
+                ):
+                    raise ValueError(
+                        "runtime preflight receipt does not match freeze-input bundle"
+                    )
+                effective_runtime_receipt = bundled_receipt
+            _verify_protocol_runtime_preflight_binding(
+                draft.runtime_preflight_requirement,
+                receipt_path=effective_runtime_receipt,
+                expected_receipt_sha256=(
+                    args.expect_runtime_preflight_receipt_sha256
+                ),
+            )
             return service.freeze_protocol(
                 args.protocol_id, args.inquiry, external_anchor=args.external_anchor,
                 review_artifact_root=(str(args.review_artifact_root) if args.review_artifact_root else None),
+                runtime_preflight_receipt=(
+                    str(effective_runtime_receipt)
+                    if draft.runtime_preflight_requirement is not None
+                    else None
+                ),
+                notebook_freeze_input_bundle=(
+                    str(args.notebook_freeze_input_bundle)
+                    if draft.notebook_freeze_input_bundle_sha256 is not None
+                    else None
+                ),
             ).to_dict()
         if args.action == "show":
             return service.get_protocol(args.protocol_id, args.inquiry).to_dict()

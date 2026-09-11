@@ -71,11 +71,22 @@ The runtime preflight complements but does not replace the static dependency
 preflight. A sound order is:
 
 1. author and developer-test the analysis;
-2. run the static dependency preflight;
+2. run the static dependency preflight and retain its exact receipt;
 3. run this fixed runtime preflight;
-4. freeze the scientific protocol and exact source/dependency hashes; and
-5. let the protected runner repeat static authentication immediately before its
+4. copy the verified receipt digest, probe identity, interpreter, kernel, and
+   working directory into `runtime_preflight_requirement`;
+5. create and verify a typed notebook freeze-input bundle that includes the
+   retained static receipt;
+6. pass that same bundle to `protocol preflight` and `protocol freeze`; and
+7. let the protected runner repeat static authentication immediately before its
    one scientific execution.
+
+Readiness and freeze both verify the exact passed receipt, its fixed smoke code,
+dependency versions, success flags, empty findings, absolute runtime paths, and
+no-analysis boundary. The typed receipt context and freeze-bundle digest become
+part of the frozen protocol commitment. Prose hashes in `inputs_required` do not
+carry this authority. See
+[notebook freeze-input bundle](notebook-freeze-input-bundle.md).
 
 The protected runner intentionally starts a fresh kernel. Reusing the smoke
 kernel would blur the execution boundary and could carry state into the

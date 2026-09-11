@@ -8,6 +8,7 @@ import importlib.metadata
 import json
 import os
 import platform
+import re
 import sys
 import tempfile
 import time
@@ -25,6 +26,7 @@ _SMOKE_CODE = (
     "sort_keys=True))\n"
 )
 _SMOKE_CODE_SHA256 = hashlib.sha256(_SMOKE_CODE.encode("utf-8")).hexdigest()
+_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _CONCLUSION_CEILING = (
     "Runtime capability check only. A pass does not authenticate an analysis "
     "source or dependency, predict later availability, validate a method or "
@@ -76,6 +78,29 @@ class RuntimePreflightReport:
     conclusion_ceiling: str
 
 
+@dataclass(frozen=True)
+class RuntimePreflightVerification:
+    """Strict byte and semantic verification for a retained probe receipt."""
+
+    status: str
+    receipt_path: str
+    receipt_sha256: str
+    receipt_size_bytes: int
+    probe_id: str
+    started_at: str
+    completed_at: str
+    interpreter_path: str
+    python_version: str
+    kernel_name: str
+    working_directory: str
+    dependency_versions: dict[str, str]
+    smoke_code_sha256: str
+    analysis_source_loaded: bool
+    analysis_code_executed: bool
+    network_access_requested: bool
+    conclusion_ceiling: str
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -104,6 +129,140 @@ def _atomic_write(path: Path, content: bytes) -> None:
         except FileNotFoundError:
             pass
         raise
+
+
+def verify_runtime_preflight_report(
+    report_path: Path,
+    *,
+    expected_sha256: str | None = None,
+) -> RuntimePreflightVerification:
+    """Verify exact bytes and the complete passed no-analysis probe contract.
+
+    Verification does not rerun a kernel. It lets protocol readiness bind an
+    already retained capability receipt without loading an analysis source or
+    mutating canonical research state.
+    """
+
+    report_path = report_path.resolve()
+    content = report_path.read_bytes()
+    observed_sha256 = hashlib.sha256(content).hexdigest()
+    if expected_sha256 is not None:
+        if (
+            not isinstance(expected_sha256, str)
+            or _SHA256_PATTERN.fullmatch(expected_sha256) is None
+        ):
+            raise ValueError(
+                "expected runtime preflight receipt sha256 must be 64 lowercase "
+                "hexadecimal characters"
+            )
+        if observed_sha256 != expected_sha256:
+            raise ValueError(
+                "runtime preflight receipt hash mismatch: "
+                f"expected {expected_sha256}, observed {observed_sha256}"
+            )
+    try:
+        payload = json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(
+            f"runtime preflight receipt is not valid JSON: {exc}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise ValueError("runtime preflight receipt must be a JSON object")
+    expected_fields = set(RuntimePreflightReport.__dataclass_fields__)
+    if set(payload) != expected_fields:
+        missing = sorted(expected_fields - set(payload))
+        unexpected = sorted(set(payload) - expected_fields)
+        details = []
+        if missing:
+            details.append("missing " + ", ".join(missing))
+        if unexpected:
+            details.append("unexpected " + ", ".join(unexpected))
+        raise ValueError(
+            "runtime preflight receipt fields are not canonical: "
+            + "; ".join(details)
+        )
+    if payload["schema_version"] != 1 or payload["probe_id"] != _PROBE_ID:
+        raise ValueError("runtime preflight receipt uses an unsupported contract")
+    if payload["status"] != "passed":
+        raise ValueError("runtime preflight receipt did not pass")
+    required_true = (
+        "kernel_spec_found",
+        "kernel_started",
+        "kernel_ready",
+        "smoke_cell_executed",
+        "marker_verified",
+        "working_directory_verified",
+        "kernel_shutdown",
+    )
+    if any(payload[field] is not True for field in required_true):
+        raise ValueError(
+            "passed runtime preflight receipt lacks a required successful probe flag"
+        )
+    required_false = (
+        "analysis_source_loaded",
+        "analysis_code_executed",
+        "network_access_requested",
+    )
+    if any(payload[field] is not False for field in required_false):
+        raise ValueError(
+            "runtime preflight receipt violates the no-analysis probe boundary"
+        )
+    if payload["findings"] != []:
+        raise ValueError("passed runtime preflight receipt must have no findings")
+    required_distributions = ["jupyter-client", "nbclient", "nbformat"]
+    if payload["required_distributions"] != required_distributions:
+        raise ValueError(
+            "runtime preflight receipt has an unexpected dependency contract"
+        )
+    versions = payload["dependency_versions"]
+    if (
+        not isinstance(versions, dict)
+        or set(versions) != set(required_distributions)
+        or any(
+            not isinstance(value, str) or not value.strip()
+            for value in versions.values()
+        )
+    ):
+        raise ValueError(
+            "runtime preflight receipt lacks exact runtime dependency versions"
+        )
+    if payload["smoke_code_sha256"] != _SMOKE_CODE_SHA256:
+        raise ValueError("runtime preflight receipt has an unknown smoke probe")
+    for field in (
+        "started_at",
+        "completed_at",
+        "interpreter_path",
+        "python_version",
+        "kernel_name",
+        "working_directory",
+    ):
+        if not isinstance(payload[field], str) or not payload[field].strip():
+            raise ValueError(f"runtime preflight receipt {field} must be nonempty text")
+    if not Path(payload["interpreter_path"]).is_absolute():
+        raise ValueError("runtime preflight interpreter_path must be absolute")
+    if not Path(payload["working_directory"]).is_absolute():
+        raise ValueError("runtime preflight working_directory must be absolute")
+    if payload["conclusion_ceiling"] != _CONCLUSION_CEILING:
+        raise ValueError("runtime preflight conclusion ceiling was altered")
+    return RuntimePreflightVerification(
+        status="passed",
+        receipt_path=str(report_path),
+        receipt_sha256=observed_sha256,
+        receipt_size_bytes=len(content),
+        probe_id=payload["probe_id"],
+        started_at=payload["started_at"],
+        completed_at=payload["completed_at"],
+        interpreter_path=payload["interpreter_path"],
+        python_version=payload["python_version"],
+        kernel_name=payload["kernel_name"],
+        working_directory=payload["working_directory"],
+        dependency_versions=versions,
+        smoke_code_sha256=payload["smoke_code_sha256"],
+        analysis_source_loaded=payload["analysis_source_loaded"],
+        analysis_code_executed=payload["analysis_code_executed"],
+        network_access_requested=payload["network_access_requested"],
+        conclusion_ceiling=_CONCLUSION_CEILING,
+    )
 
 
 def _remaining_seconds(deadline: float) -> float:

@@ -19,6 +19,7 @@ research = "research_machine.interfaces.cli:main"
 research-notebook = "research_machine.executors.protected_notebook:main"
 research-notebook-preflight = "research_machine.executors.notebook_preflight:main"
 research-notebook-runtime-preflight = "research_machine.executors.runtime_preflight:main"
+research-notebook-freeze-bundle = "research_machine.executors.notebook_freeze_bundle:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

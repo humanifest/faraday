@@ -619,7 +619,7 @@ CONTROL_FAMILIES = (
 
 @dataclass(frozen=True)
 class RuntimePreflightRequirement(Serializable):
-    """Historical typed commitment to a retained no-analysis runtime receipt."""
+    """Typed commitment to a retained no-analysis runtime receipt."""
 
     receipt_sha256: str
     probe_id: str
@@ -739,9 +739,8 @@ class ExperimentProtocol(Serializable):
         for control in payload.get("control_definitions", []):
             if control.get("witness_contract") is None:
                 control.pop("witness_contract", None)
-        # These compatibility-only fields did not exist in older or current
-        # protocols.  Omitting absent values keeps those serialized forms and
-        # their scientific commitments stable while retaining historical values.
+        # These optional fields did not exist in older protocols. Omitting
+        # absent values keeps those serialized forms and commitments stable.
         for field_name in (
             "runtime_preflight_requirement",
             "notebook_freeze_input_bundle_sha256",

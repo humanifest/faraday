@@ -24,6 +24,7 @@ from research_machine.domain.models import (
     ProtocolKind,
     QualityGateResult,
     RejectionType,
+    RuntimePreflightRequirement,
     SelectionWeights,
     ValidationTag,
 )
@@ -213,6 +214,8 @@ class CreateProtocol:
     expected_outputs: list[str] = field(default_factory=list)
     success_conditions: list[str] = field(default_factory=list)
     environment_requirements: list[str] = field(default_factory=list)
+    runtime_preflight_requirement: RuntimePreflightRequirement | None = None
+    notebook_freeze_input_bundle_sha256: str | None = None
     secondary_outcomes: list[str] = field(default_factory=list)
     confirmatory_outcomes: list[str] = field(default_factory=list)
     exploratory_outcomes: list[str] = field(default_factory=list)

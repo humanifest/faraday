@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ from research_machine.executors.runtime_preflight import (
     KernelProbeObservation,
     main,
     preflight_notebook_runtime,
+    verify_runtime_preflight_report,
 )
 
 
@@ -57,6 +59,54 @@ def test_success_persists_bounded_no_analysis_report(tmp_path: Path) -> None:
     assert json.loads(result.read_text()) == json.loads(
         json.dumps(report, default=lambda value: value.__dict__)
     )
+
+
+def test_passed_receipt_verification_binds_exact_bytes(tmp_path: Path) -> None:
+    result = tmp_path / "runtime-preflight.json"
+    preflight_notebook_runtime(
+        result,
+        working_directory=tmp_path,
+        probe=lambda **_: _successful_observation(tmp_path),
+    )
+    expected_sha256 = hashlib.sha256(result.read_bytes()).hexdigest()
+
+    verification = verify_runtime_preflight_report(
+        result,
+        expected_sha256=expected_sha256,
+    )
+
+    assert verification.status == "passed"
+    assert verification.receipt_sha256 == expected_sha256
+    assert verification.receipt_size_bytes == result.stat().st_size
+    assert verification.analysis_source_loaded is False
+    assert verification.analysis_code_executed is False
+
+    with pytest.raises(ValueError, match="hash mismatch"):
+        verify_runtime_preflight_report(result, expected_sha256="0" * 64)
+
+
+def test_failed_receipt_cannot_satisfy_readiness_binding(tmp_path: Path) -> None:
+    result = tmp_path / "failed-runtime-preflight.json"
+    observation = _successful_observation(tmp_path)
+    observation = KernelProbeObservation(
+        **{
+            **observation.__dict__,
+            "kernel_started": False,
+            "kernel_ready": False,
+            "kernel_shutdown": False,
+            "findings": [
+                {"code": "KERNEL_START_FAILED", "message": "planted"}
+            ],
+        }
+    )
+    preflight_notebook_runtime(
+        result,
+        working_directory=tmp_path,
+        probe=lambda **_: observation,
+    )
+
+    with pytest.raises(ValueError, match="did not pass"):
+        verify_runtime_preflight_report(result)
 
 
 @pytest.mark.parametrize(

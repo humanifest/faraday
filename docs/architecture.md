@@ -150,6 +150,12 @@ fails before the kernel starts, the executor writes a non-overwriting
 `pre_execution_failure` receipt and no executed notebook.
 The executor does not decide whether a failure is infrastructure, scientific,
 or evidence-eligible; the frozen protocol and recorded run gates decide that.
+`research-notebook-freeze-bundle` is a second optional adapter. It starts no
+kernel and executes no analysis. It canonicalizes and re-verifies the clean
+source, dependency manifest, current dependency bytes, a retained matching
+static-preflight receipt, and a passed runtime receipt so protocol readiness
+and freeze can consume one typed, hash-bound input. The service still replays
+every underlying byte; the bundle is not an authority or evidence boundary.
 
 Next-action selection is transparent and deterministic. Unsafe candidates and
 candidates with unmet prerequisites fail closed. Eligible candidates are ranked

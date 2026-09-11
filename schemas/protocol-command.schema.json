@@ -5,6 +5,18 @@
   "description": "A domain-neutral protocol. Kind-specific freeze gates are enforced by the application service.",
   "type": "object",
   "$defs": {
+    "runtimePreflightRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_sha256", "probe_id", "interpreter_path", "kernel_name", "working_directory"],
+      "properties": {
+        "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "probe_id": {"const": "research-machine-runtime-preflight-v1"},
+        "interpreter_path": {"type": "string", "pattern": "^/"},
+        "kernel_name": {"type": "string", "pattern": "\\S"},
+        "working_directory": {"type": "string", "pattern": "^/"}
+      }
+    },
     "canonicalText": {
       "type": "string",
       "pattern": "^\\S(?:.*\\S)?$"
@@ -383,6 +395,16 @@
     "primary_outcome": {"type": "string", "minLength": 1},
     "methodology": {"type": "string", "minLength": 1},
     "inputs_required": {"type": "array", "items": {"type": "string"}},
+    "runtime_preflight_requirement": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/runtimePreflightRequirement"}
+      ]
+    },
+    "notebook_freeze_input_bundle_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "quality_requirements": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
     "controls": {"type": "array", "items": {"type": "string"}, "minItems": 1},
     "expected_outputs": {"type": "array", "items": {"type": "string"}, "minItems": 1},

@@ -111,6 +111,12 @@ canonical write path.
   favorable, full, unknown, or omitted exposure is ineligible. On historical
   reads, the exact structured favorable-development/prototype booleans are
   compatibility quarantine signals only and must not be rewritten.
+- Notebook-backed protocol readiness and freeze must bind the typed
+  `runtime_preflight_requirement` and `notebook_freeze_input_bundle_sha256`,
+  and replay the bundle's source, manifest, dependencies, retained matching
+  static-preflight receipt, and passed no-analysis runtime receipt. Hashes
+  mentioned only in `inputs_required` are prose, not commitments, and cannot
+  authorize a new freeze.
 - Never hardcode or infer the primary outcome's dataset column. Require every
   executable primary, secondary, and control measurement column to be explicit,
   case-insensitively unique, and distinct from identity, assignment, and

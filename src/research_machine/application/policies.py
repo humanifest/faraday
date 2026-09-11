@@ -1,6 +1,7 @@
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 import math
+from pathlib import Path
 import re
 from typing import Any
 
@@ -39,6 +40,7 @@ from research_machine.domain.models import (
     QualityGateStatus,
     ResearchRun,
     RejectionType,
+    RuntimePreflightRequirement,
     SelectionWeights,
     ValidationTag,
 )
@@ -124,6 +126,64 @@ def require_sha256(value: str, field_name: str) -> str:
     if digest != value or not _SHA256.fullmatch(digest):
         raise ValidationError(f"{field_name} must be 64 lowercase hex characters")
     return digest
+
+
+def validate_runtime_preflight_requirement(
+    requirement: RuntimePreflightRequirement | None,
+) -> RuntimePreflightRequirement | None:
+    if requirement is None:
+        return None
+    if not isinstance(requirement, RuntimePreflightRequirement):
+        raise ValidationError(
+            "runtime_preflight_requirement must be a RuntimePreflightRequirement"
+        )
+    require_sha256(
+        requirement.receipt_sha256,
+        "runtime_preflight_requirement.receipt_sha256",
+    )
+    if requirement.probe_id != "research-machine-runtime-preflight-v1":
+        raise ValidationError(
+            "runtime_preflight_requirement.probe_id is unsupported"
+        )
+    for field_name in (
+        "probe_id",
+        "interpreter_path",
+        "kernel_name",
+        "working_directory",
+    ):
+        value = getattr(requirement, field_name)
+        if require_text(
+            value, f"runtime_preflight_requirement.{field_name}"
+        ) != value:
+            raise ValidationError(
+                f"runtime_preflight_requirement.{field_name} must be canonical"
+            )
+    if not Path(requirement.interpreter_path).is_absolute():
+        raise ValidationError(
+            "runtime_preflight_requirement.interpreter_path must be absolute"
+        )
+    if not Path(requirement.working_directory).is_absolute():
+        raise ValidationError(
+            "runtime_preflight_requirement.working_directory must be absolute"
+        )
+    return requirement
+
+
+def validate_notebook_freeze_input_bundle_requirement(
+    bundle_sha256: str | None,
+    runtime_requirement: RuntimePreflightRequirement | None,
+) -> str | None:
+    if bundle_sha256 is None:
+        return None
+    require_sha256(
+        bundle_sha256,
+        "notebook_freeze_input_bundle_sha256",
+    )
+    if runtime_requirement is None:
+        raise ValidationError(
+            "notebook freeze-input bundle requires runtime_preflight_requirement"
+        )
+    return bundle_sha256
 
 
 def is_canonical_sha256(value: object) -> bool:
@@ -1315,6 +1375,28 @@ def assess_variance_assumption(
 
 def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
     _reject_review_placeholders(protocol.to_dict(), "protocol")
+    validate_runtime_preflight_requirement(protocol.runtime_preflight_requirement)
+    validate_notebook_freeze_input_bundle_requirement(
+        protocol.notebook_freeze_input_bundle_sha256,
+        protocol.runtime_preflight_requirement,
+    )
+    lowered_inputs = [value.casefold() for value in protocol.inputs_required]
+    if (
+        protocol.runtime_preflight_requirement is None
+        and any("runtime preflight" in value for value in lowered_inputs)
+    ):
+        raise ValidationError(
+            "runtime preflight inputs require runtime_preflight_requirement; "
+            "prose digests have no binding authority"
+        )
+    if (
+        protocol.notebook_freeze_input_bundle_sha256 is None
+        and any("freeze-input bundle" in value for value in lowered_inputs)
+    ):
+        raise ValidationError(
+            "freeze-input bundle inputs require "
+            "notebook_freeze_input_bundle_sha256; prose digests have no binding authority"
+        )
     if protocol.status is not ProtocolStatus.DRAFT:
         raise ValidationError("only draft protocols can be frozen")
     if not isinstance(protocol.causal_claim, bool):

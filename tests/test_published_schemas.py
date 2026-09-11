@@ -41,6 +41,43 @@ def test_published_schema_is_well_formed(path):
     jsonschema.Draft202012Validator.check_schema(json.loads(path.read_text()))
 
 
+def test_protocol_schema_accepts_typed_runtime_and_freeze_bundle_requirements():
+    from test_ethics_gate import _human_protocol
+    from research_machine.interfaces.cli import _PROTOCOL_FIELDS, _protocol_command
+
+    protocol = _human_protocol(human_subjects=False).to_dict()
+    command = {
+        key: value for key, value in protocol.items() if key in _PROTOCOL_FIELDS
+    }
+    requirement = {
+        "receipt_sha256": "a" * 64,
+        "probe_id": "research-machine-runtime-preflight-v1",
+        "interpreter_path": "/opt/research/python",
+        "kernel_name": "python3",
+        "working_directory": "/work/research",
+    }
+    command["runtime_preflight_requirement"] = requirement
+    command["notebook_freeze_input_bundle_sha256"] = "b" * 64
+    schema = json.loads((SCHEMAS / "protocol-command.schema.json").read_text())
+    jsonschema.validate(command, schema)
+    parsed = _protocol_command(command)
+    assert parsed.runtime_preflight_requirement.to_dict() == requirement
+    assert parsed.notebook_freeze_input_bundle_sha256 == "b" * 64
+
+    malformed = dict(command)
+    malformed["runtime_preflight_requirement"] = {
+        **requirement,
+        "working_directory": "relative/path",
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(malformed, schema)
+
+    malformed_bundle = dict(command)
+    malformed_bundle["notebook_freeze_input_bundle_sha256"] = "not-a-digest"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(malformed_bundle, schema)
+
+
 @pytest.mark.parametrize(
     ("schema_name", "mutation"),
     [

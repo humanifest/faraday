@@ -262,6 +262,14 @@ Exact historical favorable-development/prototype booleans quarantine a stored
 true eligibility bit without rewriting the immutable record; rigor surfaces the
 conflict. This is custody metadata, not proof of blinding or code honesty.
 
+Notebook freeze-input delivery: protocol readiness and freeze can now consume a
+typed bundle that replays a passed no-analysis runtime receipt, clean notebook
+source, dependency manifest, retained matching static-preflight receipt, and
+every current dependency byte. The runtime requirement and bundle digest are
+frozen protocol fields. Prose-only runtime or bundle hashes are rejected for
+new freezes and remain only historical text; the bundle establishes integrity
+relationships, not chronology, method quality, or scientific evidence.
+
 Run-output and evidence-admission delivery: scientific evidence eligibility now
 also requires a passed verification of every declared output under an explicit
 local artifact root. Runs lacking that verification remain recordable but cannot

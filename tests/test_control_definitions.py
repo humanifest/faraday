@@ -84,7 +84,7 @@ def test_control_definition_cli_registration_and_freeze(tmp_path, capsys, invali
     service, hypothesis = prepared_service(tmp_path / "workspace")
     protocol = _protocol()
     values = protocol.to_dict()
-    spec = {field.name: values[field.name] for field in fields(CreateProtocol)}
+    spec = {field.name: values.get(field.name) for field in fields(CreateProtocol)}
     spec["hypotheses_tested"] = [hypothesis]
     if invalid:
         spec["control_definitions"][0]["evaluation_gate_id"] = "unregistered-gate"

@@ -2127,6 +2127,9 @@ gate evidence.
 - Probe the selected interpreter, Jupyter kernel, and working directory with one
   fixed generated marker cell before protocol freeze, without accepting or
   loading an analysis notebook.
+- Bind the passed no-analysis receipt and one typed freeze-input bundle into
+  protocol readiness and freeze, replaying source, manifest, dependency, and
+  receipt bytes without treating prose hashes as commitments.
 - Emit stable JSON for Codex today and other clients later.
 - Discover validated scientific add-ons without creating a second evidence
   system, and execute bundled cross-disciplinary analyses with hash-bound,
@@ -2192,6 +2195,37 @@ research-notebook-runtime-preflight \
   --kernel-name python3 \
   --timeout 30
 ```
+
+For notebook-backed protocols, create one typed freeze-input bundle after the
+static and runtime preflights:
+
+```bash
+research-notebook-freeze-bundle create frozen-source.ipynb \
+  --manifest notebook-dependencies.json \
+  --workspace-root <project-root> \
+  --static-preflight-receipt static-preflight.json \
+  --runtime-preflight-receipt runtime-preflight.json \
+  --result-json notebook-freeze-input-bundle.json
+```
+
+Add the emitted `runtime_preflight_requirement` and bundle digest as
+`notebook_freeze_input_bundle_sha256` in the protocol, then pass the bundle
+through both read-only readiness and freeze:
+
+```bash
+research protocol preflight --spec-file protocol.json \
+  --notebook-freeze-input-bundle notebook-freeze-input-bundle.json
+research protocol freeze <protocol-id> \
+  --notebook-freeze-input-bundle notebook-freeze-input-bundle.json
+```
+
+Both commands re-hash the bundle, source, manifest, every dependency, the
+retained static-preflight receipt, and the runtime receipt, and compare the
+bundled runtime context with the typed protocol requirement. Human-readable
+hashes in `inputs_required` cannot replace the typed fields. The bundle is
+local integrity evidence only; it does not establish chronology or scientific
+validity. See
+[notebook freeze-input bundles](docs/notebook-freeze-input-bundle.md).
 
 This command accepts no source notebook and no arbitrary code. It starts the
 requested kernel, runs one built-in marker cell, verifies the kernel working

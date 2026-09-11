@@ -66,7 +66,9 @@ from research_machine.application.policies import (
     validate_protocol_freeze,
     validate_portfolio_action_candidates,
     validate_quality_gates,
+    validate_notebook_freeze_input_bundle_requirement,
     validate_named_component_gate_metadata,
+    validate_runtime_preflight_requirement,
     validate_selection_weights,
     validate_validation_tag_context,
     typed_result_exposure_allows_evidence,
@@ -125,6 +127,7 @@ from research_machine.domain.models import (
     RigorAudit,
     RigorSeverity,
     RunStatus,
+    RuntimePreflightRequirement,
 )
 from research_machine.ports.repository import WorkspaceRepository
 from research_machine.reporting.synthesis import build_synthesis
@@ -323,6 +326,85 @@ def _validate_result_exposure_disclosure(value: Any) -> dict[str, Any]:
             "scientific-evidence eligibility while preserving the run."
         ),
     }
+
+
+def _verify_runtime_preflight_requirement(
+    requirement: RuntimePreflightRequirement | None,
+    receipt_path: str | None,
+) -> None:
+    validate_runtime_preflight_requirement(requirement)
+    if requirement is None:
+        if receipt_path is not None:
+            raise ValidationError(
+                "runtime preflight receipt requires a typed protocol requirement"
+            )
+        return
+    if receipt_path is None:
+        raise ValidationError(
+            "typed runtime_preflight_requirement requires a runtime preflight receipt"
+        )
+    from research_machine.executors.runtime_preflight import (
+        verify_runtime_preflight_report,
+    )
+
+    try:
+        verification = verify_runtime_preflight_report(
+            Path(receipt_path),
+            expected_sha256=requirement.receipt_sha256,
+        )
+    except (OSError, ValueError) as exc:
+        raise ValidationError(f"runtime preflight receipt is invalid: {exc}") from exc
+    expected = {
+        "receipt_sha256": requirement.receipt_sha256,
+        "probe_id": requirement.probe_id,
+        "interpreter_path": requirement.interpreter_path,
+        "kernel_name": requirement.kernel_name,
+        "working_directory": requirement.working_directory,
+    }
+    for field_name, expected_value in expected.items():
+        if getattr(verification, field_name) != expected_value:
+            raise ValidationError(
+                "runtime preflight receipt does not match typed requirement: "
+                + field_name
+            )
+
+
+def _verify_notebook_freeze_input_bundle_requirement(
+    bundle_sha256: str | None,
+    bundle_path: str | None,
+    runtime_requirement: RuntimePreflightRequirement | None,
+) -> Any | None:
+    validate_notebook_freeze_input_bundle_requirement(
+        bundle_sha256,
+        runtime_requirement,
+    )
+    if bundle_sha256 is None:
+        if bundle_path is not None:
+            raise ValidationError(
+                "notebook freeze-input bundle requires a typed protocol commitment"
+            )
+        return None
+    if bundle_path is None:
+        raise ValidationError(
+            "notebook_freeze_input_bundle_sha256 requires a freeze-input bundle"
+        )
+    from research_machine.executors.notebook_freeze_bundle import (
+        verify_notebook_freeze_input_bundle,
+    )
+
+    try:
+        verification = verify_notebook_freeze_input_bundle(
+            Path(bundle_path),
+            expected_sha256=bundle_sha256,
+        )
+    except (OSError, ValueError) as exc:
+        raise ValidationError(f"notebook freeze-input bundle is invalid: {exc}") from exc
+    assert runtime_requirement is not None
+    if verification.runtime_preflight_requirement != runtime_requirement.to_dict():
+        raise ValidationError(
+            "notebook freeze-input bundle runtime requirement does not match protocol"
+        )
+    return verification
 
 
 def _sha256_json(value: dict[str, Any]) -> str:
@@ -2421,6 +2503,55 @@ class ResearchService:
         )
         return protocol
 
+    def preflight_protocol(
+        self,
+        command: CreateProtocol,
+        inquiry_id: str | None = None,
+        *,
+        external_anchor: str | None = None,
+        review_artifact_root: str | None = None,
+        runtime_preflight_receipt: str | None = None,
+        notebook_freeze_input_bundle: str | None = None,
+    ) -> dict[str, Any]:
+        """Exercise the exact freeze validation path without canonical writes."""
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        draft = self._build_protocol(
+            resolved,
+            command,
+            protocol_family_id="prt-preflight",
+            version=1,
+        )
+        frozen = self._prepare_protocol_for_freeze(
+            resolved,
+            draft,
+            external_anchor=external_anchor,
+            review_artifact_root=review_artifact_root,
+            runtime_preflight_receipt=runtime_preflight_receipt,
+            notebook_freeze_input_bundle=notebook_freeze_input_bundle,
+        )
+        return {
+            "status": "ready",
+            "would_append_event": False,
+            "would_create_draft": True,
+            "would_freeze_protocol": True,
+            "analysis_mode": frozen.analysis_mode.value,
+            "protocol_kind": frozen.protocol_kind.value,
+            "hypothesis_ids": list(frozen.hypotheses_tested),
+            "hypothesis_commitments": dict(frozen.hypothesis_commitments),
+            "quality_requirement_ids": list(frozen.quality_requirements),
+            "control_ids": [
+                item.control_id for item in frozen.control_definitions
+            ],
+            "measurement_ids": [
+                item.measurement_id for item in frozen.measurement_definitions
+            ],
+            "note": (
+                "Preflight validates current state but does not reserve a protocol "
+                "identifier, timestamp, hypothesis state, or artifact bytes; create "
+                "and freeze revalidate all commitments."
+            ),
+        }
+
     def freeze_protocol(
         self,
         protocol_id: str,
@@ -2428,9 +2559,59 @@ class ResearchService:
         *,
         external_anchor: str | None = None,
         review_artifact_root: str | None = None,
+        runtime_preflight_receipt: str | None = None,
+        notebook_freeze_input_bundle: str | None = None,
     ) -> ExperimentProtocol:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         protocol = self.repository.find_protocol(resolved, protocol_id)
+        frozen = self._prepare_protocol_for_freeze(
+            resolved,
+            protocol,
+            external_anchor=external_anchor,
+            review_artifact_root=review_artifact_root,
+            runtime_preflight_receipt=runtime_preflight_receipt,
+            notebook_freeze_input_bundle=notebook_freeze_input_bundle,
+        )
+        self.repository.freeze_protocol(resolved, frozen)
+        self._event(
+            resolved,
+            "protocol.freeze",
+            "protocol",
+            protocol_id,
+            frozen.to_dict(),
+        )
+        return frozen
+
+    def _prepare_protocol_for_freeze(
+        self,
+        resolved: str,
+        protocol: ExperimentProtocol,
+        *,
+        external_anchor: str | None = None,
+        review_artifact_root: str | None = None,
+        runtime_preflight_receipt: str | None = None,
+        notebook_freeze_input_bundle: str | None = None,
+    ) -> ExperimentProtocol:
+        bundle_verification = _verify_notebook_freeze_input_bundle_requirement(
+            protocol.notebook_freeze_input_bundle_sha256,
+            notebook_freeze_input_bundle,
+            protocol.runtime_preflight_requirement,
+        )
+        if bundle_verification is not None:
+            bundled_receipt = bundle_verification.runtime_preflight_receipt_path
+            if (
+                runtime_preflight_receipt is not None
+                and Path(runtime_preflight_receipt).resolve()
+                != Path(bundled_receipt).resolve()
+            ):
+                raise ValidationError(
+                    "runtime preflight receipt does not match freeze-input bundle"
+                )
+            runtime_preflight_receipt = bundled_receipt
+        _verify_runtime_preflight_requirement(
+            protocol.runtime_preflight_requirement,
+            runtime_preflight_receipt,
+        )
         if not isinstance(protocol.causal_claim, bool):
             raise ValidationError("causal_claim must be true or false")
         if protocol.causal_claim:
@@ -2633,14 +2814,6 @@ class ResearchService:
             registration_timestamp=self.clock(),
             external_anchor=anchor,
             independent_review_verification=review_verification,
-        )
-        self.repository.freeze_protocol(resolved, frozen)
-        self._event(
-            resolved,
-            "protocol.freeze",
-            "protocol",
-            protocol_id,
-            frozen.to_dict(),
         )
         return frozen
 
@@ -6271,6 +6444,15 @@ class ResearchService:
             ),
             environment_requirements=require_text_list(
                 command.environment_requirements, "environment_requirements"
+            ),
+            runtime_preflight_requirement=validate_runtime_preflight_requirement(
+                command.runtime_preflight_requirement
+            ),
+            notebook_freeze_input_bundle_sha256=(
+                validate_notebook_freeze_input_bundle_requirement(
+                    command.notebook_freeze_input_bundle_sha256,
+                    command.runtime_preflight_requirement,
+                )
             ),
             secondary_outcomes=require_text_list(
                 command.secondary_outcomes, "secondary_outcomes"
