@@ -1696,12 +1696,13 @@ before using the map, so an internally rewritten map cannot authorize or
 sanitize later synthesis. It never treats claim counts as effect
 sizes or authors a substantive conclusion; the artifact now carries explicit
 false scientific-evidence, conclusion-authorization, and
-publication-authorization flags. Quantitative plans fail closed until effect-size
+publication-authorization flags plus a false reviewer-identity-authentication
+boundary. Quantitative plans fail closed until effect-size
 extraction, variance checks, heterogeneity diagnostics, and validated pooling are
 available.
 The qualitative synthesis artifact now replays its own non-authority and summary
 boundary before it is written: false scientific-evidence, conclusion, and
-publication authorization; the versioned input-hash envelope and
+publication authorization plus false reviewer-identity authentication; the versioned input-hash envelope and
 plan/snapshot/scope handles; claim and independent-study counts; the frozen
 minimum-study requirement status; deviation-derived review status; directional
 and interpretive-ceiling counts; embedded deviation-bound plan commitments; and
@@ -1847,7 +1848,8 @@ that known executable set, even when an edited artifact makes the retained list
 and result rows agree with each other.
 The meta-analysis artifact now replays its own non-authority and summary
 boundary before it is written: false scientific-evidence, conclusion, and
-publication authorization; deviation-derived review status; available-study
+publication authorization plus false reviewer-identity authentication;
+deviation-derived review status; available-study
 counts; unavailable-study disclosure; deviation-bound plan commitments; retained
 source-summary digest coverage; the frozen sensitivity-analysis list, known
 executable sensitivity identifiers, and exact result coverage; and the

@@ -225,6 +225,7 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
     assert result["conclusion_authorized"] is False
     assert result["scientific_evidence_eligible"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     assert result["small_study_effects"]["status"] == "not_estimable"
     assert result["small_study_effects"]["publication_bias_conclusion"] is False
     assert result["planned_sensitivity_analyses"] == [
@@ -380,6 +381,7 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     "scientific-authority",
     "conclusion-authority",
     "publication-authority",
+    "reviewer-authenticated",
     "limitations-missing",
     "deviation-status",
     "deviation-row-added",
@@ -434,6 +436,8 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["conclusion_authorized"] = True
     elif tamper == "publication-authority":
         candidate["publication_authorized"] = True
+    elif tamper == "reviewer-authenticated":
+        candidate["reviewer_identity_authenticated"] = True
     elif tamper == "limitations-missing":
         candidate["limitations"] = []
     elif tamper == "deviation-status":

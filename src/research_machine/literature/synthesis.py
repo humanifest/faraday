@@ -167,6 +167,8 @@ def validate_literature_synthesis_boundary(synthesis: dict[str, Any]) -> None:
         raise ValidationError("literature synthesis must not authorize conclusions")
     if synthesis.get("publication_authorized") is not False:
         raise ValidationError("literature synthesis must not authorize publication claims")
+    if synthesis.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError("literature synthesis must not authenticate reviewer identity")
     limitations = synthesis.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("literature synthesis requires retained boundary limitations")
@@ -484,10 +486,12 @@ def execute_qualitative_synthesis(
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "This executor reports complete directional and ceiling counts; counts of claims are not effect sizes and multiple claims from one study are not independent evidence.",
             "Null, adverse, mixed, high-bias, and hypothesis-only claims remain visible and are not filtered from the artifact.",
             "The machine does not interpret prose eligibility rules, assess applicability, resolve heterogeneity, or author a substantive conclusion.",
+            "The machine does not authenticate reviewer identity or expertise for the extraction, mapping, deviation, or synthesis judgments.",
             "Execution requires an explicit plan-bound deviation declaration; retrospective or unknown-timing departures force review status.",
         ],
     }

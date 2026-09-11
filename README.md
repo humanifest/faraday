@@ -1296,13 +1296,15 @@ input. This makes the review trail inspectable while still refusing to turn
 retrieved or reviewer-entered source claims into Faraday scientific evidence.
 The qualitative synthesis artifact now also replays its own retained summaries
 before it is written: scientific-evidence, conclusion, and publication authority
-must remain false; the versioned input-hash envelope and plan/snapshot/scope
-handles must be retained in canonical form; claim and independent-study counts,
+must remain false; reviewer identity authentication must remain false; the
+versioned input-hash envelope and plan/snapshot/scope handles must be retained
+in canonical form; claim and independent-study counts,
 minimum-study status, deviation-derived review status, the embedded
 deviation-bound plan commitments, directional counts, ceiling counts, and the
 bounded-conclusion wording must derive from retained claims and deviation status.
 This keeps organized source claims from becoming an automated substantive
-conclusion or a rewritten prospective synthesis scope.
+conclusion, a rewritten prospective synthesis scope, or authenticated reviewer
+authority.
 Synthesis-plan freezing likewise rejects padded plan IDs, reviewer text,
 research questions, primary outcomes, effect measures, contrast definitions,
 subgroup and sensitivity entries, policy prose, conclusion rules, deviation
@@ -1393,9 +1395,10 @@ hash-consistent rewrite cannot turn source-summary arithmetic into evidence,
 conclusion authorization, or publication clearance.
 The meta-analysis artifact now replays its own boundary before publication to
 disk: scientific-evidence, conclusion, and publication authority must remain
-false; deviation status must derive the meta-analysis review status; the
-embedded deviation-bound plan commitments must match the retained quantitative
-effect measure, contrast, and model; available study counts, unavailable-study
+false; reviewer identity authentication must remain false; deviation status
+must derive the meta-analysis review status; the embedded deviation-bound plan
+commitments must match the retained quantitative effect measure, contrast, and
+model; available study counts, unavailable-study
 disclosures, retained source-summary digests, the frozen sensitivity-analysis
 list, known executable sensitivity identifiers and exact result coverage,
 and small-study diagnostic non-conclusion status

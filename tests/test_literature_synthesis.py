@@ -147,6 +147,7 @@ def test_qualitative_synthesis_cli_preserves_null_high_bias_claim_and_is_write_o
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     assert "No automated substantive conclusion" in result["bounded_conclusion"]
     with pytest.raises(ValidationError, match="already exists"):
         execute_qualitative_synthesis(plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha, output)
@@ -197,6 +198,7 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     "scientific-authority",
     "conclusion-authority",
     "publication-authority",
+    "reviewer-authenticated",
     "limitations-missing",
     "deviation-status",
     "deviation-row-added",
@@ -236,6 +238,8 @@ def test_literature_synthesis_boundary_replays_output_summaries(tmp_path, tamper
         candidate["conclusion_authorized"] = True
     elif tamper == "publication-authority":
         candidate["publication_authorized"] = True
+    elif tamper == "reviewer-authenticated":
+        candidate["reviewer_identity_authenticated"] = True
     elif tamper == "limitations-missing":
         candidate["limitations"] = []
     elif tamper == "deviation-status":

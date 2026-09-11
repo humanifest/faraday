@@ -208,6 +208,8 @@ def validate_meta_analysis_boundary(
         raise ValidationError("meta-analysis must not authorize conclusions")
     if meta_analysis.get("publication_authorized") is not False:
         raise ValidationError("meta-analysis must not authorize publication claims")
+    if meta_analysis.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError("meta-analysis must not authenticate reviewer identity")
     limitations = meta_analysis.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("meta-analysis requires retained boundary limitations")
@@ -1093,12 +1095,14 @@ def execute_meta_analysis(
                    if deviation_status == "retrospective_or_uncertain_deviation_review_required"
                    else "meta_analysis_recorded"), "scientific_evidence_eligible": False,
         "conclusion_authorized": False, "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "Inverse-variance pooling assumes the supplied estimates and variances are comparable and correctly derived; Faraday has not reproduced them from participant-level data.",
             "DerSimonian-Laird heterogeneity can be unreliable with few studies. Random-effects confidence and prediction intervals use a conservative modified Hartung-Knapp standard error and tabulated Student-t critical value; prediction intervals are withheld below three effects.",
             "Leave-one-study-out intervals are labeled normal approximations and retain the full-analysis tau-squared; they are influence diagnostics, not replacement meta-analyses.",
             "Planned sensitivity analyses are always reported, including not-estimable results. Alternate-model and bias-exclusion standard errors are labeled normal approximations.",
             "Egger regression is withheld below ten effects or without precision variation. An estimated asymmetry diagnostic never establishes publication bias.",
+            "The machine does not authenticate reviewer identity or expertise for extraction, effect preparation, verification, deviation, or pooling judgments.",
             "Execution requires an explicit plan-bound deviation declaration; retrospective or unknown-timing departures force review status.",
             "Unavailable studies remain disclosed. The pooled sign is not interpreted, and no causal, clinical, practical, or publication conclusion is authorized.",
         ],
