@@ -131,7 +131,7 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
     )
     brief["sensor_requirements"] = _split_semicolon_answer(sensors)
     windows = ask(
-        "Which baseline, sham, replay, random-time, or negative-control windows will be interpreted? Separate exact window labels with semicolons [blank = none declared]"
+        "Which baseline, sham, replay, random-time, apparatus-only, or negative-control windows will be interpreted? Separate exact window labels with semicolons [blank = none declared]"
     )
     brief["control_windows"] = _split_semicolon_answer(windows)
     answer(

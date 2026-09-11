@@ -36,6 +36,7 @@ from research_machine.domain.models import (
 
 _FALSIFYING_CONTROL_FAMILIES = {
     "negative", "sham", "replay", "random_time", "adversarial",
+    "apparatus_only",
 }
 
 
@@ -979,7 +980,7 @@ def audit_research_state(
                     add(
                         "PROTECTED_PROTOCOL_WITHOUT_FALSIFYING_CONTROL",
                         RigorSeverity.WARNING,
-                        "Protected empirical protocol has no negative, sham, replay, random-time, or adversarial control family.",
+                        "Protected empirical protocol has no negative, sham, replay, random-time, adversarial, or apparatus-only control family.",
                         entity_type="protocol",
                         entity_id=protocol.protocol_id,
                         remediation=(

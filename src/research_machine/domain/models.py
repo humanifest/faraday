@@ -574,7 +574,10 @@ class ConclusionContract(Serializable):
         return cls(**copied)
 
 
-CONTROL_FAMILIES = ("positive", "negative", "sham", "replay", "random_time", "adversarial", "reference", "other")
+CONTROL_FAMILIES = (
+    "positive", "negative", "sham", "replay", "random_time",
+    "adversarial", "apparatus_only", "reference", "other",
+)
 
 
 @dataclass(frozen=True)

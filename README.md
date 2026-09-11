@@ -200,8 +200,9 @@ controls can populate a review draft.
 Guided review also distinguishes reference-only plans from discriminating
 control sets: it warns when structured controls lack a positive family that can
 show the pipeline detects a known effect, or lack a falsifying family such as
-negative, sham, replay, random-time, or adversarial control that could expose
-contamination, leakage, timing artifacts, or misleading procedure success.
+negative, sham, replay, random-time, adversarial, or apparatus-only control that
+could expose contamination, leakage, timing artifacts, equipment or environment
+effects, or misleading procedure success.
 Evidence derived from that run must then account for the complete frozen control
 set: each registered control appears exactly once in `controls_passed` or
 `controls_failed`, as determined by its structured result. Omissions, duplicates,
@@ -579,7 +580,8 @@ behind an internal-only API while the terminal interview accepts them.
 Guided briefs and the provider-free interview can also preserve required
 instrument, stream, or channel declarations; an exact clock-accuracy or
 synchronization requirement; and named baseline, sham, replay, random-time, or
-negative-control windows. Control windows without a timing-accuracy commitment
+negative-control windows, including apparatus-only timing checks when equipment
+or environment effects must be separated. Control windows without a timing-accuracy commitment
 block review readiness, because window labels cannot establish whether timing
 uncertainty is small enough for the intended comparison. Canonical synthesis
 later reports those acquisition commitments as provenance only, alongside the
@@ -697,9 +699,10 @@ case/whitespace normalization, so a repeated scientific role cannot receive
 multiple definitions, measurements, gates, or causal-graph meanings.
 For protected empirical work, rigor now warns when frozen structured controls do
 not include both a positive family and at least one falsifying family
-(`negative`, `sham`, `replay`, `random_time`, or `adversarial`); this keeps
-measurement sensitivity and disconfirmation limits visible without treating a
-control label as proof of validity. It also flags legacy frozen protocols that
+(`negative`, `sham`, `replay`, `random_time`, `adversarial`, or
+`apparatus_only`); this keeps measurement sensitivity, equipment/environment
+artifacts, and disconfirmation limits visible without treating a control label
+as proof of validity. It also flags legacy frozen protocols that
 name controls without structured definitions, preserving those prose
 commitments without retroactively claiming family, expected-behavior, or
 gate-binding coverage.

@@ -434,6 +434,31 @@ def test_empirical_protocol_command_matches_published_schema():
     jsonschema.validate(command, schema)
 
 
+def test_protocol_command_schema_accepts_apparatus_only_control_family():
+    from dataclasses import replace
+    from test_ethics_gate import _human_protocol
+    from research_machine.domain.models import ControlDefinition
+    from research_machine.interfaces.cli import _PROTOCOL_FIELDS
+
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        controls=["Apparatus-only sample"],
+        control_definitions=[
+            ControlDefinition(
+                "apparatus-only-1",
+                "Apparatus-only sample",
+                "apparatus_only",
+                "Detect equipment or environment-generated artifacts.",
+                "No target-dependent signal is detected.",
+                "integrity",
+            )
+        ],
+    ).to_dict()
+    command = {key: value for key, value in protocol.items() if key in _PROTOCOL_FIELDS}
+    schema = json.loads((SCHEMAS / "protocol-command.schema.json").read_text())
+    jsonschema.validate(command, schema)
+
+
 def test_protocol_command_schema_rejects_overclaiming_conclusion_ceiling():
     from test_protocol_design_structure import _multi_step_protocol
     from research_machine.interfaces.cli import _PROTOCOL_FIELDS

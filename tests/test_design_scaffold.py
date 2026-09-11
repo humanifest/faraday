@@ -1121,7 +1121,7 @@ def test_structured_controls_warn_without_positive_and_falsifying_families():
 
     balanced = scaffold_design({
         **base,
-        "controls": ["Known-effect sample", "Blank sample"],
+        "controls": ["Known-effect sample", "Apparatus-only sample"],
         "control_definitions": [
             {
                 "control_id": "positive-1",
@@ -1132,12 +1132,12 @@ def test_structured_controls_warn_without_positive_and_falsifying_families():
                 "evaluation_gate_id": "positive-evaluated",
             },
             {
-                "control_id": "negative-1",
-                "registered_control": "Blank sample",
-                "family": "negative",
-                "purpose": "Reveal contamination or false detection.",
-                "expected_behavior": "No target signal is detected.",
-                "evaluation_gate_id": "negative-evaluated",
+                "control_id": "apparatus-only-1",
+                "registered_control": "Apparatus-only sample",
+                "family": "apparatus_only",
+                "purpose": "Reveal equipment or environment-generated artifacts.",
+                "expected_behavior": "No target-dependent signal is detected.",
+                "evaluation_gate_id": "apparatus-only-evaluated",
             },
         ],
     })

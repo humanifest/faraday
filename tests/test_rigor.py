@@ -1082,7 +1082,7 @@ def test_rigor_warns_when_protected_protocol_lacks_discriminating_control_famili
 
     balanced = replace(
         reference_only,
-        controls=["Known-effect sample", "Blank sample"],
+        controls=["Known-effect sample", "Apparatus-only sample"],
         control_definitions=[
             ControlDefinition(
                 "positive-1", "Known-effect sample", "positive",
@@ -1090,9 +1090,9 @@ def test_rigor_warns_when_protected_protocol_lacks_discriminating_control_famili
                 "Known effect is detected.", "integrity",
             ),
             ControlDefinition(
-                "negative-1", "Blank sample", "negative",
-                "Reveal contamination or false detection.",
-                "No target signal is detected.", "integrity",
+                "apparatus-only-1", "Apparatus-only sample", "apparatus_only",
+                "Reveal equipment or environment-generated artifacts.",
+                "No target-dependent signal is detected.", "integrity",
             ),
         ],
     )

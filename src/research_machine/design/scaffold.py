@@ -55,6 +55,7 @@ _CANARY_TARGET_PLAN_FIELDS = {
 }
 _FALSIFYING_CONTROL_FAMILIES = {
     "negative", "sham", "replay", "random_time", "adversarial",
+    "apparatus_only",
 }
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 DESIGN_BRIEF_FIELDS = {
@@ -735,7 +736,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "CONTROL_WINDOW_DUPLICATE",
             "error",
             "Control windows contain duplicate labels.",
-            "Give each baseline, sham, replay, random-time, or negative-control window one stable name before review.",
+            "Give each baseline, sham, replay, random-time, apparatus-only, or negative-control window one stable name before review.",
         )
     if factor_plan and factor_plan != factor_plan.strip():
         add(
@@ -1027,7 +1028,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             add(
                 "CONTROL_FALSIFYING_FAMILY_MISSING",
                 "warning",
-                "Structured controls include no negative, sham, replay, random-time, or adversarial family.",
+                "Structured controls include no negative, sham, replay, random-time, adversarial, or apparatus-only family.",
                 "Add a falsifying control family that can reveal contamination, leakage, timing artifacts, or misleading procedure success.",
             )
     control_measurements = brief.get("control_measurements", [])
@@ -1426,7 +1427,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
     if not str(brief.get("calibration_plan", "")).strip():
         add("CALIBRATION_UNRESOLVED", "warning", "No calibration or measurement-quality plan is recorded.", "Specify calibration, synchronization, missing-channel, or data-quality checks before collection.")
     if not _text_list(brief, "controls"):
-        add("CONTROL_FAMILY_MISSING", "warning", "No positive, negative, sham, replay, or other control is planned.", "Choose the control family that could reveal a misleading measurement or procedure.")
+        add("CONTROL_FAMILY_MISSING", "warning", "No positive, negative, sham, replay, apparatus-only, or other control is planned.", "Choose the control family that could reveal a misleading measurement or procedure.")
     controls = _text_list(brief, "controls")
     normalized_controls = [item.strip().casefold() for item in controls]
     if len(set(normalized_controls)) != len(normalized_controls):

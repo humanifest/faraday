@@ -35,6 +35,24 @@ def test_protocol_schema_and_cli_cover_same_fields():
     assert set(schema["properties"]) == _PROTOCOL_FIELDS
 
 
+def test_apparatus_only_control_family_is_a_supported_freeze_contract():
+    protocol = replace(
+        _protocol(),
+        controls=["Apparatus-only sample"],
+        control_definitions=[
+            ControlDefinition(
+                "apparatus-only-1",
+                "Apparatus-only sample",
+                "apparatus_only",
+                "Detect equipment or environment-generated artifacts.",
+                "No target-dependent signal is detected.",
+                "integrity",
+            )
+        ],
+    )
+    validate_protocol_freeze(protocol)
+
+
 @pytest.mark.parametrize(
     ("passed", "failed", "message"),
     [

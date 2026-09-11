@@ -92,7 +92,7 @@
       "properties": {
         "control_id": {"type": "string", "minLength": 1},
         "registered_control": {"type": "string", "minLength": 1},
-        "family": {"enum": ["positive", "negative", "sham", "replay", "random_time", "adversarial", "reference", "other"]},
+        "family": {"enum": ["positive", "negative", "sham", "replay", "random_time", "adversarial", "apparatus_only", "reference", "other"]},
         "purpose": {"type": "string", "minLength": 1},
         "expected_behavior": {"type": "string", "minLength": 1},
         "evaluation_gate_id": {"type": "string", "minLength": 1}

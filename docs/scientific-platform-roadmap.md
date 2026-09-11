@@ -135,7 +135,7 @@ freezes require `control_definitions`; other protocol kinds validate them when s
 Definitions contain
 `control_id`, `registered_control`, `family`, `purpose`, `expected_behavior`,
 and `evaluation_gate_id`. Families are positive, negative, sham, replay,
-random_time, adversarial, reference, and other. Supplied definitions must cover
+random_time, adversarial, apparatus_only, reference, and other. Supplied definitions must cover
 the registered controls exactly in order with canonical, unique identities and link to
 required quality gates; surrounding whitespace in registered control names,
 control IDs, target names, families, purposes, expected behaviors, or
@@ -150,10 +150,11 @@ behavior for each named control and emits review-only definitions.
 Guided and rigor reporting now distinguish reference-only plans from
 discriminating control sets: structured controls warn when they lack a positive
 family that can demonstrate known-effect sensitivity, or lack a falsifying
-family (`negative`, `sham`, `replay`, `random_time`, or `adversarial`) capable
-of exposing contamination, leakage, timing artifacts, or misleading procedure
-success. These remain maturity warnings rather than proof that any particular
-control passed. Rigor also flags legacy frozen protected empirical protocols
+family (`negative`, `sham`, `replay`, `random_time`, `adversarial`, or
+`apparatus_only`) capable of exposing contamination, leakage, timing artifacts,
+equipment or environment effects, or misleading procedure success. These remain
+maturity warnings rather than proof that any particular control passed. Rigor
+also flags legacy frozen protected empirical protocols
 that name controls without structured definitions, preserving those prose
 commitments without retroactively claiming family, expected-behavior, or
 gate-binding coverage.
