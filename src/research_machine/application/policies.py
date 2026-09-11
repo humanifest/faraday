@@ -43,6 +43,44 @@ from research_machine.domain.models import (
     ValidationTag,
 )
 
+
+_LEGACY_PRE_REGISTRATION_RESULT_EXPOSURE_FLAGS = (
+    "favorable_development_output_seen_before_registration",
+    "favorable_prototype_output_seen_before_registration",
+)
+
+
+def declares_legacy_pre_registration_result_exposure(
+    metadata: Mapping[str, Any],
+) -> bool:
+    """Recognize only historical structured booleans, never narrative prose."""
+
+    return any(
+        metadata.get(field_name) is True
+        for field_name in _LEGACY_PRE_REGISTRATION_RESULT_EXPOSURE_FLAGS
+    )
+
+
+def typed_result_exposure_allows_evidence(metadata: Mapping[str, Any]) -> bool:
+    """Return whether sealed metadata carries the normalized prospective form."""
+
+    if declares_legacy_pre_registration_result_exposure(metadata):
+        return False
+    disclosure = metadata.get("result_exposure_disclosure")
+    return (
+        isinstance(disclosure, dict)
+        and set(disclosure) == {
+            "status",
+            "exposures",
+            "automatic_evidence_eligible",
+            "interpretation_boundary",
+        }
+        and disclosure.get("status") == "no_relevant_output_seen"
+        and disclosure.get("exposures") == []
+        and disclosure.get("automatic_evidence_eligible") is True
+        and isinstance(disclosure.get("interpretation_boundary"), str)
+    )
+
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _REPORT_OVERCLAIM = re.compile(
     r"\b(?:proved|confirmed|explained|validates?|validated)\b",

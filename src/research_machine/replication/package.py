@@ -33,6 +33,8 @@ from research_machine.application.policies import (
     require_unique_canonical_text_list,
     normalize_text,
     validate_control_witness_evidence,
+    declares_legacy_pre_registration_result_exposure,
+    typed_result_exposure_allows_evidence,
     validate_named_component_gate_metadata,
     validate_quality_gates,
 )
@@ -2348,6 +2350,126 @@ def _validate_protocol_deviation_disclosure_metadata(
     return disclosure
 
 
+def _validate_result_exposure_disclosure_metadata(
+    *, run_id: str, metadata: dict[str, Any], protocol_registration_timestamp: str
+) -> dict[str, Any] | None:
+    disclosure = metadata.get("result_exposure_disclosure")
+    if disclosure is None:
+        return None
+    if not isinstance(disclosure, dict):
+        raise ValidationError(
+            f"package run {run_id} result exposure disclosure fields are invalid"
+        )
+    status = require_canonical_text(
+        disclosure.get("status"),
+        f"package run {run_id} result_exposure_disclosure.status",
+    )
+    automatic = disclosure.get("automatic_evidence_eligible")
+    if status == "legacy_not_declared":
+        if set(disclosure) != {
+            "status", "exposures", "automatic_evidence_eligible",
+        }:
+            raise ValidationError(
+                f"package run {run_id} legacy result exposure disclosure fields are invalid"
+            )
+        if disclosure.get("exposures") != []:
+            raise ValidationError(
+                f"package run {run_id} legacy result exposure disclosure must have no exposures"
+            )
+        if automatic is not False:
+            raise ValidationError(
+                f"package run {run_id} legacy result exposure disclosure must remain ineligible"
+            )
+        return disclosure
+    if set(disclosure) != {
+        "status", "exposures", "automatic_evidence_eligible",
+        "interpretation_boundary",
+    }:
+        raise ValidationError(
+            f"package run {run_id} result exposure disclosure fields are invalid"
+        )
+    allowed_statuses = {
+        "no_relevant_output_seen", "favorable_output_seen",
+        "full_output_seen", "unknown",
+    }
+    if status not in allowed_statuses:
+        raise ValidationError(
+            f"package run {run_id} result exposure disclosure status is invalid"
+        )
+    if type(automatic) is not bool or automatic is not (
+        status == "no_relevant_output_seen"
+    ):
+        raise ValidationError(
+            f"package run {run_id} result exposure disclosure eligibility disagrees with status"
+        )
+    boundary = require_canonical_text(
+        disclosure.get("interpretation_boundary"),
+        f"package run {run_id} result_exposure_disclosure.interpretation_boundary",
+    )
+    if (
+        "unauthenticated exposure assertion" not in boundary
+        or "blocks automatic scientific-evidence eligibility" not in boundary
+    ):
+        raise ValidationError(
+            f"package run {run_id} result exposure disclosure boundary is invalid"
+        )
+    exposures = disclosure.get("exposures")
+    if not isinstance(exposures, list):
+        raise ValidationError(
+            f"package run {run_id} result exposure disclosure exposures must be an array"
+        )
+    required = {
+        "exposure_id", "artifact_locator", "artifact_sha256", "seen_at",
+        "description",
+    }
+    seen_ids: set[str] = set()
+    registered_at = _validate_package_timestamp(
+        protocol_registration_timestamp,
+        f"package run {run_id} protocol registration_timestamp",
+    )
+    for item in exposures:
+        if not isinstance(item, dict) or set(item) != required:
+            raise ValidationError(
+                f"package run {run_id} result exposure fields are invalid"
+            )
+        exposure_id = require_canonical_text(
+            item["exposure_id"], f"package run {run_id} exposure_id"
+        )
+        if exposure_id in seen_ids:
+            raise ValidationError(
+                f"package run {run_id} has duplicate result exposure_id {exposure_id}"
+            )
+        seen_ids.add(exposure_id)
+        require_canonical_text(
+            item["artifact_locator"],
+            f"package run {run_id} result exposure artifact_locator",
+        )
+        require_sha256(
+            item["artifact_sha256"],
+            f"package run {run_id} result exposure artifact_sha256",
+        )
+        seen_at = _validate_package_timestamp(
+            item["seen_at"], f"package run {run_id} result exposure seen_at"
+        )
+        if seen_at > registered_at:
+            raise ValidationError(
+                f"package run {run_id} result exposure seen_at cannot follow protocol registration"
+            )
+        require_canonical_bounded_report_text(
+            item["description"],
+            f"package run {run_id} result exposure description",
+        )
+    if status == "no_relevant_output_seen" and exposures:
+        raise ValidationError(
+            f"package run {run_id} no_relevant_output_seen requires no exposures"
+        )
+    if status in {"favorable_output_seen", "full_output_seen"} and not exposures:
+        raise ValidationError(
+            f"package run {run_id} {status} requires at least one exposure"
+        )
+    return disclosure
+
+
 def _resolve_json_pointer(value: Any, pointer: str, field_name: str) -> Any:
     pointer = require_canonical_text(pointer, field_name)
     if pointer == "":
@@ -3028,6 +3150,15 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     metadata=run.metadata,
                     output_artifacts=output_artifacts,
                 )
+                result_exposure_disclosure = (
+                    _validate_result_exposure_disclosure_metadata(
+                        run_id=run.run_id,
+                        metadata=run.metadata,
+                        protocol_registration_timestamp=(
+                            protocol.registration_timestamp
+                        ),
+                    )
+                )
                 _validate_execution_handoff_measurement_value_check(run)
                 sample_size_plan_check = _validate_sample_size_plan_check_metadata(
                     protocol=protocol,
@@ -3051,6 +3182,15 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     == "no_deviations_declared"
                     and deviation_disclosure.get("deviations") == []
                     and deviation_disclosure.get("automatic_evidence_eligible") is True
+                    and (
+                        (
+                            result_exposure_disclosure is None
+                            and not declares_legacy_pre_registration_result_exposure(
+                                run.metadata
+                            )
+                        )
+                        or typed_result_exposure_allows_evidence(run.metadata)
+                    )
                     and isinstance(artifact_integrity, dict)
                     and artifact_integrity.get("status") == "passed"
                     and (
@@ -3060,7 +3200,7 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 )
                 if run.scientific_evidence_eligible is not expected_eligible:
                     raise ValidationError(
-                        f"package run {run.run_id} evidence eligibility disagrees with gates, synthetic status, workflow role, or deviation disclosure"
+                        f"package run {run.run_id} evidence eligibility disagrees with gates, synthetic status, workflow role, deviation disclosure, or result exposure"
                     )
     except (OSError, TypeError, ValueError) as exc:
         raise ValidationError(f"cannot verify replication package: {exc}") from exc

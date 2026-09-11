@@ -598,6 +598,10 @@ def workflow_adjudication_run_draft(
                 "status": "no_deviations_declared",
                 "deviations": [],
             },
+            "result_exposure_disclosure": {
+                "status": "no_relevant_output_seen",
+                "exposures": [],
+            },
         },
         quality_gates=composite_quality_gates(
             adjudication, verified["receipt"]["output"]["sha256"]

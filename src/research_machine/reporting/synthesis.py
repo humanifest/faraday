@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
+from research_machine.application.policies import (
+    declares_legacy_pre_registration_result_exposure,
+    typed_result_exposure_allows_evidence,
+)
 from research_machine.domain.models import (
     ActionCandidate,
     ActionRecommendation,
@@ -413,8 +417,13 @@ def build_synthesis(
     else:
         lines.append("- No retired hypotheses.")
 
-    valid_runs = [run for run in runs if run.scientific_evidence_eligible]
-    invalid_runs = [run for run in runs if not run.scientific_evidence_eligible]
+    valid_runs = [
+        run for run in runs
+        if run.scientific_evidence_eligible
+        and typed_result_exposure_allows_evidence(run.metadata)
+    ]
+    valid_run_ids = {run.run_id for run in valid_runs}
+    invalid_runs = [run for run in runs if run.run_id not in valid_run_ids]
     datasets_by_id = {dataset.dataset_id: dataset for dataset in datasets}
     lines.extend(
         [
@@ -732,12 +741,26 @@ def build_synthesis(
             disclosure_status = (
                 disclosure.get("status") if isinstance(disclosure, dict) else "legacy_not_declared"
             )
+            exposure_disclosure = run.metadata.get("result_exposure_disclosure")
+            exposure_status = (
+                exposure_disclosure.get("status")
+                if isinstance(exposure_disclosure, dict)
+                else "legacy_not_declared"
+            )
             if run.synthetic:
                 kind = "synthetic calibration"
+            elif declares_legacy_pre_registration_result_exposure(run.metadata):
+                kind = "legacy result-exposure quarantined"
+            elif exposure_status in {
+                "favorable_output_seen", "full_output_seen", "unknown",
+            }:
+                kind = "result-exposure-restricted run"
             elif disclosure_status == "deviations_declared":
                 kind = "deviation-restricted run"
             elif disclosure_status == "legacy_not_declared":
                 kind = "deviation status undeclared"
+            elif exposure_status == "legacy_not_declared":
+                kind = "result-exposure status undeclared"
             else:
                 kind = "ineligible run"
             lines.append(
@@ -766,6 +789,20 @@ def build_synthesis(
                             lines.append(
                                 f"    - `{deviation.get('deviation_id', 'unknown')}` [{deviation.get('timing', 'unknown')}; potential impact: {deviation.get('potential_impact', 'unknown')}]: frozen `{deviation.get('frozen_commitment', 'unavailable')}`; actual `{deviation.get('actual_method', 'unavailable')}`; evidence `{deviation.get('evidence_sha256', 'unavailable')}` at `{deviation.get('evidence_location', 'unavailable')}`."
                             )
+            if declares_legacy_pre_registration_result_exposure(run.metadata):
+                lines.append(
+                    "  - Result exposure: exact legacy structured metadata records favorable pre-registration output; the immutable stored eligibility bit is ignored for effective admission."
+                )
+            elif exposure_status == "legacy_not_declared":
+                lines.append("  - Result exposure: not explicitly declared; prospective protection cannot be inferred from silence.")
+            elif exposure_status in {
+                "favorable_output_seen", "full_output_seen", "unknown",
+            } and isinstance(exposure_disclosure, dict):
+                exposures = exposure_disclosure.get("exposures", [])
+                lines.append(
+                    f"  - Result exposure: {exposure_status}; exact references retained: "
+                    f"{len(exposures) if isinstance(exposures, list) else 0}; automatic evidence promotion blocked."
+                )
     controlled_protocols = [
         protocol for protocol in protocols if protocol.control_definitions
     ]

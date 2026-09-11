@@ -106,6 +106,11 @@ canonical write path.
   `consistent_with_validity_claim`. Replay that binding during admission, and
   reject supporting evidence for a measurement-validity claim when no exact
   consistent frozen check is attached.
+- Never infer prospective result protection from a stored eligibility bit or
+  free-form prose. New runs require the typed `result_exposure_disclosure`;
+  favorable, full, unknown, or omitted exposure is ineligible. On historical
+  reads, the exact structured favorable-development/prototype booleans are
+  compatibility quarantine signals only and must not be rewritten.
 - Never hardcode or infer the primary outcome's dataset column. Require every
   executable primary, secondary, and control measurement column to be explicit,
   case-insensitively unique, and distinct from identity, assignment, and

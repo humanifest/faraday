@@ -596,6 +596,10 @@ def test_cli_records_general_protocol_run_and_next_action(
     )
     template = result_from(capsys)
     assert template["would_append_event"] is False
+    assert template["record"]["metadata"]["result_exposure_disclosure"] == {
+        "status": "no_relevant_output_seen",
+        "exposures": [],
+    }
     assert [
         item["gate_id"] for item in template["record"]["quality_gates"]
     ] == ["proof-check"]
@@ -634,7 +638,11 @@ def test_cli_records_general_protocol_run_and_next_action(
                     "protocol_deviation_disclosure": {
                         "status": "no_deviations_declared",
                         "deviations": [],
-                    }
+                    },
+                    "result_exposure_disclosure": {
+                        "status": "no_relevant_output_seen",
+                        "exposures": [],
+                    },
                 },
             }
         ),

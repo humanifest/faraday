@@ -161,12 +161,16 @@ def _run(protocol_id: str, root: Path, artifacts: list[DatasetArtifact], **overr
         ],
         "metadata": {"protocol_deviation_disclosure": {
             "status": "no_deviations_declared", "deviations": [],
+        }, "result_exposure_disclosure": {
+            "status": "no_relevant_output_seen", "exposures": [],
         }},
         "artifact_root": str(root),
     }
     values.update(overrides)
     metadata = {"protocol_deviation_disclosure": {
         "status": "no_deviations_declared", "deviations": [],
+    }, "result_exposure_disclosure": {
+        "status": "no_relevant_output_seen", "exposures": [],
     }}
     metadata.update(values.get("metadata", {}))
     values["metadata"] = metadata

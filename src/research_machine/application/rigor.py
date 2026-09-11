@@ -4,6 +4,7 @@ from collections import Counter
 from datetime import datetime
 
 from research_machine.application.policies import (
+    declares_legacy_pre_registration_result_exposure,
     evidence_summary_overclaim_terms,
     normalize_confidence,
     report_overclaim_terms,
@@ -1435,6 +1436,42 @@ def audit_research_state(
                 entity_type="run",
                 entity_id=run.run_id,
                 remediation="Inspect every departure and its output-bound evidence; do not automatically promote this run to evidence.",
+            )
+        exposure_disclosure = run.metadata.get("result_exposure_disclosure")
+        if (
+            not isinstance(exposure_disclosure, dict)
+            or exposure_disclosure.get("status") == "legacy_not_declared"
+        ):
+            add(
+                "RUN_RESULT_EXPOSURE_UNDECLARED",
+                RigorSeverity.WARNING,
+                "Run predates or omits the typed result-exposure disclosure; absence does not establish that relevant output was unseen before registration.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation="For future runs, declare result_exposure_disclosure and preserve exact exposure references; do not rewrite this historical run.",
+            )
+        elif exposure_disclosure.get("status") in {
+            "favorable_output_seen", "full_output_seen", "unknown",
+        }:
+            add(
+                "RUN_RESULT_PREEXPOSED_OR_UNKNOWN",
+                RigorSeverity.WARNING,
+                "Run declares favorable, full, or unknown pre-registration result exposure and cannot be automatically evidence-eligible.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation="Treat the run as exposed development and use only a future independent or prospectively protected lineage for stronger evidence.",
+            )
+        if (
+            run.scientific_evidence_eligible
+            and declares_legacy_pre_registration_result_exposure(run.metadata)
+        ):
+            add(
+                "RUN_ELIGIBILITY_CONFLICTS_WITH_DECLARED_PREEXPOSURE",
+                RigorSeverity.WARNING,
+                "Legacy structured run metadata says favorable development or prototype output was seen before registration while the stored automatic eligibility bit is true; effective evidence eligibility is quarantined.",
+                entity_type="run",
+                entity_id=run.run_id,
+                remediation="Do not admit this immutable run as scientific evidence; use the typed result-exposure disclosure in a future run lineage.",
             )
         protocol = protocol_by_id.get(run.protocol_id)
         for gate in run.quality_gates:

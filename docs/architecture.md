@@ -123,6 +123,15 @@ computational protocols instead require reproducible environments. All kinds
 share hash commitments, expected outputs, success/failure conditions, controls,
 and safety constraints.
 
+Prospective result protection is a separate run-intake concern. The normalized
+typed result-exposure disclosure is included in the complete run commitment and
+participates in both preflight and evidence eligibility. Favorable, full,
+unknown, or omitted disclosure keeps the run auditable but blocks current
+evidence admission. Historical runs are never rewritten: exact legacy
+favorable-output boolean fields are recognized only to quarantine an otherwise
+true stored eligibility bit, while narrative prose has no policy authority.
+This is a custody boundary, not proof of blinding or code honesty.
+
 The application records runs and never executes arbitrary protocol content.
 Research Machine does ship bounded, declared analysis methods through a validated
 add-on registry. Other executors may be local processes, workflow systems, proof

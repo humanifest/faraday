@@ -34,6 +34,7 @@ from research_machine.collaboration.redaction import (
 )
 from research_machine.application.artifact_integrity import verify_run_artifacts
 from research_machine.application.policies import (
+    declares_legacy_pre_registration_result_exposure,
     is_canonical_sha256,
     normalize_confidence,
     normalize_text,
@@ -68,6 +69,7 @@ from research_machine.application.policies import (
     validate_named_component_gate_metadata,
     validate_selection_weights,
     validate_validation_tag_context,
+    typed_result_exposure_allows_evidence,
 )
 from research_machine.application.cross_lane_lesson_integrity import (
     cross_lane_lesson_payload_sha256,
@@ -235,6 +237,90 @@ def _validate_protocol_deviation_disclosure(value: Any) -> dict[str, Any]:
         "interpretation_boundary": (
             "A no-deviation declaration is an unauthenticated execution assertion, not proof of adherence. "
             "Any declared departure requires separate scientific review and cannot automatically support evidence."
+        ),
+    }
+
+
+def _validate_result_exposure_disclosure(value: Any) -> dict[str, Any]:
+    """Normalize the declared pre-registration exposure to candidate output.
+
+    The declaration is custody metadata, not proof of blinding.  Silence is
+    retained for historical readability but cannot grant automatic evidence
+    eligibility to a newly recorded run.
+    """
+    if value is None:
+        return {
+            "status": "legacy_not_declared",
+            "exposures": [],
+            "automatic_evidence_eligible": False,
+        }
+    if not isinstance(value, dict) or set(value) != {"status", "exposures"}:
+        raise ValidationError(
+            "result_exposure_disclosure requires exactly status and exposures"
+        )
+    status = value["status"]
+    allowed_statuses = {
+        "no_relevant_output_seen",
+        "favorable_output_seen",
+        "full_output_seen",
+        "unknown",
+    }
+    if status not in allowed_statuses:
+        raise ValidationError("result exposure disclosure status is invalid")
+    exposures = value["exposures"]
+    if not isinstance(exposures, list):
+        raise ValidationError("result exposure disclosure exposures must be an array")
+    required = {
+        "exposure_id",
+        "artifact_locator",
+        "artifact_sha256",
+        "seen_at",
+        "description",
+    }
+    seen_ids: set[str] = set()
+    normalized: list[dict[str, str]] = []
+    for item in exposures:
+        if not isinstance(item, dict) or set(item) != required:
+            raise ValidationError(
+                "each result exposure must contain the exact documented fields"
+            )
+        exposure_id = require_canonical_text(item["exposure_id"], "exposure_id")
+        if exposure_id in seen_ids:
+            raise ValidationError(f"duplicate result exposure_id: {exposure_id}")
+        seen_ids.add(exposure_id)
+        seen_at = require_canonical_text(
+            item["seen_at"], "result exposure seen_at"
+        )
+        _parse_aware_timestamp(seen_at, "result exposure seen_at")
+        normalized.append({
+            "exposure_id": exposure_id,
+            "artifact_locator": require_canonical_text(
+                item["artifact_locator"], "result exposure artifact_locator"
+            ),
+            "artifact_sha256": require_sha256(
+                item["artifact_sha256"], "result exposure artifact_sha256"
+            ),
+            "seen_at": seen_at,
+            "description": require_canonical_bounded_report_text(
+                item["description"], "result exposure description"
+            ),
+        })
+    if status == "no_relevant_output_seen" and normalized:
+        raise ValidationError(
+            "no_relevant_output_seen result exposure disclosure requires no exposures"
+        )
+    if status in {"favorable_output_seen", "full_output_seen"} and not normalized:
+        raise ValidationError(
+            f"{status} result exposure disclosure requires at least one exposure"
+        )
+    return {
+        "status": status,
+        "exposures": normalized,
+        "automatic_evidence_eligible": status == "no_relevant_output_seen",
+        "interpretation_boundary": (
+            "This is an unauthenticated exposure assertion, not proof of blinding. "
+            "Favorable, full, or unknown pre-registration exposure blocks automatic "
+            "scientific-evidence eligibility while preserving the run."
         ),
     }
 
@@ -4104,6 +4190,20 @@ class ResearchService:
         deviation_disclosure = _validate_protocol_deviation_disclosure(
             command.metadata.get("protocol_deviation_disclosure")
         )
+        result_exposure_disclosure = _validate_result_exposure_disclosure(
+            command.metadata.get("result_exposure_disclosure")
+        )
+        registered_at = _parse_aware_timestamp(
+            protocol.registration_timestamp,
+            "protocol registration_timestamp",
+        )
+        for exposure in result_exposure_disclosure["exposures"]:
+            if _parse_aware_timestamp(
+                exposure["seen_at"], "result exposure seen_at"
+            ) > registered_at:
+                raise ValidationError(
+                    "result exposure seen_at cannot follow protocol registration"
+                )
         for deviation in deviation_disclosure["deviations"]:
             digest = deviation["evidence_sha256"]
             if digest not in output_hashes:
@@ -4258,6 +4358,7 @@ class ResearchService:
                 and not synthetic
                 and not workflow_component
                 and deviation_disclosure["automatic_evidence_eligible"]
+                and result_exposure_disclosure["automatic_evidence_eligible"]
                 and artifact_integrity is not None
                 and artifact_integrity.status == "passed"
                 and sample_size_plan_allows_evidence
@@ -4269,6 +4370,7 @@ class ResearchService:
             metadata={
                 **dict(command.metadata),
                 "protocol_deviation_disclosure": deviation_disclosure,
+                "result_exposure_disclosure": result_exposure_disclosure,
                 "protocol_chronology": protocol_chronology,
                 "sample_size_plan_check": sample_size_plan_check,
                 **(
@@ -4672,7 +4774,11 @@ class ResearchService:
                     "protocol_deviation_disclosure": {
                         "status": "no_deviations_declared",
                         "deviations": [],
-                    }
+                    },
+                    "result_exposure_disclosure": {
+                        "status": "no_relevant_output_seen",
+                        "exposures": [],
+                    },
                 },
             },
             "instructions": [
@@ -4692,6 +4798,7 @@ class ResearchService:
                 "For causal temporal-order gates, cite a temporal_order_assessment record whose timing and specification hashes replay from current bytes; the assessment classifies order without proving causality.",
                 "For canary target assessments, reveal the target only from the frozen assignment artifact and report whether the pattern followed the revealed target, a comparator or decoy, no target, mixed targets, or remained inconclusive; this is not proof of adaptation, mechanism, or intent.",
                 "Explicitly disclose every departure from the frozen protocol. A declared departure remains recordable but blocks automatic scientific-evidence eligibility.",
+                "Explicitly disclose whether relevant candidate output was seen before registration. Favorable, full, unknown, or omitted exposure blocks automatic scientific-evidence eligibility.",
                 "Run `research run preflight --record-file ...` before `research run record`.",
             ],
             "conclusion_ceiling": (
@@ -5135,6 +5242,20 @@ class ResearchService:
             ) != protocol.protocol_hash:
                 raise ValidationError(
                     "evidence admission requires the run's exact frozen protocol commitment"
+                )
+            if (
+                not command.exploratory
+                and not typed_result_exposure_allows_evidence(run.metadata)
+            ):
+                legacy_exposure = (
+                    " Legacy structured metadata explicitly records favorable "
+                    "pre-registration output."
+                    if declares_legacy_pre_registration_result_exposure(run.metadata)
+                    else ""
+                )
+                raise ValidationError(
+                    "confirmatory evidence requires a typed no-relevant-output-seen "
+                    f"result exposure disclosure.{legacy_exposure}"
                 )
             if run.scientific_evidence_eligible:
                 self._validate_run_datasets(

@@ -253,6 +253,15 @@ disclosure structure itself: legacy silence stays ineligible, no-deviation
 assertions retain their interpretation boundary, typed departures remain exact,
 and deviation evidence hashes must cite packaged run outputs.
 
+Run result-exposure delivery: new run intake now normalizes a typed declaration
+of whether relevant candidate output was seen before registration and includes
+it in the run payload commitment. Favorable, full, unknown, or omitted exposure
+blocks automatic evidence eligibility while retaining the run. Confirmatory
+admission and deterministic synthesis require the normalized no-output form.
+Exact historical favorable-development/prototype booleans quarantine a stored
+true eligibility bit without rewriting the immutable record; rigor surfaces the
+conflict. This is custody metadata, not proof of blinding or code honesty.
+
 Run-output and evidence-admission delivery: scientific evidence eligibility now
 also requires a passed verification of every declared output under an explicit
 local artifact root. Runs lacking that verification remain recordable but cannot

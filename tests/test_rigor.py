@@ -126,6 +126,8 @@ def _prepared_run(
             summary=run_summary,
             metadata={"protocol_deviation_disclosure": {
                 "status": "no_deviations_declared", "deviations": [],
+            }, "result_exposure_disclosure": {
+                "status": "no_relevant_output_seen", "exposures": [],
             }},
         )
     )
@@ -2514,9 +2516,11 @@ def test_retrospectively_amended_evidence_cannot_raise_prospective_ceiling(tmp_p
         quality_gates=[QualityGateResult(gate_id="checker", status=QualityGateStatus.PASSED,
                                          summary="Amended checker passed.",
                                          details={"evidence_sha256": amended_sha256})],
-        metadata={"protocol_deviation_disclosure": {
-            "status": "no_deviations_declared", "deviations": [],
-        }},
+            metadata={"protocol_deviation_disclosure": {
+                "status": "no_deviations_declared", "deviations": [],
+            }, "result_exposure_disclosure": {
+                "status": "no_relevant_output_seen", "exposures": [],
+            }},
     ))
     service.record_evidence(_classified_evidence(hypothesis.hypothesis_id, run.run_id))
     audit = service.audit_rigor()
@@ -2575,12 +2579,15 @@ def test_independent_replication_requires_clean_room_attestation(
                     details={"evidence_sha256": incomplete_sha256},
                 )
             ],
-            metadata={
-                "replicates_run_id": original.run_id,
-                "protocol_deviation_disclosure": {
-                    "status": "no_deviations_declared", "deviations": [],
+                metadata={
+                    "replicates_run_id": original.run_id,
+                    "protocol_deviation_disclosure": {
+                        "status": "no_deviations_declared", "deviations": [],
+                    },
+                    "result_exposure_disclosure": {
+                        "status": "no_relevant_output_seen", "exposures": [],
+                    },
                 },
-            },
         )
     )
     with pytest.raises(
@@ -2690,10 +2697,13 @@ def test_independent_replication_requires_clean_room_attestation(
             ],
             metadata={
                 "replicates_run_id": original.run_id,
-                "protocol_deviation_disclosure": {
-                    "status": "no_deviations_declared", "deviations": [],
-                },
-                "replication_independence": {
+                    "protocol_deviation_disclosure": {
+                        "status": "no_deviations_declared", "deviations": [],
+                    },
+                    "result_exposure_disclosure": {
+                        "status": "no_relevant_output_seen", "exposures": [],
+                    },
+                    "replication_independence": {
                     "design": "clean_room",
                     "independence_dimensions": ["executor", "implementation"],
                     "prior_implementation_accessed": False,

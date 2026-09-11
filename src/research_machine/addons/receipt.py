@@ -159,7 +159,7 @@ def execution_run_draft(service: ResearchService, directory: Path, expected_rece
                       analysis_code_hash=receipt["implementation"]["sha256"],
                       dataset_ids=[binding["dataset_id"]], synthetic=check["synthetic"],
                       output_artifacts=[{**receipt["output"], "media_type": "application/json"}],
-                      metadata={"execution_handoff": verified})
+                      metadata={**record["metadata"], "execution_handoff": verified})
     except (KeyError, TypeError, AttributeError) as exc:
         raise ValidationError("execution receipt lacks required handoff fields") from exc
     draft["instructions"].append("Output artifact paths are relative to the execution directory. Receipt timestamps are declarations, not authenticated chronology. Supply observed environment provenance and independently evaluate every scientific gate.")

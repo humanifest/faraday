@@ -2003,6 +2003,10 @@ def test_replication_package_verifies_canary_target_gate_metadata(
         ("unbound_evidence", "must reference a run output artifact"),
         ("blank_location", "evidence_location must not be empty"),
         ("rewritten_boundary", "boundary is invalid"),
+        ("result_exposure_wrong_auto", "eligibility disagrees with status"),
+        ("result_exposure_bad_timestamp", "must include a UTC offset"),
+        ("result_exposure_after_registration", "cannot follow protocol registration"),
+        ("result_exposure_rewritten_boundary", "boundary is invalid"),
     ],
 )
 def test_replication_package_verifies_protocol_deviation_disclosure(
@@ -2086,7 +2090,19 @@ def test_replication_package_verifies_protocol_deviation_disclosure(
             details={"evidence_sha256": output_hash},
         )],
         summary="Synthetic package fixture with a declared deviation.",
-        metadata={"protocol_deviation_disclosure": disclosure},
+        metadata={
+            "protocol_deviation_disclosure": disclosure,
+            "result_exposure_disclosure": {
+                "status": "favorable_output_seen",
+                "exposures": [{
+                    "exposure_id": "development-pass",
+                    "artifact_locator": "development/output.json",
+                    "artifact_sha256": "c" * 64,
+                    "seen_at": "2026-09-02T11:00:00Z",
+                    "description": "A favorable development output was reviewed before registration.",
+                }],
+            },
+        },
     ))
     exported = service.export_replication_package(
         frozen.protocol_id,
@@ -2099,6 +2115,7 @@ def test_replication_package_verifies_protocol_deviation_disclosure(
     runs = json.loads(runs_path.read_text())
     disclosure = runs[0]["metadata"]["protocol_deviation_disclosure"]
     deviation = disclosure["deviations"][0]
+    exposure = runs[0]["metadata"]["result_exposure_disclosure"]
     if mutation == "missing_disclosure":
         del runs[0]["metadata"]["protocol_deviation_disclosure"]
     elif mutation == "missing_field":
@@ -2132,6 +2149,14 @@ def test_replication_package_verifies_protocol_deviation_disclosure(
         deviation["evidence_location"] = ""
     elif mutation == "rewritten_boundary":
         disclosure["interpretation_boundary"] = "No deviations means the run followed the protocol."
+    elif mutation == "result_exposure_wrong_auto":
+        exposure["automatic_evidence_eligible"] = True
+    elif mutation == "result_exposure_bad_timestamp":
+        exposure["exposures"][0]["seen_at"] = "2026-09-02T11:00:00"
+    elif mutation == "result_exposure_after_registration":
+        exposure["exposures"][0]["seen_at"] = "2030-09-02T11:00:00Z"
+    elif mutation == "result_exposure_rewritten_boundary":
+        exposure["interpretation_boundary"] = "The result was protected."
     runs_path.write_text(json.dumps(runs, indent=2, sort_keys=True) + "\n")
     commitment = _refresh_packaged_file(package, "runs.json")
 

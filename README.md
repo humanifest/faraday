@@ -109,7 +109,9 @@ the binding against canonical records. The supplied trusted receipt hash must be
 a canonical lowercase SHA-256 digest without surrounding whitespace. Scientific
 gates remain skipped and the environment hash remains unresolved. Review the
 `record` and use run preflight before recording; output artifact locators are
-relative to the execution directory.
+relative to the execution directory. The generated draft preserves an explicit
+typed result-exposure declaration; reviewers must change it when relevant
+candidate output was already seen.
 Canonical run intake repeats receipt/output-byte verification and the complete
 protocol binding; callers cannot bypass this by constructing
 `metadata.execution_handoff` themselves. This command writes no canonical state
@@ -888,7 +890,12 @@ than silently trimmed, and explanatory departure prose may not use report-
 prohibited overclaiming language such as proof, confirmation, validation, or
 explanation. This keeps departures
 visible in replication handoffs without treating a no-deviation assertion as
-authenticated protocol adherence. If the frozen protocol has a machine-
+authenticated protocol adherence. Package verification also replays the
+retained run result-exposure disclosure. Only the normalized no-relevant-output
+form can support current evidence admission. Favorable, full, unknown, and
+omitted exposure fail closed; exact historical favorable-output booleans
+quarantine an otherwise true stored eligibility bit. See
+[result-exposure disclosure](docs/result-exposure-disclosure.md). If the frozen protocol has a machine-
 recomputed `sample_size_plan`, package verification also replays the retained
 run `sample_size_plan_check` against the protocol and any retained verified
 execution or workflow-adjudication handoff. Required and observed analyzable
@@ -2052,6 +2059,11 @@ gate evidence.
   block their automatic promotion without erasing the run. Deviation disclosure
   text is canonical and bounded for reporting, so the record cannot turn a
   departure into proof, confirmation, validation, or explanation.
+- Require a typed result-exposure disclosure for current automatic evidence
+  eligibility. Preserve exposed runs, but block favorable, full, unknown, or
+  omitted pre-registration exposure from evidence promotion. Exact historical
+  favorable-output boolean flags act only as compatibility quarantine signals;
+  narrative prose is never interpreted as policy.
 - Generate exact frozen quality-gate templates and preflight complete run
   records without consuming a run ID or appending a ledger event.
 - Re-hash returned run artifacts, validate a hash-pinned clean-room attestation
@@ -2435,6 +2447,9 @@ observed result. The preflight uses the same validation and status construction
 as `run record`, predicts whether submission would be completed or invalid, and
 exits nonzero for a would-be invalid record. See
 [docs/run-record-preflight.md](docs/run-record-preflight.md).
+Result-exposure status is normalized before the run seal and included in the
+preflight eligibility forecast. See
+[docs/result-exposure-disclosure.md](docs/result-exposure-disclosure.md).
 
 ## Codex-first workflow
 

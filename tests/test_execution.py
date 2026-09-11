@@ -1,5 +1,6 @@
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -16,10 +17,11 @@ from research_machine.application.commands import (
     RetireHypothesis,
 )
 from research_machine.application.service import ResearchService
+from research_machine.application.run_integrity import run_payload_sha256
 from research_machine.domain.errors import ValidationError
 from research_machine.application.policies import (
     adjudicate_conclusion_contract, validate_equivalence_design_coherence,
-    validate_result_direction,
+    typed_result_exposure_allows_evidence, validate_result_direction,
 )
 from research_machine.addons.execution import (
     validate_measurement_values, validate_registered_confidence_level,
@@ -493,7 +495,11 @@ def run_command(protocol_id: str, status: QualityGateStatus, **overrides) -> Rec
             "protocol_deviation_disclosure": {
                 "status": "no_deviations_declared",
                 "deviations": [],
-            }
+            },
+            "result_exposure_disclosure": {
+                "status": "no_relevant_output_seen",
+                "exposures": [],
+            },
         },
     }
     values.update(overrides)
@@ -1688,11 +1694,211 @@ def test_run_requires_explicit_no_deviation_disclosure_for_evidence(tmp_path: Pa
     assert run.status is RunStatus.COMPLETED
     assert run.scientific_evidence_eligible is False
     assert run.metadata["protocol_deviation_disclosure"]["status"] == "legacy_not_declared"
+    assert run.metadata["result_exposure_disclosure"] == {
+        "status": "legacy_not_declared",
+        "exposures": [],
+        "automatic_evidence_eligible": False,
+    }
     assert any(
         finding.code == "RUN_PROTOCOL_DEVIATIONS_UNDECLARED"
         for finding in service.audit_rigor().findings
     )
     assert "adherence cannot be inferred from silence" in service.build_synthesis()["content"]
+
+
+def _artifact_bound_run_for_exposure(
+    tmp_path: Path,
+    protocol_id: str,
+    exposure_disclosure: dict,
+) -> RecordRun:
+    output = tmp_path / "proof-output.json"
+    output.write_text('{"checker":"passed"}\n', encoding="utf-8")
+    output_sha256 = hashlib.sha256(output.read_bytes()).hexdigest()
+    return run_command(
+        protocol_id,
+        QualityGateStatus.PASSED,
+        artifact_root=str(tmp_path),
+        output_artifacts=[DatasetArtifact(
+            output.name,
+            output_sha256,
+            output.stat().st_size,
+            "application/json",
+        )],
+        quality_gates=[QualityGateResult(
+            "proof-check",
+            QualityGateStatus.PASSED,
+            "Independent proof-checker result.",
+            details={"evidence_sha256": output_sha256},
+        )],
+        metadata={
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared",
+                "deviations": [],
+            },
+            "result_exposure_disclosure": exposure_disclosure,
+        },
+    )
+
+
+def test_typed_no_result_exposure_preserves_automatic_eligibility(tmp_path: Path) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    run = service.record_run(_artifact_bound_run_for_exposure(
+        tmp_path,
+        protocol.protocol_id,
+        {"status": "no_relevant_output_seen", "exposures": []},
+    ))
+
+    assert run.scientific_evidence_eligible is True
+    assert typed_result_exposure_allows_evidence(run.metadata) is True
+    assert not any(
+        finding.code in {
+            "RUN_RESULT_EXPOSURE_UNDECLARED",
+            "RUN_RESULT_PREEXPOSED_OR_UNKNOWN",
+        }
+        for finding in service.audit_rigor().findings
+        if finding.entity_id == run.run_id
+    )
+
+
+def test_typed_favorable_result_exposure_blocks_preflight_and_record(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    exposed = tmp_path / "development-output.json"
+    exposed.write_text('{"checker":"passed"}\n', encoding="utf-8")
+    exposure = {
+        "status": "favorable_output_seen",
+        "exposures": [{
+            "exposure_id": "development-pass",
+            "artifact_locator": exposed.name,
+            "artifact_sha256": hashlib.sha256(exposed.read_bytes()).hexdigest(),
+            "seen_at": "2026-09-02T11:00:00Z",
+            "description": "A favorable development checker output was reviewed before registration.",
+        }],
+    }
+    command = _artifact_bound_run_for_exposure(
+        tmp_path, protocol.protocol_id, exposure
+    )
+
+    preflight = service.preflight_run(command)
+    assert preflight.scientific_evidence_eligible_if_submitted is False
+    run = service.record_run(command)
+    assert run.status is RunStatus.COMPLETED
+    assert run.scientific_evidence_eligible is False
+    assert run.metadata["result_exposure_disclosure"][
+        "automatic_evidence_eligible"
+    ] is False
+    assert any(
+        finding.code == "RUN_RESULT_PREEXPOSED_OR_UNKNOWN"
+        and finding.entity_id == run.run_id
+        for finding in service.audit_rigor().findings
+    )
+    assert "result-exposure-restricted run" in service.build_synthesis()["content"]
+
+
+def test_legacy_b2lc_exposure_flag_quarantines_immutable_eligible_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    current = service.record_run(_artifact_bound_run_for_exposure(
+        tmp_path,
+        protocol.protocol_id,
+        {"status": "no_relevant_output_seen", "exposures": []},
+    ))
+    metadata = dict(current.metadata)
+    metadata.pop("result_exposure_disclosure")
+    metadata.update({
+        "favorable_prototype_output_seen_before_registration": True,
+        "scientific_evidence_eligible": False,
+        "theory_evidence_eligible": False,
+    })
+    legacy = replace(current, metadata=metadata)
+    metadata["run_payload_sha256"] = run_payload_sha256(legacy)
+    legacy = replace(legacy, metadata=metadata)
+    assert legacy.scientific_evidence_eligible is True
+    assert typed_result_exposure_allows_evidence(legacy.metadata) is False
+    monkeypatch.setattr(
+        service.repository,
+        "find_run",
+        lambda inquiry_id, run_id: legacy,
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="Legacy structured metadata explicitly records favorable",
+    ):
+        service.record_evidence(RecordEvidence(
+            hypothesis_id=hypothesis_id,
+            direction=EvidenceDirection.SUPPORTS,
+            summary="The registered checker accepted the bounded proof object.",
+            analysis_id="",
+            run_id=legacy.run_id,
+            uncertainty="Bounded to the registered finite proof system.",
+            scope="The registered finite proof system.",
+            higher_level_conclusions_unsupported=["No empirical conclusion."],
+            validation_tags=[ValidationTag.INTERNAL_CONSISTENCY],
+            exploratory=False,
+        ))
+
+
+@pytest.mark.parametrize(
+    ("disclosure", "message"),
+    [
+        (
+            {"status": "favorable_output_seen", "exposures": []},
+            "requires at least one exposure",
+        ),
+        (
+            {"status": "no_relevant_output_seen", "exposures": [{
+                "exposure_id": "unexpected",
+                "artifact_locator": "output.json",
+                "artifact_sha256": "c" * 64,
+                "seen_at": "2026-09-02T11:00:00Z",
+                "description": "An output was seen.",
+            }]},
+            "requires no exposures",
+        ),
+        ({"status": "unknown-state", "exposures": []}, "status is invalid"),
+        ({"status": "full_output_seen"}, "requires exactly status and exposures"),
+        (
+            {"status": "favorable_output_seen", "exposures": [{
+                "exposure_id": "post-registration",
+                "artifact_locator": "output.json",
+                "artifact_sha256": "c" * 64,
+                "seen_at": "2026-09-02T13:00:00Z",
+                "description": "This timestamp follows canonical registration.",
+            }]},
+            "cannot follow protocol registration",
+        ),
+        (
+            {"status": "favorable_output_seen", "exposures": [{
+                "exposure_id": "overclaim",
+                "artifact_locator": "output.json",
+                "artifact_sha256": "c" * 64,
+                "seen_at": "2026-09-02T11:00:00Z",
+                "description": "This validated the complete theory.",
+            }]},
+            "description uses report-prohibited",
+        ),
+    ],
+)
+def test_result_exposure_disclosure_fails_closed_before_run_write(
+    tmp_path: Path, disclosure: dict, message: str,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    before = service.verify_ledger()
+
+    with pytest.raises(ValidationError, match=message):
+        service.record_run(_artifact_bound_run_for_exposure(
+            tmp_path, protocol.protocol_id, disclosure
+        ))
+
+    assert service.list_runs() == []
+    assert service.verify_ledger() == before
 
 
 def test_declared_protocol_deviation_is_preserved_and_blocks_evidence(tmp_path: Path) -> None:
