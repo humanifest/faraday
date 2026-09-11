@@ -251,7 +251,8 @@ def test_evidence_map_boundary_replays_artifact_envelope(tmp_path, tamper):
     "padded-citation-id", "padded-citation-source", "padded-citation-study",
     "padded-citation-location", "padded-citation-rationale",
     "overclaim-citation-rationale", "padded-bias-study",
-    "padded-bias-domain", "padded-bias-location", "padded-reconciliation-study",
+    "padded-bias-domain", "overclaim-bias-rationale", "overclaim-bias-notes",
+    "padded-bias-location", "padded-reconciliation-study",
     "citation-provenance", "bias-provenance", "claim-digest", "claim-payload",
     "source-anchor-mismatch",
 ])
@@ -460,12 +461,22 @@ def test_broken_or_incomplete_chain_never_publishes(tmp_path, failure):
         verification_sha = write_json(verification, value)
         value = json.loads(bias.read_text()); value["citation_verification_sha256"] = verification_sha; bias_sha = write_json(bias, value)
         value = json.loads(reconciliation.read_text()); value["bias_assessment_sha256"] = bias_sha; digest = write_json(reconciliation, value)
-    elif failure in {"padded-bias-study", "padded-bias-domain", "padded-bias-location"}:
+    elif failure in {
+        "padded-bias-study",
+        "padded-bias-domain",
+        "overclaim-bias-rationale",
+        "overclaim-bias-notes",
+        "padded-bias-location",
+    }:
         value = json.loads(bias.read_text())
         if failure == "padded-bias-study":
             value["assessments"][0]["study_id"] = " study-1 "
         elif failure == "padded-bias-domain":
             value["assessments"][0]["domains"][0]["domain"] = " selection "
+        elif failure == "overclaim-bias-rationale":
+            value["assessments"][0]["domains"][0]["rationale"] = "Validated selection risk"
+        elif failure == "overclaim-bias-notes":
+            value["assessments"][0]["notes"] = "Confirmed low risk"
         elif failure == "padded-bias-location":
             value["assessments"][0]["domains"][0]["evidence_locations"] = [" table 1 "]
         bias_sha = write_json(bias, value)

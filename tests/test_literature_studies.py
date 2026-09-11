@@ -161,10 +161,12 @@ def test_reconciliation_boundary_replays_artifact_envelope(tmp_path):
     "bias-domain-duplicate",
     "bias-padded-domain",
     "bias-domain-rationale",
+    "bias-domain-overclaim-rationale",
     "bias-domain-location",
     "bias-overall-drift",
     "bias-padded-design",
     "bias-padded-notes",
+    "bias-overclaim-notes",
     "padded-bias-study",
     "padded-bias-source",
     "missing-study",
@@ -209,10 +211,12 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
         "bias-domain-duplicate",
         "bias-padded-domain",
         "bias-domain-rationale",
+        "bias-domain-overclaim-rationale",
         "bias-domain-location",
         "bias-overall-drift",
         "bias-padded-design",
         "bias-padded-notes",
+        "bias-overclaim-notes",
         "padded-bias-study",
         "padded-bias-source",
     }:
@@ -246,6 +250,8 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
             value["assessments"][0]["domains"][0]["domain"] = " selection "
         elif failure == "bias-domain-rationale":
             value["assessments"][0]["domains"][0]["rationale"] = " Fixture bias rationale "
+        elif failure == "bias-domain-overclaim-rationale":
+            value["assessments"][0]["domains"][0]["rationale"] = "Validated selection risk"
         elif failure == "bias-domain-location":
             value["assessments"][0]["domains"][0]["evidence_locations"] = [" methods "]
         elif failure == "bias-overall-drift":
@@ -254,6 +260,8 @@ def test_invalid_reconciliation_never_publishes(tmp_path, failure):
             value["assessments"][0]["study_design"] = " synthetic fixture "
         elif failure == "bias-padded-notes":
             value["assessments"][0]["notes"] = " Generic fixture assessment "
+        elif failure == "bias-overclaim-notes":
+            value["assessments"][0]["notes"] = "Confirmed low risk"
         elif failure == "padded-bias-study":
             value["assessments"][0]["study_id"] = " study-1 "
         elif failure == "padded-bias-source":

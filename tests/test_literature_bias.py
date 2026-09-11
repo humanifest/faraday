@@ -135,6 +135,19 @@ def test_bias_assessment_boundary_replays_artifact_envelope(tmp_path):
             validate_bias_assessment_boundary(candidate, candidate["assessments"])
 
 
+def test_bias_assessment_boundary_rejects_retained_overclaiming_prose(tmp_path):
+    verification, digest = verification_file(tmp_path)
+    result = create_bias_assessment(verification, digest, review(), tmp_path / "bias")
+    result["assessments"][0]["domains"][0]["rationale"] = "Validated selection risk"
+
+    with pytest.raises(ValidationError, match="prohibited overclaiming language"):
+        validate_bias_assessment_boundary(
+            result,
+            result["assessments"],
+            require_assessment_contract=True,
+        )
+
+
 @pytest.mark.parametrize("failure", [
     "hash",
     "unclean",
@@ -171,8 +184,10 @@ def test_bias_assessment_boundary_replays_artifact_envelope(tmp_path):
     "location",
     "padded-location",
     "padded-rationale",
+    "overclaim-rationale",
     "padded-design",
     "padded-notes",
+    "overclaim-notes",
     "judgment",
 ])
 def test_invalid_bias_assessment_never_publishes(tmp_path, failure):
@@ -267,8 +282,10 @@ def test_invalid_bias_assessment_never_publishes(tmp_path, failure):
     elif failure == "location": candidate["assessments"][0]["domains"][0]["evidence_locations"] = []
     elif failure == "padded-location": candidate["assessments"][0]["domains"][0]["evidence_locations"] = [" methods "]
     elif failure == "padded-rationale": candidate["assessments"][0]["domains"][0]["rationale"] = " Fixture rationale "
+    elif failure == "overclaim-rationale": candidate["assessments"][0]["domains"][0]["rationale"] = "Validated selection risk"
     elif failure == "padded-design": candidate["assessments"][0]["study_design"] = " synthetic fixture "
     elif failure == "padded-notes": candidate["assessments"][0]["notes"] = " Generic fixture assessment "
+    elif failure == "overclaim-notes": candidate["assessments"][0]["notes"] = "Confirmed the study is low risk"
     elif failure == "judgment": candidate["assessments"][0]["domains"][0]["judgment"] = "safe"
     output = tmp_path / "bias"
     with pytest.raises(ValidationError):

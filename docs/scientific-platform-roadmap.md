@@ -1614,7 +1614,10 @@ laundered into the terminal review chain. It also replays each bias assessment's
 documented contract fields before study identity review or evidence-map
 construction can proceed: study design, source IDs, all seven bias domains,
 rationales, evidence locations, notes, and the overall judgment recomputed from
-the domains must remain internally consistent.
+the domains must remain internally consistent. Bias-domain rationales and
+study-level notes also reject report-prohibited overclaiming language, so a
+risk-of-bias review cannot claim proof, confirmation, validation, or
+explanation beyond the retained judgment.
 Independent, overlapping-cohort, duplicate-report, and unclear relationships are
 all preserved. Any non-independent or unclear pair forces `review_required`,
 preventing silent double counting. Registration IDs, populations, settings,

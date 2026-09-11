@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -24,12 +25,27 @@ _DOMAINS = (
     "selective_reporting",
 )
 _JUDGMENTS = {"low", "some_concerns", "high", "unclear", "not_applicable"}
+_BIAS_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 
 
 def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_bias_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _BIAS_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses bias-assessment prohibited overclaiming language; "
+            "describe the risk-of-bias judgment without claiming proof, "
+            "confirmation, validation, or explanation"
+        )
     return text
 
 
@@ -172,7 +188,7 @@ def validate_bias_assessment_boundary(
                 by_domain[name] = {
                     "domain": name,
                     "judgment": judgment,
-                    "rationale": _canonical_text(
+                    "rationale": _bounded_bias_text(
                         domain.get("rationale"), "bias rationale"
                     ),
                     "evidence_locations": locations,
@@ -184,7 +200,7 @@ def validate_bias_assessment_boundary(
                 raise ValidationError(
                     "bias assessment overall_judgment does not replay from domains"
                 )
-            _canonical_text(item.get("notes"), "bias notes")
+            _bounded_bias_text(item.get("notes"), "bias notes")
 
 
 def create_bias_assessment(
@@ -278,7 +294,7 @@ def create_bias_assessment(
                 raise ValidationError("applicable bias domains require non-empty evidence_locations")
             by_domain[name] = {
                 "domain": name, "judgment": judgment,
-                "rationale": _canonical_text(domain["rationale"], "bias rationale"),
+                "rationale": _bounded_bias_text(domain["rationale"], "bias rationale"),
                 "evidence_locations": locations,
             }
         if set(by_domain) != set(_DOMAINS):
@@ -290,7 +306,7 @@ def create_bias_assessment(
             "source_ids": sorted(source_ids),
             "domains": normalized_domains,
             "overall_judgment": _overall(normalized_domains),
-            "notes": _canonical_text(assessment["notes"], "bias notes"),
+            "notes": _bounded_bias_text(assessment["notes"], "bias notes"),
         }
     if set(by_study) != set(studies):
         raise ValidationError("bias assessments must cover exactly all citation-reviewed studies")
