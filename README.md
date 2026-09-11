@@ -2236,6 +2236,10 @@ typed `information_targets` instead of pretending to distinguish a scientific
 hypothesis. Action IDs, lane IDs, hypothesis distinctions, information targets,
 dependency handles, completed-action IDs, and blocked-lane reasons must be
 canonical without surrounding whitespace before ranking or lane balancing.
+Every retained candidate must either distinguish at least one hypothesis or
+name at least one information target, even if it is later ineligible, blocked by
+dependencies, or unselected; stale portfolio records cannot keep an aimless
+candidate as hidden context.
 Each candidate must also retain at least one canonical
 `prerequisite_evidence_refs` handle and one canonical `safety_review_refs`
 handle for its declared prerequisite and safety status. These references make
@@ -2291,8 +2295,9 @@ Selection weights must be finite, non-negative, and include at least one
 positive utility term; Faraday rejects non-finite or all-zero weights so action
 identifiers cannot silently decide a supposedly information-driven
 recommendation. Candidate score inputs must remain finite numbers from zero to
-one, candidate action IDs must remain unique, and every candidate must still
-distinguish at least one hypothesis or name at least one information target.
+one, candidate action IDs must remain unique, and every retained candidate must
+still distinguish at least one hypothesis or name at least one information
+target.
 Each ranked score preserves the signed weighted contribution of expected
 discrimination, uncertainty reduction, cost, burden, safety risk, and ambiguity
 risk, and deterministic synthesis reports the selected actions' components so

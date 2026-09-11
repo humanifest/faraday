@@ -470,6 +470,14 @@ def _validate_portfolio_replay_inputs(
             ),
         )
         _validate_discrimination_target_replay(candidate)
+        if (
+            not candidate.distinguishes_hypotheses
+            and not candidate.information_targets
+        ):
+            raise ValidationError(
+                f"action {candidate.action_id} must distinguish at least one "
+                "hypothesis or name at least one information target"
+            )
         if candidate.action_id in action_ids:
             raise ValidationError(f"duplicate action_id: {candidate.action_id}")
         action_ids.add(candidate.action_id)

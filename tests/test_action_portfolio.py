@@ -646,6 +646,44 @@ def test_recommendation_replay_rejects_legacy_invalid_candidate_score(
         service.list_recommendations()
 
 
+def test_portfolio_replay_rejects_aimless_retained_candidate(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate("machine-high", "machine", 1.0),
+                replace(
+                    candidate("machine-ineligible", "machine", 0.2),
+                    prerequisites_met=False,
+                ),
+                candidate("theory-best", "theory", 0.6),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][1]["information_targets"] = []
+    payload["candidates"][1]["distinguishes_hypotheses"] = []
+    payload["candidates"][1]["hypothesis_discrimination_targets"] = []
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match=(
+            "action machine-ineligible must distinguish at least one "
+            "hypothesis or name at least one information target"
+        ),
+    ):
+        service.list_recommendations()
+
+
 def test_recommendation_replay_rejects_legacy_self_confirming_discriminator(
     tmp_path: Path,
 ) -> None:

@@ -70,12 +70,14 @@ methods without changing its epistemic rules or canonical state.
   utilities, and signed components from the stored candidates, lanes,
   dependencies, completed actions, weights, and hypothesis-discrimination
   targets before list, inquiry display, or synthesis can trust them. Replay now
-  revalidates unique candidate identities, target declarations, discriminator
-  contrast, lane status, blocking reasons, candidate lane membership,
-  completed-action IDs, dependency acyclicity, eligibility references, weight
-  vector, and candidate score inputs before recomputing those choices, so a
-  legacy record cannot remain trusted merely because invalid work-plan
-  structure, weights, and scores were rewritten consistently. Single-mode
+  revalidates every retained candidate's uncertainty target or hypothesis
+  discriminator, even for ineligible or unselected actions, plus unique
+  candidate identities, target declarations, discriminator contrast, lane
+  status, blocking reasons, candidate lane membership, completed-action IDs,
+  dependency acyclicity, eligibility references, weight vector, and candidate
+  score inputs before recomputing those choices, so a legacy record cannot
+  remain trusted merely because invalid work-plan structure, weights, and scores
+  were rewritten consistently. Single-mode
   replay also rejects portfolio-only
   lane selection fields and dependent candidates, preventing a stored
   single-action recommendation from smuggling in unreplayed work-plan state.
