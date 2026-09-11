@@ -6,6 +6,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -17,6 +18,10 @@ from research_machine.literature.snapshot import _text
 from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
+_EFFECT_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 _EXTRACTION_RECORD_FIELDS = {
     "extraction_id",
     "study_id",
@@ -44,6 +49,17 @@ def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_effect_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _EFFECT_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses effect-record prohibited overclaiming language; "
+            "describe provenance, availability, or arithmetic without claiming "
+            "proof, confirmation, validation, or explanation"
+        )
     return text
 
 
@@ -202,7 +218,7 @@ def validate_retained_source_summaries(
             raise ValidationError("retained source summary status disagrees with effect record")
         if status not in {"available", "unavailable"}:
             raise ValidationError("retained source summary status is invalid")
-        reason = _canonical_text(item["reason"], "retained source summary reason")
+        reason = _bounded_effect_text(item["reason"], "retained source summary reason")
         location = _canonical_text(
             item["evidence_location"], "retained source summary evidence_location"
         )
@@ -322,9 +338,9 @@ def validate_effect_records_boundary(effects: dict[str, Any]) -> None:
         seen.add(study_id)
         if item.get("effect_measure") != effect_measure:
             raise ValidationError("effect record measure does not match artifact measure")
-        _canonical_text(item.get("reason"), "effect record reason")
+        _bounded_effect_text(item.get("reason"), "effect record reason")
         _canonical_text(item.get("evidence_location"), "effect record evidence_location")
-        _canonical_text(item.get("derivation"), "effect record derivation")
+        _bounded_effect_text(item.get("derivation"), "effect record derivation")
         if item.get("risk_of_bias") not in {"low", "some_concerns", "high", "unclear"}:
             raise ValidationError("effect record risk_of_bias is invalid")
         mapped_claims = item.get("mapped_claims")
@@ -537,9 +553,9 @@ def create_effect_records(
             raise ValidationError("effect status must be available or unavailable")
         if item["effect_measure"] != expected_measure:
             raise ValidationError("effect measure must exactly match the frozen synthesis plan")
-        reason = _canonical_text(item["reason"], "effect reason")
+        reason = _bounded_effect_text(item["reason"], "effect reason")
         location = _canonical_text(item["evidence_location"], "effect evidence_location")
-        derivation = _canonical_text(item["derivation"], "effect derivation")
+        derivation = _bounded_effect_text(item["derivation"], "effect derivation")
         estimate, standard_error, sample_size = item["estimate"], item["standard_error"], item["sample_size"]
         if status == "available":
             if (isinstance(estimate, bool) or not isinstance(estimate, (int, float))

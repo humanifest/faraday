@@ -177,6 +177,8 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     "status-drift",
     "variance-drift",
     "unavailable-numeric",
+    "overclaim-reason",
+    "overclaim-derivation",
     "mapped-claim-digest",
     "padded-mapped-claim",
     "recomputed-without-summaries",
@@ -227,6 +229,10 @@ def test_effect_records_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["records"][0]["variance"] = 2.0
     elif tamper == "unavailable-numeric":
         candidate["records"][1]["estimate"] = 0.0
+    elif tamper == "overclaim-reason":
+        candidate["records"][0]["reason"] = "Validated source table"
+    elif tamper == "overclaim-derivation":
+        candidate["records"][0]["derivation"] = "Reported estimate confirmed the effect"
     elif tamper == "mapped-claim-digest":
         candidate["records"][0]["mapped_claims"][0]["extraction_claim_sha256"] = "A" * 64
     elif tamper == "padded-mapped-claim":
@@ -256,6 +262,7 @@ def test_effect_records_boundary_replays_output_summaries(tmp_path, tamper):
     "map-boundary-limitations",
     "plan-contrast-missing", "plan-contrast-mismatch", "padded-plan-contrast",
     "padded-reviewer", "padded-reason", "padded-location", "padded-derivation",
+    "overclaim-reason", "overclaim-derivation",
     "padded-derivation-scope",
 ])
 def test_invalid_effect_records_never_publish(tmp_path, failure):
@@ -394,6 +401,8 @@ def test_invalid_effect_records_never_publish(tmp_path, failure):
     elif failure == "padded-reason": candidate["records"][0]["reason"] = " Fixture record "
     elif failure == "padded-location": candidate["records"][0]["evidence_location"] = " table 2 "
     elif failure == "padded-derivation": candidate["records"][0]["derivation"] = " Reported estimate and standard error "
+    elif failure == "overclaim-reason": candidate["records"][0]["reason"] = "Validated source table"
+    elif failure == "overclaim-derivation": candidate["records"][0]["derivation"] = "Reported estimate confirmed the effect"
     output = tmp_path / "effects"
     with pytest.raises(ValidationError):
         if failure == "padded-derivation-scope":

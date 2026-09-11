@@ -58,10 +58,15 @@ def test_log_risk_ratio_is_recomputed_without_continuity_correction(tmp_path):
     assert result["records"][0]["estimate"] == pytest.approx(math.log(2))
 
 
-@pytest.mark.parametrize("failure", ["unsupported", "zero-events", "events-over-n", "negative-sd", "arm-shape", "unavailable-arm"])
+@pytest.mark.parametrize("failure", [
+    "unsupported", "zero-events", "events-over-n", "negative-sd", "arm-shape",
+    "unavailable-arm", "overclaim-summary-reason",
+])
 def test_invalid_or_undeclared_derivation_never_publishes(tmp_path, failure):
     plan, _, extraction, evidence_map, map_sha = artifacts(tmp_path)
-    measure = "mean_difference" if failure in {"negative-sd", "arm-shape", "unavailable-arm"} else "log_risk_ratio"
+    measure = "mean_difference" if failure in {
+        "negative-sd", "arm-shape", "unavailable-arm", "overclaim-summary-reason"
+    } else "log_risk_ratio"
     plan_sha = update_measure(plan, "odds_ratio" if failure == "unsupported" else measure)
     candidate = summaries(measure)
     if failure == "zero-events": candidate["records"][0]["experimental"]["events"] = 0
@@ -69,6 +74,7 @@ def test_invalid_or_undeclared_derivation_never_publishes(tmp_path, failure):
     elif failure == "negative-sd": candidate["records"][0]["experimental"]["standard_deviation"] = -1
     elif failure == "arm-shape": candidate["records"][0]["experimental"]["extra"] = 1
     elif failure == "unavailable-arm": candidate["records"][1]["experimental"] = {}
+    elif failure == "overclaim-summary-reason": candidate["records"][0]["reason"] = "Validated source table"
     output = tmp_path / "effects"
     with pytest.raises(ValidationError):
         derive_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, candidate, output)
