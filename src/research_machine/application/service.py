@@ -41,6 +41,7 @@ from research_machine.application.policies import (
     require_canonical_bounded_report_text,
     require_bounded_evidence_summary,
     require_canonical_text,
+    require_pending_review_rationale,
     require_text,
     require_text_list,
     require_unique_canonical_text_list,
@@ -55,6 +56,7 @@ from research_machine.application.policies import (
     validate_result_direction,
     validate_evidence_target,
     validate_hypothesis_activation,
+    validate_hypothesis_pending_review_boundary,
     validate_hypothesis_staging,
     validate_protocol_freeze,
     validate_portfolio_action_candidates,
@@ -1224,6 +1226,7 @@ class ResearchService:
         )
         for hypothesis in hypotheses:
             validate_hypothesis_scientific_commitment(hypothesis)
+            validate_hypothesis_pending_review_boundary(hypothesis)
         protocols_by_id = {item.protocol_id: item for item in protocols}
         datasets_by_id = {item.dataset_id: item for item in datasets}
         hypotheses_by_id = {item.hypothesis_id: item for item in hypotheses}
@@ -1885,9 +1888,7 @@ class ResearchService:
             pending_review_at=self.clock(),
             pending_review_by=self.actor,
             pending_review_confidence=normalized_confidence,
-            pending_review_rationale=require_text(
-                rationale, "pending-review rationale"
-            ),
+            pending_review_rationale=require_pending_review_rationale(rationale),
             activated_at=None,
             retirement=None,
         )
@@ -1957,6 +1958,7 @@ class ResearchService:
         )
         for hypothesis in hypotheses:
             validate_hypothesis_scientific_commitment(hypothesis)
+            validate_hypothesis_pending_review_boundary(hypothesis)
         return hypotheses
 
     def get_hypothesis(
@@ -1968,6 +1970,7 @@ class ResearchService:
             validate_hypothesis_scientific_commitment,
         )
         validate_hypothesis_scientific_commitment(hypothesis)
+        validate_hypothesis_pending_review_boundary(hypothesis)
         return hypothesis
 
     def register_dataset(

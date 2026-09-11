@@ -2168,7 +2168,13 @@ may be staged without activation:
 
 `pending_review` hypotheses may anchor frozen **exploratory** protocols and
 receive exploratory evidence. Confirmatory or replication protocol freezes and
-confirmatory evidence still require activation after human review.
+confirmatory evidence still require activation after human review. The staging
+rationale is canonical bounded text: it may explain why exploratory review is
+worth continuing, but it cannot describe provisional staging as approval,
+validation, confirmation, human-reviewed acceptance, evidence creation,
+canonical action, or authorization. Authoritative hypothesis reads replay that
+boundary so a later edit to the mutable rationale cannot make a pending proposal
+look accepted.
 
 The general execution loop uses JSON contracts:
 

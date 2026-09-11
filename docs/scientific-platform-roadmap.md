@@ -1110,6 +1110,10 @@ an `unreviewed` hypothesis only. It does not activate the hypothesis, freeze a
 protocol, register data, invoke an LLM, or publish anything.
 Machine-generated `[REVIEW REQUIRED]` placeholders now block hypothesis
 activation, pending-review staging, and protocol freeze, including nested fields.
+Pending-review staging rationales are now canonical bounded text and are replayed
+on authoritative hypothesis reads, so a provisional lane cannot later claim
+approval, validation, confirmation, human-reviewed acceptance, evidence creation,
+canonical action, or authorization through mutable workflow prose.
 The scaffold also requires an explicit human-participant/data assessment: omission
 blocks the draft and remains `null`, not `false`, in its human-subject field.
 Replacing the marker is necessary but not sufficient scientific review: these

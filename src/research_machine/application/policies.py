@@ -46,6 +46,15 @@ _REPORT_OVERCLAIM = re.compile(
     r"\b(?:proved|confirmed|explained|validates?|validated)\b",
     re.IGNORECASE,
 )
+_PENDING_REVIEW_AUTHORITY_CLAIM = re.compile(
+    r"\b(?:accepts?|accepted|approves?|approved|approval|authorizes?|"
+    r"authorized|authorization|confirms?|confirmed|confirmation|proves?|"
+    r"proved|proof|validates?|validated|validation)\b|"
+    r"human[- ]reviewed|reviewed by human|human review complete|"
+    r"canonical write|canonical action|evidence creation|creates evidence|"
+    r"created evidence",
+    re.IGNORECASE,
+)
 _INDEPENDENT_REVIEW_DECISIONS = {"approved", "approved_with_conditions"}
 _METHOD_INFERENCE_CLAIM_CEILINGS: dict[str, ClaimLevel | None] = {
     "computation_only": None,
@@ -106,6 +115,23 @@ def require_canonical_bounded_report_text(value: str, field_name: str) -> str:
             "state bounded support, weakening, refutation, or inconclusiveness instead"
         )
     return summary
+
+
+def require_pending_review_rationale(value: str) -> str:
+    rationale = require_canonical_text(value, "pending-review rationale")
+    if _PENDING_REVIEW_AUTHORITY_CLAIM.search(rationale):
+        raise ValidationError(
+            "pending-review rationale must not describe provisional staging as "
+            "approval, validation, confirmation, human-reviewed acceptance, "
+            "evidence creation, canonical action, or authorization"
+        )
+    return rationale
+
+
+def validate_hypothesis_pending_review_boundary(hypothesis: Hypothesis) -> None:
+    if hypothesis.workflow_state is not HypothesisWorkflowState.PENDING_REVIEW:
+        return
+    require_pending_review_rationale(hypothesis.pending_review_rationale)
 
 
 def require_bounded_evidence_summary(value: str) -> str:

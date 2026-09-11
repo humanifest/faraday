@@ -563,3 +563,31 @@ def test_pending_review_requires_complete_high_confidence_proposal(
             rationale="The structure is complete but confidence is not high.",
             confidence="medium",
         )
+    with pytest.raises(ValidationError, match="provisional staging"):
+        service.stage_hypothesis(
+            complete.hypothesis_id,
+            rationale="Codex approved and validated this proposal for human review.",
+            confidence="high",
+        )
+    staged = service.stage_hypothesis(
+        complete.hypothesis_id,
+        rationale="The structure is complete and exploratory work is reversible.",
+        confidence="high",
+    )
+    assert staged.workflow_state.value == "pending_review"
+
+    hypothesis_path = (
+        tmp_path
+        / "inquiries"
+        / "gate"
+        / "hypotheses"
+        / "pending_review"
+        / f"{complete.hypothesis_id}.json"
+    )
+    stored = json.loads(hypothesis_path.read_text(encoding="utf-8"))
+    stored["pending_review_rationale"] = (
+        "Codex approved and validated this proposal after human review."
+    )
+    hypothesis_path.write_text(json.dumps(stored), encoding="utf-8")
+    with pytest.raises(ValidationError, match="provisional staging"):
+        service.list_hypotheses(state="pending_review")
