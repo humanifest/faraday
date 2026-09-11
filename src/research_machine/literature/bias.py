@@ -67,6 +67,10 @@ def validate_bias_assessment_boundary(
         raise ValidationError("bias assessment must not authorize conclusions")
     if bias.get("publication_authorized") is not False:
         raise ValidationError("bias assessment must not authorize publication claims")
+    if bias.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError(
+            "bias assessment must not authenticate reviewer identity"
+        )
     limitations = bias.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("bias assessment requires retained boundary limitations")
@@ -306,6 +310,7 @@ def create_bias_assessment(
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "Overall judgments are conservative deterministic summaries of reviewer-entered domain judgments, not automated validity findings.",
             "The generic domains do not replace design-specific validated instruments or authenticate reviewer expertise or independence.",

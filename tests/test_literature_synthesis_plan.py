@@ -6,7 +6,10 @@ import pytest
 
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
-from research_machine.literature.synthesis_plan import create_synthesis_plan
+from research_machine.literature.synthesis_plan import (
+    create_synthesis_plan,
+    validate_synthesis_plan_boundary,
+)
 
 
 def screening_file(tmp_path, status="screening_recorded"):
@@ -82,8 +85,18 @@ def test_synthesis_plan_cli_freezes_complete_commitments_and_is_write_once(tmp_p
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_synthesis_plan(screening, digest, spec(), output)
+
+
+def test_synthesis_plan_boundary_rejects_reviewer_authentication(tmp_path):
+    screening, digest = screening_file(tmp_path)
+    result = create_synthesis_plan(screening, digest, spec(), tmp_path / "plan")
+    candidate = dict(result)
+    candidate["reviewer_identity_authenticated"] = True
+    with pytest.raises(ValidationError, match="authenticate reviewer identity"):
+        validate_synthesis_plan_boundary(candidate)
 
 
 def test_qualitative_plan_rejects_quantitative_choices(tmp_path):

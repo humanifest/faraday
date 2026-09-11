@@ -100,6 +100,7 @@ def test_bias_cli_computes_conservative_overall_and_is_write_once(tmp_path, caps
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_bias_assessment(verification, digest, review("high"), output)
 
@@ -123,6 +124,7 @@ def test_bias_assessment_boundary_replays_artifact_envelope(tmp_path):
         (lambda candidate: candidate.update({"snapshot_id": " snap "}), "canonical"),
         (lambda candidate: candidate.update({"reviewer": " Bias reviewer "}), "canonical"),
         (lambda candidate: candidate.update({"independent_review": False}), "independent-review"),
+        (lambda candidate: candidate.update({"reviewer_identity_authenticated": True}), "authenticate reviewer identity"),
         (lambda candidate: candidate.__setitem__("domain_order", list(reversed(candidate["domain_order"]))), "domain_order"),
         (lambda candidate: candidate.__setitem__("assessments", []), "assessments must be retained"),
         (lambda candidate: candidate.update({"status": "review_required"}), "status is invalid"),

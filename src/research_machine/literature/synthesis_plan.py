@@ -49,6 +49,10 @@ def validate_synthesis_plan_boundary(plan: dict[str, Any]) -> None:
         raise ValidationError("synthesis plan must not authorize conclusions")
     if plan.get("publication_authorized") is not False:
         raise ValidationError("synthesis plan must not authorize publication claims")
+    if plan.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError(
+            "synthesis plan must not authenticate reviewer identity"
+        )
     limitations = plan.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("synthesis plan requires retained boundary limitations")
@@ -144,12 +148,14 @@ def create_synthesis_plan(
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "The plan is hash-bound to screening but the machine does not authenticate the reviewer or prove that freezing preceded extraction outside this workflow.",
             "A frozen plan does not establish that its effect measure, statistical model, thresholds, or decision rules are scientifically appropriate.",
             "Departures require a separate declared deviation; this artifact never authorizes selective omission of null, adverse, or high-bias studies.",
         ],
     }
+    validate_synthesis_plan_boundary(plan)
     root = output.expanduser().resolve()
     if root.exists():
         raise ValidationError("synthesis plan output already exists")

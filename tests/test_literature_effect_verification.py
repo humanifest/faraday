@@ -102,6 +102,7 @@ def test_effect_verification_cli_records_clean_independent_review(tmp_path, caps
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     assert result["assessments"][0]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s1"))
     assert result["assessments"][1]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s2", "unavailable"))
     assert result["contrast_definition"] == "experimental versus comparator"
@@ -131,6 +132,7 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     "snapshot-id",
     "contrast-definition",
     "independent-review",
+    "reviewer-authenticated",
     "same-reviewer",
     "assessment-extra",
     "summary-digest",
@@ -158,6 +160,8 @@ def test_effect_verification_boundary_replays_retained_assessments(tmp_path, tam
         candidate["contrast_definition"] = " not_applicable "
     elif tamper == "independent-review":
         candidate["independent_review"] = False
+    elif tamper == "reviewer-authenticated":
+        candidate["reviewer_identity_authenticated"] = True
     elif tamper == "same-reviewer":
         candidate["verification_reviewer"] = candidate["effect_reviewer"].upper()
     elif tamper == "assessment-extra":

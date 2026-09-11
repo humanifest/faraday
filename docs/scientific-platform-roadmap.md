@@ -1553,7 +1553,8 @@ never silently dropped. This records independent human citation checking but
 does not make a claim true, authenticate reviewer identities, assess study bias,
 or create scientific evidence. Citation-verification artifacts carry explicit
 false scientific-evidence, conclusion-authorization, and
-publication-authorization boundaries with retained limitations.
+publication-authorization boundaries with retained limitations plus an explicit
+false reviewer-identity-authentication boundary.
 Citation verification requires canonical extraction reviewer, source, study,
 claim, evidence-location, citation-reviewer, checked-location, and rationale
 text before coverage and duplicate checks, so a second review cannot trim a
@@ -1596,7 +1597,7 @@ generic audit scaffold, not a substitute for a design-specific validated bias
 instrument, proof of reviewer expertise, or permission to synthesize effects.
 Bias-assessment artifacts carry explicit false scientific-evidence,
 conclusion-authorization, and publication-authorization boundaries with retained
-limitations.
+limitations plus an explicit false reviewer-identity-authentication boundary.
 `research literature reconcile-studies` then requires identity metadata for every
 bias-assessed study and an explicit judgment for every unordered pair of studies.
 The expected bias-assessment hash must be canonical lowercase SHA-256 before it
@@ -1616,8 +1617,8 @@ preventing silent double counting. Registration IDs, populations, settings,
 recruitment periods, sample sizes, and cited locations support review but do not
 prove cohort independence or authorize synthesis.
 Study-reconciliation artifacts carry explicit false scientific-evidence,
-conclusion-authorization, and publication-authorization boundaries with retained
-limitations, plus an explicit false reviewer-identity-authentication boundary;
+conclusion-authorization, publication-authorization, and
+reviewer-identity-authentication boundaries with retained limitations;
 evidence-map construction replays those boundaries before joining claims.
 Bias assessment and study reconciliation require canonical prior reviewer,
 study/source, reviewer, registration, metadata, relationship-pair, rationale,
@@ -1666,10 +1667,10 @@ the completed screening hash. It also requires a canonical lowercase SHA-256
 screening hash before binding the plan to those bytes. It belongs before extraction. The artifact records
 commitments but cannot prove external chronology or that the chosen methods are
 appropriate; later synthesis must verify this plan and declare every departure.
-The plan now carries explicit scientific-evidence, conclusion, and publication
-non-authority flags plus retained limitations, and deviation recording,
-qualitative synthesis, effect preparation, and pooling replay that boundary
-before relying on the frozen plan.
+The plan now carries explicit scientific-evidence, conclusion, publication, and
+reviewer-identity-authentication non-authority flags plus retained limitations,
+and deviation recording, qualitative synthesis, effect preparation, and pooling
+replay that boundary before relying on the frozen plan.
 `research literature synthesize` now executes the frozen qualitative branch. It
 verifies canonical lowercase trusted hashes for the plan, evidence map, and
 deviation declaration before checking extraction and full evidence-map lineage;
@@ -1772,9 +1773,9 @@ before accepting a reproducible effect artifact: scientific-evidence,
 conclusion, and publication authorization must all remain false; limitations must
 remain retained and canonical; and study, available-effect, unavailable-effect,
 and readiness-status counts must replay from the retained records. The
-verification artifact carries the same explicit false authority flags and
-retained limitations, plus service-derived independent-review and mismatch
-summaries.
+verification artifact carries the same explicit false authority flags, an
+explicit false reviewer-identity-authentication boundary, and retained
+limitations, plus service-derived independent-review and mismatch summaries.
 The verification artifact now also replays its own retained boundary before it
 is written: version and trusted effect-record hash, plan and snapshot handles,
 independent reviewer separation, exact assessment shape, retained source-summary

@@ -55,6 +55,10 @@ def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -
         raise ValidationError("effect verification must not authorize conclusions")
     if effect_verification.get("publication_authorized") is not False:
         raise ValidationError("effect verification must not authorize publication claims")
+    if effect_verification.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError(
+            "effect verification must not authenticate reviewer identity"
+        )
     limitations = effect_verification.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("effect verification requires retained boundary limitations")
@@ -274,6 +278,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "The machine records an independent check but does not read the cited source or authenticate reviewers.",
             "A matching calculation verifies arithmetic from retained summaries, not source truth, outcome compatibility, or participant-level analysis.",

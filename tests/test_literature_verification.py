@@ -82,6 +82,7 @@ def test_citation_verification_cli_is_exhaustive_independent_and_write_once(tmp_
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_citation_verification(extraction, digest, review(), output)
 
@@ -140,6 +141,7 @@ def test_citation_verification_boundary_replays_artifact_envelope(tmp_path):
         (lambda candidate: candidate.update({"extraction_reviewer": " Extractor One "}), "canonical"),
         (lambda candidate: candidate.update({"citation_reviewer": "Extractor One"}), "reviewers must be independent"),
         (lambda candidate: candidate.update({"independent_review": False}), "independent-review"),
+        (lambda candidate: candidate.update({"reviewer_identity_authenticated": True}), "authenticate reviewer identity"),
         (lambda candidate: candidate.update({"status": "review_required"}), "status does not replay"),
         (lambda candidate: candidate.__setitem__("assessments", []), "assessments must be retained"),
     ]:

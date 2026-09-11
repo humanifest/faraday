@@ -101,6 +101,10 @@ def validate_citation_verification_boundary(
         raise ValidationError("citation verification must not authorize conclusions")
     if verification.get("publication_authorized") is not False:
         raise ValidationError("citation verification must not authorize publication claims")
+    if verification.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError(
+            "citation verification must not authenticate reviewer identity"
+        )
     limitations = verification.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("citation verification requires retained boundary limitations")
@@ -297,6 +301,7 @@ def create_citation_verification(
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "The machine binds an independent review to extraction bytes but does not interpret source text or authenticate either reviewer.",
             "A supported verdict is a reviewer judgment, not proof that a claim is true, unbiased, reproducible, or applicable.",
