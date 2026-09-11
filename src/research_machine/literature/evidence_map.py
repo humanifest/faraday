@@ -129,6 +129,8 @@ def validate_evidence_map_boundary(
         raise ValidationError("evidence map must not authorize conclusions")
     if evidence_map.get("publication_authorized") is not False:
         raise ValidationError("evidence map must not authorize publication")
+    if evidence_map.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError("evidence map must not authenticate reviewer identity")
     limitations = evidence_map.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("evidence map requires retained boundary limitations")
@@ -403,9 +405,11 @@ def create_evidence_map(
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "This deterministic map joins reviewed assertions; it does not estimate an effect or establish that any claim is true.",
             "Interpretive ceilings can only restrict claims and do not replace subject-matter judgment, applicability review, or replication.",
+            "The machine does not authenticate reviewer identity or expertise for the extraction, citation, bias, study-identity, or mapping judgments.",
             "No qualitative conclusion, meta-analysis, causal conclusion, recommendation, or publication is authorized by this artifact.",
         ],
     }

@@ -1280,7 +1280,9 @@ limitations, and summary counts for extraction, citation verification, bias
 assessment, and study reconciliation before joining the terminal review
 artifact. The map's own boundary replay checks its versioned input-hash
 envelope, canonical snapshot handle, status, claim count, study count, and
-ceiling counts, so a clean hash chain cannot hide rewritten boundary summaries.
+ceiling counts, while evidence, conclusion, publication, and reviewer-identity
+authentication authority must remain false, so a clean hash chain cannot hide
+rewritten boundary summaries or imply authenticated reviewer authority.
 Qualitative synthesis also requires canonical
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims.

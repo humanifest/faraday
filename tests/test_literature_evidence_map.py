@@ -159,6 +159,7 @@ def test_evidence_map_cli_verifies_chain_and_bounds_claim(tmp_path, capsys):
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
     assert result["scientific_evidence_eligible"] is False
+    assert result["reviewer_identity_authenticated"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_evidence_map(extraction, verification, bias, reconciliation, digest, output)
 
@@ -195,6 +196,7 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
     "input-extra",
     "snapshot-id",
     "status",
+    "reviewer-authenticated",
     "study-count",
     "claim-study-padding",
 ])
@@ -214,6 +216,8 @@ def test_evidence_map_boundary_replays_artifact_envelope(tmp_path, tamper):
         candidate["snapshot_id"] = " snap "
     elif tamper == "status":
         candidate["status"] = "map_reviewed"
+    elif tamper == "reviewer-authenticated":
+        candidate["reviewer_identity_authenticated"] = True
     elif tamper == "study-count":
         candidate["study_count"] = 99
     elif tamper == "claim-study-padding":
