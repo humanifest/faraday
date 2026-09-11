@@ -282,6 +282,8 @@ def validate_effect_records_boundary(effects: dict[str, Any]) -> None:
         raise ValidationError("effect records must not authorize conclusions")
     if effects.get("publication_authorized") is not False:
         raise ValidationError("effect records must not authorize publication claims")
+    if effects.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError("effect records must not authenticate reviewer identity")
     limitations = effects.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("effect records require retained boundary limitations")
@@ -603,6 +605,7 @@ def create_effect_records(
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "Effect values and derivations are reviewer assertions; the machine validates shape and variance but does not reproduce calculations from source data.",
             "Unavailable statistics remain explicit and are not imputed or silently excluded.",

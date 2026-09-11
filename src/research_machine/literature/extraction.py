@@ -44,6 +44,8 @@ def validate_extraction_boundary(
         raise ValidationError("extraction record must not authorize conclusions")
     if extraction.get("publication_authorized") is not False:
         raise ValidationError("extraction record must not authorize publication claims")
+    if extraction.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError("extraction record must not authenticate reviewer identity")
     limitations = extraction.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("extraction record requires retained boundary limitations")
@@ -208,6 +210,7 @@ def create_extraction(screening_path: Path, expected_sha256: str,
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "Records are reviewer assertions bound to source IDs and locations; the machine has not verified that source text supports them.",
             "Shared study_id values group reports only by reviewer declaration and do not establish independent studies.",

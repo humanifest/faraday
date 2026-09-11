@@ -1179,8 +1179,9 @@ screening must be a canonical lowercase SHA-256 digest before it can pin the
 source bytes. Downstream extraction and synthesis-planning commands apply the
 same canonical hash contract when they pin a screening record. They also replay
 the screening record's non-evidence, non-conclusion, non-publication boundary,
-retained limitations, source-record counts, duplicate-content conflicts, and
-derived status before trusting the screened-in source set.
+false reviewer-identity-authentication boundary, retained limitations,
+source-record counts, duplicate-content conflicts, and derived status before
+trusting the screened-in source set.
 The snapshot boundary itself also replays before publication and again before
 screening trusts retained sources: version, canonical handles, criteria, source
 classifications, retained source SHA-256 digests and sizes, byte-identity
@@ -1309,23 +1310,26 @@ policies, and frozen included source IDs before hashing the plan, so the
 prospective synthesis commitment cannot silently normalize its own scope or
 analysis rule text. The frozen plan also carries explicit
 `scientific_evidence_eligible`, `conclusion_authorized`, and
-`publication_authorized` false boundaries with retained limitations, and
-deviation recording, qualitative synthesis, quantitative effect preparation, and
-pooling replay that boundary before relying on the plan.
+`publication_authorized` false boundaries, a false
+`reviewer_identity_authenticated` boundary, and retained limitations, and
+deviation recording, qualitative synthesis, quantitative effect preparation,
+and pooling replay that boundary before relying on the plan.
 
 Quantitative effect preparation also binds each study-level effect record to the
 mapped literature claims that justified including the study, including the claim
 IDs, citation-review anchors, and retained source-file hashes, after checking
 the extraction source set against the synthesis plan's frozen included sources
 and replaying extraction non-authority flags, including the explicit
-non-conclusion and non-publication boundaries, retained limitations,
-`record_count`, and every mapped claim's compact extraction-payload digest
-against the supplied extraction bytes. It also replays the evidence map's
+non-conclusion, non-publication, and reviewer-identity-authentication
+boundaries, retained limitations, `record_count`, and every mapped claim's
+compact extraction-payload digest against the supplied extraction bytes. It also
+replays the evidence map's
 non-evidence, non-conclusion, non-publication boundary and summary counts.
 The effect-record artifact now replays its own retained boundary before it is
 written: version, exact retained input hashes, plan and snapshot handles,
 reviewer handle, registered derivation scope, false scientific-evidence,
-conclusion, and publication authorization; the frozen quantitative contrast
+conclusion, publication, and reviewer-identity-authentication boundaries; the
+frozen quantitative contrast
 definition; study, availability, and readiness counts; mapped claim provenance;
 finite available-effect variance as the square of the standard error;
 unavailable numeric fields as null; and retained source-summary coverage

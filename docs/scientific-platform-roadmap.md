@@ -1509,10 +1509,11 @@ effect preparation. Legacy chains without the anchor remain readable as
 source-byte provenance. This is byte provenance only: it still does not
 interpret source text, verify that a cited passage supports a claim,
 authenticate reviewers, or assess bias. Extraction and synthesis planning replay
-the screening artifact's non-authority flags, retained limitations,
-source-record counts, duplicate-content conflict summary, and derived status
-before trusting its included source IDs, so a rewritten screening summary cannot
-launder a source set into extraction or synthesis planning.
+the screening artifact's non-authority flags, false
+reviewer-identity-authentication boundary, retained limitations, source-record
+counts, duplicate-content conflict summary, and derived status before trusting
+its included source IDs, so a rewritten screening summary cannot launder a
+source set into extraction or synthesis planning.
 `research literature extract --screening-file <screening>
 --expected-screening-sha256 <hash> --review-file <review>
 --output <new-directory>` creates a separate write-once extraction record for
@@ -1526,8 +1527,8 @@ These records are reviewer assertions, not accepted facts or scientific evidence
 The machine has not yet verified the cited passage, authenticated the reviewer,
 assessed risk of bias, reconciled independent extractors, or synthesized effects.
 Extraction artifacts carry explicit false scientific-evidence,
-conclusion-authorization, and publication-authorization boundaries with retained
-limitations.
+conclusion-authorization, publication-authorization, and
+reviewer-identity-authentication boundaries with retained limitations.
 Extraction reviewer text, pinned screening source IDs, extraction source IDs,
 study IDs, claim IDs, evidence locations, uncertainty, and notes must be
 canonical without surrounding whitespace before coverage and duplicate checks,
@@ -1678,9 +1679,10 @@ enforces the frozen included-source set and minimum independent-study count; and
 retains every null, adverse, mixed, hypothesis-only, and high-bias claim while
 reporting directional and ceiling counts. It replays extraction non-authority
 flags, including the explicit non-conclusion and non-publication boundaries,
-retained limitations, `record_count`, and every mapped claim's compact
-extraction-payload digest against the supplied extraction bytes before trusting
-an evidence-map claim, so a rewritten extraction cannot be laundered by updating
+the false reviewer-identity-authentication boundary, retained limitations,
+`record_count`, and every mapped claim's compact extraction-payload digest
+against the supplied extraction bytes before trusting an evidence-map claim, so
+a rewritten extraction cannot be laundered by updating
 only the evidence-map input hash. The synthesis artifact also preserves
 the retained citation and bias-domain provenance for each claim, preventing a
 later reader from seeing only an unsupported ceiling label. It requires canonical
@@ -1727,7 +1729,8 @@ compatibility, impute missing values, or authorize pooling.
 The effect-record artifact now replays its own non-authority and retained
 provenance boundary before it is written: version, exact retained input hashes,
 plan and snapshot handles, reviewer handle, registered derivation scope, false
-evidence, conclusion, and publication authorization; the frozen quantitative
+evidence, conclusion, publication, and reviewer-identity-authentication
+boundaries; the frozen quantitative
 contrast definition; study, availability, and readiness counts; mapped claim
 source anchors; available-effect variance as `standard_error ** 2`; unavailable
 numeric fields as null; and retained source-summary coverage for reproducibly
@@ -1877,7 +1880,8 @@ heightened review. The artifact also retains a compact frozen-plan commitment
 snapshot, and rejects synthesis-type-incompatible stages such as qualitative
 effect preparation. It cannot amend the plan, retroactively preregister a choice,
 raise a claim ceiling, authorize conclusions or publication, or authenticate the
-researcher's account. Its non-authority flags, `cannot_raise` ceiling effect,
+researcher's account. Its non-authority flags, false
+reviewer-identity-authentication boundary, `cannot_raise` ceiling effect,
 `plan_amended: false`, retained limitations, timing counts, and status are
 replayed from the retained departure rows before downstream synthesis can trust
 the declaration.

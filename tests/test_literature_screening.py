@@ -35,6 +35,7 @@ def test_screening_cli_preserves_duplicate_disagreement(tmp_path, capsys):
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     assert isinstance(result["limitations"], list)
     assert snapshot.read_bytes() == original
     with pytest.raises(ValidationError, match="already exists"):
@@ -56,7 +57,8 @@ def test_screening_preserves_canonical_source_and_criterion_references(tmp_path)
 
 @pytest.mark.parametrize("tamper", [
     "scientific_evidence_eligible", "conclusion_authorized", "publication_authorized",
-    "limitations", "source_record_counts", "duplicate_decision_conflicts", "status",
+    "reviewer_identity_authenticated", "limitations", "source_record_counts",
+    "duplicate_decision_conflicts", "status",
 ])
 def test_screening_boundary_replays_authority_counts_and_status(tmp_path, tamper):
     snapshot, digest, review = setup_snapshot(tmp_path)
@@ -67,6 +69,8 @@ def test_screening_boundary_replays_authority_counts_and_status(tmp_path, tamper
         result["conclusion_authorized"] = True
     elif tamper == "publication_authorized":
         result["publication_authorized"] = True
+    elif tamper == "reviewer_identity_authenticated":
+        result["reviewer_identity_authenticated"] = True
     elif tamper == "limitations":
         result["limitations"] = []
     elif tamper == "source_record_counts":

@@ -138,6 +138,7 @@ def test_effect_cli_preserves_unavailable_study_and_is_write_once(tmp_path, caps
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     with pytest.raises(ValidationError, match="already exists"):
         create_effect_records(plan, plan_sha, extraction, evidence_map, map_sha, review(), output)
 
@@ -170,6 +171,7 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     "scientific-authority",
     "conclusion-authority",
     "publication-authority",
+    "reviewer-authenticated",
     "claim-count",
     "availability-count",
     "status-drift",
@@ -212,6 +214,8 @@ def test_effect_records_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["conclusion_authorized"] = True
     elif tamper == "publication-authority":
         candidate["publication_authorized"] = True
+    elif tamper == "reviewer-authenticated":
+        candidate["reviewer_identity_authenticated"] = True
     elif tamper == "claim-count":
         candidate["study_count"] = 99
     elif tamper == "availability-count":

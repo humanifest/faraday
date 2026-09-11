@@ -31,6 +31,8 @@ def validate_screening_boundary(screening: dict[str, Any]) -> None:
         raise ValidationError("screening must not authorize conclusions")
     if screening.get("publication_authorized") is not False:
         raise ValidationError("screening must not authorize publication claims")
+    if screening.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError("screening must not authenticate reviewer identity")
     limitations = screening.get("limitations")
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("screening requires retained boundary limitations")
@@ -188,6 +190,7 @@ def create_screening(snapshot_path: Path, expected_sha256: str, review: dict[str
         "scientific_evidence_eligible": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "Inclusion is not claim acceptance, evidence admission, or support for any extracted claim.",
             "Reviewer identity and correctness of screening are not authenticated.",

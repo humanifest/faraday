@@ -175,6 +175,10 @@ def validate_synthesis_deviations_boundary(
         raise ValidationError("synthesis deviations must not authorize conclusions")
     if deviations.get("publication_authorized") is not False:
         raise ValidationError("synthesis deviations must not authorize publication claims")
+    if deviations.get("reviewer_identity_authenticated", False) is not False:
+        raise ValidationError(
+            "synthesis deviations must not authenticate reviewer identity"
+        )
     if deviations.get("plan_amended") is not False:
         raise ValidationError("synthesis deviations must not amend the frozen plan")
     if deviations.get("claim_ceiling_effect") != "cannot_raise":
@@ -244,6 +248,7 @@ def create_synthesis_deviations(
         "scientific_evidence_eligible": False, "plan_amended": False,
         "conclusion_authorized": False,
         "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
         "limitations": [
             "This artifact discloses departures but never edits, supersedes, or retroactively preregisters the frozen plan.",
             "Reviewer identity, stated timing, reasons, and impact assessments are not authenticated by the machine.",

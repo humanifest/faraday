@@ -58,6 +58,7 @@ def test_extraction_cli_is_write_once_and_non_evidentiary(tmp_path, capsys):
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     assert json.loads(screening.read_text())["conclusion_authorized"] is False
     assert screening.read_bytes() == original
     with pytest.raises(ValidationError, match="already exists"):
@@ -84,6 +85,7 @@ def test_extraction_preserves_canonical_source_study_and_record_ids(tmp_path):
     "screening-hash",
     "snapshot-id",
     "status",
+    "reviewer-authenticated",
 ])
 def test_extraction_boundary_replays_artifact_anchors(tmp_path, tamper):
     screening, digest = prepared_screening(tmp_path)
@@ -97,6 +99,8 @@ def test_extraction_boundary_replays_artifact_anchors(tmp_path, tamper):
         candidate["snapshot_id"] = " fixture "
     elif tamper == "status":
         candidate["status"] = "extraction_reviewed"
+    elif tamper == "reviewer-authenticated":
+        candidate["reviewer_identity_authenticated"] = True
 
     with pytest.raises(ValidationError):
         validate_extraction_boundary(candidate, candidate["record_count"])

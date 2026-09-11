@@ -58,6 +58,7 @@ def test_prospective_deviation_cli_is_write_once_and_does_not_amend_plan(tmp_pat
     assert result["scientific_evidence_eligible"] is False
     assert result["conclusion_authorized"] is False
     assert result["publication_authorized"] is False
+    assert result["reviewer_identity_authenticated"] is False
     assert result["frozen_plan_commitments"]["synthesis_type"] == "quantitative"
     assert result["frozen_plan_commitments"]["included_source_ids_at_freeze"] == ["s1", "s2"]
     assert result["timing_counts"]["before_synthesis"] == 1
@@ -88,6 +89,7 @@ def test_explicit_no_deviations_declaration_is_recorded(tmp_path):
     "source-ids",
     "source-duplicate",
     "authority",
+    "reviewer-authenticated",
     "plan-amended",
     "timing-counts",
     "status-drift",
@@ -123,6 +125,8 @@ def test_synthesis_deviation_boundary_replays_retained_snapshot(tmp_path, tamper
         candidate["frozen_plan_commitments"]["included_source_ids_at_freeze"] = ["s1", "s1"]
     elif tamper == "authority":
         candidate["scientific_evidence_eligible"] = True
+    elif tamper == "reviewer-authenticated":
+        candidate["reviewer_identity_authenticated"] = True
     elif tamper == "plan-amended":
         candidate["plan_amended"] = True
     elif tamper == "timing-counts":
