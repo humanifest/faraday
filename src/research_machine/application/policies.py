@@ -28,6 +28,7 @@ from research_machine.domain.models import (
     HypothesisDiscriminationTarget,
     HypothesisWorkflowState,
     MeasurementDefinition,
+    NamedComponentContract,
     MeasurementValidityCheck,
     MEASUREMENT_TEMPORAL_ROLES,
     MeasurementRole,
@@ -2034,6 +2035,8 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             raise ValidationError(
                 "control definitions must cover exactly the registered controls in order"
             )
+    if protocol.named_component_contracts:
+        validate_named_component_contracts(protocol)
     custody_requirement_ids = []
     for gate_id in protocol.measurement_custody_requirements:
         canonical_gate_id = require_text(
@@ -2151,6 +2154,292 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         require_sha256(protocol.analysis_specification_sha256, "analysis_specification_sha256")
     if protocol.random_seed_commitment:
         require_sha256(protocol.random_seed_commitment, "random_seed_commitment")
+
+
+def _named_component_indices(
+    component_ids: Sequence[str], selected_component_ids: Sequence[str]
+) -> list[int]:
+    return [component_ids.index(component_id) for component_id in selected_component_ids]
+
+
+def validate_named_component_contracts(protocol: ExperimentProtocol) -> None:
+    """Validate optional name-addressed subset contracts and their adverse control."""
+
+    contracts = protocol.named_component_contracts
+    if any(not isinstance(item, NamedComponentContract) for item in contracts):
+        raise ValidationError(
+            "named_component_contracts must contain NamedComponentContract values"
+        )
+    measurement_ids = {
+        item.measurement_id for item in protocol.measurement_definitions
+    }
+    controls = {item.control_id: item for item in protocol.control_definitions}
+    contract_ids: set[str] = set()
+    for index, contract in enumerate(contracts):
+        prefix = f"named_component_contracts[{index}]"
+        for field_name in (
+            "contract_id",
+            "measurement_id",
+            "relabeling_control_id",
+            "evaluation_gate_id",
+        ):
+            value = getattr(contract, field_name)
+            require_canonical_text(value, f"{prefix}.{field_name}")
+        if contract.contract_id in contract_ids:
+            raise ValidationError("named component contract IDs must be unique")
+        contract_ids.add(contract.contract_id)
+        if contract.measurement_id not in measurement_ids:
+            raise ValidationError(
+                "named component contract must bind an exact protocol measurement_id"
+            )
+        component_ids = require_unique_canonical_text_list(
+            contract.component_ids, f"{prefix}.component_ids"
+        )
+        selected_ids = require_unique_canonical_text_list(
+            contract.selected_component_ids, f"{prefix}.selected_component_ids"
+        )
+        relabeled_ids = require_unique_canonical_text_list(
+            contract.relabeled_component_ids,
+            f"{prefix}.relabeled_component_ids",
+        )
+        if len(component_ids) < 2:
+            raise ValidationError(
+                "named component contract requires at least two component_ids"
+            )
+        if not selected_ids or len(selected_ids) >= len(component_ids):
+            raise ValidationError(
+                "named component contract selected_component_ids must be a nonempty proper subset"
+            )
+        if not set(selected_ids).issubset(component_ids):
+            raise ValidationError(
+                "named component contract selected_component_ids must name frozen components"
+            )
+        if set(relabeled_ids) != set(component_ids):
+            raise ValidationError(
+                "named component contract relabeled_component_ids must be an exact permutation"
+            )
+        if relabeled_ids == component_ids:
+            raise ValidationError(
+                "named component contract relabeling must change component order"
+            )
+        if _named_component_indices(component_ids, selected_ids) == (
+            _named_component_indices(relabeled_ids, selected_ids)
+        ):
+            raise ValidationError(
+                "named component contract relabeling must change a selected component index"
+            )
+        control = controls.get(contract.relabeling_control_id)
+        if control is None:
+            raise ValidationError(
+                "named component contract must bind an exact relabeling control_id"
+            )
+        if control.family != "adversarial":
+            raise ValidationError(
+                "named component contract relabeling control must be adversarial"
+            )
+        if control.evaluation_gate_id != contract.evaluation_gate_id:
+            raise ValidationError(
+                "named component contract and relabeling control must share an evaluation gate"
+            )
+        if contract.evaluation_gate_id not in set(protocol.quality_requirements):
+            raise ValidationError(
+                "named component contract evaluation gate must be a required protocol quality gate"
+            )
+
+
+def validate_named_component_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    gate: QualityGateResult,
+    output_hashes: set[str],
+    context: str = "",
+) -> None:
+    """Replay a component-selection invariant without judging domain semantics."""
+
+    contracts = [
+        item
+        for item in protocol.named_component_contracts
+        if item.evaluation_gate_id == gate.gate_id
+    ]
+    if not contracts or gate.status is QualityGateStatus.SKIPPED:
+        return
+    label = f"{context} " if context else ""
+    results = gate.details.get("named_component_results")
+    expected_ids = {item.contract_id for item in contracts}
+    if not isinstance(results, dict) or set(results) != expected_ids:
+        raise ValidationError(
+            f"{label}performed named component gate {gate.gate_id} requires exact results for: "
+            + ", ".join(sorted(expected_ids))
+        )
+    expected_status = {
+        QualityGateStatus.PASSED: "consistent_with_named_selection",
+        QualityGateStatus.WARNING: "inconclusive",
+        QualityGateStatus.FAILED: "contradicted_named_selection",
+    }.get(gate.status)
+    if expected_status is None:
+        raise ValidationError(
+            f"{label}named component gate {gate.gate_id} has an unsupported status"
+        )
+    control_results = gate.details.get("control_results")
+    for contract in contracts:
+        result = results[contract.contract_id]
+        required_fields = {
+            "source_component_ids",
+            "source_selection_indices",
+            "relabeled_component_ids",
+            "relabeled_selection_indices",
+            "source_selected_component_ids",
+            "relabeled_selected_component_ids",
+            "assessment_status",
+            "observed_behavior",
+            "interpretation",
+            "evidence_sha256",
+            "evidence_location",
+        }
+        derived_fields = {"selected_value_sha256"}
+        if (
+            not isinstance(result, dict)
+            or not required_fields <= set(result)
+            or set(result) - required_fields - derived_fields
+        ):
+            raise ValidationError(
+                f"{label}named component result for {contract.contract_id} must contain exactly the documented fields"
+            )
+        prefix = (
+            f"{label}gate {gate.gate_id} named_component_results "
+            f"{contract.contract_id}"
+        )
+        for field_name in ("observed_behavior", "interpretation", "evidence_location"):
+            require_canonical_text(result[field_name], f"{prefix}.{field_name}")
+        for field_name in (
+            "source_component_ids",
+            "relabeled_component_ids",
+            "source_selected_component_ids",
+            "relabeled_selected_component_ids",
+        ):
+            require_unique_canonical_text_list(
+                result[field_name], f"{prefix}.{field_name}"
+            )
+        source_ids = result["source_component_ids"]
+        relabeled_ids = result["relabeled_component_ids"]
+        if source_ids != contract.component_ids:
+            raise ValidationError(
+                f"{label}named component source order does not match the frozen contract"
+            )
+        if relabeled_ids != contract.relabeled_component_ids:
+            raise ValidationError(
+                f"{label}named component relabeled order does not match the frozen contract"
+            )
+        observed_selected: list[list[str]] = []
+        for order_name, indices_name, selected_name in (
+            (
+                "source_component_ids",
+                "source_selection_indices",
+                "source_selected_component_ids",
+            ),
+            (
+                "relabeled_component_ids",
+                "relabeled_selection_indices",
+                "relabeled_selected_component_ids",
+            ),
+        ):
+            indices = result[indices_name]
+            if (
+                not isinstance(indices, list)
+                or len(indices) != len(contract.selected_component_ids)
+                or any(type(item) is not int for item in indices)
+                or len(set(indices)) != len(indices)
+                or any(item < 0 or item >= len(result[order_name]) for item in indices)
+            ):
+                raise ValidationError(
+                    f"{prefix}.{indices_name} must be unique in-range integer indices with frozen subset cardinality"
+                )
+            derived = [result[order_name][item] for item in indices]
+            if result[selected_name] != derived:
+                raise ValidationError(
+                    f"{prefix}.{selected_name} does not match its recorded order and indices"
+                )
+            observed_selected.append(derived)
+        selections_match = all(
+            item == contract.selected_component_ids for item in observed_selected
+        )
+        status = require_canonical_text(
+            result["assessment_status"], f"{prefix}.assessment_status"
+        )
+        if status != expected_status:
+            raise ValidationError(
+                f"{label}{gate.status.value} named component gate requires {expected_status}"
+            )
+        if gate.status is QualityGateStatus.PASSED and not selections_match:
+            raise ValidationError(
+                f"{label}passed named component gate selected components by position instead of frozen names"
+            )
+        if gate.status is QualityGateStatus.FAILED and selections_match:
+            raise ValidationError(
+                f"{label}failed named component gate must retain a contradictory observed selection"
+            )
+        digest = require_sha256(
+            result["evidence_sha256"], f"{prefix}.evidence_sha256"
+        )
+        if result.get("selected_value_sha256") is not None:
+            require_sha256(
+                result["selected_value_sha256"],
+                f"{prefix}.selected_value_sha256",
+            )
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"{label}named component evidence must reference a run output artifact"
+            )
+        linked_control = (
+            control_results.get(contract.relabeling_control_id)
+            if isinstance(control_results, dict)
+            else None
+        )
+        control_fields = {
+            "observed_behavior",
+            "interpretation",
+            "matches_expected",
+            "evidence_sha256",
+            "evidence_location",
+        }
+        control_derived_fields = {"selected_value_sha256"}
+        if (
+            not isinstance(linked_control, dict)
+            or not control_fields <= set(linked_control)
+            or set(linked_control) - control_fields - control_derived_fields
+        ):
+            raise ValidationError(
+                f"{label}named component result requires its exact linked relabeling control evaluation"
+            )
+        for field_name in ("observed_behavior", "interpretation", "evidence_location"):
+            require_canonical_text(
+                linked_control[field_name],
+                f"{prefix}.linked_control.{field_name}",
+            )
+        if type(linked_control["matches_expected"]) is not bool:
+            raise ValidationError(
+                f"{label}named component linked control matches_expected must be a boolean"
+            )
+        control_digest = require_sha256(
+            linked_control["evidence_sha256"],
+            f"{prefix}.linked_control.evidence_sha256",
+        )
+        if control_digest not in output_hashes:
+            raise ValidationError(
+                f"{label}named component linked control evidence must reference a run output artifact"
+            )
+        if gate.status is QualityGateStatus.PASSED and not linked_control[
+            "matches_expected"
+        ]:
+            raise ValidationError(
+                f"{label}passed named component gate requires its relabeling control to match expectation"
+            )
+        if gate.status is QualityGateStatus.FAILED and linked_control[
+            "matches_expected"
+        ]:
+            raise ValidationError(
+                f"{label}failed named component gate requires its relabeling control to record the mismatch"
+            )
 
 
 def validate_measurement_contract(protocol: ExperimentProtocol) -> None:

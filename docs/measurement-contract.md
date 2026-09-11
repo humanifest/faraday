@@ -86,6 +86,39 @@ Omitting the entire field remains supported for backward compatibility and does
 not imply that an old protocol was complete. New sealed numerical replication
 protocols should use the typed contract.
 
+## Named-component subset invariants
+
+Vector-, graph-, tensor-, channel-, and other component-valued measurements can
+optionally add `named_component_contracts`. This addresses a narrower failure
+mode than measurement validity: code may select positions that happened to
+carry the intended labels in one ordering, then silently select different
+components after an input reorder.
+
+Each contract freezes a unique `contract_id`, an exact `measurement_id`, the
+complete ordered `component_ids`, the intended `selected_component_ids`, a
+nontrivial `relabeled_component_ids` permutation, and an adversarial
+`relabeling_control_id` sharing its required `evaluation_gate_id`. Freeze
+rejects unknown measurements or controls, duplicate labels, non-subsets,
+non-permutations, and relabelings that do not move at least one selected
+component. Scalar measurements need no such contract.
+
+A performed gate records both observed component orders, both zero-based index
+maps, and the names those maps actually selected. Faraday derives the selected
+names from each recorded order and index map. A passing gate requires both maps
+to recover the frozen named subset and requires the linked adversarial control
+to match expectation. A positional map that selects decoys after relabeling can
+be retained as `contradicted_named_selection` only under a failed gate; it
+cannot be represented as a pass. Run evidence must cite a declared output
+artifact and an exact JSON location containing the six reported order, index,
+and selected-name arrays. Intake compares those arrays with the retained bytes;
+replication-package verification replays the frozen mapping invariant over the
+packaged metadata.
+
+This proves only that the recorded subset map is invariant under the frozen
+permutation. It does not prove that the labels denote the right scientific
+objects, that all necessary components were included, or that the downstream
+mathematics is correct.
+
 ## Raw-to-derived custody
 
 Every transformation in a new custody receipt names a stable ID and version,

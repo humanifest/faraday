@@ -2309,7 +2309,8 @@ def test_legacy_protocol_commitment_unchanged(tmp_path):
     for name in (
         "independent_unit", "repeated_measures", "analysis_design",
         "unit_analysis_plan", "unit_id_column", "analysis_specification_sha256",
-        "control_definitions", "calibration_acceptance_criteria",
+        "control_definitions", "named_component_contracts",
+        "calibration_acceptance_criteria",
         "analysis_contract",
         "independent_review_decision", "independent_reviewer_role",
         "independent_reviewed_at", "independent_review_scope",
@@ -2345,6 +2346,7 @@ def test_nested_measurement_and_analysis_links_preserve_legacy_commitment() -> N
         payload["measurement_definitions"][0].pop(name)
     for name in (
         "control_definitions",
+        "named_component_contracts",
         "calibration_acceptance_criteria",
         "analysis_contract",
         "hypothesis_commitments",

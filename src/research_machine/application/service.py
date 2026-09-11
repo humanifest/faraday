@@ -59,6 +59,7 @@ from research_machine.application.policies import (
     validate_protocol_freeze,
     validate_portfolio_action_candidates,
     validate_quality_gates,
+    validate_named_component_gate_metadata,
     validate_selection_weights,
     validate_validation_tag_context,
 )
@@ -313,6 +314,7 @@ _STRUCTURED_RESULT_DETAIL_KEYS = {
     "causal_assumption_results",
     "instrument_inspection",
     "measurement_validity_results",
+    "named_component_results",
     "missingness_assessment_result",
     "preprocessing_conformance",
     "stream_timing_assessment",
@@ -3667,6 +3669,80 @@ class ResearchService:
                             "measurement validity selected_value_sha256 does not match the verified analysis result value"
                         )
                     result["selected_value_sha256"] = selected_value_sha256
+        named_component_gates = {
+            contract.evaluation_gate_id
+            for contract in protocol.named_component_contracts
+        }
+        for gate_id in named_component_gates:
+            gate = gates_by_id.get(gate_id)
+            if gate is None or gate.status is QualityGateStatus.SKIPPED:
+                continue
+            validate_named_component_gate_metadata(
+                protocol=protocol,
+                gate=gate,
+                output_hashes=output_hashes,
+            )
+            results = gate.details["named_component_results"]
+            for contract in protocol.named_component_contracts:
+                if contract.evaluation_gate_id != gate_id:
+                    continue
+                result = results[contract.contract_id]
+                digest = result["evidence_sha256"]
+                location = result["evidence_location"]
+                location_verified, structured_evidence = _resolve_json_artifact_location(
+                    outputs,
+                    command.artifact_root,
+                    digest,
+                    location,
+                    f"named component {contract.contract_id} evidence_location",
+                )
+                if (
+                    not location_verified
+                    and verified_gate_result is not None
+                    and digest == verified_gate_output_sha256
+                ):
+                    if not location.startswith("/"):
+                        raise ValidationError(
+                            "named component evidence in the verified analysis output requires "
+                            "an absolute JSON Pointer evidence_location"
+                        )
+                    structured_evidence = _resolve_json_pointer(
+                        verified_gate_result,
+                        location,
+                        f"named component {contract.contract_id} evidence_location",
+                    )
+                    location_verified = True
+                if not location_verified or not isinstance(structured_evidence, dict):
+                    raise ValidationError(
+                        "named component result requires retained, artifact-bound JSON mapping evidence"
+                    )
+                mapping_fields = {
+                    "source_component_ids",
+                    "source_selection_indices",
+                    "relabeled_component_ids",
+                    "relabeled_selection_indices",
+                    "source_selected_component_ids",
+                    "relabeled_selected_component_ids",
+                }
+                if any(
+                    structured_evidence.get(field_name) != result[field_name]
+                    for field_name in mapping_fields
+                ):
+                    raise ValidationError(
+                        "named component result does not match its retained JSON mapping evidence"
+                    )
+                selected_value_sha256 = _result_selection_sha256(
+                    structured_evidence
+                )
+                supplied = result.get("selected_value_sha256")
+                if supplied is not None and require_sha256(
+                    supplied,
+                    f"named component {contract.contract_id} selected_value_sha256",
+                ) != selected_value_sha256:
+                    raise ValidationError(
+                        "named component selected_value_sha256 does not match the verified JSON value"
+                    )
+                result["selected_value_sha256"] = selected_value_sha256
         contract = protocol.analysis_contract
         if contract is not None and contract.missingness_assessment_gate_id:
             gate = gates_by_id.get(contract.missingness_assessment_gate_id)
@@ -4311,6 +4387,11 @@ class ResearchService:
             validity_checks_by_gate.setdefault(
                 check.assessment_gate_id, []
             ).append(check)
+        named_component_contracts_by_gate: dict[str, list[Any]] = {}
+        for contract in protocol.named_component_contracts:
+            named_component_contracts_by_gate.setdefault(
+                contract.evaluation_gate_id, []
+            ).append(contract)
         missingness_gate_id = (
             protocol.analysis_contract.missingness_assessment_gate_id
             if protocol.analysis_contract is not None
@@ -4326,6 +4407,10 @@ class ResearchService:
             "schema_version": 1,
             "template_kind": "research-machine-run-record-v1",
             "control_plan": [control.to_dict() for control in protocol.control_definitions],
+            "named_component_plan": [
+                contract.to_dict()
+                for contract in protocol.named_component_contracts
+            ],
             "canary_target_plan": (
                 canary_plan.to_dict() if canary_plan is not None else None
             ),
@@ -4448,6 +4533,35 @@ class ResearchService:
                                 }
                                 for check in validity_checks_by_gate[gate_id]
                             }} if gate_id in validity_checks_by_gate else {}),
+                            **({"named_component_results": {
+                                contract.contract_id: {
+                                    "source_component_ids": list(contract.component_ids),
+                                    "source_selection_indices": [
+                                        contract.component_ids.index(component_id)
+                                        for component_id in contract.selected_component_ids
+                                    ],
+                                    "relabeled_component_ids": list(
+                                        contract.relabeled_component_ids
+                                    ),
+                                    "relabeled_selection_indices": [
+                                        contract.relabeled_component_ids.index(component_id)
+                                        for component_id in contract.selected_component_ids
+                                    ],
+                                    "source_selected_component_ids": list(
+                                        contract.selected_component_ids
+                                    ),
+                                    "relabeled_selected_component_ids": list(
+                                        contract.selected_component_ids
+                                    ),
+                                    "assessment_status": "<consistent_with_named_selection if passed; inconclusive if warning; contradicted_named_selection if failed>",
+                                    "observed_behavior": "",
+                                    "interpretation": "",
+                                    "evidence_sha256": "<hash of a listed run output artifact>",
+                                    "evidence_location": "<exact JSON Pointer or location within that artifact>",
+                                    "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
+                                }
+                                for contract in named_component_contracts_by_gate[gate_id]
+                            }} if gate_id in named_component_contracts_by_gate else {}),
                         },
                     }
                     for gate_id in protocol.quality_requirements
@@ -4467,6 +4581,7 @@ class ResearchService:
                 "Set every gate status from observed output; skipped or failed required gates make the run invalid.",
                 "Every passed gate must cite one listed output artifact by details.evidence_sha256; declare prerequisite_gate_ids when its interpretation depends on other gates.",
                 "For control evaluations, record observed behavior and interpretation separately from the frozen expectation; never copy an expectation as an observation.",
+                "For named-component evaluations, replace the suggested index maps with observed maps; the same frozen component names must be recovered after the adverse relabeling.",
                 "For every causal-assumption assessment, identify the exact location within its cited output artifact; when citing the verified analysis result, use an absolute JSON Pointer that resolves in that result.",
                 "For every performed measurement-validity check, record the observed diagnostic separately from interpretation, use the frozen evidence type, and cite the exact output location; a passed gate requires consistent_with_validity_claim, not proof of validity.",
                 "When preprocessing_pipeline_commitment_sha256 is present, any preprocessing_conformance gate must cite a verified conformance record whose registered_pipeline_sha256 exactly matches it.",
@@ -5840,6 +5955,7 @@ class ResearchService:
             controls=require_text_list(command.controls, "controls"),
             control_definitions=list(command.control_definitions),
             measurement_definitions=list(command.measurement_definitions),
+            named_component_contracts=list(command.named_component_contracts),
             measurement_validity_checks=list(command.measurement_validity_checks),
             expected_outputs=require_text_list(
                 command.expected_outputs, "expected_outputs"

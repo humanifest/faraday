@@ -66,6 +66,7 @@ from research_machine.domain.models import (
     EvidenceDirection,
     HypothesisWorkflowState,
     MeasurementDefinition,
+    NamedComponentContract,
     MeasurementValidityCheck,
     MeasurementRole,
     ProtocolKind,
@@ -128,6 +129,7 @@ _PROTOCOL_FIELDS = {
     "quality_requirements",
     "controls",
     "measurement_definitions",
+    "named_component_contracts",
     "measurement_validity_checks",
     "expected_outputs",
     "success_conditions",
@@ -1197,6 +1199,9 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         field: _json_text_list(spec.get(field, []), field) for field in list_fields
     }
     measurement_values = spec.get("measurement_definitions", [])
+    named_component_values = spec.get("named_component_contracts", [])
+    if named_component_values is None:
+        named_component_values = []
     validity_values = spec.get("measurement_validity_checks", [])
     control_values = spec.get("control_definitions", [])
     calibration_values = spec.get("calibration_acceptance_criteria", [])
@@ -1363,6 +1368,27 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         validity_checks = [MeasurementValidityCheck(**item) for item in validity_values]
     except TypeError as exc:
         raise ValueError(f"invalid measurement validity check: {exc}") from exc
+    named_component_fields = {
+        "contract_id",
+        "measurement_id",
+        "component_ids",
+        "selected_component_ids",
+        "relabeled_component_ids",
+        "relabeling_control_id",
+        "evaluation_gate_id",
+    }
+    if not isinstance(named_component_values, list) or any(
+        not isinstance(item, dict) for item in named_component_values
+    ):
+        raise ValueError("named_component_contracts must be an array of objects")
+    if any(set(item) - named_component_fields for item in named_component_values):
+        raise ValueError("named component contract contains unknown fields")
+    try:
+        named_component_contracts = [
+            NamedComponentContract(**item) for item in named_component_values
+        ]
+    except TypeError as exc:
+        raise ValueError(f"invalid named component contract: {exc}") from exc
     try:
         return CreateProtocol(
             experiment_id=spec["experiment_id"],
@@ -1377,6 +1403,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             controls=lists["controls"],
             control_definitions=control_definitions,
             measurement_definitions=measurements,
+            named_component_contracts=named_component_contracts,
             measurement_validity_checks=validity_checks,
             expected_outputs=lists["expected_outputs"],
             success_conditions=lists["success_conditions"],

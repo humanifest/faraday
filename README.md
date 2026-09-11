@@ -1960,6 +1960,11 @@ gate evidence.
 - Optionally bind every primary, secondary, and control outcome to a typed
   measurement contract whose parameters, evaluation point, convention,
   aggregation, tolerance, and expected behavior are freeze-validated.
+- For component-valued measurements, optionally freeze a named subset and a
+  discriminating adversarial relabeling. Run intake recomputes the observed
+  name-to-index maps from retained JSON evidence, so positional slicing cannot
+  masquerade as invariant component selection. See
+  [named-component subset invariants](docs/measurement-contract.md#named-component-subset-invariants).
 - Record code-, environment-, input-, output-, and quality-gate-bound runs.
 - Seal every canonical run with a service-generated commitment over the complete
   immutable payload. Authoritative reads reject later edits to its protocol or

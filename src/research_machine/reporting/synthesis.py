@@ -797,6 +797,52 @@ def build_synthesis(
                             f"`{result.get('evidence_location', 'unavailable')}`; "
                             f"selected value `{result.get('selected_value_sha256', 'unavailable')}`."
                         )
+    named_component_protocols = [
+        protocol for protocol in protocols if protocol.named_component_contracts
+    ]
+    if named_component_protocols:
+        lines.extend(["", "### Named-component selection provenance", ""])
+        for protocol in named_component_protocols:
+            contracts_by_id = {
+                contract.contract_id: contract
+                for contract in protocol.named_component_contracts
+            }
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}` frozen named-component contracts: "
+                + "; ".join(
+                    f"`{contract.contract_id}` selects "
+                    + ", ".join(f"`{item}`" for item in contract.selected_component_ids)
+                    + f" from measurement `{contract.measurement_id}` with adversarial control "
+                    f"`{contract.relabeling_control_id}`"
+                    for contract in protocol.named_component_contracts
+                )
+                + ". Passing verifies only the registered name-to-index invariant; it does not validate component meaning or scientific sufficiency."
+            )
+            for run in sorted(
+                (item for item in runs if item.protocol_id == protocol.protocol_id),
+                key=lambda item: item.run_id,
+            ):
+                for gate in run.quality_gates:
+                    results = gate.details.get("named_component_results")
+                    if not isinstance(results, dict):
+                        continue
+                    for contract_id, result in sorted(results.items()):
+                        if not isinstance(result, dict):
+                            continue
+                        contract = contracts_by_id.get(contract_id)
+                        selected = result.get("relabeled_selected_component_ids", [])
+                        lines.append(
+                            f"  - Run `{run.run_id}` / `{contract_id}`"
+                            + (
+                                f" (measurement `{contract.measurement_id}`)"
+                                if contract is not None else ""
+                            )
+                            + f": gate `{gate.gate_id}` {gate.status.value}; "
+                            f"{result.get('assessment_status', 'unclassified')}; "
+                            f"relabeled selection {_text(str(selected))}; artifact "
+                            f"`{result.get('evidence_sha256', 'unavailable')}` at "
+                            f"`{result.get('evidence_location', 'unavailable')}`."
+                        )
     validity_protocols = [
         protocol for protocol in protocols if protocol.measurement_validity_checks
     ]

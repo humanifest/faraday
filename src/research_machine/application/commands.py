@@ -18,6 +18,7 @@ from research_machine.domain.models import (
     DatasetRole,
     EvidenceDirection,
     MeasurementDefinition,
+    NamedComponentContract,
     MeasurementValidityCheck,
     ControlDefinition,
     ProtocolKind,
@@ -207,6 +208,7 @@ class CreateProtocol:
     controls: list[str] = field(default_factory=list)
     control_definitions: list[ControlDefinition] = field(default_factory=list)
     measurement_definitions: list[MeasurementDefinition] = field(default_factory=list)
+    named_component_contracts: list[NamedComponentContract] = field(default_factory=list)
     measurement_validity_checks: list[MeasurementValidityCheck] = field(default_factory=list)
     expected_outputs: list[str] = field(default_factory=list)
     success_conditions: list[str] = field(default_factory=list)

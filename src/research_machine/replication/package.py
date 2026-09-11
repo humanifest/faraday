@@ -32,6 +32,7 @@ from research_machine.application.policies import (
     require_canonical_text,
     require_unique_canonical_text_list,
     normalize_text,
+    validate_named_component_gate_metadata,
     validate_quality_gates,
 )
 from research_machine.application.protocol_integrity import protocol_commitment
@@ -2932,6 +2933,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         gate=gate,
                         output_artifacts=output_artifacts,
                         verified_results_by_sha=verified_results_by_sha,
+                    )
+                    validate_named_component_gate_metadata(
+                        protocol=protocol,
+                        gate=gate,
+                        output_hashes=output_hashes,
+                        context=f"package run {run.run_id}",
                     )
                     _validate_missingness_gate_metadata(
                         protocol=protocol,

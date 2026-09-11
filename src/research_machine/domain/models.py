@@ -428,6 +428,19 @@ class MeasurementDefinition(Serializable):
 
 
 @dataclass(frozen=True)
+class NamedComponentContract(Serializable):
+    """Frozen, name-addressed subset selection with a discriminating relabeling."""
+
+    contract_id: str
+    measurement_id: str
+    component_ids: list[str]
+    selected_component_ids: list[str]
+    relabeled_component_ids: list[str]
+    relabeling_control_id: str
+    evaluation_gate_id: str
+
+
+@dataclass(frozen=True)
 class ControlDefinition(Serializable):
     control_id: str
     registered_control: str
@@ -586,6 +599,9 @@ class ExperimentProtocol(Serializable):
     measurement_definitions: list[MeasurementDefinition] = field(
         default_factory=list
     )
+    named_component_contracts: list[NamedComponentContract] = field(
+        default_factory=list
+    )
     measurement_validity_checks: list[MeasurementValidityCheck] = field(
         default_factory=list
     )
@@ -676,6 +692,12 @@ class ExperimentProtocol(Serializable):
         copied["measurement_validity_checks"] = [
             item if isinstance(item, MeasurementValidityCheck) else MeasurementValidityCheck(**item)
             for item in copied.get("measurement_validity_checks", [])
+        ]
+        copied["named_component_contracts"] = [
+            item
+            if isinstance(item, NamedComponentContract)
+            else NamedComponentContract(**item)
+            for item in copied.get("named_component_contracts", [])
         ]
         if copied.get("canary_target_plan") is not None and not isinstance(
             copied["canary_target_plan"], CanaryTargetPlan

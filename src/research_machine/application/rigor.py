@@ -1542,6 +1542,43 @@ def audit_research_state(
                         entity_type="run", entity_id=run.run_id,
                         remediation=check.failure_response,
                     )
+        if protocol is not None and protocol.named_component_contracts:
+            gates_by_id = {item.gate_id: item for item in run.quality_gates}
+            for contract in protocol.named_component_contracts:
+                gate = gates_by_id.get(contract.evaluation_gate_id)
+                results = (
+                    gate.details.get("named_component_results", {})
+                    if gate is not None else {}
+                )
+                result = (
+                    results.get(contract.contract_id)
+                    if isinstance(results, dict) else None
+                )
+                if not isinstance(result, dict):
+                    continue
+                status = result.get("assessment_status")
+                if status == "inconclusive":
+                    add(
+                        "NAMED_COMPONENT_SELECTION_INCONCLUSIVE",
+                        RigorSeverity.WARNING,
+                        f"Named-component contract {contract.contract_id} was inconclusive under its frozen relabeling.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Inspect the retained mapping evidence; do not treat positional and name-addressed selections as equivalent."
+                        ),
+                    )
+                elif status == "contradicted_named_selection":
+                    add(
+                        "NAMED_COMPONENT_SELECTION_CONTRADICTED",
+                        RigorSeverity.ERROR,
+                        f"Named-component contract {contract.contract_id} selected different names after the frozen relabeling.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the failure, replace positional slicing with explicit name lookup, and preregister a new protocol before retesting."
+                        ),
+                    )
         if (
             protocol is not None
             and protocol.sample_size_plan

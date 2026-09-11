@@ -29,6 +29,8 @@ def protocol_commitment(protocol: ExperimentProtocol) -> str:
         payload.pop("sample_size_plan", None)
     if not protocol.control_definitions:
         payload.pop("control_definitions", None)
+    if not protocol.named_component_contracts:
+        payload.pop("named_component_contracts", None)
     if not protocol.calibration_acceptance_criteria:
         payload.pop("calibration_acceptance_criteria", None)
     for criterion in payload.get("calibration_acceptance_criteria", []):
