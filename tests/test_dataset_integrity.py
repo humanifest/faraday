@@ -376,6 +376,8 @@ def test_real_protected_dataset_requires_current_registered_bytes(tmp_path: Path
     forged["synthetic"] = True
     dataset_path.write_text(json.dumps(forged), encoding="utf-8")
     with pytest.raises(ValidationError, match="dataset .* payload"):
+        service.list_datasets()
+    with pytest.raises(ValidationError, match="dataset .* payload"):
         service.show_inquiry()
     dataset_path.write_bytes(dataset_bytes)
 

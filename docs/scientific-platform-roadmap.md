@@ -314,13 +314,14 @@ provider-neutral clients before the service repeats the canonical check.
 
 Canonical run-payload delivery: after run preparation completes, the service now
 hashes the full immutable run outside the hash field itself. Caller-supplied
-commitments are rejected. Inquiry display and evidence admission recompute the
-commitment for every run, so post-record changes to gates, protocol or dataset
-links, chronology, deviation disclosures, eligibility, outputs, metadata, or
-summary fail before influencing scientific state. This local commitment detects
-accidental or out-of-band mutation under the repository trust model; it is not a
-signature, external timestamp, or defense against an administrator rewriting
-both canonical state and its entire provenance history.
+commitments are rejected. Run listing, single-run fetches, inquiry display, and
+evidence admission recompute the commitment for every run, so post-record
+changes to gates, protocol or dataset links, chronology, deviation disclosures,
+eligibility, outputs, metadata, or summary fail before influencing scientific
+state. This local commitment detects accidental or out-of-band mutation under
+the repository trust model; it is not a signature, external timestamp, or
+defense against an administrator rewriting both canonical state and its entire
+provenance history.
 
 Claim-bound evidence delivery: a scientific evidence admission receipt now
 commits the referenced claim’s stable proposition—claim ID, statement, inference
@@ -2110,10 +2111,11 @@ identity, metadata, artifact declarations, and all generated verification
 receipts. Caller-supplied commitments are rejected. Inquiry display and run
 intake recompute the digest before applying role or evidence rules, preventing a
 changed classification or lineage from exploiting otherwise valid artifact
-hashes. As with run commitments, this is local mutation detection rather than a
-signature or external timestamp; metadata-only exports may redact operational
-paths and therefore preserve, but cannot independently replay, the unredacted
-canonical commitment.
+hashes. Authoritative dataset listing replays the same read boundary before
+returning records. As with run commitments, this is local mutation detection
+rather than a signature or external timestamp; metadata-only exports may redact
+operational paths and therefore preserve, but cannot independently replay, the
+unredacted canonical commitment.
 
 Instrument-adapter foundation: validated add-on manifests may now register
 bounded inspectors with stable IDs, supported media types, and explicit config

@@ -2299,6 +2299,7 @@ class ResearchService:
 
     def list_datasets(self, inquiry_id: str | None = None) -> list[DatasetManifest]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         return self.repository.list_datasets(resolved)
 
     def export_replication_package(
@@ -4741,10 +4742,12 @@ class ResearchService:
 
     def list_runs(self, inquiry_id: str | None = None) -> list[ResearchRun]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         return self.repository.list_runs(resolved)
 
     def get_run(self, run_id: str, inquiry_id: str | None = None) -> ResearchRun:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         return self.repository.find_run(resolved, run_id)
 
     def recommend_next_action(

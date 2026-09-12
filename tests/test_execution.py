@@ -1940,6 +1940,10 @@ def test_domain_neutral_protocol_run_and_evidence_chain(tmp_path: Path) -> None:
     forged_run["quality_gates"][0]["summary"] = "A substituted gate interpretation."
     run_path.write_text(json.dumps(forged_run), encoding="utf-8")
     with pytest.raises(ValidationError, match="run .* payload"):
+        service.list_runs()
+    with pytest.raises(ValidationError, match="run .* payload"):
+        service.get_run(run.run_id)
+    with pytest.raises(ValidationError, match="run .* payload"):
         service.show_inquiry()
     run_path.write_bytes(run_bytes)
 

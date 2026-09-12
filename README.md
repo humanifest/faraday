@@ -2115,9 +2115,10 @@ gate evidence.
 - Register immutable, content-hashed datasets with roles that prevent
   exploratory/confirmatory leakage.
 - Seal each complete dataset manifest with a service-generated commitment, not
-  only its artifact list. Authoritative reads and run intake reject later edits
-  to role, synthetic status, protocol binding, lineage, observation unit,
-  attestations, metadata, artifact declarations, or descriptive identity.
+  only its artifact list. Authoritative reads, including dataset listing, and
+  run intake reject later edits to role, synthetic status, protocol binding,
+  lineage, observation unit, attestations, metadata, artifact declarations, or
+  descriptive identity.
 - Draft, amend, and hash-freeze observational, experimental, computational,
   formal, literature, and synthesis protocols.
 - Bind each frozen protocol to the complete scientific content of every tested
@@ -2134,9 +2135,10 @@ gate evidence.
   [named-component subset invariants](docs/measurement-contract.md#named-component-subset-invariants).
 - Record code-, environment-, input-, output-, and quality-gate-bound runs.
 - Seal every canonical run with a service-generated commitment over the complete
-  immutable payload. Authoritative reads reject later edits to its protocol or
-  dataset links, chronology, gates, deviation disclosure, eligibility, outputs,
-  metadata, or summary before those changes can affect evidence or synthesis.
+  immutable payload. Authoritative reads, including run listing and single-run
+  fetches, reject later edits to its protocol or dataset links, chronology,
+  gates, deviation disclosure, eligibility, outputs, metadata, or summary before
+  those changes can affect evidence or synthesis.
 - Admit scientific evidence with a receipt over the exact protocol, dataset,
   output, ethics status, claim proposition, and immutable evidence payload.
   Authoritative evidence listing replays that receipt before returning records,
