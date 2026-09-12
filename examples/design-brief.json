@@ -8,6 +8,10 @@
     "Do not choose blue light if measurement validity is contradicted."
   ],
   "decision_owner": "greenhouse-reviewer",
+  "ambiguity_questions": [
+    "Could tray position or baseline vigor explain an apparent height difference?",
+    "Would a contradicted measurement-validity check change the decision regardless of the point estimate?"
+  ],
   "available_data_sources": [
     "Greenhouse height CSV exported from the registered measurement sheet.",
     "Light-meter calibration log retained as PDF."

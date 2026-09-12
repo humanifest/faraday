@@ -10,7 +10,7 @@ def test_interview_emits_reviewable_control_definitions(complete):
     answers = iter(["Fixture", "Question", "Decision", "Height", "pot", "exploratory", "no"]
         + [""] * 29 + ["Blank sample", ""]
         + (["negative", "Detect background signal", "No signal"] if complete else ["", "", ""])
-        + [""] * 45)
+        + [""] * 46)
     result = interview_design(lambda prompt: next(answers))
     draft = result["scaffold"]["artifacts"]["protocol-draft.json"]
     definition = draft["control_definitions"][0]
@@ -60,6 +60,7 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
             "A reviewed result that clears the support rule.",
             "Stop if the registered falsifier appears; continue if validity is consistent",
             "greenhouse-owner",
+            "Is baseline imbalance still plausible?; Can sensor drift explain the result?",
             "greenhouse height CSV; masking log",
             "no baseline tray photograph",
             "lab-data-steward",
@@ -102,6 +103,10 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
         "continue if validity is consistent",
     ]
     assert result["brief"]["decision_owner"] == "greenhouse-owner"
+    assert result["brief"]["ambiguity_questions"] == [
+        "Is baseline imbalance still plausible?",
+        "Can sensor drift explain the result?",
+    ]
     assert result["brief"]["available_data_sources"] == [
         "greenhouse height CSV",
         "masking log",
@@ -717,7 +722,7 @@ def test_provider_free_interview_collects_auditable_causal_design() -> None:
 
 def test_human_interview_retains_hold_and_retries_invalid_choice():
     answers = iter(["Fixture", "Question", "Decision", "Score", "participant-day",
-                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 43)
+                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 44)
     result = interview_design(lambda prompt: next(answers))
     codes = {item["code"] for item in result["scaffold"]["findings"]}
     assert result["brief"]["study_type"] == "causal"
@@ -728,6 +733,7 @@ def test_human_interview_retains_hold_and_retries_invalid_choice():
     assert "FALSIFIER_UNRESOLVED" in codes
     assert "SAMPLE_SIZE_JUSTIFICATION_MISSING" in codes
     assert "INQUIRY_DECISION_BOUNDARY_INCOMPLETE" in codes
+    assert "AMBIGUITY_QUESTIONS_UNRESOLVED" in codes
     assert "DATA_AVAILABILITY_UNRESOLVED" in codes
     assert "DATA_PROVENANCE_PLAN_MISSING" in codes
     assert "DATA_ACCESS_OWNER_UNRESOLVED" in codes

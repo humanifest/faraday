@@ -765,6 +765,14 @@ uses them for the canonical inquiry instead of overwriting them with generic
 placeholders. Missing values remain visibly `[REVIEW REQUIRED]`, while padded
 supplied values block readiness before the practical decision boundary becomes
 review material.
+Guided ambiguity-question delivery: JSON briefs and the provider-free interview
+can now preserve explicit unresolved ambiguity questions. The scaffold emits
+`ambiguity-questions-draft.json` and repeats the questions in the collection
+plan, while `design initialize` records supplied ambiguities as canonical open
+questions through the application service. Missing questions remain visible
+warnings, padded supplied questions block review readiness, and the draft keeps
+them as unanswered review questions rather than evidence, protocol commitments,
+or preferred explanations.
 Guided data-availability delivery: JSON briefs and the provider-free interview
 can now preserve declared available data sources, unavailable or out-of-scope
 data, access owner, access constraints, and a source-provenance plan. The

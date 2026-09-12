@@ -60,7 +60,8 @@ _FALSIFYING_CONTROL_FAMILIES = {
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 DESIGN_BRIEF_FIELDS = {
     "title", "question", "decision", "minimum_evidence",
-    "decision_change_criteria", "decision_owner", "study_type", "population", "setting",
+    "decision_change_criteria", "decision_owner", "ambiguity_questions",
+    "study_type", "population", "setting",
     "available_data_sources", "unavailable_data", "data_access_constraints",
     "data_access_owner", "data_provenance_plan",
     "ethical_constraints", "ethical_safeguards_plan",
@@ -363,7 +364,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     unknown = set(brief) - DESIGN_BRIEF_FIELDS
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -386,7 +387,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
         raise ValueError("study_type must be one of: " + ", ".join(sorted(_STUDY_TYPES)))
     if brief.get("assignment_type", "") not in {"", "randomized", "observational"}:
         raise ValueError("assignment_type must be randomized or observational")
-    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
+    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
         _text_list(brief, key)
     _text_list(brief, "decision_change_criteria")
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
@@ -683,6 +684,20 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "error",
             "The inquiry decision boundary contains text with surrounding whitespace.",
             "Use exact unpadded minimum-evidence, decision-change, and decision-owner commitments before review artifacts preserve them.",
+        )
+    if not _text_list(brief, "ambiguity_questions"):
+        add(
+            "AMBIGUITY_QUESTIONS_UNRESOLVED",
+            "warning",
+            "The guided design records no explicit unresolved ambiguity questions.",
+            "Before design review, state the important unknowns, ambiguities, or discriminator questions that should remain open rather than being answered by the scaffold.",
+        )
+    if has_noncanonical_text_items(_text_list(brief, "ambiguity_questions")):
+        add(
+            "AMBIGUITY_QUESTION_NONCANONICAL",
+            "error",
+            "A guided ambiguity question contains surrounding whitespace.",
+            "Use exact unpadded ambiguity questions before review artifacts and canonical open questions preserve them.",
         )
     if not _text_list(brief, "available_data_sources"):
         add(
@@ -1772,6 +1787,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     sensor_requirements = _text_list(brief, "sensor_requirements")
     control_windows = _text_list(brief, "control_windows")
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
+    ambiguity_questions = _text_list(brief, "ambiguity_questions")
     available_data_sources = _text_list(brief, "available_data_sources")
     unavailable_data = _text_list(brief, "unavailable_data")
     data_access_constraints = _text_list(brief, "data_access_constraints")
@@ -2086,6 +2102,11 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "steps": analysis_steps,
                 "notice": "Freeze exact methods, specifications, implementations, dependencies, hypotheses, outcomes, and measurements before execution. Generated placeholders are not registrations.",
             },
+            "ambiguity-questions-draft.json": {
+                "status": "review_required",
+                "ambiguity_questions": ambiguity_questions,
+                "notice": "These are unresolved review questions. They are not evidence, answers, protocol commitments, or authorization to choose a preferred explanation.",
+            },
             "data-availability-draft.json": {
                 "status": "review_required",
                 "available_data_sources": available_data_sources,
@@ -2370,6 +2391,12 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 + "; ".join(inquiry_commitments["decision_change_criteria"])
                 + "\n\n"
                 f"Decision owner: {inquiry_commitments['decision_owner']}\n\n"
+                "Unresolved ambiguity questions: "
+                + (
+                    "; ".join(ambiguity_questions)
+                    if ambiguity_questions else "[REVIEW REQUIRED]"
+                )
+                + "\n\n"
                 "Available data sources: "
                 + (
                     "; ".join(available_data_sources)

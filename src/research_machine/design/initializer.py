@@ -226,6 +226,11 @@ def initialize_experiment_repository(
                 decision_owner=inquiry_commitments["decision_owner"],
             )
         )
+        for question in brief.get("ambiguity_questions", []):
+            service.add_question(
+                AddQuestion("[Guided ambiguity] " + question),
+                inquiry.inquiry_id,
+            )
         for finding in scaffold["findings"]:
             service.add_question(
                 AddQuestion(

@@ -747,6 +747,10 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
         raw_change_criteria
     )
     answer("decision_owner", "Who owns the practical decision?")
+    raw_ambiguities = ask(
+        "What important ambiguities or unresolved questions should remain open for review? Separate exact questions with semicolons [blank = unresolved]"
+    )
+    brief["ambiguity_questions"] = _split_semicolon_answer(raw_ambiguities)
     raw_available = ask(
         "What data sources are available or will be collected? Separate exact sources with semicolons [blank = unresolved]"
     )

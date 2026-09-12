@@ -897,6 +897,51 @@ def test_scaffold_preserves_inquiry_decision_boundary():
     assert padded["status"] == "blocked"
 
 
+def test_scaffold_preserves_ambiguity_questions_boundary():
+    brief = {
+        "title": "Ambiguity fixture",
+        "question": "Question",
+        "decision": "Choose whether the current design can discriminate models.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "ambiguity_questions": [
+            "Can measurement drift explain the apparent difference?",
+            "Would selection into the sample change the decision?",
+        ],
+    }
+
+    result = scaffold_design(brief)
+
+    ambiguity = result["artifacts"]["ambiguity-questions-draft.json"]
+    assert ambiguity["ambiguity_questions"] == brief["ambiguity_questions"]
+    assert "not evidence" in ambiguity["notice"]
+    codes = {item["code"] for item in result["findings"]}
+    assert "AMBIGUITY_QUESTIONS_UNRESOLVED" not in codes
+    assert "Unresolved ambiguity questions: Can measurement drift" in result[
+        "artifacts"
+    ]["collection-plan.md"]
+
+    unresolved = scaffold_design({**brief, "ambiguity_questions": []})
+    unresolved_codes = {item["code"] for item in unresolved["findings"]}
+    assert "AMBIGUITY_QUESTIONS_UNRESOLVED" in unresolved_codes
+    assert unresolved["artifacts"]["ambiguity-questions-draft.json"][
+        "ambiguity_questions"
+    ] == []
+
+    padded = scaffold_design(
+        {
+            **brief,
+            "ambiguity_questions": [
+                " Can measurement drift explain the apparent difference?"
+            ],
+        }
+    )
+    padded_codes = {item["code"] for item in padded["findings"]}
+    assert "AMBIGUITY_QUESTION_NONCANONICAL" in padded_codes
+    assert padded["status"] == "blocked"
+
+
 def test_scaffold_preserves_data_availability_boundary():
     brief = {
         "title": "Data availability fixture",

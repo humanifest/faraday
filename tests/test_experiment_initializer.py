@@ -24,6 +24,9 @@ def _basic_brief() -> dict[str, object]:
             "Proceed only if measurement validity is consistent.",
         ],
         "decision_owner": "greenhouse-owner",
+        "ambiguity_questions": [
+            "Could baseline tray position explain the result?"
+        ],
         "outcome": "height",
         "unit_of_observation": "pot",
         "controls": [],
@@ -76,6 +79,7 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
     assert {
         entry["name"] for entry in state["review_artifacts"]
     } >= {
+        "ambiguity-questions-draft.json",
         "data-availability-draft.json",
         "ethical-safeguards-draft.json",
         "inquiry-draft.json",
@@ -104,6 +108,14 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
         "Proceed only if measurement validity is consistent.",
     ]
     assert inquiry["decision_owner"] == "greenhouse-owner"
+    questions = service.show_inquiry()["questions"]
+    assert any(
+        question["text"] == (
+            "[Guided ambiguity] Could baseline tray position explain the result?"
+        )
+        and question["status"] == "open"
+        for question in questions
+    )
     hypothesis = service.get_hypothesis(result["hypothesis_id"])
     assert hypothesis.primary_estimand == "Mean height difference, blue minus white."
     assert hypothesis.contrast_definition == "blue minus white"

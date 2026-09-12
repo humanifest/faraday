@@ -514,6 +514,10 @@ those as a dedicated `inquiry-draft.json`; `design initialize` carries them
 into the canonical inquiry, while missing values remain explicit
 `[REVIEW REQUIRED]` placeholders and padded supplied values block review
 readiness. Guided briefs and the provider-free interview can also preserve
+explicit unresolved ambiguity questions in `ambiguity-questions-draft.json`
+and the collection plan; `design initialize` records supplied ambiguities as
+canonical open questions rather than answers. Missing ambiguity questions remain
+visible warnings, and padded questions block readiness. They can also preserve
 available data sources, unavailable or out-of-scope data, data access owner,
 access constraints, and a source-provenance plan in
 `data-availability-draft.json` and the collection plan. Missing source,
