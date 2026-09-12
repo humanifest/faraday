@@ -5502,6 +5502,7 @@ class ResearchService:
 
     def list_evidence(self, inquiry_id: str | None = None) -> list[EvidenceRecord]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         return self.repository.list_evidence(resolved)
 
     def export_sherlock_evidence(

@@ -275,9 +275,10 @@ attested independence dimensions even if the pinned schema omits an array
 uniqueness constraint.
 Evidence admission revalidates the frozen protocol, current protected dataset
 bytes and custody, current run-output bytes, and applicable ethics status, then
-preserves a bounded admission receipt. Inquiry display, rigor audit, and
-synthesis replay eligible run outputs again so post-admission mutation cannot
-survive through a stale historical pass. Default replication exports redact
+preserves a bounded admission receipt. Authoritative evidence listing, inquiry
+display, rigor audit, and synthesis replay eligible run outputs again so
+post-admission mutation cannot survive through a stale historical pass. Default
+replication exports redact
 local roots and schema paths. These checks establish byte continuity and local
 contract consistency, not execution truth or scientific interpretation. The
 receipt hashes the complete immutable evidence payload outside the receipt

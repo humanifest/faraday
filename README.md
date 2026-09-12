@@ -2137,6 +2137,11 @@ gate evidence.
   immutable payload. Authoritative reads reject later edits to its protocol or
   dataset links, chronology, gates, deviation disclosure, eligibility, outputs,
   metadata, or summary before those changes can affect evidence or synthesis.
+- Admit scientific evidence with a receipt over the exact protocol, dataset,
+  output, ethics status, claim proposition, and immutable evidence payload.
+  Authoritative evidence listing replays that receipt before returning records,
+  so post-admission edits to direction, scope, uncertainty, selectors, linkage,
+  or prose cannot bypass display, audit, or synthesis checks.
 - Require an explicit protocol-deviation disclosure before a run can become
   evidence-eligible; preserve declared departures with output-bound support and
   block their automatic promotion without erasing the run. Deviation disclosure
