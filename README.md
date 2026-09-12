@@ -1823,8 +1823,9 @@ adapter-supplied hash claims. The inspection record also carries a
 adapter that omits typed streams is labeled `not_provided` with a visible
 limitation instead of silently looking timing-ready. Source-inspection replay
 requires retained temporal limitations to stay nonempty, canonical, and unique,
-so a self-consistent rewritten record cannot erase why absent or unverified
-stream metadata is not timing readiness.
+and free of assessment-overclaiming language, so a self-consistent rewritten
+record cannot erase or overstate why absent or unverified stream metadata is not
+timing readiness.
 Adapters cannot pass calibration, clear gates, register a dataset, or authorize
 evidence; their proposed raw-source entry must still enter the custody workflow
 below. `measurement verify-source-inspection` takes an independently trusted

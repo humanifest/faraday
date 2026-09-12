@@ -1141,6 +1141,9 @@ def test_instrument_inspection_discloses_absent_stream_metadata(tmp_path: Path) 
     [
         lambda metadata: metadata.update({"limitations": []}),
         lambda metadata: metadata.update({"limitations": [" No typed stream metadata. "]}),
+        lambda metadata: metadata.update(
+            {"limitations": ["This source inspection validated synchronized timing."]}
+        ),
     ],
 )
 def test_verify_instrument_inspection_requires_temporal_limitations(

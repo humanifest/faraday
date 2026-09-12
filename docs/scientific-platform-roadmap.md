@@ -2164,7 +2164,8 @@ labeled `proposed_unverified`, and missing typed streams are labeled
 `not_provided` with an explicit limitation, so future event-timing workflows
 cannot treat absent metadata as timing readiness. Independent replay now also
 requires retained temporal limitations to remain nonempty, canonical, and
-unique, so a hash-consistent rewritten inspection record cannot drop the visible
+unique and rejects assessment-overclaiming temporal limitation prose, so a
+hash-consistent rewritten inspection record cannot drop or overstate the visible
 reason that absent or unverified stream metadata is not timing readiness.
 `measurement verify-source-inspection` requires
 an independently trusted record hash and exactly re-executes all three inputs.
