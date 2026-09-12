@@ -99,12 +99,19 @@ def test_synthesis_plan_boundary_rejects_reviewer_authentication(tmp_path):
         validate_synthesis_plan_boundary(candidate)
 
 
-@pytest.mark.parametrize("field", ["eligibility_policy", "conclusion_rule", "deviation_policy"])
+@pytest.mark.parametrize(
+    "field",
+    ["limitation", "eligibility_policy", "conclusion_rule", "deviation_policy"],
+)
 def test_synthesis_plan_boundary_rejects_retained_overclaiming_policy(tmp_path, field):
     screening, digest = screening_file(tmp_path)
     result = create_synthesis_plan(screening, digest, spec(), tmp_path / "plan")
     candidate = dict(result)
-    candidate[field] = "Validated final conclusion"
+    if field == "limitation":
+        candidate["limitations"] = list(result["limitations"])
+        candidate["limitations"][0] = "Synthesis plan confirmed review validity"
+    else:
+        candidate[field] = "Validated final conclusion"
 
     with pytest.raises(ValidationError, match="prohibited overclaiming language"):
         validate_synthesis_plan_boundary(candidate)

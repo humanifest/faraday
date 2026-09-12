@@ -2563,11 +2563,13 @@ duplicated, cyclic, or cross-role/cross-protocol ancestry fail before scientific
 use.
 Literature synthesis-plan freezing now requires canonical plan IDs, reviewer
 text, questions, outcomes, effect measures, contrast definitions, subgroup and
-sensitivity entries, policy prose, conclusion rules, deviation policies, and
-included screening source IDs before hashing the plan. The plan is also
-explicitly non-evidentiary and non-authorizing for conclusions or publication;
-deviation, qualitative synthesis, effect-preparation, and pooling commands replay
-those false boundaries and retained limitations before using the plan. A padded
+sensitivity entries, retained limitations, policy prose, conclusion rules,
+deviation policies, and included screening source IDs before hashing the plan.
+Retained limitations and prospective policy prose also reject report-prohibited
+overclaiming language. The plan is explicitly non-evidentiary and
+non-authorizing for conclusions or publication; deviation, qualitative
+synthesis, effect-preparation, and pooling commands replay those false
+boundaries and retained limitations before using the plan. A padded
 prospective analysis rule or source handle is rejected instead of being trimmed
 into a different frozen commitment.
 
