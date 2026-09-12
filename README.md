@@ -2362,9 +2362,13 @@ target. Replay also rejects information-only candidates with nonzero
 `expected_discrimination`, so edited or legacy recommendation records cannot
 turn infrastructure progress into hypothesis discrimination after ranking.
 Each ranked score preserves the signed weighted contribution of expected
-discrimination, uncertainty reduction, cost, burden, safety risk, and ambiguity
-risk, and deterministic synthesis reports the selected actions' components so
-the tradeoff remains inspectable. Authoritative recommendation reads revalidate
+discrimination, uncertainty reduction, cost, duration, burden, safety risk, and
+ambiguity risk, and deterministic synthesis reports the selected actions'
+components so the tradeoff remains inspectable. Legacy sealed recommendations
+without a duration field remain readable only when their retained payload
+matches the pre-duration commitment shape; new recommendations replay duration
+as a first-class penalty rather than hiding time cost inside generic cost.
+Authoritative recommendation reads revalidate
 those candidate identities, eligibility references, target declarations, weight
 inputs, and candidate-score inputs, then replay the selected action, lane
 selections, ranked utilities, and signed components from the stored candidates,

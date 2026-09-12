@@ -37,6 +37,7 @@
           "expected_discrimination",
           "uncertainty_reduction",
           "cost",
+          "duration",
           "burden",
           "safety_risk",
           "ambiguity_risk",
@@ -86,6 +87,7 @@
           "expected_discrimination": {"type": "number", "minimum": 0, "maximum": 1},
           "uncertainty_reduction": {"type": "number", "minimum": 0, "maximum": 1},
           "cost": {"type": "number", "minimum": 0, "maximum": 1},
+          "duration": {"type": "number", "minimum": 0, "maximum": 1},
           "burden": {"type": "number", "minimum": 0, "maximum": 1},
           "safety_risk": {"type": "number", "minimum": 0, "maximum": 1},
           "ambiguity_risk": {"type": "number", "minimum": 0, "maximum": 1},
@@ -148,7 +150,10 @@
               "properties": {"distinguishes_hypotheses": {"maxItems": 0}}
             },
             "then": {
-              "properties": {"hypothesis_discrimination_targets": {"maxItems": 0}}
+              "properties": {
+                "expected_discrimination": {"const": 0},
+                "hypothesis_discrimination_targets": {"maxItems": 0}
+              }
             }
           }
         ],
@@ -167,6 +172,7 @@
         "expected_discrimination": {"type": "number", "minimum": 0},
         "uncertainty_reduction": {"type": "number", "minimum": 0},
         "cost": {"type": "number", "minimum": 0},
+        "duration": {"type": "number", "minimum": 0},
         "burden": {"type": "number", "minimum": 0},
         "safety_risk": {"type": "number", "minimum": 0},
         "ambiguity_risk": {"type": "number", "minimum": 0}

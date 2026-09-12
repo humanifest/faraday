@@ -72,8 +72,11 @@ methods without changing its epistemic rules or canonical state.
   provenance does not depend on silent whitespace normalization, non-finite
   arithmetic, or lexicographic action identifiers. Ranked scores now retain the
   signed weighted contribution of expected discrimination, uncertainty
-  reduction, cost, burden, safety risk, and ambiguity risk, and deterministic
-  synthesis reports those components for selected actions. Authoritative
+  reduction, cost, duration, burden, safety risk, and ambiguity risk, and
+  deterministic synthesis reports those components for selected actions.
+  Legacy sealed recommendations without duration remain readable only when they
+  match the pre-duration payload shape; new recommendations replay duration as a
+  first-class penalty rather than burying time cost in generic cost. Authoritative
   recommendation reads now replay the selected action, lane selections, ranked
   utilities, and signed components from the stored candidates, lanes,
   dependencies, completed actions, weights, and hypothesis-discrimination

@@ -1559,6 +1559,7 @@ def _action_candidates(spec: dict[str, Any]) -> list[ActionCandidate]:
         "expected_discrimination",
         "uncertainty_reduction",
         "cost",
+        "duration",
         "burden",
         "safety_risk",
         "ambiguity_risk",

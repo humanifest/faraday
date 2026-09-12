@@ -862,6 +862,7 @@ class ActionCandidate(Serializable):
     safety_risk: float
     ambiguity_risk: float
     rationale: str
+    duration: float = 0.0
     hypothesis_discrimination_targets: list[HypothesisDiscriminationTarget] = field(
         default_factory=list
     )
@@ -899,6 +900,7 @@ class SelectionWeights(Serializable):
     expected_discrimination: float = 1.0
     uncertainty_reduction: float = 0.5
     cost: float = 0.25
+    duration: float = 0.25
     burden: float = 0.35
     safety_risk: float = 0.75
     ambiguity_risk: float = 0.75

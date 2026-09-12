@@ -17,6 +17,7 @@
       "expected_discrimination": 0.9,
       "uncertainty_reduction": 0.8,
       "cost": 0.2,
+      "duration": 0.2,
       "burden": 0.1,
       "safety_risk": 0.0,
       "ambiguity_risk": 0.1,

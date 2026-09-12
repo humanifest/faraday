@@ -1136,6 +1136,7 @@ def _score_component_summary(score: ActionScore) -> str:
         "expected_discrimination",
         "uncertainty_reduction",
         "cost_penalty",
+        "duration_penalty",
         "burden_penalty",
         "safety_risk_penalty",
         "ambiguity_risk_penalty",
