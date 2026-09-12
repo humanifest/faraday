@@ -125,7 +125,10 @@ def validate_citation_verification_boundary(
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("citation verification requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"citation verification limitation {index + 1}")
+        _bounded_citation_text(
+            limitation,
+            f"citation verification limitation {index + 1}",
+        )
     if (
         not isinstance(assessments, list)
         or not assessments
