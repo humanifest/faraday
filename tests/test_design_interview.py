@@ -10,7 +10,7 @@ def test_interview_emits_reviewable_control_definitions(complete):
     answers = iter(["Fixture", "Question", "Decision", "Height", "pot", "exploratory", "no"]
         + [""] * 29 + ["Blank sample", ""]
         + (["negative", "Detect background signal", "No signal"] if complete else ["", "", ""])
-        + [""] * 35)
+        + [""] * 38)
     result = interview_design(lambda prompt: next(answers))
     draft = result["scaffold"]["artifacts"]["protocol-draft.json"]
     definition = draft["control_definitions"][0]
@@ -55,6 +55,9 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
             "retain all valid measurements regardless of direction",
             "post_exposure",
             *( [""] * 27 ),
+            "A reviewed result that clears the support rule.",
+            "Stop if the registered falsifier appears; continue if validity is consistent",
+            "greenhouse-owner",
         ]
     )
     monkeypatch.setattr("builtins.input", lambda: next(answers))
@@ -84,6 +87,14 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
     assert result["brief"]["measurement_parameter_values"] == {
         "ruler_resolution": "1 mm", "replicate_readings": "2",
     }
+    assert result["brief"]["minimum_evidence"] == (
+        "A reviewed result that clears the support rule."
+    )
+    assert result["brief"]["decision_change_criteria"] == [
+        "Stop if the registered falsifier appears",
+        "continue if validity is consistent",
+    ]
+    assert result["brief"]["decision_owner"] == "greenhouse-owner"
     measurement = result["scaffold"]["artifacts"]["measurement-definition-draft.json"]
     assert measurement["data_column"] == "height_mm"
     assert measurement["observable"] == "Mean marked-stem height in millimetres"
@@ -682,12 +693,14 @@ def test_provider_free_interview_collects_auditable_causal_design() -> None:
 
 def test_human_interview_retains_hold_and_retries_invalid_choice():
     answers = iter(["Fixture", "Question", "Decision", "Score", "participant-day",
-                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 33)
+                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 36)
     result = interview_design(lambda prompt: next(answers))
+    codes = {item["code"] for item in result["scaffold"]["findings"]}
     assert result["brief"]["study_type"] == "causal"
-    assert "BLINDING_UNRESOLVED" in {item["code"] for item in result["scaffold"]["findings"]}
+    assert "BLINDING_UNRESOLVED" in codes
     assert result["brief"]["independent_review"] is False
-    assert "HUMAN_REVIEW_REQUIRED" in {item["code"] for item in result["scaffold"]["findings"]}
+    assert "HUMAN_REVIEW_REQUIRED" in codes
     assert result["scaffold"]["status"] == "blocked"
-    assert "FALSIFIER_UNRESOLVED" in {item["code"] for item in result["scaffold"]["findings"]}
-    assert "SAMPLE_SIZE_JUSTIFICATION_MISSING" in {item["code"] for item in result["scaffold"]["findings"]}
+    assert "FALSIFIER_UNRESOLVED" in codes
+    assert "SAMPLE_SIZE_JUSTIFICATION_MISSING" in codes
+    assert "INQUIRY_DECISION_BOUNDARY_INCOMPLETE" in codes

@@ -12,7 +12,11 @@ from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import AddQuestion, CreateInquiry, ProposeHypothesis
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ValidationError
-from research_machine.design.scaffold import scaffold_design, validate_brief
+from research_machine.design.scaffold import (
+    inquiry_decision_commitments,
+    scaffold_design,
+    validate_brief,
+)
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -209,14 +213,17 @@ def initialize_experiment_repository(
 
         service = ResearchService(FileSystemRepository(staging / ".research"), actor=actor)
         service.init_workspace()
+        inquiry_commitments = inquiry_decision_commitments(brief)
         inquiry = service.create_inquiry(
             CreateInquiry(
                 title=brief["title"],
                 initial_statement=brief["question"],
-                decision_to_support=brief["decision"],
-                minimum_evidence="[REVIEW REQUIRED] Define the minimum decision-relevant evidence.",
-                decision_change_criteria=["[REVIEW REQUIRED] Define what result changes the decision."],
-                decision_owner="[REVIEW REQUIRED]",
+                decision_to_support=inquiry_commitments["decision_to_support"],
+                minimum_evidence=inquiry_commitments["minimum_evidence"],
+                decision_change_criteria=inquiry_commitments[
+                    "decision_change_criteria"
+                ],
+                decision_owner=inquiry_commitments["decision_owner"],
             )
         )
         for finding in scaffold["findings"]:

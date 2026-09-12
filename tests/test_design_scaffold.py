@@ -856,6 +856,47 @@ def test_confirmatory_scaffold_emits_structured_analysis_contract():
     assert "missingness-assessed" in protocol["quality_requirements"]
 
 
+def test_scaffold_preserves_inquiry_decision_boundary():
+    brief = {
+        "title": "Decision boundary fixture",
+        "question": "Question",
+        "decision": "Choose whether to proceed.",
+        "minimum_evidence": "Two independent checks support action.",
+        "decision_change_criteria": [
+            "Stop if the registered falsifier appears.",
+            "Proceed only if the validity check is consistent.",
+        ],
+        "decision_owner": "project-owner",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+    }
+
+    result = scaffold_design(brief)
+
+    inquiry = result["artifacts"]["inquiry-draft.json"]
+    assert inquiry["decision_to_support"] == "Choose whether to proceed."
+    assert inquiry["minimum_evidence"] == "Two independent checks support action."
+    assert inquiry["decision_change_criteria"] == brief["decision_change_criteria"]
+    assert inquiry["decision_owner"] == "project-owner"
+    assert "INQUIRY_DECISION_BOUNDARY_INCOMPLETE" not in {
+        item["code"] for item in result["findings"]
+    }
+    assert "Minimum decision-relevant evidence: Two independent checks" in result[
+        "artifacts"
+    ]["collection-plan.md"]
+
+    padded = scaffold_design(
+        {
+            **brief,
+            "minimum_evidence": " Two independent checks support action.",
+        }
+    )
+    codes = {item["code"] for item in padded["findings"]}
+    assert "INQUIRY_DECISION_BOUNDARY_NONCANONICAL" in codes
+    assert padded["status"] == "blocked"
+
+
 def test_secondary_outcomes_require_exact_typed_measurement_coverage():
     base = {
         "title": "Secondary measurement fixture", "question": "Question",

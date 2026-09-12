@@ -2,6 +2,12 @@
   "title": "Seedling light trial",
   "question": "Does blue light change seedling height?",
   "decision": "Choose a greenhouse light.",
+  "minimum_evidence": "A reviewed confirmatory result that passes the registered support rule without unresolved validity or control failures.",
+  "decision_change_criteria": [
+    "Keep white light if the registered falsifier appears.",
+    "Do not choose blue light if measurement validity is contradicted."
+  ],
+  "decision_owner": "greenhouse-reviewer",
   "study_type": "causal",
   "intervention": "Blue light",
   "comparison": "White-light control",

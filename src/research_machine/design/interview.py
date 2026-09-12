@@ -728,4 +728,15 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             control_measurements.append(draft)
     if control_measurements:
         brief["control_measurements"] = control_measurements
+    answer(
+        "minimum_evidence",
+        "What minimum decision-relevant evidence would be enough to act?",
+    )
+    raw_change_criteria = ask(
+        "What observations would change the practical decision? Separate exact criteria with semicolons [blank = unresolved]"
+    )
+    brief["decision_change_criteria"] = _split_semicolon_answer(
+        raw_change_criteria
+    )
+    answer("decision_owner", "Who owns the practical decision?")
     return {"brief": brief, "scaffold": scaffold_design(brief)}

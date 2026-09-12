@@ -59,7 +59,8 @@ _FALSIFYING_CONTROL_FAMILIES = {
 }
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 DESIGN_BRIEF_FIELDS = {
-    "title", "question", "decision", "study_type", "population", "setting",
+    "title", "question", "decision", "minimum_evidence",
+    "decision_change_criteria", "decision_owner", "study_type", "population", "setting",
     "intervention", "exposure_definition", "assignment_type",
     "manipulated_factors", "factorial_or_crossover_design",
     "factor_interpretability_plan",
@@ -207,6 +208,21 @@ def _scaffold_manifest(
     }
 
 
+def inquiry_decision_commitments(brief: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "decision_to_support": brief["decision"],
+        "minimum_evidence": brief.get(
+            "minimum_evidence",
+            "[REVIEW REQUIRED] Define the minimum decision-relevant evidence.",
+        ),
+        "decision_change_criteria": _text_list(
+            brief, "decision_change_criteria"
+        )
+        or ["[REVIEW REQUIRED] Define what result changes the decision."],
+        "decision_owner": brief.get("decision_owner", "[REVIEW REQUIRED]"),
+    }
+
+
 def _analysis_contract_method(family: str) -> str:
     return {
         "mean_difference": "independent_mean_difference_ci",
@@ -344,7 +360,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     unknown = set(brief) - DESIGN_BRIEF_FIELDS
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -369,6 +385,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
         raise ValueError("assignment_type must be randomized or observational")
     for key in {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
         _text_list(brief, key)
+    _text_list(brief, "decision_change_criteria")
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
         raise ValueError("outcome_scale is unsupported")
     if brief.get("primary_analysis_family", "") not in {"", *_ANALYSIS_FAMILIES}:
@@ -621,11 +638,48 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                 "Use exact stable labels without padding so review artifacts, coverage checks, gates, and execution handles bind the same scientific roles.",
             )
 
+    def has_noncanonical_parameter_values(values: dict[str, str]) -> bool:
+        return any(
+            key != key.strip() or value != value.strip()
+            for key, value in values.items()
+        )
+
+    def has_noncanonical_text_items(values: list[str]) -> bool:
+        return any(value != value.strip() for value in values)
+
     if any(brief[field] != brief[field].strip() for field in _REQUIRED):
         add(
             "CORE_BRIEF_FIELD_NONCANONICAL", "error",
             "A required design brief field contains surrounding whitespace.",
             "Use exact unpadded title, question, decision, outcome, and unit-of-observation text before review drafts preserve them as inquiry, hypothesis, protocol, and collection commitments.",
+        )
+    if (
+        not str(brief.get("minimum_evidence", "")).strip()
+        or not _text_list(brief, "decision_change_criteria")
+        or not str(brief.get("decision_owner", "")).strip()
+    ):
+        add(
+            "INQUIRY_DECISION_BOUNDARY_INCOMPLETE",
+            "warning",
+            "The guided inquiry lacks a complete minimum-evidence threshold, decision-change criterion, or decision owner.",
+            "Before treating the study as decision-ready, state who owns the decision, what minimum evidence is enough, and what observation would change the decision.",
+        )
+    if (
+        (
+            isinstance(brief.get("minimum_evidence"), str)
+            and brief["minimum_evidence"] != brief["minimum_evidence"].strip()
+        )
+        or (
+            isinstance(brief.get("decision_owner"), str)
+            and brief["decision_owner"] != brief["decision_owner"].strip()
+        )
+        or has_noncanonical_text_items(_text_list(brief, "decision_change_criteria"))
+    ):
+        add(
+            "INQUIRY_DECISION_BOUNDARY_NONCANONICAL",
+            "error",
+            "The inquiry decision boundary contains text with surrounding whitespace.",
+            "Use exact unpadded minimum-evidence, decision-change, and decision-owner commitments before review artifacts preserve them.",
         )
     require_canonical_list_items("secondary_outcomes", "SECONDARY_OUTCOME_LABEL_NONCANONICAL", "Secondary outcomes")
     require_canonical_list_items("confirmatory_outcomes", "CONFIRMATORY_OUTCOME_LABEL_NONCANONICAL", "Confirmatory outcomes")
@@ -647,15 +701,6 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         "UNSUPPORTED_CONCLUSION_NONCANONICAL",
         "Unsupported-conclusion ceilings",
     )
-
-    def has_noncanonical_parameter_values(values: dict[str, str]) -> bool:
-        return any(
-            key != key.strip() or value != value.strip()
-            for key, value in values.items()
-        )
-
-    def has_noncanonical_text_items(values: list[str]) -> bool:
-        return any(value != value.strip() for value in values)
 
     def measurement_contract_is_noncanonical(
         measurement: dict[str, Any],
@@ -1680,6 +1725,17 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             "[REVIEW REQUIRED] second contrast level",
         ],
     }
+    inquiry = {
+        "status": "review_required",
+        "title": brief["title"],
+        "initial_statement": brief["question"],
+        **inquiry_decision_commitments(brief),
+        "notice": (
+            "This inquiry draft records the practical decision boundary for "
+            "review. It is not evidence, approval, or a claim that the listed "
+            "threshold is scientifically adequate."
+        ),
+    }
     planned_outcomes = [brief["outcome"], *secondary_outcomes]
     planned_confirmatory = _text_list(brief, "confirmatory_outcomes")
     analysis_steps = []
@@ -1930,7 +1986,9 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         add_quality_requirements([brief["missingness_assessment_gate_id"]])
     status = "blocked" if blockers else "review_required"
     provenance = _scaffold_provenance(brief, findings)
+    inquiry_commitments = inquiry_decision_commitments(brief)
     artifacts = {
+            "inquiry-draft.json": inquiry,
             "hypothesis-proposal.json": hypothesis,
             "protocol-draft.json": protocol,
             "analysis-workflow-draft.json": {
@@ -2202,6 +2260,11 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             },
             "collection-plan.md": (
                 f"# {brief['title']}\n\nQuestion: {brief['question']}\n\nDecision: {brief['decision']}\n\n"
+                f"Minimum decision-relevant evidence: {inquiry_commitments['minimum_evidence']}\n\n"
+                "Decision-change observations: "
+                + "; ".join(inquiry_commitments["decision_change_criteria"])
+                + "\n\n"
+                f"Decision owner: {inquiry_commitments['decision_owner']}\n\n"
                 "Collect only after blocking findings are resolved and the applicable protocol is reviewed and frozen.\n\n"
                 "Keep observation identity separate from independent-unit identity. Repeated observations retain the same unit ID; do not manufacture independence by assigning each row a new unit ID. "
                 "Use pseudonymous IDs and keep identifying lookup tables under the approved privacy controls.\n\n"

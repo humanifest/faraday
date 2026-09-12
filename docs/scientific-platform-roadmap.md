@@ -757,6 +757,14 @@ adherence evidence, or reviewer authentication.
 Required title, question, decision, outcome, and unit-of-observation fields now
 receive blocking findings when surrounding whitespace would otherwise be
 preserved as inquiry, hypothesis, protocol, or collection draft text.
+Guided inquiry-boundary delivery: JSON briefs and the provider-free interview
+can now collect the minimum decision-relevant evidence, exact observations that
+would change the practical decision, and the decision owner. The scaffold emits
+those commitments in `inquiry-draft.json` and the collection plan; initialization
+uses them for the canonical inquiry instead of overwriting them with generic
+placeholders. Missing values remain visibly `[REVIEW REQUIRED]`, while padded
+supplied values block readiness before the practical decision boundary becomes
+review material.
 Guided review-list commitments, including exclusions, falsification conditions,
 and unsupported higher-level conclusions, now receive blocking findings when
 surrounding whitespace would otherwise be preserved in draft artifacts.

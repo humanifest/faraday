@@ -18,6 +18,12 @@ def _basic_brief() -> dict[str, object]:
         "title": "Light trial",
         "question": "Does blue light alter height?",
         "decision": "Choose a light.",
+        "minimum_evidence": "A reviewed result meeting the frozen support rule.",
+        "decision_change_criteria": [
+            "Do not choose blue light if the registered falsifier appears.",
+            "Proceed only if measurement validity is consistent.",
+        ],
+        "decision_owner": "greenhouse-owner",
         "outcome": "height",
         "unit_of_observation": "pot",
         "controls": [],
@@ -80,6 +86,17 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
         (destination / "drafts" / "protocol-draft.json").read_bytes()
     ).hexdigest()
     service = ResearchService(FileSystemRepository(destination / ".research"), actor="test")
+    inquiry = service.show_inquiry()["inquiry"]
+    assert inquiry["decision_to_support"] == "Choose a light."
+    assert (
+        inquiry["minimum_evidence"]
+        == "A reviewed result meeting the frozen support rule."
+    )
+    assert inquiry["decision_change_criteria"] == [
+        "Do not choose blue light if the registered falsifier appears.",
+        "Proceed only if measurement validity is consistent.",
+    ]
+    assert inquiry["decision_owner"] == "greenhouse-owner"
     hypothesis = service.get_hypothesis(result["hypothesis_id"])
     assert hypothesis.primary_estimand == "Mean height difference, blue minus white."
     assert hypothesis.contrast_definition == "blue minus white"

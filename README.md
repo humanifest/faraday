@@ -508,7 +508,12 @@ measurement units and calibration, controls, confounds, stopping rules, and
 human-participant safeguards. Required brief fields for title, question,
 decision, outcome, and unit of observation must be canonical without surrounding
 whitespace before they become inquiry, hypothesis, protocol, or collection
-draft text. Review-list commitments such as exclusions,
+draft text. Guided briefs may also supply the inquiry's minimum evidence
+threshold, decision-change criteria, and decision owner. The scaffold emits
+those as a dedicated `inquiry-draft.json`; `design initialize` carries them
+into the canonical inquiry, while missing values remain explicit
+`[REVIEW REQUIRED]` placeholders and padded supplied values block review
+readiness. Review-list commitments such as exclusions,
 falsification conditions, and unsupported higher-level conclusions must be
 canonical without surrounding whitespace before they are treated as draft
 protocol, hypothesis, or conclusion-contract text. Prospective prose
