@@ -483,3 +483,22 @@ def test_initializer_rejects_duplicate_decision_change_criteria_before_writing(
             initialize_git=False,
         )
     assert not (tmp_path / "light-trial").exists()
+
+
+def test_initializer_rejects_conflicting_data_availability_before_writing(
+    tmp_path: Path,
+) -> None:
+    brief_payload = {
+        **_basic_brief(),
+        "available_data_sources": ["Instrument export retained as CSV."],
+        "unavailable_data": ["instrument export retained as csv."],
+    }
+
+    with pytest.raises(ValueError, match="conflicts with an available data source"):
+        initializer.initialize_experiment_repository(
+            brief_payload,
+            tmp_path / "light-trial",
+            actor="test",
+            initialize_git=False,
+        )
+    assert not (tmp_path / "light-trial").exists()

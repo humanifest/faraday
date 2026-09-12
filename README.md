@@ -535,8 +535,9 @@ intent, robustness, or other claims. Guided briefs can also preserve
 available data sources, unavailable or out-of-scope data, data access owner,
 access constraints, and a source-provenance plan in
 `data-availability-draft.json` and the collection plan. Missing source,
-access-owner, or provenance commitments remain visible warnings, and supplied
-padded data availability text blocks readiness; the draft does not verify
+access-owner, or provenance commitments remain visible warnings; duplicated
+or available/unavailable-conflicting source entries are rejected; and supplied
+padded data availability text blocks readiness. The draft does not verify
 access, custody, consent, authenticity, or evidentiary suitability. Guided
 briefs and the provider-free interview can also preserve general ethical and
 safety constraints plus a safeguards plan in

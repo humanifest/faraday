@@ -1132,6 +1132,52 @@ def test_scaffold_preserves_data_availability_boundary():
     assert padded["status"] == "blocked"
 
 
+def test_scaffold_rejects_conflicting_data_availability_boundary():
+    brief = {
+        "title": "Data availability conflict fixture",
+        "question": "Question",
+        "decision": "Choose whether records can support the test.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "available_data_sources": ["Instrument export retained as CSV."],
+        "unavailable_data": ["instrument export retained as csv."],
+    }
+
+    with pytest.raises(ValueError, match="conflicts with an available data source"):
+        scaffold_design(brief)
+
+
+def test_scaffold_rejects_duplicate_data_availability_items():
+    brief = {
+        "title": "Data availability duplicate fixture",
+        "question": "Question",
+        "decision": "Choose whether records can support the test.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "available_data_sources": [
+            "Instrument export retained as CSV.",
+            "instrument export retained as csv.",
+        ],
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier available data source"):
+        scaffold_design(brief)
+
+    with pytest.raises(ValueError, match="duplicates an earlier unavailable data item"):
+        scaffold_design(
+            {
+                **brief,
+                "available_data_sources": [],
+                "unavailable_data": [
+                    "No pre-intervention baseline exists.",
+                    "no pre-intervention baseline exists.",
+                ],
+            }
+        )
+
+
 def test_scaffold_preserves_ethical_safeguards_boundary():
     brief = {
         "title": "Ethical safeguards fixture",

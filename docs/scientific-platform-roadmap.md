@@ -789,10 +789,11 @@ can now preserve declared available data sources, unavailable or out-of-scope
 data, access owner, access constraints, and a source-provenance plan. The
 scaffold emits `data-availability-draft.json` and repeats the boundary in the
 collection plan. Missing source or provenance commitments remain visible
-warnings, as does a missing data access owner, while padded supplied source,
-access, or provenance text blocks review readiness. The artifact is review-only:
-it does not verify access, custody, consent, authenticity, or evidentiary
-suitability.
+warnings, as does a missing data access owner. Duplicated or
+available/unavailable-conflicting source entries are rejected, while padded
+supplied source, access, or provenance text blocks review readiness. The
+artifact is review-only: it does not verify access, custody, consent,
+authenticity, or evidentiary suitability.
 Guided ethical-safeguards delivery: JSON briefs and the provider-free interview
 can now preserve general ethical and safety constraints plus a safeguards plan.
 The scaffold emits `ethical-safeguards-draft.json`, carries the constraints into

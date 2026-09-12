@@ -166,6 +166,35 @@ def _ambiguity_questions(brief: dict[str, Any]) -> list[str]:
     return questions
 
 
+def _data_availability_boundary(
+    brief: dict[str, Any],
+) -> tuple[list[str], list[str], list[str]]:
+    available = _text_list(brief, "available_data_sources")
+    unavailable = _text_list(brief, "unavailable_data")
+    constraints = _text_list(brief, "data_access_constraints")
+    available_keys: set[str] = set()
+    for index, source in enumerate(available, start=1):
+        source_key = source.strip().casefold()
+        if source_key in available_keys:
+            raise ValueError(
+                f"available_data_sources[{index}] duplicates an earlier available data source"
+            )
+        available_keys.add(source_key)
+    unavailable_keys: set[str] = set()
+    for index, source in enumerate(unavailable, start=1):
+        source_key = source.strip().casefold()
+        if source_key in unavailable_keys:
+            raise ValueError(
+                f"unavailable_data[{index}] duplicates an earlier unavailable data item"
+            )
+        if source_key in available_keys:
+            raise ValueError(
+                f"unavailable_data[{index}] conflicts with an available data source"
+            )
+        unavailable_keys.add(source_key)
+    return available, unavailable, constraints
+
+
 def _claim_boundaries(brief: dict[str, Any]) -> list[dict[str, str]]:
     value = brief.get("claim_boundaries", [])
     if not isinstance(value, list):
@@ -453,6 +482,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
         _text_list(brief, key)
     _decision_change_criteria(brief)
     _ambiguity_questions(brief)
+    _data_availability_boundary(brief)
     _claim_boundaries(brief)
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
         raise ValueError("outcome_scale is unsupported")
@@ -785,7 +815,10 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "A guided claim boundary contains text with surrounding whitespace.",
             "Use exact unpadded claim statements, levels, and scopes before review artifacts and canonical unresolved claims preserve them.",
         )
-    if not _text_list(brief, "available_data_sources"):
+    available_data_sources, unavailable_data, data_access_constraints = (
+        _data_availability_boundary(brief)
+    )
+    if not available_data_sources:
         add(
             "DATA_AVAILABILITY_UNRESOLVED",
             "warning",
@@ -807,9 +840,9 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "Name who controls access to the needed data so custody, consent, licensing, and operational limits remain accountable before collection or analysis.",
         )
     if (
-        has_noncanonical_text_items(_text_list(brief, "available_data_sources"))
-        or has_noncanonical_text_items(_text_list(brief, "unavailable_data"))
-        or has_noncanonical_text_items(_text_list(brief, "data_access_constraints"))
+        has_noncanonical_text_items(available_data_sources)
+        or has_noncanonical_text_items(unavailable_data)
+        or has_noncanonical_text_items(data_access_constraints)
         or (
             isinstance(brief.get("data_access_owner"), str)
             and brief["data_access_owner"] != brief["data_access_owner"].strip()
@@ -1875,9 +1908,9 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
     ambiguity_questions = _ambiguity_questions(brief)
     claim_boundaries = _claim_boundaries(brief)
-    available_data_sources = _text_list(brief, "available_data_sources")
-    unavailable_data = _text_list(brief, "unavailable_data")
-    data_access_constraints = _text_list(brief, "data_access_constraints")
+    available_data_sources, unavailable_data, data_access_constraints = (
+        _data_availability_boundary(brief)
+    )
     data_access_owner = brief.get("data_access_owner") or "[REVIEW REQUIRED]"
     data_provenance_plan = brief.get(
         "data_provenance_plan"
