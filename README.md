@@ -1197,8 +1197,9 @@ JSON Schemas for provider-neutral exchange artifacts live in
 `examples/`. Generated proposal and review records are published separately as
 `schemas/collaborator-proposal-record.schema.json` and
 `schemas/collaborator-proposal-review-record.schema.json` so apps can validate
-pending-review records and digest-bound advanced triage summaries without
-treating them as actions. These schemas let future plugins and apps preflight
+pending-review records, retained proposal/review payload digests, and
+digest-bound advanced triage summaries without treating them as actions. These
+schemas let future plugins and apps preflight
 the frozen context shape, typed reference-prefix matching, write boundary,
 proposal shape, and review-only authority boundary, including case-insensitive
 rejection of summary,
@@ -1222,8 +1223,9 @@ Replay a saved proposal record before using it as review input:
 ```
 
 Verification checks the trusted proposal-record hash, retained context and
-proposal input receipts, authority flags, retained scientific constraints,
-retained context write boundary, retained context reference index, proposal body grounding, suggestion
+proposal input receipts, retained proposal payload digest, authority flags,
+retained scientific constraints, retained context write boundary, retained
+context reference index, proposal body grounding, suggestion
 references, and the `pending_human_review` boundary. It uses only the retained
 index and guardrails; it does not reopen the original context bytes, authenticate
 the generator, call a model, or authorize the proposal. The retained
@@ -1261,7 +1263,8 @@ Replay a saved review record before relying on it as triage provenance:
 
 Verification checks the trusted record hash, authority flags, retained
 scientific constraints, retained context write boundary, retained context
-reference index, proposal-record guardrail replay digests, review payload version, review decisions, every
+reference index, proposal-record guardrail replay digests, retained review
+payload digest, review payload version, review decisions, every
 retained suggestion digest, the ordered proposal-suggestion snapshot anchor,
 reviewed-suggestion evidence-reference coverage, exact
 coverage of the proposal's ordered suggestion IDs, and the advanced-suggestion

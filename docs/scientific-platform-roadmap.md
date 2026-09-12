@@ -1509,8 +1509,8 @@ this workflow has no provider or API-cost dependency.
 `research collaborator verify-proposal` now independently replays a saved
 proposal record against a trusted proposal-record hash before it is used as
 review input. It checks retained context/proposal input receipts, authority
-flags, retained scientific constraints, retained context reference index,
-proposal body grounding, suggestion references, and the
+flags, retained proposal payload digest, retained scientific constraints,
+retained context reference index, proposal body grounding, suggestion references, and the
 `pending_human_review` boundary while explicitly limiting replay to the retained
 index and guardrails rather than reopening original context bytes or
 authenticating the generator. Replay also requires the exact non-authority
@@ -1534,7 +1534,7 @@ detect guardrail rewrites inside the review record itself. `research
 collaborator verify-review` independently replays a saved review record against
 a trusted review-record hash, checking the authority flags, retained scientific
 constraints, retained context reference index, proposal-record replay digests,
-review payload version, reviewed suggestion digests, the ordered
+retained review payload digest, review payload version, reviewed suggestion digests, the ordered
 proposal-suggestion snapshot anchor, reviewed-suggestion evidence-reference
 coverage, exact coverage of the retained ordered proposal suggestion IDs,
 compatible routes, and advanced-suggestion summary, including each advanced
@@ -1555,9 +1555,10 @@ anchor remain visible with `legacy_missing` replay rather than being silently
 upgraded. The collaborator context, proposal, and review input contracts are now
 published as provider-neutral JSON Schemas with synthetic examples. Generated
 proposal and review record contracts are published separately, including the
-pending-review authority boundary for proposal records and the retained
-suggestion digest plus non-authority flags required for every advanced triage
-entry. Apps and plugins can preflight the frozen context shape, retained write
+pending-review authority boundary plus retained proposal payload digest for
+proposal records and the retained review payload digest, retained suggestion
+digest, and non-authority flags required for every advanced triage entry. Apps
+and plugins can preflight the frozen context shape, retained write
 boundary, required uncertainty, alternatives, disconfirmers, falsification
 conditions, review-only authority, including capitalization variants of
 prohibited authority claims, pending-review records, manual route decisions, and
