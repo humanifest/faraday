@@ -15,7 +15,10 @@ from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 from research_machine.literature.studies import validate_study_reconciliation_boundary
-from research_machine.literature.verification import validate_citation_verification_boundary
+from research_machine.literature.verification import (
+    _validate_passage_receipt,
+    validate_citation_verification_boundary,
+)
 
 
 _EXTRACTION_RECORD_FIELDS = {
@@ -180,6 +183,11 @@ def validate_evidence_map_boundary(
                 f"evidence map claim {index + 1} study_id",
             )
         )
+        if "passage_verification" in claim:
+            _validate_passage_receipt(
+                claim.get("passage_verification"),
+                f"evidence map claim {index + 1} passage_verification",
+            )
     study_count = evidence_map.get("study_count")
     if (
         isinstance(study_count, bool)
@@ -403,7 +411,7 @@ def create_evidence_map(
                     "judgment": judgment,
                     "evidence_locations": locations,
                 })
-            claims.append({
+            mapped_claim = {
                 "extraction_id": extraction_id, "study_id": study_id, "source_id": source_id,
                 "source_retained_file_sha256": source_retained_file_sha256,
                 "extracted_evidence_location": extracted_location,
@@ -415,7 +423,13 @@ def create_evidence_map(
                 "citation_verdict": verdict, "risk_of_bias": overall,
                 "bias_domain_judgments": domain_summaries,
                 "interpretive_ceiling": _ceiling(verdict, overall, layer),
-            })
+            }
+            if "passage_verification" in citation:
+                mapped_claim["passage_verification"] = _validate_passage_receipt(
+                    citation.get("passage_verification"),
+                    "evidence-map passage_verification",
+                )
+            claims.append(mapped_claim)
     if set(citation_by_id) != seen or not claims:
         raise ValidationError("evidence map requires exact, non-empty claim coverage")
 

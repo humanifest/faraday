@@ -1337,6 +1337,14 @@ extraction claim digest, and non-evidence/non-conclusion/non-publication
 boundaries. This verifies byte occurrence only; it does not parse PDFs,
 interpret the passage, authenticate the reviewer, prove source support, assess
 bias, or create scientific evidence.
+When `research literature verify-citations` is also given
+`--passage-verification-file` and
+`--expected-passage-verification-sha256`, it replays that passage artifact
+against the same extraction hash and exact extracted-claim digests before
+retaining a compact passage receipt on each citation assessment. Evidence maps
+preserve and replay that receipt for each mapped claim, so later literature
+artifacts can see which source claims had exact quote-byte occurrence checked
+without treating the quote check as semantic support or scientific evidence.
 
 Downstream literature evidence maps retain the extraction location, independent
 citation-review location and rationale, and study-level bias-domain judgments

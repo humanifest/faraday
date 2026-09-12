@@ -1649,6 +1649,15 @@ This proves only byte occurrence under a retained source hash; it does not parse
 PDF structure, interpret source semantics, prove that the cited passage supports
 the extracted claim, authenticate the reviewer, assess risk of bias, reconcile
 independent extractors, or synthesize effects.
+Citation verification can now consume the passage-verification artifact by
+trusted hash. It replays the artifact against the same extraction SHA-256 and
+each exact extracted-claim digest, then retains only a compact passage receipt
+per citation assessment: passage artifact hash, quote hash, byte count,
+occurrence count, and the machine-verification method. Evidence maps preserve
+and replay the same receipt for mapped claims. A later review chain can
+therefore distinguish claims whose cited quotes were byte-verified from claims
+with reviewer-only locations, without upgrading either path to semantic source
+support, authenticated review, or scientific evidence.
 Extraction artifacts carry explicit false scientific-evidence,
 conclusion-authorization, publication-authorization, and
 reviewer-identity-authentication boundaries with retained limitations.

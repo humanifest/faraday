@@ -41,6 +41,15 @@ def extraction_file(tmp_path):
     return path, hashlib.sha256(encoded).hexdigest()
 
 
+def anchored_extraction_file(tmp_path):
+    path, _ = extraction_file(tmp_path)
+    value = json.loads(path.read_text())
+    value["source_reviews"][0]["source_retained_file_sha256"] = "b" * 64
+    encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+    path.write_bytes(encoded)
+    return path, hashlib.sha256(encoded).hexdigest()
+
+
 def claim_digest(source_id, record, source_retained_file_sha256="legacy_missing"):
     payload = {
         "source_id": source_id,
@@ -60,6 +69,52 @@ def claim_digest(source_id, record, source_retained_file_sha256="legacy_missing"
             payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
         ).encode("utf-8")
     ).hexdigest()
+
+
+def passage_file(tmp_path, extraction, extraction_sha):
+    value = json.loads(extraction.read_text())
+    claims = []
+    for index, record in enumerate(value["source_reviews"][0]["records"], start=1):
+        quote = f"Synthetic retained passage {index}"
+        quote_bytes = quote.encode("utf-8")
+        source_sha = value["source_reviews"][0]["source_retained_file_sha256"]
+        claims.append({
+            "extraction_id": record["extraction_id"],
+            "source_id": "source-1",
+            "source_retained_file_sha256": source_sha,
+            "study_id": record["study_id"],
+            "claim_text": record["claim_text"],
+            "extracted_evidence_location": record["evidence_location"],
+            "extraction_claim_sha256": claim_digest("source-1", record, source_sha),
+            "evidence_quote": quote,
+            "evidence_quote_sha256": hashlib.sha256(quote_bytes).hexdigest(),
+            "quote_utf8_byte_count": len(quote_bytes),
+            "quote_occurrence_count": 1,
+            "machine_verification": "exact_utf8_quote_found_in_retained_source_bytes",
+        })
+    passage = {
+        "passage_verification_version": 1,
+        "extraction_sha256": extraction_sha,
+        "snapshot_id": value["snapshot_id"],
+        "extraction_reviewer": value["reviewer"],
+        "passage_reviewer": "Passage reviewer",
+        "claims": claims,
+        "claim_count": len(claims),
+        "status": "passage_verification_recorded",
+        "scientific_evidence_eligible": False,
+        "conclusion_authorized": False,
+        "publication_authorized": False,
+        "reviewer_identity_authenticated": False,
+        "limitations": [
+            "Exact quote matching proves only that supplied UTF-8 quote bytes occur in the retained source bytes; it does not interpret the passage or prove the extracted claim.",
+            "Reviewer identity, source semantics, risk of bias, and applicability remain unauthenticated and require later review gates.",
+            "Passage verification is not scientific evidence, conclusion authorization, or publication authorization.",
+        ],
+    }
+    path = tmp_path / "passage-verification.json"
+    encoded = (json.dumps(passage, sort_keys=True, indent=2) + "\n").encode()
+    path.write_bytes(encoded)
+    return path, hashlib.sha256(encoded).hexdigest()
 
 
 def review(verdict="supported"):
@@ -125,6 +180,72 @@ def test_citation_verification_binds_retained_source_bytes_when_available(tmp_pa
     assert result["assessments"][0]["extraction_claim_sha256"] == claim_digest(
         "source-1", extraction_record, retained_source_sha
     )
+
+
+def test_citation_verification_replays_passage_verification_receipts(tmp_path, capsys):
+    extraction, digest = anchored_extraction_file(tmp_path)
+    passage, passage_digest = passage_file(tmp_path, extraction, digest)
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(review()))
+    output = tmp_path / "verification"
+
+    assert main(["--json", "literature", "verify-citations",
+        "--extraction-file", str(extraction), "--expected-extraction-sha256", digest,
+        "--passage-verification-file", str(passage),
+        "--expected-passage-verification-sha256", passage_digest,
+        "--review-file", str(review_path), "--output", str(output)]) == 0
+
+    result = json.loads(capsys.readouterr().out)["result"]
+    retained = result["assessments"][0]["passage_verification"]
+    assert retained["passage_verification_sha256"] == passage_digest
+    assert retained["machine_verification"] == "exact_utf8_quote_found_in_retained_source_bytes"
+    assert "evidence_quote" not in retained
+    validate_citation_verification_boundary(
+        result,
+        result["assessments"],
+        require_assessment_contract=True,
+    )
+
+
+@pytest.mark.parametrize("failure", [
+    "missing-expected",
+    "bad-passage-hash",
+    "wrong-extraction",
+    "missing-claim",
+    "claim-drift",
+])
+def test_citation_verification_rejects_invalid_passage_verification(tmp_path, failure):
+    extraction, digest = anchored_extraction_file(tmp_path)
+    passage, passage_digest = passage_file(tmp_path, extraction, digest)
+    if failure == "missing-expected":
+        with pytest.raises(ValidationError, match="supplied together"):
+            create_citation_verification(
+                extraction, digest, review(), tmp_path / "verification",
+                passage_verification_path=passage,
+            )
+        return
+    if failure == "bad-passage-hash":
+        passage_digest = "0" * 64
+    elif failure in {"wrong-extraction", "missing-claim", "claim-drift"}:
+        value = json.loads(passage.read_text())
+        if failure == "wrong-extraction":
+            value["extraction_sha256"] = "0" * 64
+        elif failure == "missing-claim":
+            value["claims"].pop()
+            value["claim_count"] = 1
+        elif failure == "claim-drift":
+            value["claims"][0]["claim_text"] = "Synthetic claim changed"
+        encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+        passage.write_bytes(encoded)
+        passage_digest = hashlib.sha256(encoded).hexdigest()
+
+    with pytest.raises(ValidationError):
+        create_citation_verification(
+            extraction, digest, review(), tmp_path / "verification",
+            passage_verification_path=passage,
+            expected_passage_verification_sha256=passage_digest,
+        )
+    assert not (tmp_path / "verification").exists()
 
 
 def test_citation_verification_boundary_replays_artifact_envelope(tmp_path):

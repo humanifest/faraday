@@ -972,6 +972,8 @@ def build_parser() -> argparse.ArgumentParser:
     literature_verify.add_argument("--extraction-file", type=Path, required=True)
     literature_verify.add_argument("--expected-extraction-sha256", required=True)
     literature_verify.add_argument("--review-file", type=Path, required=True)
+    literature_verify.add_argument("--passage-verification-file", type=Path)
+    literature_verify.add_argument("--expected-passage-verification-sha256")
     literature_verify.add_argument("--output", type=Path, required=True)
     literature_passages = literature_commands.add_parser(
         "verify-passages",
@@ -2133,7 +2135,12 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
         from research_machine.literature.verification import create_citation_verification
         review = _read_json_object(args.review_file, allowed_fields={"reviewer", "assessments"}, label="citation review")
         return create_citation_verification(
-            args.extraction_file, args.expected_extraction_sha256, review, args.output
+            args.extraction_file,
+            args.expected_extraction_sha256,
+            review,
+            args.output,
+            passage_verification_path=args.passage_verification_file,
+            expected_passage_verification_sha256=args.expected_passage_verification_sha256,
         )
 
     if args.group == "literature" and args.action == "verify-passages":

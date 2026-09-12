@@ -20,6 +20,7 @@ from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
 from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
+from research_machine.literature.verification import _validate_passage_receipt
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
 _DEVIATION_STATUSES = {
@@ -398,6 +399,10 @@ def execute_qualitative_synthesis(
         "citation_rationale", "citation_verdict", "risk_of_bias",
         "bias_domain_judgments", "interpretive_ceiling",
     }
+    optional_claim_fields = {
+        "source_retained_file_sha256",
+        "passage_verification",
+    }
     seen = set()
     normalized_claims = []
     for claim in claims:
@@ -406,8 +411,10 @@ def execute_qualitative_synthesis(
         claim_fields = set(claim)
         if claim_fields == required_claim_fields:
             claim = {**claim, "source_retained_file_sha256": _LEGACY_SOURCE_ANCHOR}
-        elif claim_fields != required_claim_fields | {"source_retained_file_sha256"}:
+        elif not required_claim_fields <= claim_fields <= required_claim_fields | optional_claim_fields:
             raise ValidationError("evidence-map claim fields do not match the synthesis contract")
+        elif "source_retained_file_sha256" not in claim:
+            claim = {**claim, "source_retained_file_sha256": _LEGACY_SOURCE_ANCHOR}
         extraction_id = _canonical_text(claim["extraction_id"], "evidence-map extraction_id")
         if extraction_id in seen:
             raise ValidationError("evidence-map extraction IDs must be unique non-empty text")
@@ -471,6 +478,11 @@ def execute_qualitative_synthesis(
                 or extracted["source_retained_file_sha256"] != source_retained_file_sha256
                 or extracted["extraction_claim_sha256"] != extraction_claim_sha256):
             raise ValidationError("evidence-map claim does not replay from the exact extraction payload")
+        if "passage_verification" in claim:
+            _validate_passage_receipt(
+                claim.get("passage_verification"),
+                "literature synthesis passage_verification",
+            )
     if set(extracted_claims) != seen:
         raise ValidationError("qualitative synthesis requires exact extraction-to-map claim coverage")
     validate_evidence_map_boundary(evidence_map, normalized_claims)
