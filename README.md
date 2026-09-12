@@ -434,8 +434,11 @@ Record a guided revision with `./research --workspace PATH design revise
 (optionally `--inquiry INQUIRY_ID`). This creates a new unreviewed, lineage-linked
 hypothesis and retains the exact canonical revision reason, revised brief, and
 design audit in its provenance. Padded reasons are rejected rather than trimmed.
-It does not amend frozen protocols, inherit approval or evidence, retire the
-original, or overwrite the initial drafts.
+When the revised brief supplies a complete, unpadded inquiry decision boundary,
+the canonical inquiry decision is updated through the application service;
+partial or noncanonical decision commitments remain review material in the
+scaffold audit. It does not amend frozen protocols, inherit approval or evidence,
+retire the original, or overwrite the initial drafts.
 
 For local custody-file checks, use `./research measurement validate --receipt-file
 custody.json --artifact-root /path/to/artifacts`. This verifies listed raw sources

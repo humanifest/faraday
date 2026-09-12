@@ -1057,10 +1057,14 @@ the reason interactively. Both create a new unreviewed, lineage-linked proposal
 through the canonical service. Its provenance retains the exact canonical reason,
 brief, scaffold audit, and inquiry-wide IDs of datasets, protocols, runs, and
 evidence registered before the revision; padded reasons are rejected rather than
-trimmed into a different provenance record. Earlier records and initial drafts
-are untouched. Cancellation before submission creates no revision. This is
-neither a frozen-protocol amendment nor proof of blinding; researcher exposure
-remains unknown. Review and evidence are not inherited.
+trimmed into a different provenance record. When the revised brief supplies a
+complete, unpadded inquiry decision boundary, guided revision updates the
+canonical inquiry decision through the application service; partial or
+noncanonical decision commitments remain review material in the scaffold audit.
+Earlier records and initial drafts are untouched. Cancellation before submission
+creates no revision. This is neither a frozen-protocol amendment nor proof of
+blinding; researcher exposure remains unknown. Review and evidence are not
+inherited.
 Protocol amendments now require structured timing (`before_collection`,
 `during_collection`, `after_collection`, `after_analysis`, or `unknown`) and
 evidence exposure (`not_seen`, `aggregate_seen`, `full_data_seen`, or `unknown`).

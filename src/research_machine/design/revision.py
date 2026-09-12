@@ -8,11 +8,44 @@ from research_machine.application.commands import (
     AddClaim,
     AddQuestion,
     ProposeHypothesis,
+    SetInquiryDecision,
 )
 from research_machine.application.service import ResearchService
-from research_machine.design.scaffold import scaffold_design
+from research_machine.design.scaffold import (
+    inquiry_decision_commitments,
+    scaffold_design,
+)
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import ClaimLevel
+
+
+def _complete_canonical_decision_commitments(
+    brief: dict[str, Any]
+) -> dict[str, Any] | None:
+    criteria = brief.get("decision_change_criteria", [])
+    minimum_evidence = brief.get("minimum_evidence", "")
+    decision_owner = brief.get("decision_owner", "")
+    decision = brief.get("decision", "")
+    if not (
+        isinstance(decision, str)
+        and isinstance(minimum_evidence, str)
+        and isinstance(decision_owner, str)
+        and isinstance(criteria, list)
+        and criteria
+    ):
+        return None
+    if not minimum_evidence.strip() or not decision_owner.strip():
+        return None
+    texts = [decision, minimum_evidence, decision_owner]
+    for criterion in criteria:
+        if not isinstance(criterion, str) or not criterion.strip():
+            return None
+        texts.append(criterion)
+    if any(text != text.strip() for text in texts):
+        return None
+    if len(set(criteria)) != len(criteria):
+        return None
+    return inquiry_decision_commitments(brief)
 
 
 def revise_design(
@@ -62,6 +95,19 @@ def revise_design(
         expected_effect_direction=proposal["expected_effect_direction"],
         falsification_conditions=proposal["falsification_conditions"],
     ), state["inquiry"]["inquiry_id"])
+    decision_commitments = _complete_canonical_decision_commitments(brief)
+    if decision_commitments is not None:
+        service.set_inquiry_decision(
+            SetInquiryDecision(
+                decision_to_support=decision_commitments["decision_to_support"],
+                minimum_evidence=decision_commitments["minimum_evidence"],
+                decision_change_criteria=decision_commitments[
+                    "decision_change_criteria"
+                ],
+                decision_owner=decision_commitments["decision_owner"],
+            ),
+            state["inquiry"]["inquiry_id"],
+        )
     for question in brief.get("ambiguity_questions", []):
         service.add_question(
             AddQuestion("[Guided revision ambiguity] " + question),

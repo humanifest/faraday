@@ -131,6 +131,100 @@ def test_revision_records_guided_ambiguity_and_claim_boundaries(tmp_path):
     assert service.verify_ledger()["valid"]
 
 
+def test_revision_updates_complete_canonical_inquiry_decision_boundary(tmp_path):
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Fixture",
+            initial_statement="Question",
+            decision_to_support="Original decision.",
+            minimum_evidence="Original evidence threshold.",
+            decision_change_criteria=["Original stopping observation."],
+            decision_owner="original-owner",
+        )
+    )
+    parent = service.propose_hypothesis(ProposeHypothesis(statement="Fixture"))
+
+    brief = {
+        "title": "Revised fixture",
+        "question": "Question",
+        "decision": "Choose the revised design.",
+        "minimum_evidence": "A reviewed revision clears the support rule.",
+        "decision_change_criteria": [
+            "Stop if the registered falsifier appears.",
+            "Defer if measurement validity is inconclusive.",
+        ],
+        "decision_owner": "revision-owner",
+        "outcome": "Score",
+        "unit_of_observation": "unit",
+    }
+
+    revise_design(
+        service,
+        brief,
+        hypothesis_id=parent.hypothesis_id,
+        reason="Revise the practical decision boundary",
+    )
+
+    inquiry = service.show_inquiry()["inquiry"]
+    assert inquiry["decision_to_support"] == "Choose the revised design."
+    assert (
+        inquiry["minimum_evidence"]
+        == "A reviewed revision clears the support rule."
+    )
+    assert inquiry["decision_change_criteria"] == [
+        "Stop if the registered falsifier appears.",
+        "Defer if measurement validity is inconclusive.",
+    ]
+    assert inquiry["decision_owner"] == "revision-owner"
+    assert service.verify_ledger()["valid"]
+
+
+def test_revision_leaves_incomplete_decision_boundary_as_review_material(tmp_path):
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Fixture",
+            initial_statement="Question",
+            decision_to_support="Original decision.",
+            minimum_evidence="Original evidence threshold.",
+            decision_change_criteria=["Original stopping observation."],
+            decision_owner="original-owner",
+        )
+    )
+    parent = service.propose_hypothesis(ProposeHypothesis(statement="Fixture"))
+
+    result = revise_design(
+        service,
+        {
+            "title": "Revised fixture",
+            "question": "Question",
+            "decision": "Choose the revised design.",
+            "minimum_evidence": " Revised evidence threshold.",
+            "decision_change_criteria": [
+                "Stop if the registered falsifier appears."
+            ],
+            "decision_owner": "revision-owner",
+            "outcome": "Score",
+            "unit_of_observation": "unit",
+        },
+        hypothesis_id=parent.hypothesis_id,
+        reason="Keep padded revision boundary review-only",
+    )
+
+    inquiry = service.show_inquiry()["inquiry"]
+    assert inquiry["decision_to_support"] == "Original decision."
+    assert inquiry["minimum_evidence"] == "Original evidence threshold."
+    assert inquiry["decision_change_criteria"] == ["Original stopping observation."]
+    assert inquiry["decision_owner"] == "original-owner"
+    assert "INQUIRY_DECISION_BOUNDARY_NONCANONICAL" in {
+        item["code"] for item in result["scaffold"]["findings"]
+    }
+    assert service.verify_ledger()["valid"]
+
+
 @pytest.mark.parametrize("cancel", [False, True])
 def test_interactive_revision_and_cancellation(tmp_path, monkeypatch, capsys, cancel):
     service = make_service(tmp_path)
