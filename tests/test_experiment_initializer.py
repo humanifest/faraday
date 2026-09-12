@@ -27,6 +27,18 @@ def _basic_brief() -> dict[str, object]:
         "ambiguity_questions": [
             "Could baseline tray position explain the result?"
         ],
+        "claim_boundaries": [
+            {
+                "statement": "The height measurement is usable.",
+                "level": "measurement_validity",
+                "scope": "Registered greenhouse height measurement only.",
+            },
+            {
+                "statement": "Blue light is associated with height.",
+                "level": "statistical_association",
+                "scope": "This initialized fixture only.",
+            },
+        ],
         "outcome": "height",
         "unit_of_observation": "pot",
         "controls": [],
@@ -80,6 +92,7 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
         entry["name"] for entry in state["review_artifacts"]
     } >= {
         "ambiguity-questions-draft.json",
+        "claim-boundaries-draft.json",
         "data-availability-draft.json",
         "ethical-safeguards-draft.json",
         "inquiry-draft.json",
@@ -115,6 +128,20 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
         )
         and question["status"] == "open"
         for question in questions
+    )
+    claims = service.show_inquiry()["claims"]
+    claim_by_statement = {claim["statement"]: claim for claim in claims}
+    assert claim_by_statement["The height measurement is usable."]["level"] == (
+        "measurement_validity"
+    )
+    assert claim_by_statement["The height measurement is usable."][
+        "epistemic_layer"
+    ] == "unresolved"
+    assert claim_by_statement["The height measurement is usable."][
+        "disposition"
+    ] == "unresolved"
+    assert claim_by_statement["Blue light is associated with height."]["level"] == (
+        "statistical_association"
     )
     hypothesis = service.get_hypothesis(result["hypothesis_id"])
     assert hypothesis.primary_estimand == "Mean height difference, blue minus white."
@@ -330,6 +357,54 @@ def test_initializer_rejects_divergent_preprocessing_draft_before_publication(
     monkeypatch.setattr(initializer, "scaffold_design", divergent_scaffold)
 
     with pytest.raises(ValidationError, match="preprocessing conformance draft"):
+        initializer.initialize_experiment_repository(
+            brief_payload,
+            tmp_path / "light-trial",
+            actor="test",
+            initialize_git=False,
+        )
+    assert not (tmp_path / "light-trial").exists()
+
+
+def test_initializer_rejects_divergent_claim_boundaries_before_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    brief_payload = _basic_brief()
+    original_scaffold = initializer.scaffold_design
+
+    def divergent_scaffold(brief: dict[str, object]) -> dict[str, object]:
+        scaffold = original_scaffold(brief)
+        draft = dict(scaffold["artifacts"]["claim-boundaries-draft.json"])
+        draft["claims"] = [
+            {
+                "statement": "A different claim silently appeared.",
+                "level": "other",
+                "scope": "Mismatched review artifact.",
+            }
+        ]
+        scaffold["artifacts"]["claim-boundaries-draft.json"] = draft
+        manifest = dict(scaffold["artifacts"]["design-scaffold-provenance.json"])
+        entries = [
+            {
+                "name": name,
+                "media_type": "text/markdown" if isinstance(content, str) else "application/json",
+                "content_sha256": scaffold_module._rendered_artifact_sha256(content),
+            }
+            for name, content in sorted(scaffold["artifacts"].items())
+            if name != "design-scaffold-provenance.json"
+        ]
+        manifest["artifact_manifest"] = entries
+        manifest["artifact_manifest_sha256"] = scaffold_module._content_sha256(entries)
+        scaffold["artifacts"]["design-scaffold-provenance.json"] = manifest
+        scaffold["provenance"] = {
+            **scaffold["provenance"],
+            "artifact_manifest_sha256": manifest["artifact_manifest_sha256"],
+        }
+        return scaffold
+
+    monkeypatch.setattr(initializer, "scaffold_design", divergent_scaffold)
+
+    with pytest.raises(ValidationError, match="claim boundaries draft"):
         initializer.initialize_experiment_repository(
             brief_payload,
             tmp_path / "light-trial",

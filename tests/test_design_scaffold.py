@@ -942,6 +942,61 @@ def test_scaffold_preserves_ambiguity_questions_boundary():
     assert padded["status"] == "blocked"
 
 
+def test_scaffold_preserves_claim_level_boundaries():
+    brief = {
+        "title": "Claim boundary fixture",
+        "question": "Question",
+        "decision": "Choose whether the claim ladder is reviewable.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "claim_boundaries": [
+            {
+                "statement": "The instrument captured a usable outcome.",
+                "level": "measurement_validity",
+                "scope": "Registered instrument and outcome only.",
+            },
+            {
+                "statement": "The outcome is associated with condition.",
+                "level": "statistical_association",
+                "scope": "This dataset and contrast only.",
+            },
+        ],
+    }
+
+    result = scaffold_design(brief)
+
+    draft = result["artifacts"]["claim-boundaries-draft.json"]
+    assert draft["claims"] == brief["claim_boundaries"]
+    assert "do not accept" in draft["notice"]
+    assert "Claim-level boundaries: measurement_validity" in result[
+        "artifacts"
+    ]["collection-plan.md"]
+    codes = {item["code"] for item in result["findings"]}
+    assert "CLAIM_BOUNDARIES_UNRESOLVED" not in codes
+
+    unresolved = scaffold_design({**brief, "claim_boundaries": []})
+    unresolved_codes = {item["code"] for item in unresolved["findings"]}
+    assert "CLAIM_BOUNDARIES_UNRESOLVED" in unresolved_codes
+    assert unresolved["artifacts"]["claim-boundaries-draft.json"]["claims"] == []
+
+    padded = scaffold_design(
+        {
+            **brief,
+            "claim_boundaries": [
+                {
+                    "statement": " The instrument captured a usable outcome.",
+                    "level": "measurement_validity",
+                    "scope": "Registered instrument and outcome only.",
+                }
+            ],
+        }
+    )
+    padded_codes = {item["code"] for item in padded["findings"]}
+    assert "CLAIM_BOUNDARY_NONCANONICAL" in padded_codes
+    assert padded["status"] == "blocked"
+
+
 def test_scaffold_preserves_data_availability_boundary():
     brief = {
         "title": "Data availability fixture",

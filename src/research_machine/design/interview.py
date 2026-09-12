@@ -8,7 +8,11 @@ from research_machine.design.causal import (
     COMMON_CAUSAL_ASSUMPTIONS,
 )
 from research_machine.design.scaffold import scaffold_design
-from research_machine.domain.models import CONTROL_FAMILIES, MEASUREMENT_TEMPORAL_ROLES
+from research_machine.domain.models import (
+    ClaimLevel,
+    CONTROL_FAMILIES,
+    MEASUREMENT_TEMPORAL_ROLES,
+)
 
 
 def _split_semicolon_answer(raw: str) -> list[str]:
@@ -751,6 +755,36 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
         "What important ambiguities or unresolved questions should remain open for review? Separate exact questions with semicolons [blank = unresolved]"
     )
     brief["ambiguity_questions"] = _split_semicolon_answer(raw_ambiguities)
+    raw_claim_boundaries = ask(
+        "What separate claim statements should be tracked before review? Separate exact claims with semicolons [blank = unresolved]"
+    )
+    claim_statements = _split_semicolon_answer(raw_claim_boundaries)
+    if claim_statements:
+        claim_boundaries = []
+        claim_levels = tuple(level.value for level in ClaimLevel)
+        for statement in claim_statements:
+            answer(
+                "_claim_level",
+                f"Which inference level applies to claim '{statement}'?",
+                choices=claim_levels,
+            )
+            answer(
+                "_claim_scope",
+                f"What exact scope bounds claim '{statement}'?",
+            )
+            if "_claim_level" in brief and "_claim_scope" in brief:
+                claim_boundaries.append(
+                    {
+                        "statement": statement,
+                        "level": brief.pop("_claim_level"),
+                        "scope": brief.pop("_claim_scope"),
+                    }
+                )
+            else:
+                brief.pop("_claim_level", None)
+                brief.pop("_claim_scope", None)
+        if claim_boundaries:
+            brief["claim_boundaries"] = claim_boundaries
     raw_available = ask(
         "What data sources are available or will be collected? Separate exact sources with semicolons [blank = unresolved]"
     )

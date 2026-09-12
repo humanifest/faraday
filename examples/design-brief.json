@@ -12,6 +12,18 @@
     "Could tray position or baseline vigor explain an apparent height difference?",
     "Would a contradicted measurement-validity check change the decision regardless of the point estimate?"
   ],
+  "claim_boundaries": [
+    {
+      "statement": "The registered height measurement is usable for this study.",
+      "level": "measurement_validity",
+      "scope": "Greenhouse height measurement for this fixture protocol."
+    },
+    {
+      "statement": "Blue-light assignment is associated with seedling height.",
+      "level": "statistical_association",
+      "scope": "This greenhouse contrast and dataset only."
+    }
+  ],
   "available_data_sources": [
     "Greenhouse height CSV exported from the registered measurement sheet.",
     "Light-meter calibration log retained as PDF."

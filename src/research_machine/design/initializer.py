@@ -9,9 +9,15 @@ from pathlib import Path
 from typing import Any
 
 from research_machine.adapters.filesystem import FileSystemRepository
-from research_machine.application.commands import AddQuestion, CreateInquiry, ProposeHypothesis
+from research_machine.application.commands import (
+    AddClaim,
+    AddQuestion,
+    CreateInquiry,
+    ProposeHypothesis,
+)
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ValidationError
+from research_machine.domain.models import ClaimLevel
 from research_machine.design.scaffold import (
     inquiry_decision_commitments,
     scaffold_design,
@@ -50,7 +56,9 @@ def _safe_draft_path(root: Path, name: str) -> Path:
     return root / "drafts" / relative
 
 
-def _verify_initialized_scaffold(staging: Path, scaffold: dict[str, Any]) -> dict[str, Any]:
+def _verify_initialized_scaffold(
+    staging: Path, scaffold: dict[str, Any], brief: dict[str, Any]
+) -> dict[str, Any]:
     """Replay staged review-artifact hashes before publishing the experiment tree."""
     manifest_path = staging / "drafts" / "design-scaffold-provenance.json"
     manifest = _read_json(manifest_path)
@@ -96,6 +104,12 @@ def _verify_initialized_scaffold(staging: Path, scaffold: dict[str, Any]) -> dic
             "initialized scaffold provenance manifest is missing artifacts: "
             + ", ".join(missing)
         )
+
+    claim_boundaries = _read_json(staging / "drafts" / "claim-boundaries-draft.json")
+    if claim_boundaries.get("status") != "review_required":
+        raise ValidationError("initialized claim boundaries draft must require review")
+    if claim_boundaries.get("claims") != brief.get("claim_boundaries", []):
+        raise ValidationError("initialized claim boundaries draft does not match brief")
 
     protocol = _read_json(staging / "drafts" / "protocol-draft.json")
     canary = _read_json(staging / "drafts" / "canary-target-plan-draft.json")
@@ -231,6 +245,15 @@ def initialize_experiment_repository(
                 AddQuestion("[Guided ambiguity] " + question),
                 inquiry.inquiry_id,
             )
+        for claim in brief.get("claim_boundaries", []):
+            service.add_claim(
+                AddClaim(
+                    statement=claim["statement"],
+                    level=ClaimLevel(claim["level"]),
+                    scope=claim["scope"],
+                ),
+                inquiry.inquiry_id,
+            )
         for finding in scaffold["findings"]:
             service.add_question(
                 AddQuestion(
@@ -273,7 +296,7 @@ def initialize_experiment_repository(
                 "notice": "The hypothesis remains unreviewed. No protocol is frozen and no data are registered.",
             },
         )
-        initialized_scaffold = _verify_initialized_scaffold(staging, scaffold)
+        initialized_scaffold = _verify_initialized_scaffold(staging, scaffold, brief)
         state = _read_json(staging / "experiment-machine.json")
         state.update(initialized_scaffold)
         _write_json(staging / "experiment-machine.json", state)

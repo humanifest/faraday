@@ -7,7 +7,7 @@ import math
 import re
 from typing import Any
 from research_machine.domain.models import (
-    ControlDefinition, CONTROL_FAMILIES, MEASUREMENT_TEMPORAL_ROLES,
+    ClaimLevel, ControlDefinition, CONTROL_FAMILIES, MEASUREMENT_TEMPORAL_ROLES,
 )
 from research_machine.design.causal import audit_causal_identification
 from research_machine.design.precision import build_sample_size_planning_receipt
@@ -36,6 +36,7 @@ _CONTROL_MEASUREMENT_FIELDS = (
 _CAUSAL_MEASUREMENT_FIELDS = (
     _SECONDARY_MEASUREMENT_FIELDS - {"outcome"}
 ) | {"variable", "role"}
+_CLAIM_BOUNDARY_FIELDS = {"statement", "level", "scope"}
 _VALIDITY_CHECK_FIELDS = {
     "check_id", "evidence_type", "validity_claim", "assessment_plan",
     "acceptance_criterion", "failure_response", "assessment_gate_id",
@@ -44,6 +45,7 @@ _VALIDITY_EVIDENCE_TYPES = {
     "criterion", "convergent", "discriminant", "known_groups", "test_retest",
     "inter_rater", "content", "calibration", "other",
 }
+_CLAIM_LEVELS = {level.value for level in ClaimLevel}
 _CANARY_TARGET_PLAN_FIELDS = {
     "plan_id",
     "candidate_target_ids",
@@ -111,7 +113,7 @@ DESIGN_BRIEF_FIELDS = {
     "smallest_effect_size_of_interest", "effect_scale",
     "conclusion_time_window", "non_supporting_direction",
     "higher_level_conclusions_unsupported",
-    "causal_identification", "canary_target_plan",
+    "claim_boundaries", "causal_identification", "canary_target_plan",
 }
 
 
@@ -136,6 +138,35 @@ def _text_list(brief: dict[str, Any], key: str) -> list[str]:
     if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
         raise ValueError(f"design brief field {key} must be an array of non-blank strings")
     return value
+
+
+def _claim_boundaries(brief: dict[str, Any]) -> list[dict[str, str]]:
+    value = brief.get("claim_boundaries", [])
+    if not isinstance(value, list):
+        raise ValueError("claim_boundaries must be an array")
+    claims: list[dict[str, str]] = []
+    for index, item in enumerate(value, start=1):
+        if not isinstance(item, dict) or set(item) != _CLAIM_BOUNDARY_FIELDS:
+            raise ValueError(
+                f"claim_boundaries[{index}] must contain exactly statement, level, and scope"
+            )
+        for field in _CLAIM_BOUNDARY_FIELDS:
+            if not isinstance(item[field], str) or not item[field].strip():
+                raise ValueError(
+                    f"claim_boundaries[{index}].{field} must be non-blank text"
+                )
+        if item["level"] not in _CLAIM_LEVELS:
+            raise ValueError(
+                f"claim_boundaries[{index}].level must be a supported claim level"
+            )
+        claims.append(
+            {
+                "statement": item["statement"],
+                "level": item["level"],
+                "scope": item["scope"],
+            }
+        )
+    return claims
 
 
 def _is_canonical_sha256(value: str) -> bool:
@@ -364,7 +395,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     unknown = set(brief) - DESIGN_BRIEF_FIELDS
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "claim_boundaries", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -390,6 +421,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     for key in {"controls", "confounds", "exclusions", "falsification_conditions", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
         _text_list(brief, key)
     _text_list(brief, "decision_change_criteria")
+    _claim_boundaries(brief)
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
         raise ValueError("outcome_scale is unsupported")
     if brief.get("primary_analysis_family", "") not in {"", *_ANALYSIS_FAMILIES}:
@@ -698,6 +730,26 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "error",
             "A guided ambiguity question contains surrounding whitespace.",
             "Use exact unpadded ambiguity questions before review artifacts and canonical open questions preserve them.",
+        )
+    claim_boundaries = _claim_boundaries(brief)
+    if not claim_boundaries:
+        add(
+            "CLAIM_BOUNDARIES_UNRESOLVED",
+            "warning",
+            "The guided design has no explicit claim-level boundary proposals.",
+            "Separate observation, measurement-validity, association, causal-direction, mechanism, adaptation, attribution/intent, robustness, and other claims before review.",
+        )
+    if any(
+        item["statement"] != item["statement"].strip()
+        or item["scope"] != item["scope"].strip()
+        or item["level"] != item["level"].strip()
+        for item in claim_boundaries
+    ):
+        add(
+            "CLAIM_BOUNDARY_NONCANONICAL",
+            "error",
+            "A guided claim boundary contains text with surrounding whitespace.",
+            "Use exact unpadded claim statements, levels, and scopes before review artifacts and canonical unresolved claims preserve them.",
         )
     if not _text_list(brief, "available_data_sources"):
         add(
@@ -1788,6 +1840,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     control_windows = _text_list(brief, "control_windows")
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
     ambiguity_questions = _text_list(brief, "ambiguity_questions")
+    claim_boundaries = _claim_boundaries(brief)
     available_data_sources = _text_list(brief, "available_data_sources")
     unavailable_data = _text_list(brief, "unavailable_data")
     data_access_constraints = _text_list(brief, "data_access_constraints")
@@ -2107,6 +2160,11 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "ambiguity_questions": ambiguity_questions,
                 "notice": "These are unresolved review questions. They are not evidence, answers, protocol commitments, or authorization to choose a preferred explanation.",
             },
+            "claim-boundaries-draft.json": {
+                "status": "review_required",
+                "claims": claim_boundaries,
+                "notice": "These are unresolved claim-level proposals. They separate inference levels for review but do not accept, prove, or prioritize any claim.",
+            },
             "data-availability-draft.json": {
                 "status": "review_required",
                 "available_data_sources": available_data_sources,
@@ -2395,6 +2453,15 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 + (
                     "; ".join(ambiguity_questions)
                     if ambiguity_questions else "[REVIEW REQUIRED]"
+                )
+                + "\n\n"
+                "Claim-level boundaries: "
+                + (
+                    "; ".join(
+                        f"{item['level']}: {item['statement']}"
+                        for item in claim_boundaries
+                    )
+                    if claim_boundaries else "[REVIEW REQUIRED]"
                 )
                 + "\n\n"
                 "Available data sources: "

@@ -10,7 +10,7 @@ def test_interview_emits_reviewable_control_definitions(complete):
     answers = iter(["Fixture", "Question", "Decision", "Height", "pot", "exploratory", "no"]
         + [""] * 29 + ["Blank sample", ""]
         + (["negative", "Detect background signal", "No signal"] if complete else ["", "", ""])
-        + [""] * 46)
+        + [""] * 47)
     result = interview_design(lambda prompt: next(answers))
     draft = result["scaffold"]["artifacts"]["protocol-draft.json"]
     definition = draft["control_definitions"][0]
@@ -61,6 +61,11 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
             "Stop if the registered falsifier appears; continue if validity is consistent",
             "greenhouse-owner",
             "Is baseline imbalance still plausible?; Can sensor drift explain the result?",
+            "The height measurement is usable; Blue light is associated with height",
+            "measurement_validity",
+            "Registered ruler measurement only",
+            "statistical_association",
+            "This greenhouse dataset and contrast only",
             "greenhouse height CSV; masking log",
             "no baseline tray photograph",
             "lab-data-steward",
@@ -106,6 +111,18 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
     assert result["brief"]["ambiguity_questions"] == [
         "Is baseline imbalance still plausible?",
         "Can sensor drift explain the result?",
+    ]
+    assert result["brief"]["claim_boundaries"] == [
+        {
+            "statement": "The height measurement is usable",
+            "level": "measurement_validity",
+            "scope": "Registered ruler measurement only",
+        },
+        {
+            "statement": "Blue light is associated with height",
+            "level": "statistical_association",
+            "scope": "This greenhouse dataset and contrast only",
+        },
     ]
     assert result["brief"]["available_data_sources"] == [
         "greenhouse height CSV",
@@ -722,7 +739,7 @@ def test_provider_free_interview_collects_auditable_causal_design() -> None:
 
 def test_human_interview_retains_hold_and_retries_invalid_choice():
     answers = iter(["Fixture", "Question", "Decision", "Score", "participant-day",
-                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 44)
+                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 45)
     result = interview_design(lambda prompt: next(answers))
     codes = {item["code"] for item in result["scaffold"]["findings"]}
     assert result["brief"]["study_type"] == "causal"
@@ -734,6 +751,7 @@ def test_human_interview_retains_hold_and_retries_invalid_choice():
     assert "SAMPLE_SIZE_JUSTIFICATION_MISSING" in codes
     assert "INQUIRY_DECISION_BOUNDARY_INCOMPLETE" in codes
     assert "AMBIGUITY_QUESTIONS_UNRESOLVED" in codes
+    assert "CLAIM_BOUNDARIES_UNRESOLVED" in codes
     assert "DATA_AVAILABILITY_UNRESOLVED" in codes
     assert "DATA_PROVENANCE_PLAN_MISSING" in codes
     assert "DATA_ACCESS_OWNER_UNRESOLVED" in codes
