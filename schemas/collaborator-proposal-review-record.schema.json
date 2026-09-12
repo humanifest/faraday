@@ -157,6 +157,83 @@
                 "manual_domain_review_required": {"const": false}
               }
             }
+          },
+          {
+            "if": {
+              "properties": {
+                "disposition": {"const": "advance_to_domain_review"},
+                "suggestion": {
+                  "properties": {"kind": {"const": "question"}},
+                  "required": ["kind"]
+                }
+              },
+              "required": ["disposition", "suggestion"]
+            },
+            "then": {"properties": {"domain_route": {"const": "question.add"}}}
+          },
+          {
+            "if": {
+              "properties": {
+                "disposition": {"const": "advance_to_domain_review"},
+                "suggestion": {
+                  "properties": {"kind": {"const": "hypothesis"}},
+                  "required": ["kind"]
+                }
+              },
+              "required": ["disposition", "suggestion"]
+            },
+            "then": {"properties": {"domain_route": {"const": "hypothesis.propose"}}}
+          },
+          {
+            "if": {
+              "properties": {
+                "disposition": {"const": "advance_to_domain_review"},
+                "suggestion": {
+                  "properties": {"kind": {"const": "design_revision"}},
+                  "required": ["kind"]
+                }
+              },
+              "required": ["disposition", "suggestion"]
+            },
+            "then": {
+              "properties": {
+                "domain_route": {"enum": ["design.revise", "protocol.amend"]}
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "disposition": {"const": "advance_to_domain_review"},
+                "suggestion": {
+                  "properties": {"kind": {"const": "analysis_interpretation"}},
+                  "required": ["kind"]
+                }
+              },
+              "required": ["disposition", "suggestion"]
+            },
+            "then": {
+              "properties": {
+                "domain_route": {
+                  "enum": ["hypothesis.propose", "next-action.recommend"]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "disposition": {"const": "advance_to_domain_review"},
+                "suggestion": {
+                  "properties": {"kind": {"const": "next_action"}},
+                  "required": ["kind"]
+                }
+              },
+              "required": ["disposition", "suggestion"]
+            },
+            "then": {
+              "properties": {"domain_route": {"const": "next-action.recommend"}}
+            }
           }
         ],
         "additionalProperties": false

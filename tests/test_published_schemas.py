@@ -1026,6 +1026,15 @@ def test_collaborator_schema_examples_match_service_validator(tmp_path):
                 "manual_domain_review_required": True,
             }
         ),
+        lambda record: record["reviewed_suggestions"][0]["suggestion"].update(
+            {"kind": "question"}
+        ),
+        lambda record: record["reviewed_suggestions"][0]["suggestion"].update(
+            {"kind": "hypothesis"}
+        ),
+        lambda record: record["reviewed_suggestions"][0]["suggestion"].update(
+            {"kind": "next_action"}
+        ),
     ],
 )
 def test_collaborator_review_record_schema_keeps_advanced_triage_bounded(

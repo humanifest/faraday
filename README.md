@@ -1205,8 +1205,9 @@ rejection of summary,
 body-claim, suggestion, and review prose that claims acceptance, approval,
 authorization, proof, confirmation, validation, evidence creation, or canonical
 action, human-review completion, or authenticated reviewer identity. Generated
-review records also preflight disposition/route/manual-review consistency before
-the application service repeats hash, reference, and route validation. They do
+review records also preflight disposition/route/manual-review consistency and
+route compatibility with each reviewed suggestion kind before the application
+service repeats hash, reference, and route validation. They do
 not call a provider, modify the inquiry,
 accept a finding, create evidence, or authorize an action. Any accepted idea
 must still be translated deliberately through the normal question, hypothesis,
