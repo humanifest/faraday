@@ -1811,6 +1811,10 @@ minimum-study requirement status; deviation-derived review status; directional
 and interpretive-ceiling counts; embedded deviation-bound plan commitments; and
 bounded-conclusion wording must all remain canonical or derive from retained
 claims and deviation status rather than being trusted summary fields.
+Retained qualitative-synthesis limitations and bounded-conclusion prose now also
+reject report-prohibited overclaiming language, so a copied synthesis cannot
+keep its non-authority flags false while describing proof, confirmation,
+validation, or explanation in narrative fields.
 The quantitative branch begins with `research literature prepare-effects`. It
 requires canonical lowercase trusted hashes for the frozen quantitative plan and
 exact evidence-map lineage, then records exactly one effect measure, standard

@@ -1428,6 +1428,10 @@ in canonical form; claim and independent-study counts,
 minimum-study status, deviation-derived review status, the embedded
 deviation-bound plan commitments, directional counts, ceiling counts, and the
 bounded-conclusion wording must derive from retained claims and deviation status.
+Retained synthesis limitations and the bounded-conclusion boundary also reject
+report-prohibited overclaiming language, so an organized source map cannot pass
+replay while narrating proof, confirmation, validation, or explanation in its
+own prose.
 This keeps organized source claims from becoming an automated substantive
 conclusion, a rewritten prospective synthesis scope, or authenticated reviewer
 authority.

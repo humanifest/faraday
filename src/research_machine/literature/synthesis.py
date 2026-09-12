@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -33,6 +34,10 @@ _INTERPRETIVE_CEILINGS = (
     "source_hypothesis_only",
     "insufficient_for_conclusion",
 )
+_SYNTHESIS_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 _EXTRACTION_RECORD_FIELDS = {
     "extraction_id",
     "study_id",
@@ -60,6 +65,17 @@ def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
+    return text
+
+
+def _bounded_synthesis_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _SYNTHESIS_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses literature-synthesis prohibited overclaiming language; "
+            "describe the organized review result without claiming proof, "
+            "confirmation, validation, or explanation"
+        )
     return text
 
 
@@ -173,7 +189,10 @@ def validate_literature_synthesis_boundary(synthesis: dict[str, Any]) -> None:
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("literature synthesis requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"literature synthesis limitation {index + 1}")
+        _bounded_synthesis_text(
+            limitation,
+            f"literature synthesis limitation {index + 1}",
+        )
 
     deviation_status = synthesis.get("deviation_status")
     if deviation_status not in _DEVIATION_STATUSES:
@@ -276,6 +295,10 @@ def validate_literature_synthesis_boundary(synthesis: dict[str, Any]) -> None:
     bounded_conclusion = synthesis.get("bounded_conclusion")
     if not isinstance(bounded_conclusion, str) or not bounded_conclusion.strip():
         raise ValidationError("literature synthesis requires a bounded conclusion boundary")
+    bounded_conclusion = _bounded_synthesis_text(
+        bounded_conclusion,
+        "literature synthesis bounded_conclusion",
+    )
     if minimum_met and "No automated substantive conclusion" not in bounded_conclusion:
         raise ValidationError("literature synthesis must not author an automated substantive conclusion")
     if not minimum_met and not bounded_conclusion.startswith("No conclusion:"):
