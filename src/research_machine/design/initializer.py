@@ -111,6 +111,35 @@ def _verify_initialized_scaffold(
     if claim_boundaries.get("claims") != brief.get("claim_boundaries", []):
         raise ValidationError("initialized claim boundaries draft does not match brief")
 
+    controlled_scenarios = _read_json(
+        staging / "drafts" / "controlled-acceptance-scenarios-draft.json"
+    )
+    brief_scenarios = brief.get("controlled_acceptance_scenarios", [])
+    if brief_scenarios:
+        if controlled_scenarios.get("status") != "review_required":
+            raise ValidationError(
+                "initialized controlled acceptance scenarios draft must require review"
+            )
+        controlled_acceptance_status = "review_required"
+    else:
+        if controlled_scenarios.get("status") != "unresolved":
+            raise ValidationError(
+                "initialized controlled acceptance scenarios draft must be unresolved when none are supplied"
+            )
+        controlled_acceptance_status = "absent"
+    if controlled_scenarios.get("scenarios") != brief_scenarios:
+        raise ValidationError(
+            "initialized controlled acceptance scenarios draft does not match brief"
+        )
+    if controlled_scenarios.get("scenario_count") != len(brief_scenarios):
+        raise ValidationError(
+            "initialized controlled acceptance scenarios draft count does not replay"
+        )
+    if controlled_scenarios.get("scientific_evidence_eligible") is not False:
+        raise ValidationError(
+            "initialized controlled acceptance scenarios draft must be non-evidentiary"
+        )
+
     protocol = _read_json(staging / "drafts" / "protocol-draft.json")
     canary = _read_json(staging / "drafts" / "canary-target-plan-draft.json")
     protocol_plan = protocol.get("canary_target_plan")
@@ -189,6 +218,8 @@ def _verify_initialized_scaffold(
         "canary_target_plan_artifact": "drafts/canary-target-plan-draft.json",
         "preprocessing_conformance_plan_status": preprocessing_status,
         "preprocessing_conformance_plan_artifact": "drafts/preprocessing-conformance-plan-draft.json",
+        "controlled_acceptance_scenarios_status": controlled_acceptance_status,
+        "controlled_acceptance_scenarios_artifact": "drafts/controlled-acceptance-scenarios-draft.json",
     }
 
 

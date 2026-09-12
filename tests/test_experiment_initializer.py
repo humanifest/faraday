@@ -64,6 +64,22 @@ def _canary_plan(**overrides: object) -> dict[str, object]:
     return plan
 
 
+def _controlled_scenario(**overrides: object) -> dict[str, object]:
+    scenario: dict[str, object] = {
+        "scenario_id": "planted-signal-recovery",
+        "purpose": "Check whether the controlled harness recovers a planted association without upgrading the claim.",
+        "expected_observation": "The planted association is reported as scoped support against the null fixture.",
+        "distinguishes_from": [
+            "independent null fixture",
+            "movement-confounded fixture",
+        ],
+        "failure_response": "Keep the campaign below readiness and inspect measurement, timing, and analysis commitments.",
+        "claim_ceiling": "Association readiness only; mechanism, adaptation, attribution, and intent remain unsupported.",
+    }
+    scenario.update(overrides)
+    return scenario
+
+
 def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
     tmp_path: Path, capsys
 ) -> None:
@@ -88,6 +104,11 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
         state["preprocessing_conformance_plan_artifact"]
         == "drafts/preprocessing-conformance-plan-draft.json"
     )
+    assert state["controlled_acceptance_scenarios_status"] == "absent"
+    assert (
+        state["controlled_acceptance_scenarios_artifact"]
+        == "drafts/controlled-acceptance-scenarios-draft.json"
+    )
     assert {
         entry["name"] for entry in state["review_artifacts"]
     } >= {
@@ -96,6 +117,7 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
         "data-availability-draft.json",
         "ethical-safeguards-draft.json",
         "inquiry-draft.json",
+        "controlled-acceptance-scenarios-draft.json",
     }
     assert (destination / "drafts" / "protocol-draft.json").is_file()
     manifest = json.loads((destination / "drafts" / "design-scaffold-provenance.json").read_text())
@@ -156,6 +178,47 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
         service.stage_hypothesis(result["hypothesis_id"], "Fixture review", "high")
     assert ledger.read_bytes() == before
     assert service.verify_ledger()["valid"]
+
+
+def test_initializer_replays_controlled_acceptance_scenarios_artifact(
+    tmp_path: Path, capsys
+) -> None:
+    scenarios = [_controlled_scenario()]
+    brief_payload = {
+        **_basic_brief(),
+        "controlled_acceptance_scenarios": scenarios,
+    }
+    brief = tmp_path / "brief.json"
+    brief.write_text(json.dumps(brief_payload), encoding="utf-8")
+    destination = tmp_path / "light-trial"
+
+    assert (
+        main(
+            [
+                "--json",
+                "design",
+                "initialize",
+                "--brief-file",
+                str(brief),
+                "--output",
+                str(destination),
+                "--no-git",
+            ]
+        )
+        == 0
+    )
+
+    result = json.loads(capsys.readouterr().out)["result"]
+    assert result["controlled_acceptance_scenarios_status"] == "review_required"
+    state = json.loads((destination / "experiment-machine.json").read_text())
+    assert state["controlled_acceptance_scenarios_status"] == "review_required"
+    draft = json.loads(
+        (destination / "drafts" / "controlled-acceptance-scenarios-draft.json")
+        .read_text()
+    )
+    assert draft["scenarios"] == scenarios
+    assert draft["scenario_count"] == 1
+    assert draft["scientific_evidence_eligible"] is False
 
 
 def test_initializer_replays_canary_target_review_artifact(tmp_path: Path, capsys) -> None:
@@ -405,6 +468,56 @@ def test_initializer_rejects_divergent_claim_boundaries_before_publication(
     monkeypatch.setattr(initializer, "scaffold_design", divergent_scaffold)
 
     with pytest.raises(ValidationError, match="claim boundaries draft"):
+        initializer.initialize_experiment_repository(
+            brief_payload,
+            tmp_path / "light-trial",
+            actor="test",
+            initialize_git=False,
+        )
+    assert not (tmp_path / "light-trial").exists()
+
+
+def test_initializer_rejects_divergent_controlled_acceptance_scenarios_before_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    brief_payload = {
+        **_basic_brief(),
+        "controlled_acceptance_scenarios": [_controlled_scenario()],
+    }
+    original_scaffold = initializer.scaffold_design
+
+    def divergent_scaffold(brief: dict[str, object]) -> dict[str, object]:
+        scaffold = original_scaffold(brief)
+        draft = dict(
+            scaffold["artifacts"]["controlled-acceptance-scenarios-draft.json"]
+        )
+        draft["scenarios"] = [
+            _controlled_scenario(scenario_id="different-scenario")
+        ]
+        draft["scenario_count"] = 1
+        scaffold["artifacts"]["controlled-acceptance-scenarios-draft.json"] = draft
+        manifest = dict(scaffold["artifacts"]["design-scaffold-provenance.json"])
+        entries = [
+            {
+                "name": name,
+                "media_type": "text/markdown" if isinstance(content, str) else "application/json",
+                "content_sha256": scaffold_module._rendered_artifact_sha256(content),
+            }
+            for name, content in sorted(scaffold["artifacts"].items())
+            if name != "design-scaffold-provenance.json"
+        ]
+        manifest["artifact_manifest"] = entries
+        manifest["artifact_manifest_sha256"] = scaffold_module._content_sha256(entries)
+        scaffold["artifacts"]["design-scaffold-provenance.json"] = manifest
+        scaffold["provenance"] = {
+            **scaffold["provenance"],
+            "artifact_manifest_sha256": manifest["artifact_manifest_sha256"],
+        }
+        return scaffold
+
+    monkeypatch.setattr(initializer, "scaffold_design", divergent_scaffold)
+
+    with pytest.raises(ValidationError, match="controlled acceptance scenarios draft"):
         initializer.initialize_experiment_repository(
             brief_payload,
             tmp_path / "light-trial",

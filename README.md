@@ -625,6 +625,17 @@ intervention.
 Deterministic rigor and synthesis reports then expose the frozen factor plan as
 prospective interpretability provenance, and flag legacy multi-factor protocols
 whose simultaneous interventions still lack a separable design and plan.
+Guided briefs can also declare `controlled_acceptance_scenarios`: review-only
+synthetic or controlled readiness targets with stable IDs, purposes, expected
+observations, alternatives they distinguish, failure responses, and claim
+ceilings. The scaffold emits
+`controlled-acceptance-scenarios-draft.json`, includes it in the hash-bound
+manifest, and initialization replays it before publishing an experiment
+workspace. These scenarios are not observed results, pass criteria, protocol
+approval, evidence, or support for any scientific claim. Padded scenario text,
+duplicate scenario IDs, empty discriminator lists, and overclaiming terms such
+as proved, confirmed, explained, or validated are rejected before they become
+review material.
 Protocols may also freeze a generic `canary_target_plan` for adversarial masked
 target checks. The plan binds canonical candidate target IDs, a seed commitment,
 the hash of the hidden assignment artifact, masking and ethical-disclosure
@@ -880,9 +891,10 @@ retains the scaffold provenance receipt and points to the draft manifest so a
 future reviewer can tie the workspace back to the exact brief, findings, and
 draft artifact hashes. Initialization replays the staged draft bytes against the
 manifest before publishing the directory, records the review-artifact index, and
-marks the canary-target draft as absent or review-required without treating it as
-approval, authentication of the hidden assignment, or evidence. It also replays
-the preprocessing-conformance draft against the protocol draft: a hash-bound
+marks controlled acceptance scenarios and the canary-target draft as absent or
+review-required without treating either as approval, authentication of the
+hidden assignment, observed results, or evidence. It also replays the
+preprocessing-conformance draft against the protocol draft: a hash-bound
 preprocessing pipeline must remain review-required, carry the same registered
 pipeline digest, and name a required quality gate from the protocol. Pass
 `--no-git` only when Git is not desired for that experiment.

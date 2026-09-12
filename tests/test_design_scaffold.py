@@ -61,6 +61,21 @@ def _validity_check(check_id: str = "primary-validity", gate_id: str = "primary-
     }
 
 
+def _controlled_scenario(scenario_id: str = "planted-signal-recovery", **overrides):
+    value = {
+        "scenario_id": scenario_id,
+        "purpose": "Check whether the controlled harness recovers a planted association without upgrading the claim.",
+        "expected_observation": "The planted association is reported as scoped support against the null fixture.",
+        "distinguishes_from": [
+            "independent null fixture",
+            "movement-confounded fixture",
+        ],
+        "failure_response": "Keep the campaign below readiness and inspect measurement, timing, and analysis commitments.",
+        "claim_ceiling": "Association readiness only; mechanism, adaptation, attribution, and intent remain unsupported.",
+    }
+    return {**value, **overrides}
+
+
 def _digest(value):
     if isinstance(value, str):
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
@@ -1616,6 +1631,89 @@ def test_guided_design_scaffolds_canary_target_plan():
     assert draft["required_run_assessment"]["gate_id"] == "canary-target-assessed"
     assert "follows_comparator_or_decoy" in draft["required_run_assessment"]["result_shape"]["assessment_status"]
     assert "Canary target plan: masked-target-plan" in result["artifacts"]["collection-plan.md"]
+
+
+def test_guided_design_preserves_controlled_acceptance_scenarios():
+    scenarios = [
+        _controlled_scenario(),
+        _controlled_scenario(
+            "clock-drift-rejection",
+            purpose="Check whether the controlled harness rejects a timing result when clock drift approaches the lag window.",
+            expected_observation="The timing scenario is retained as a failure or unresolved readiness result.",
+            distinguishes_from=["true state-dependent timing fixture"],
+            failure_response="Do not report confirmatory timing readiness until clock uncertainty is bounded.",
+            claim_ceiling="Timing feasibility readiness only; causal direction and mechanism remain unsupported.",
+        ),
+    ]
+    result = scaffold_design({
+        "title": "Acceptance fixture",
+        "question": "Can the scaffold preserve controlled readiness scenarios?",
+        "decision": "Choose the next machine-development increment.",
+        "outcome": "Readiness result",
+        "unit_of_observation": "synthetic fixture",
+        "human_participants": False,
+        "controlled_acceptance_scenarios": scenarios,
+    })
+
+    draft = result["artifacts"]["controlled-acceptance-scenarios-draft.json"]
+    assert draft["status"] == "review_required"
+    assert draft["scenarios"] == scenarios
+    assert draft["scenario_count"] == 2
+    assert draft["scientific_evidence_eligible"] is False
+    assert "controlled readiness scenarios" in draft["notice"]
+    assert "planted-signal-recovery distinguishes independent null fixture" in (
+        result["artifacts"]["collection-plan.md"]
+    )
+    assert "CONTROLLED_ACCEPTANCE_SCENARIOS_UNRESOLVED" not in {
+        item["code"] for item in result["findings"]
+    }
+
+
+def test_guided_design_blocks_invalid_controlled_acceptance_scenarios():
+    padded = scaffold_design({
+        "title": "Acceptance fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "outcome": "Readiness result",
+        "unit_of_observation": "synthetic fixture",
+        "human_participants": False,
+        "controlled_acceptance_scenarios": [
+            _controlled_scenario(scenario_id=" planted-signal-recovery "),
+        ],
+    })
+    assert padded["status"] == "blocked"
+    assert "CONTROLLED_ACCEPTANCE_SCENARIO_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
+
+    with pytest.raises(ValueError, match="report-prohibited overclaiming"):
+        scaffold_design({
+            "title": "Acceptance fixture",
+            "question": "Question",
+            "decision": "Decision",
+            "outcome": "Readiness result",
+            "unit_of_observation": "synthetic fixture",
+            "human_participants": False,
+            "controlled_acceptance_scenarios": [
+                _controlled_scenario(
+                    expected_observation="The harness confirmed the favored mechanism."
+                ),
+            ],
+        })
+
+    with pytest.raises(ValueError, match="duplicates an earlier scenario"):
+        scaffold_design({
+            "title": "Acceptance fixture",
+            "question": "Question",
+            "decision": "Decision",
+            "outcome": "Readiness result",
+            "unit_of_observation": "synthetic fixture",
+            "human_participants": False,
+            "controlled_acceptance_scenarios": [
+                _controlled_scenario("planted-signal-recovery"),
+                _controlled_scenario("Planted-Signal-Recovery"),
+            ],
+        })
 
 
 @pytest.mark.parametrize(("mutation", "code"), [
