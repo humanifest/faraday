@@ -58,6 +58,7 @@ from research_machine.application.policies import (
     validate_duality_reconstruction_gate_metadata,
     validate_reconstruction_family_stability_gate_metadata,
     validate_analysis_implementation_bundle_gate_metadata,
+    validate_computation_route_separation_gate_metadata,
     validate_bounded_negative_search_gate_metadata,
     validate_historical_cross_lane_lesson_structure,
     validate_dataset_artifacts,
@@ -4554,6 +4555,127 @@ class ResearchService:
                         "does not match the verified JSON value"
                     )
                 result["selected_value_sha256"] = selected_value_sha256
+        computation_route_separation_gates = {
+            contract.evaluation_gate_id
+            for contract in protocol.computation_route_separation_contracts
+        }
+        for gate_id in computation_route_separation_gates:
+            gate = gates_by_id.get(gate_id)
+            if gate is None or gate.status is QualityGateStatus.SKIPPED:
+                continue
+            validate_computation_route_separation_gate_metadata(
+                protocol=protocol,
+                gate=gate,
+                output_hashes=output_hashes,
+            )
+            results = gate.details["computation_route_separation_results"]
+            for contract in protocol.computation_route_separation_contracts:
+                if contract.evaluation_gate_id != gate_id:
+                    continue
+                result = results[contract.contract_id]
+                digest = result["evidence_sha256"]
+                location = result["evidence_location"]
+                location_verified, structured_evidence = (
+                    _resolve_json_artifact_location(
+                        outputs,
+                        command.artifact_root,
+                        digest,
+                        location,
+                        (
+                            "computation route separation "
+                            f"{contract.contract_id} evidence_location"
+                        ),
+                    )
+                )
+                if (
+                    not location_verified
+                    and verified_gate_result is not None
+                    and digest == verified_gate_output_sha256
+                ):
+                    if not location.startswith("/"):
+                        raise ValidationError(
+                            "computation route separation evidence in the "
+                            "verified analysis output requires an absolute JSON "
+                            "Pointer evidence_location"
+                        )
+                    structured_evidence = _resolve_json_pointer(
+                        verified_gate_result,
+                        location,
+                        (
+                            "computation route separation "
+                            f"{contract.contract_id} evidence_location"
+                        ),
+                    )
+                    location_verified = True
+                if not location_verified or not isinstance(
+                    structured_evidence, dict
+                ):
+                    raise ValidationError(
+                        "computation route separation result requires retained, "
+                        "artifact-bound JSON object evidence"
+                    )
+                evidence_fields = {
+                    "comparison_predicate_contract_id",
+                    "route_ids",
+                    "implementation_bundle_contract_ids",
+                    "approved_shared_input_object_ids",
+                    "approved_shared_member_locators",
+                    "forbidden_cross_route_dependency_edges",
+                    "comparison_domain",
+                    "comparison_domain_specification_sha256",
+                    "alignment_specification_sha256",
+                    "norm_id",
+                    "norm_specification_sha256",
+                    "comparison_unit",
+                    "comparison_comparator",
+                    "comparison_tolerance",
+                    "static_separation_method",
+                    "static_separation_specification_sha256",
+                    "runtime_separation_method",
+                    "runtime_separation_specification_sha256",
+                    "separation_limitations",
+                    "observed_route_ids",
+                    "observed_implementation_bundle_contract_ids",
+                    "observed_shared_input_object_ids",
+                    "observed_static_shared_member_locators",
+                    "observed_runtime_shared_member_locators",
+                    "observed_static_dependency_edges",
+                    "observed_runtime_dependency_edges",
+                    "observed_static_receipt_complete",
+                    "observed_runtime_receipt_complete",
+                    "static_separation_satisfied",
+                    "runtime_separation_satisfied",
+                    "observed_comparison_value",
+                    "comparison_satisfied",
+                    "assessment_status",
+                    "observed_witness",
+                    "interpretation",
+                }
+                expected_evidence = {
+                    field_name: result[field_name]
+                    for field_name in evidence_fields
+                }
+                if structured_evidence != expected_evidence:
+                    raise ValidationError(
+                        "computation route separation result does not match its "
+                        "retained typed JSON evidence"
+                    )
+                selected_value_sha256 = _result_selection_sha256(
+                    structured_evidence
+                )
+                supplied = result.get("selected_value_sha256")
+                if supplied is not None and require_sha256(
+                    supplied,
+                    (
+                        "computation route separation "
+                        f"{contract.contract_id} selected_value_sha256"
+                    ),
+                ) != selected_value_sha256:
+                    raise ValidationError(
+                        "computation route separation selected_value_sha256 does "
+                        "not match the verified JSON value"
+                    )
+                result["selected_value_sha256"] = selected_value_sha256
         bounded_negative_search_gates = {
             contract.evaluation_gate_id
             for contract in protocol.bounded_negative_search_contracts
@@ -5346,6 +5468,13 @@ class ResearchService:
             analysis_implementation_bundle_contracts_by_gate.setdefault(
                 contract.evaluation_gate_id, []
             ).append(contract)
+        computation_route_separation_contracts_by_gate: dict[
+            str, list[Any]
+        ] = {}
+        for contract in protocol.computation_route_separation_contracts:
+            computation_route_separation_contracts_by_gate.setdefault(
+                contract.evaluation_gate_id, []
+            ).append(contract)
         bounded_negative_search_contracts_by_gate: dict[str, list[Any]] = {}
         for contract in protocol.bounded_negative_search_contracts:
             bounded_negative_search_contracts_by_gate.setdefault(
@@ -5385,6 +5514,10 @@ class ResearchService:
             "analysis_implementation_bundle_plan": [
                 contract.to_dict()
                 for contract in protocol.analysis_implementation_bundle_contracts
+            ],
+            "computation_route_separation_plan": [
+                contract.to_dict()
+                for contract in protocol.computation_route_separation_contracts
             ],
             "bounded_negative_search_plan": [
                 contract.to_dict()
@@ -5693,6 +5826,51 @@ class ResearchService:
                                     gate_id
                                 ]
                             }} if gate_id in analysis_implementation_bundle_contracts_by_gate else {}),
+                            **({"computation_route_separation_results": {
+                                contract.contract_id: {
+                                    "comparison_predicate_contract_id": contract.comparison_predicate_contract_id,
+                                    "route_ids": list(contract.route_ids),
+                                    "implementation_bundle_contract_ids": list(contract.implementation_bundle_contract_ids),
+                                    "approved_shared_input_object_ids": list(contract.approved_shared_input_object_ids),
+                                    "approved_shared_member_locators": list(contract.approved_shared_member_locators),
+                                    "forbidden_cross_route_dependency_edges": [edge.to_dict() for edge in contract.forbidden_cross_route_dependency_edges],
+                                    "comparison_domain": contract.comparison_domain,
+                                    "comparison_domain_specification_sha256": contract.comparison_domain_specification_sha256,
+                                    "alignment_specification_sha256": contract.alignment_specification_sha256,
+                                    "norm_id": contract.norm_id,
+                                    "norm_specification_sha256": contract.norm_specification_sha256,
+                                    "comparison_unit": contract.comparison_unit,
+                                    "comparison_comparator": contract.comparison_comparator,
+                                    "comparison_tolerance": contract.comparison_tolerance,
+                                    "static_separation_method": contract.static_separation_method,
+                                    "static_separation_specification_sha256": contract.static_separation_specification_sha256,
+                                    "runtime_separation_method": contract.runtime_separation_method,
+                                    "runtime_separation_specification_sha256": contract.runtime_separation_specification_sha256,
+                                    "separation_limitations": list(contract.separation_limitations),
+                                    "observed_route_ids": [],
+                                    "observed_implementation_bundle_contract_ids": [],
+                                    "observed_shared_input_object_ids": [],
+                                    "observed_static_shared_member_locators": [],
+                                    "observed_runtime_shared_member_locators": [],
+                                    "observed_static_dependency_edges": [],
+                                    "observed_runtime_dependency_edges": [],
+                                    "observed_static_receipt_complete": None,
+                                    "observed_runtime_receipt_complete": None,
+                                    "static_separation_satisfied": None,
+                                    "runtime_separation_satisfied": None,
+                                    "observed_comparison_value": "<finite numeric comparison value>",
+                                    "comparison_satisfied": None,
+                                    "assessment_status": "<consistent_with_route_separation_contract if passed; inconclusive if warning; contradicted_route_separation_contract if failed>",
+                                    "observed_witness": "",
+                                    "interpretation": "",
+                                    "evidence_sha256": "<hash of a listed run output artifact>",
+                                    "evidence_location": "<exact JSON Pointer or location within that artifact>",
+                                    "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
+                                }
+                                for contract in computation_route_separation_contracts_by_gate[
+                                    gate_id
+                                ]
+                            }} if gate_id in computation_route_separation_contracts_by_gate else {}),
                             **({"bounded_negative_search_results": {
                                 contract.contract_id: {
                                     "search_question": contract.search_question,
@@ -7291,6 +7469,9 @@ class ResearchService:
             ),
             analysis_implementation_bundle_contracts=list(
                 command.analysis_implementation_bundle_contracts
+            ),
+            computation_route_separation_contracts=list(
+                command.computation_route_separation_contracts
             ),
             bounded_negative_search_contracts=list(
                 command.bounded_negative_search_contracts

@@ -71,6 +71,8 @@ from research_machine.domain.models import (
     CalibrationCriterion,
     CanaryTargetPlan,
     ConclusionContract,
+    ComputationRouteSeparationContract,
+    CrossRouteDependencyEdge,
     ClaimDisposition,
     ClaimEpistemicLayer,
     ClaimLevel,
@@ -152,6 +154,7 @@ _PROTOCOL_FIELDS = {
     "duality_reconstruction_contracts",
     "reconstruction_family_stability_contracts",
     "analysis_implementation_bundle_contracts",
+    "computation_route_separation_contracts",
     "bounded_negative_search_contracts",
     "measurement_validity_checks",
     "expected_outputs",
@@ -1393,6 +1396,9 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
     analysis_implementation_bundle_values = spec.get(
         "analysis_implementation_bundle_contracts", []
     )
+    computation_route_separation_values = spec.get(
+        "computation_route_separation_contracts", []
+    )
     bounded_negative_search_values = spec.get(
         "bounded_negative_search_contracts", []
     )
@@ -1406,6 +1412,8 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         reconstruction_family_stability_values = []
     if analysis_implementation_bundle_values is None:
         analysis_implementation_bundle_values = []
+    if computation_route_separation_values is None:
+        computation_route_separation_values = []
     if bounded_negative_search_values is None:
         bounded_negative_search_values = []
     validity_values = spec.get("measurement_validity_checks", [])
@@ -1810,6 +1818,81 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         raise ValueError(
             "analysis implementation bundle member contains unknown fields or is not an object"
         )
+    computation_route_separation_fields = {
+        "contract_id",
+        "comparison_predicate_contract_id",
+        "route_ids",
+        "implementation_bundle_contract_ids",
+        "approved_shared_input_object_ids",
+        "approved_shared_member_locators",
+        "forbidden_cross_route_dependency_edges",
+        "comparison_domain",
+        "comparison_domain_specification_sha256",
+        "alignment_specification_sha256",
+        "norm_id",
+        "norm_specification_sha256",
+        "comparison_unit",
+        "comparison_comparator",
+        "comparison_tolerance",
+        "static_separation_method",
+        "static_separation_specification_sha256",
+        "runtime_separation_method",
+        "runtime_separation_specification_sha256",
+        "separation_limitations",
+        "adverse_shared_helper_control_id",
+        "evaluation_gate_id",
+    }
+    dependency_edge_fields = {
+        "source_route_id",
+        "target_route_id",
+        "dependency_member_locator",
+    }
+    if not isinstance(computation_route_separation_values, list) or any(
+        not isinstance(item, dict)
+        for item in computation_route_separation_values
+    ):
+        raise ValueError(
+            "computation_route_separation_contracts must be an array of objects"
+        )
+    if any(
+        set(item) - computation_route_separation_fields
+        for item in computation_route_separation_values
+    ):
+        raise ValueError(
+            "computation route separation contract contains unknown fields"
+        )
+    try:
+        computation_route_separation_contracts = [
+            ComputationRouteSeparationContract(
+                **{
+                    **item,
+                    "forbidden_cross_route_dependency_edges": [
+                        CrossRouteDependencyEdge(**edge)
+                        for edge in item.get(
+                            "forbidden_cross_route_dependency_edges", []
+                        )
+                        if isinstance(edge, dict)
+                        and not (set(edge) - dependency_edge_fields)
+                    ],
+                }
+            )
+            for item in computation_route_separation_values
+        ]
+    except TypeError as exc:
+        raise ValueError(
+            f"invalid computation route separation contract: {exc}"
+        ) from exc
+    if any(
+        len(contract.forbidden_cross_route_dependency_edges)
+        != len(item.get("forbidden_cross_route_dependency_edges", []))
+        for contract, item in zip(
+            computation_route_separation_contracts,
+            computation_route_separation_values,
+        )
+    ):
+        raise ValueError(
+            "computation route dependency edge contains unknown fields or is not an object"
+        )
     bounded_negative_search_fields = {
         "contract_id",
         "search_question",
@@ -1910,6 +1993,9 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             ),
             analysis_implementation_bundle_contracts=(
                 analysis_implementation_bundle_contracts
+            ),
+            computation_route_separation_contracts=(
+                computation_route_separation_contracts
             ),
             bounded_negative_search_contracts=(
                 bounded_negative_search_contracts

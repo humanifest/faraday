@@ -555,6 +555,43 @@ class AnalysisImplementationBundleContract(Serializable):
 
 
 @dataclass(frozen=True)
+class CrossRouteDependencyEdge(Serializable):
+    """One forbidden directed dependency on another route's code member."""
+
+    source_route_id: str
+    target_route_id: str
+    dependency_member_locator: str
+
+
+@dataclass(frozen=True)
+class ComputationRouteSeparationContract(Serializable):
+    """Frozen two-route code separation and output-comparison contract."""
+
+    contract_id: str
+    comparison_predicate_contract_id: str
+    route_ids: list[str]
+    implementation_bundle_contract_ids: list[str]
+    approved_shared_input_object_ids: list[str]
+    approved_shared_member_locators: list[str]
+    forbidden_cross_route_dependency_edges: list[CrossRouteDependencyEdge]
+    comparison_domain: str
+    comparison_domain_specification_sha256: str
+    alignment_specification_sha256: str
+    norm_id: str
+    norm_specification_sha256: str
+    comparison_unit: str
+    comparison_comparator: str
+    comparison_tolerance: float
+    static_separation_method: str
+    static_separation_specification_sha256: str
+    runtime_separation_method: str
+    runtime_separation_specification_sha256: str
+    separation_limitations: list[str]
+    adverse_shared_helper_control_id: str
+    evaluation_gate_id: str
+
+
+@dataclass(frozen=True)
 class BoundedSearchInterface(Serializable):
     """One exact database/interface boundary used for a bounded search."""
 
@@ -819,6 +856,9 @@ class ExperimentProtocol(Serializable):
     analysis_implementation_bundle_contracts: list[
         AnalysisImplementationBundleContract
     ] = field(default_factory=list)
+    computation_route_separation_contracts: list[
+        ComputationRouteSeparationContract
+    ] = field(default_factory=list)
     bounded_negative_search_contracts: list[
         BoundedNegativeSearchContract
     ] = field(default_factory=list)
@@ -927,6 +967,8 @@ class ExperimentProtocol(Serializable):
             payload.pop("reconstruction_family_stability_contracts", None)
         if not self.analysis_implementation_bundle_contracts:
             payload.pop("analysis_implementation_bundle_contracts", None)
+        if not self.computation_route_separation_contracts:
+            payload.pop("computation_route_separation_contracts", None)
         if not self.bounded_negative_search_contracts:
             payload.pop("bounded_negative_search_contracts", None)
         return payload
@@ -988,6 +1030,26 @@ class ExperimentProtocol(Serializable):
             )
             for item in copied.get(
                 "analysis_implementation_bundle_contracts", []
+            )
+        ]
+        copied["computation_route_separation_contracts"] = [
+            item
+            if isinstance(item, ComputationRouteSeparationContract)
+            else ComputationRouteSeparationContract(
+                **{
+                    **item,
+                    "forbidden_cross_route_dependency_edges": [
+                        edge
+                        if isinstance(edge, CrossRouteDependencyEdge)
+                        else CrossRouteDependencyEdge(**edge)
+                        for edge in item.get(
+                            "forbidden_cross_route_dependency_edges", []
+                        )
+                    ],
+                }
+            )
+            for item in copied.get(
+                "computation_route_separation_contracts", []
             )
         ]
         copied["bounded_negative_search_contracts"] = [

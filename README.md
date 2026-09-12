@@ -2417,6 +2417,18 @@ declared-versus-observed member equality. Hashes establish byte identity, not
 semantic correctness or unbounded runtime completeness. See
 [analysis implementation bundles](docs/analysis-implementation-bundle-contract.md).
 
+When agreement between two computational routes is intended to provide a
+stronger robustness check, also freeze a
+`computation_route_separation_contracts` entry. It binds exactly two routes to
+two complete implementation bundles, limits their shared inputs and members,
+forbids both directed cross-route code dependencies, freezes the comparison
+predicate and numerical rule, and requires both static and runtime receipts plus
+a hidden shared-helper adverse control. A comparison miss remains a result; a
+separation failure invalidates only the claim that the routes were code-separated.
+The ceiling is declared code-level separation, never independent reasoning,
+authorship, or correctness. See
+[computation route separation](docs/computation-route-separation-contract.md).
+
 When a literature, registry, source, or catalog search will support a statement
 that no match was found, freeze a `bounded_negative_search_contracts` entry. It
 binds the exact question and scope, date, database/interface identities, exact

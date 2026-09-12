@@ -535,6 +535,133 @@
         "evaluation_gate_id": {"$ref": "#/$defs/canonicalText"}
       }
     },
+    "crossRouteDependencyEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_route_id",
+        "target_route_id",
+        "dependency_member_locator"
+      ],
+      "properties": {
+        "source_route_id": {"$ref": "#/$defs/canonicalText"},
+        "target_route_id": {"$ref": "#/$defs/canonicalText"},
+        "dependency_member_locator": {"$ref": "#/$defs/canonicalText"}
+      }
+    },
+    "computationRouteSeparationContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_id",
+        "comparison_predicate_contract_id",
+        "route_ids",
+        "implementation_bundle_contract_ids",
+        "approved_shared_input_object_ids",
+        "approved_shared_member_locators",
+        "forbidden_cross_route_dependency_edges",
+        "comparison_domain",
+        "comparison_domain_specification_sha256",
+        "alignment_specification_sha256",
+        "norm_id",
+        "norm_specification_sha256",
+        "comparison_unit",
+        "comparison_comparator",
+        "comparison_tolerance",
+        "static_separation_method",
+        "static_separation_specification_sha256",
+        "runtime_separation_method",
+        "runtime_separation_specification_sha256",
+        "separation_limitations",
+        "adverse_shared_helper_control_id",
+        "evaluation_gate_id"
+      ],
+      "properties": {
+        "contract_id": {"$ref": "#/$defs/canonicalText"},
+        "comparison_predicate_contract_id": {"$ref": "#/$defs/canonicalText"},
+        "route_ids": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "implementation_bundle_contract_ids": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "approved_shared_input_object_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "approved_shared_member_locators": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "forbidden_cross_route_dependency_edges": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/crossRouteDependencyEdge"}
+        },
+        "comparison_domain": {"$ref": "#/$defs/canonicalText"},
+        "comparison_domain_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "alignment_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "norm_id": {"$ref": "#/$defs/canonicalText"},
+        "norm_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "comparison_unit": {"$ref": "#/$defs/canonicalText"},
+        "comparison_comparator": {
+          "enum": [
+            "less_than",
+            "less_than_or_equal",
+            "equal",
+            "greater_than_or_equal",
+            "greater_than"
+          ]
+        },
+        "comparison_tolerance": {
+          "type": "number",
+          "minimum": 0
+        },
+        "static_separation_method": {
+          "enum": ["static_import_graph", "static_dependency_graph"]
+        },
+        "static_separation_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "runtime_separation_method": {
+          "enum": ["runtime_import_trace", "runtime_call_trace"]
+        },
+        "runtime_separation_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "separation_limitations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "adverse_shared_helper_control_id": {"$ref": "#/$defs/canonicalText"},
+        "evaluation_gate_id": {"$ref": "#/$defs/canonicalText"}
+      }
+    },
     "boundedSearchInterface": {
       "type": "object",
       "additionalProperties": false,
@@ -847,6 +974,10 @@
     "analysis_implementation_bundle_contracts": {
       "type": "array",
       "items": {"$ref": "#/$defs/analysisImplementationBundleContract"}
+    },
+    "computation_route_separation_contracts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/computationRouteSeparationContract"}
     },
     "bounded_negative_search_contracts": {
       "type": "array",

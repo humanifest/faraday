@@ -11,6 +11,7 @@ from research_machine.domain.models import (
     AnalysisStepContract,
     CanaryTargetPlan,
     ConclusionContract,
+    ComputationRouteSeparationContract,
     CalibrationCriterion,
     ClaimDisposition,
     ClaimEpistemicLayer,
@@ -231,6 +232,9 @@ class CreateProtocol:
     ] = field(default_factory=list)
     analysis_implementation_bundle_contracts: list[
         AnalysisImplementationBundleContract
+    ] = field(default_factory=list)
+    computation_route_separation_contracts: list[
+        ComputationRouteSeparationContract
     ] = field(default_factory=list)
     bounded_negative_search_contracts: list[
         BoundedNegativeSearchContract

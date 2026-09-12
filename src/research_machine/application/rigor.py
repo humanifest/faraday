@@ -1935,6 +1935,55 @@ def audit_research_state(
                             "new protocol version."
                         ),
                     )
+        if (
+            protocol is not None
+            and protocol.computation_route_separation_contracts
+        ):
+            gates_by_id = {item.gate_id: item for item in run.quality_gates}
+            for contract in protocol.computation_route_separation_contracts:
+                gate = gates_by_id.get(contract.evaluation_gate_id)
+                results = (
+                    gate.details.get("computation_route_separation_results", {})
+                    if gate is not None
+                    else {}
+                )
+                result = (
+                    results.get(contract.contract_id)
+                    if isinstance(results, dict)
+                    else None
+                )
+                if not isinstance(result, dict):
+                    continue
+                status = result.get("assessment_status")
+                if status == "inconclusive":
+                    add(
+                        "COMPUTATION_ROUTE_SEPARATION_INCONCLUSIVE",
+                        RigorSeverity.WARNING,
+                        f"Computation route separation contract "
+                        f"{contract.contract_id} was inconclusive.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the typed receipt and inspect static and "
+                            "runtime coverage, shared members, forbidden edges, "
+                            "the adverse helper control, and declared limitations."
+                        ),
+                    )
+                elif status == "contradicted_route_separation_contract":
+                    add(
+                        "COMPUTATION_ROUTE_SEPARATION_CONTRADICTED",
+                        RigorSeverity.ERROR,
+                        f"Computation route separation contract "
+                        f"{contract.contract_id} was contradicted.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the shared-helper or cross-route dependency "
+                            "failure. Do not describe the two calculations as "
+                            "code-separated; changed routes, bundles, sharing, or "
+                            "tracing methods require a new protocol version."
+                        ),
+                    )
         if protocol is not None and protocol.bounded_negative_search_contracts:
             gates_by_id = {item.gate_id: item for item in run.quality_gates}
             for contract in protocol.bounded_negative_search_contracts:

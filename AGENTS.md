@@ -129,6 +129,18 @@ canonical write path.
   possible, but continue redacting operational artifact locators. Treat hashes
   as byte identity and a closure receipt as bounded executor metadata, never as
   proof of semantic correctness or complete dynamic execution.
+- When agreement between two computational routes is used as a robustness
+  check, freeze a `computation_route_separation_contracts` entry. Bind exactly
+  two route IDs to exactly two complete implementation bundles; enumerate the
+  exact approved shared inputs and member intersection; forbid both directed
+  route-to-exclusive-member boundaries; and freeze the comparison predicate,
+  domain, alignment, norm, unit, comparator, tolerance, static method, runtime
+  method, limitations, and an adverse shared-helper control. Passed run intake
+  requires artifact-selected static and runtime receipts with no forbidden edge
+  and no undeclared shared member. Preserve a comparison miss as a scientific
+  outcome rather than relabeling it an execution failure. This contract can
+  establish only declared code-level separation within its methods; never call
+  it independent reasoning, independent authorship, or scientific correctness.
 - A source, literature, registry, or catalog search used to report no match
   should freeze a `bounded_negative_search_contracts` entry. Bind the exact
   question and inclusion/exclusion scope, calendar date, database/interface

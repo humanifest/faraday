@@ -1,0 +1,1 @@
+INPUT_VALUE = 3

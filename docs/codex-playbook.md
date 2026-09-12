@@ -139,6 +139,15 @@ limitations, external dependencies, an observed-closure receipt format, and an
 omitted-helper adverse control. A submitter-defined scalar digest is not proof
 that the declared member list is complete.
 
+When two implementations are compared as separate computational routes, also
+freeze `computation_route_separation_contracts`. See
+`computation-route-separation-contract.md`. Bind exactly two route and bundle
+IDs, exact approved sharing, complete directed route-to-exclusive-member
+prohibitions, the comparison predicate/domain/alignment/norm/unit/rule, static
+and runtime separation methods, explicit limitations, and a hidden
+shared-helper adverse control. Do not turn code-level separation into a claim of
+independent reasoning, authorship, or correctness.
+
 When a search miss will inform a scientific or mathematical decision, also
 freeze `bounded_negative_search_contracts`. See
 `bounded-negative-search-contract.md`. Bind the exact question, scope, search

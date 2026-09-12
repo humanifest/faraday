@@ -1139,6 +1139,66 @@ def build_synthesis(
                             f"artifact `{result.get('evidence_sha256', 'unavailable')}` "
                             f"at `{result.get('evidence_location', 'unavailable')}`."
                         )
+    route_separation_protocols = [
+        protocol
+        for protocol in protocols
+        if protocol.computation_route_separation_contracts
+    ]
+    if route_separation_protocols:
+        lines.extend(["", "### Computation route separation", ""])
+        for protocol in route_separation_protocols:
+            contracts_by_id = {
+                contract.contract_id: contract
+                for contract in protocol.computation_route_separation_contracts
+            }
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}` froze: "
+                + "; ".join(
+                    f"`{contract.contract_id}` comparing routes "
+                    f"`{contract.route_ids[0]}` and `{contract.route_ids[1]}` "
+                    f"with `{contract.static_separation_method}` plus "
+                    f"`{contract.runtime_separation_method}`"
+                    for contract in protocol.computation_route_separation_contracts
+                )
+                + ". This can establish only declared code-level separation "
+                "within the frozen methods and limitations; it does not establish "
+                "independent reasoning, authorship, or scientific correctness."
+            )
+            for run in sorted(
+                (item for item in runs if item.protocol_id == protocol.protocol_id),
+                key=lambda item: item.run_id,
+            ):
+                for gate in run.quality_gates:
+                    results = gate.details.get(
+                        "computation_route_separation_results"
+                    )
+                    if not isinstance(results, dict):
+                        continue
+                    for contract_id, result in sorted(results.items()):
+                        if not isinstance(result, dict):
+                            continue
+                        contract = contracts_by_id.get(contract_id)
+                        lines.append(
+                            f"  - Run `{run.run_id}` / `{contract_id}`"
+                            + (
+                                f" ({len(contract.approved_shared_member_locators)} "
+                                "approved shared members)"
+                                if contract is not None
+                                else ""
+                            )
+                            + f": gate `{gate.gate_id}` {gate.status.value}; "
+                            f"{result.get('assessment_status', 'unclassified')}; "
+                            f"static separation "
+                            f"{result.get('static_separation_satisfied', 'unavailable')}; "
+                            f"runtime separation "
+                            f"{result.get('runtime_separation_satisfied', 'unavailable')}; "
+                            f"comparison predicate "
+                            f"{result.get('comparison_satisfied', 'unavailable')} "
+                            f"at {result.get('observed_comparison_value', 'unavailable')} "
+                            f"{result.get('comparison_unit', '')}; artifact "
+                            f"`{result.get('evidence_sha256', 'unavailable')}` at "
+                            f"`{result.get('evidence_location', 'unavailable')}`."
+                        )
     bounded_search_protocols = [
         protocol for protocol in protocols
         if protocol.bounded_negative_search_contracts

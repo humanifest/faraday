@@ -24,6 +24,7 @@ from research_machine.domain.models import (
     CalibrationCriterion,
     CanaryTargetPlan,
     ConclusionContract,
+    ComputationRouteSeparationContract,
     Claim,
     ClaimLevel,
     DatasetManifest,
@@ -31,6 +32,7 @@ from research_machine.domain.models import (
     DualityReconstructionContract,
     ControlDefinition,
     ControlWitnessContract,
+    CrossRouteDependencyEdge,
     CONTROL_FAMILIES,
     EvidenceDirection,
     ExperimentProtocol,
@@ -2340,6 +2342,8 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         validate_reconstruction_family_stability_contracts(protocol)
     if protocol.analysis_implementation_bundle_contracts:
         validate_analysis_implementation_bundle_contracts(protocol)
+    if protocol.computation_route_separation_contracts:
+        validate_computation_route_separation_contracts(protocol)
     if protocol.bounded_negative_search_contracts:
         validate_bounded_negative_search_contracts(protocol)
     custody_requirement_ids = []
@@ -4379,6 +4383,638 @@ def validate_analysis_implementation_bundle_gate_metadata(
             raise ValidationError(
                 f"{label}passed analysis implementation bundle gate requires "
                 "its adverse-omission control to match expectation"
+            )
+        if result.get("selected_value_sha256") is not None:
+            require_sha256(
+                result["selected_value_sha256"],
+                f"{prefix}.selected_value_sha256",
+            )
+
+
+_ROUTE_STATIC_SEPARATION_METHODS = {
+    "static_import_graph",
+    "static_dependency_graph",
+}
+_ROUTE_RUNTIME_SEPARATION_METHODS = {
+    "runtime_import_trace",
+    "runtime_call_trace",
+}
+_ROUTE_COMPARATORS = {
+    "less_than",
+    "less_than_or_equal",
+    "equal",
+    "greater_than_or_equal",
+    "greater_than",
+}
+
+
+def _route_edge_key(edge: CrossRouteDependencyEdge) -> tuple[str, str, str]:
+    return (
+        edge.source_route_id,
+        edge.target_route_id,
+        edge.dependency_member_locator,
+    )
+
+
+def _complete_forbidden_cross_route_edges(
+    *,
+    route_ids: Sequence[str],
+    bundles: Sequence[AnalysisImplementationBundleContract],
+    approved_shared_member_locators: Sequence[str],
+) -> list[CrossRouteDependencyEdge]:
+    shared = set(approved_shared_member_locators)
+    edges: list[CrossRouteDependencyEdge] = []
+    for source_index, source_route_id in enumerate(route_ids):
+        target_index = 1 - source_index
+        target_route_id = route_ids[target_index]
+        target_locators = {
+            member.locator for member in bundles[target_index].members
+        }
+        for locator in sorted(target_locators - shared):
+            edges.append(CrossRouteDependencyEdge(
+                source_route_id=source_route_id,
+                target_route_id=target_route_id,
+                dependency_member_locator=locator,
+            ))
+    return sorted(edges, key=_route_edge_key)
+
+
+def validate_computation_route_separation_contracts(
+    protocol: ExperimentProtocol,
+) -> None:
+    """Bind exactly two declared code routes without claiming independence."""
+
+    contracts = protocol.computation_route_separation_contracts
+    if any(
+        not isinstance(item, ComputationRouteSeparationContract)
+        for item in contracts
+    ):
+        raise ValidationError(
+            "computation_route_separation_contracts must contain "
+            "ComputationRouteSeparationContract values"
+        )
+    controls = {item.control_id: item for item in protocol.control_definitions}
+    predicates = {
+        item.contract_id: item for item in protocol.mathematical_predicate_contracts
+    }
+    bundles_by_id = {
+        item.contract_id: item
+        for item in protocol.analysis_implementation_bundle_contracts
+    }
+    contract_ids: set[str] = set()
+    for index, contract in enumerate(contracts):
+        prefix = f"computation_route_separation_contracts[{index}]"
+        for field_name in (
+            "contract_id",
+            "comparison_predicate_contract_id",
+            "comparison_domain",
+            "norm_id",
+            "comparison_unit",
+            "comparison_comparator",
+            "static_separation_method",
+            "runtime_separation_method",
+            "adverse_shared_helper_control_id",
+            "evaluation_gate_id",
+        ):
+            require_canonical_text(
+                getattr(contract, field_name), f"{prefix}.{field_name}"
+            )
+        if contract.contract_id in contract_ids:
+            raise ValidationError(
+                "computation route separation contract IDs must be unique"
+            )
+        contract_ids.add(contract.contract_id)
+        route_ids = require_unique_canonical_text_list(
+            contract.route_ids, f"{prefix}.route_ids"
+        )
+        if len(route_ids) != 2:
+            raise ValidationError(
+                "computation route separation contract requires exactly two "
+                "distinct route IDs"
+            )
+        bundle_ids = require_unique_canonical_text_list(
+            contract.implementation_bundle_contract_ids,
+            f"{prefix}.implementation_bundle_contract_ids",
+        )
+        if len(bundle_ids) != 2:
+            raise ValidationError(
+                "computation route separation contract requires exactly two "
+                "distinct implementation bundle contract IDs"
+            )
+        try:
+            bundles = [bundles_by_id[bundle_id] for bundle_id in bundle_ids]
+        except KeyError as exc:
+            raise ValidationError(
+                "computation route separation contract references an unknown "
+                "analysis implementation bundle contract"
+            ) from exc
+        shared_inputs = require_unique_canonical_text_list(
+            contract.approved_shared_input_object_ids,
+            f"{prefix}.approved_shared_input_object_ids",
+        )
+        if not shared_inputs:
+            raise ValidationError(
+                "computation route separation contract requires at least one "
+                "approved shared input object ID"
+            )
+        if shared_inputs != sorted(shared_inputs):
+            raise ValidationError(
+                "approved shared input object IDs must be sorted"
+            )
+        shared_members = require_unique_canonical_text_list(
+            contract.approved_shared_member_locators,
+            f"{prefix}.approved_shared_member_locators",
+        )
+        if shared_members != sorted(shared_members):
+            raise ValidationError(
+                "approved shared member locators must be sorted"
+            )
+        for member_index, locator in enumerate(shared_members):
+            path = Path(locator)
+            if path.is_absolute() or ".." in path.parts:
+                raise ValidationError(
+                    f"{prefix}.approved_shared_member_locators[{member_index}] "
+                    "must be a safe relative code locator"
+                )
+        bundle_member_sets = [
+            {member.locator for member in bundle.members} for bundle in bundles
+        ]
+        actual_shared_members = sorted(
+            bundle_member_sets[0] & bundle_member_sets[1]
+        )
+        if shared_members != actual_shared_members:
+            raise ValidationError(
+                "approved shared member locators must exactly equal the two "
+                "implementation bundles' shared member surface"
+            )
+        bundle_members_by_locator = [
+            {member.locator: member for member in bundle.members}
+            for bundle in bundles
+        ]
+        for locator in shared_members:
+            first = bundle_members_by_locator[0][locator]
+            second = bundle_members_by_locator[1][locator]
+            if (
+                first.sha256 != second.sha256
+                or first.size_bytes != second.size_bytes
+            ):
+                raise ValidationError(
+                    "approved shared member locators must have identical byte "
+                    "hashes and sizes in both implementation bundles"
+                )
+        if any(
+            not (member_set - set(shared_members))
+            for member_set in bundle_member_sets
+        ):
+            raise ValidationError(
+                "each computation route requires at least one route-exclusive "
+                "implementation member"
+            )
+        edges = contract.forbidden_cross_route_dependency_edges
+        if any(not isinstance(item, CrossRouteDependencyEdge) for item in edges):
+            raise ValidationError(
+                "forbidden cross-route dependencies must be "
+                "CrossRouteDependencyEdge values"
+            )
+        for edge_index, edge in enumerate(edges):
+            edge_prefix = (
+                f"{prefix}.forbidden_cross_route_dependency_edges[{edge_index}]"
+            )
+            for field_name in (
+                "source_route_id",
+                "target_route_id",
+                "dependency_member_locator",
+            ):
+                require_canonical_text(
+                    getattr(edge, field_name), f"{edge_prefix}.{field_name}"
+                )
+            path = Path(edge.dependency_member_locator)
+            if path.is_absolute() or ".." in path.parts:
+                raise ValidationError(
+                    f"{edge_prefix}.dependency_member_locator must be a safe "
+                    "relative code locator"
+                )
+        expected_edges = _complete_forbidden_cross_route_edges(
+            route_ids=route_ids,
+            bundles=bundles,
+            approved_shared_member_locators=shared_members,
+        )
+        if edges != expected_edges:
+            raise ValidationError(
+                "forbidden cross-route dependency edges must exactly cover both "
+                "directed route-to-exclusive-member boundaries in sorted order"
+            )
+        predicate = predicates.get(contract.comparison_predicate_contract_id)
+        if predicate is None:
+            raise ValidationError(
+                "computation route separation contract must bind an exact "
+                "mathematical predicate contract ID"
+            )
+        if predicate.domain != contract.comparison_domain:
+            raise ValidationError(
+                "computation route comparison domain must match its mathematical "
+                "predicate contract"
+            )
+        if predicate.evaluation_gate_id != contract.evaluation_gate_id:
+            raise ValidationError(
+                "computation route separation and comparison predicate must "
+                "share an evaluation gate"
+            )
+        for field_name in (
+            "comparison_domain_specification_sha256",
+            "alignment_specification_sha256",
+            "norm_specification_sha256",
+            "static_separation_specification_sha256",
+            "runtime_separation_specification_sha256",
+        ):
+            require_sha256(getattr(contract, field_name), f"{prefix}.{field_name}")
+        if contract.comparison_comparator not in _ROUTE_COMPARATORS:
+            raise ValidationError(
+                f"{prefix}.comparison_comparator is unsupported"
+            )
+        tolerance = contract.comparison_tolerance
+        if type(tolerance) is bool or not isinstance(tolerance, (int, float)):
+            raise ValidationError(
+                f"{prefix}.comparison_tolerance must be numeric"
+            )
+        if not math.isfinite(float(tolerance)) or float(tolerance) < 0:
+            raise ValidationError(
+                f"{prefix}.comparison_tolerance must be finite and nonnegative"
+            )
+        if contract.static_separation_method not in _ROUTE_STATIC_SEPARATION_METHODS:
+            raise ValidationError(
+                f"{prefix}.static_separation_method is unsupported"
+            )
+        if contract.runtime_separation_method not in _ROUTE_RUNTIME_SEPARATION_METHODS:
+            raise ValidationError(
+                f"{prefix}.runtime_separation_method is unsupported"
+            )
+        limitations = require_unique_canonical_text_list(
+            contract.separation_limitations,
+            f"{prefix}.separation_limitations",
+        )
+        if not limitations:
+            raise ValidationError(
+                "computation route separation contract must declare limitations"
+            )
+        control = controls.get(contract.adverse_shared_helper_control_id)
+        if control is None:
+            raise ValidationError(
+                "computation route separation contract must bind an exact "
+                "adverse shared-helper control ID"
+            )
+        if control.family != "adversarial":
+            raise ValidationError(
+                "computation route shared-helper control must be adversarial"
+            )
+        if control.evaluation_gate_id != contract.evaluation_gate_id:
+            raise ValidationError(
+                "computation route separation contract and shared-helper control "
+                "must share an evaluation gate"
+            )
+        if contract.evaluation_gate_id not in set(protocol.quality_requirements):
+            raise ValidationError(
+                "computation route separation evaluation gate must be a required "
+                "protocol quality gate"
+            )
+
+
+def _parse_observed_route_edges(
+    value: Any,
+    *,
+    route_ids: Sequence[str],
+    label: str,
+) -> list[CrossRouteDependencyEdge]:
+    if not isinstance(value, list):
+        raise ValidationError(f"{label} must be an array")
+    fields = {
+        "source_route_id",
+        "target_route_id",
+        "dependency_member_locator",
+    }
+    edges: list[CrossRouteDependencyEdge] = []
+    for index, item in enumerate(value):
+        prefix = f"{label}[{index}]"
+        if not isinstance(item, dict) or set(item) != fields:
+            raise ValidationError(
+                f"{prefix} must contain exactly the documented fields"
+            )
+        edge = CrossRouteDependencyEdge(**item)
+        if (
+            edge.source_route_id not in route_ids
+            or edge.target_route_id not in route_ids
+            or edge.source_route_id == edge.target_route_id
+        ):
+            raise ValidationError(
+                f"{prefix} must connect the two distinct frozen route IDs"
+            )
+        path = Path(require_canonical_text(
+            edge.dependency_member_locator,
+            f"{prefix}.dependency_member_locator",
+        ))
+        if path.is_absolute() or ".." in path.parts:
+            raise ValidationError(
+                f"{prefix}.dependency_member_locator must be a safe relative "
+                "code locator"
+            )
+        edges.append(edge)
+    if len({_route_edge_key(edge) for edge in edges}) != len(edges):
+        raise ValidationError(f"{label} must not contain duplicates")
+    if edges != sorted(edges, key=_route_edge_key):
+        raise ValidationError(f"{label} must be sorted")
+    return edges
+
+
+def _route_comparison_satisfied(
+    value: float,
+    comparator: str,
+    tolerance: float,
+) -> bool:
+    return {
+        "less_than": value < tolerance,
+        "less_than_or_equal": value <= tolerance,
+        "equal": value == tolerance,
+        "greater_than_or_equal": value >= tolerance,
+        "greater_than": value > tolerance,
+    }[comparator]
+
+
+def validate_computation_route_separation_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    gate: QualityGateResult,
+    output_hashes: set[str],
+    context: str = "",
+) -> None:
+    """Replay a two-route separation and comparison receipt."""
+
+    contracts = [
+        item
+        for item in protocol.computation_route_separation_contracts
+        if item.evaluation_gate_id == gate.gate_id
+    ]
+    if not contracts or gate.status is QualityGateStatus.SKIPPED:
+        return
+    label = f"{context} " if context else ""
+    results = gate.details.get("computation_route_separation_results")
+    expected_ids = {item.contract_id for item in contracts}
+    if not isinstance(results, dict) or set(results) != expected_ids:
+        raise ValidationError(
+            f"{label}performed computation route separation gate "
+            f"{gate.gate_id} requires exact results for: "
+            + ", ".join(sorted(expected_ids))
+        )
+    expected_status = {
+        QualityGateStatus.PASSED: "consistent_with_route_separation_contract",
+        QualityGateStatus.WARNING: "inconclusive",
+        QualityGateStatus.FAILED: "contradicted_route_separation_contract",
+    }.get(gate.status)
+    if expected_status is None:
+        raise ValidationError(
+            f"{label}computation route separation gate {gate.gate_id} has an "
+            "unsupported status"
+        )
+    frozen_fields = (
+        "comparison_predicate_contract_id",
+        "route_ids",
+        "implementation_bundle_contract_ids",
+        "approved_shared_input_object_ids",
+        "approved_shared_member_locators",
+        "forbidden_cross_route_dependency_edges",
+        "comparison_domain",
+        "comparison_domain_specification_sha256",
+        "alignment_specification_sha256",
+        "norm_id",
+        "norm_specification_sha256",
+        "comparison_unit",
+        "comparison_comparator",
+        "comparison_tolerance",
+        "static_separation_method",
+        "static_separation_specification_sha256",
+        "runtime_separation_method",
+        "runtime_separation_specification_sha256",
+        "separation_limitations",
+    )
+    required_fields = {
+        *frozen_fields,
+        "observed_route_ids",
+        "observed_implementation_bundle_contract_ids",
+        "observed_shared_input_object_ids",
+        "observed_static_shared_member_locators",
+        "observed_runtime_shared_member_locators",
+        "observed_static_dependency_edges",
+        "observed_runtime_dependency_edges",
+        "observed_static_receipt_complete",
+        "observed_runtime_receipt_complete",
+        "static_separation_satisfied",
+        "runtime_separation_satisfied",
+        "observed_comparison_value",
+        "comparison_satisfied",
+        "assessment_status",
+        "observed_witness",
+        "interpretation",
+        "evidence_sha256",
+        "evidence_location",
+    }
+    derived_fields = {"selected_value_sha256"}
+    control_results = gate.details.get("control_results")
+    for contract in contracts:
+        result = results[contract.contract_id]
+        prefix = (
+            f"{label}gate {gate.gate_id} computation_route_separation_results "
+            f"{contract.contract_id}"
+        )
+        if (
+            not isinstance(result, dict)
+            or not required_fields <= set(result)
+            or set(result) - required_fields - derived_fields
+        ):
+            raise ValidationError(
+                f"{label}computation route separation result for "
+                f"{contract.contract_id} must contain exactly the documented fields"
+            )
+        frozen_expected = contract.to_dict()
+        for field_name in (
+            "contract_id",
+            "adverse_shared_helper_control_id",
+            "evaluation_gate_id",
+        ):
+            frozen_expected.pop(field_name)
+        for field_name in frozen_fields:
+            if result[field_name] != frozen_expected[field_name]:
+                raise ValidationError(
+                    f"{label}computation route separation {field_name} does not "
+                    "match the frozen contract"
+                )
+        if result["observed_route_ids"] != contract.route_ids:
+            raise ValidationError(
+                f"{label}observed route IDs do not match the frozen contract"
+            )
+        if (
+            result["observed_implementation_bundle_contract_ids"]
+            != contract.implementation_bundle_contract_ids
+        ):
+            raise ValidationError(
+                f"{label}observed implementation bundle IDs do not match the "
+                "frozen contract"
+            )
+        observed_inputs = require_unique_canonical_text_list(
+            result["observed_shared_input_object_ids"],
+            f"{prefix}.observed_shared_input_object_ids",
+        )
+        if observed_inputs != contract.approved_shared_input_object_ids:
+            raise ValidationError(
+                f"{label}observed shared input objects do not match the frozen "
+                "approved inputs"
+            )
+        observed_shared: dict[str, list[str]] = {}
+        for route_kind in ("static", "runtime"):
+            field_name = f"observed_{route_kind}_shared_member_locators"
+            locators = require_unique_canonical_text_list(
+                result[field_name], f"{prefix}.{field_name}"
+            )
+            if locators != sorted(locators):
+                raise ValidationError(f"{prefix}.{field_name} must be sorted")
+            for locator_index, locator in enumerate(locators):
+                path = Path(locator)
+                if path.is_absolute() or ".." in path.parts:
+                    raise ValidationError(
+                        f"{prefix}.{field_name}[{locator_index}] must be a safe "
+                        "relative code locator"
+                    )
+            observed_shared[route_kind] = locators
+        observed_edges = {
+            route_kind: _parse_observed_route_edges(
+                result[f"observed_{route_kind}_dependency_edges"],
+                route_ids=contract.route_ids,
+                label=f"{prefix}.observed_{route_kind}_dependency_edges",
+            )
+            for route_kind in ("static", "runtime")
+        }
+        separation_satisfied: dict[str, bool] = {}
+        for route_kind in ("static", "runtime"):
+            complete_field = f"observed_{route_kind}_receipt_complete"
+            if type(result[complete_field]) is not bool:
+                raise ValidationError(f"{prefix}.{complete_field} must be boolean")
+            # Every reported edge connects the two frozen routes. The frozen
+            # edge inventory proves that the prospective boundary covered all
+            # route-exclusive target members; an unanticipated edge is a
+            # separation failure too, not a loophole.
+            violation_found = bool(observed_edges[route_kind])
+            computed = (
+                result[complete_field]
+                and observed_shared[route_kind]
+                == contract.approved_shared_member_locators
+                and not violation_found
+            )
+            declared_field = f"{route_kind}_separation_satisfied"
+            if type(result[declared_field]) is not bool:
+                raise ValidationError(f"{prefix}.{declared_field} must be boolean")
+            if result[declared_field] is not computed:
+                raise ValidationError(
+                    f"{label}{declared_field} does not match the observed receipt"
+                )
+            separation_satisfied[route_kind] = computed
+        comparison_value = result["observed_comparison_value"]
+        if type(comparison_value) is bool or not isinstance(
+            comparison_value, (int, float)
+        ):
+            raise ValidationError(
+                f"{prefix}.observed_comparison_value must be numeric"
+            )
+        comparison_value = float(comparison_value)
+        if not math.isfinite(comparison_value) or comparison_value < 0:
+            raise ValidationError(
+                f"{prefix}.observed_comparison_value must be finite and nonnegative"
+            )
+        if type(result["comparison_satisfied"]) is not bool:
+            raise ValidationError(f"{prefix}.comparison_satisfied must be boolean")
+        computed_comparison = _route_comparison_satisfied(
+            comparison_value,
+            contract.comparison_comparator,
+            float(contract.comparison_tolerance),
+        )
+        if result["comparison_satisfied"] is not computed_comparison:
+            raise ValidationError(
+                f"{label}comparison_satisfied does not match the frozen comparator "
+                "and tolerance"
+            )
+        for field_name in (
+            "assessment_status",
+            "observed_witness",
+            "interpretation",
+            "evidence_location",
+        ):
+            require_canonical_text(result[field_name], f"{prefix}.{field_name}")
+        if result["assessment_status"] != expected_status:
+            raise ValidationError(
+                f"{label}{gate.status.value} computation route separation gate "
+                f"requires {expected_status}"
+            )
+        if gate.status is QualityGateStatus.PASSED and not all(
+            separation_satisfied.values()
+        ):
+            raise ValidationError(
+                f"{label}passed computation route separation gate requires both "
+                "static and runtime separation receipts to satisfy the contract"
+            )
+        if gate.status is QualityGateStatus.FAILED and all(
+            separation_satisfied.values()
+        ):
+            raise ValidationError(
+                f"{label}failed computation route separation gate requires an "
+                "observed code-separation contradiction"
+            )
+        digest = require_sha256(
+            result["evidence_sha256"], f"{prefix}.evidence_sha256"
+        )
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"{label}computation route separation evidence must reference a "
+                "run output artifact"
+            )
+        linked_control = (
+            control_results.get(contract.adverse_shared_helper_control_id)
+            if isinstance(control_results, dict)
+            else None
+        )
+        control_fields = {
+            "observed_behavior",
+            "interpretation",
+            "matches_expected",
+            "evidence_sha256",
+            "evidence_location",
+        }
+        control_derived_fields = {"selected_value_sha256"}
+        if (
+            not isinstance(linked_control, dict)
+            or not control_fields <= set(linked_control)
+            or set(linked_control) - control_fields - control_derived_fields
+        ):
+            raise ValidationError(
+                f"{label}computation route separation result requires its exact "
+                "linked adverse shared-helper control evaluation"
+            )
+        if type(linked_control["matches_expected"]) is not bool:
+            raise ValidationError(
+                f"{label}computation route separation linked control "
+                "matches_expected must be a boolean"
+            )
+        control_digest = require_sha256(
+            linked_control["evidence_sha256"],
+            f"{prefix}.linked_control.evidence_sha256",
+        )
+        if control_digest not in output_hashes:
+            raise ValidationError(
+                f"{label}computation route separation linked control evidence "
+                "must reference a run output artifact"
+            )
+        if gate.status is QualityGateStatus.PASSED and not linked_control[
+            "matches_expected"
+        ]:
+            raise ValidationError(
+                f"{label}passed computation route separation gate requires its "
+                "shared-helper adverse control to match expectation"
             )
         if result.get("selected_value_sha256") is not None:
             require_sha256(

@@ -38,6 +38,7 @@ from research_machine.application.policies import (
     validate_duality_reconstruction_gate_metadata,
     validate_reconstruction_family_stability_gate_metadata,
     validate_analysis_implementation_bundle_gate_metadata,
+    validate_computation_route_separation_gate_metadata,
     validate_bounded_negative_search_gate_metadata,
     validate_mathematical_predicate_gate_metadata,
     validate_named_component_gate_metadata,
@@ -3123,6 +3124,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         output_hashes=output_hashes,
                         context=f"package run {run.run_id}",
                     )
+                    validate_computation_route_separation_gate_metadata(
+                        protocol=protocol,
+                        gate=gate,
+                        output_hashes=output_hashes,
+                        context=f"package run {run.run_id}",
+                    )
                     validate_bounded_negative_search_gate_metadata(
                         protocol=protocol,
                         gate=gate,
@@ -3285,13 +3292,18 @@ def _redact_artifact_locators(value: dict[str, Any]) -> dict[str, Any]:
             analysis_member = set(item) == {
                 "locator", "role", "sha256", "size_bytes"
             }
+            route_dependency_edge = set(item) == {
+                "source_route_id",
+                "target_route_id",
+                "dependency_member_locator",
+            }
             return {
                 key: "[redacted: obtain from authorized source]"
                 if (
                     (key == "locator" and not analysis_member)
                     or key == "artifact_root"
                     or key == "attestation_schema_path"
-                    or key.endswith("_locator")
+                    or (key.endswith("_locator") and not route_dependency_edge)
                     or key.endswith("_artifact_root")
                     or key == "run_attestation_schema_path"
                 )

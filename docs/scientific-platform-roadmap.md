@@ -2685,6 +2685,18 @@ canonical pairing, or physical validation. An exact-rational weighted Riesz-map
 fixture verifies coordinate covariance under a nonorthogonal basis change and
 shows why directly identifying dual and primal coordinates is not invariant.
 
+Computation-route separation delivery: formal and computational protocols can
+now bind exactly two route IDs to two complete implementation bundles, freeze
+their approved shared inputs and exact shared-member intersection, prohibit both
+directed route-to-exclusive-member boundaries, and retain artifact-selected
+static and runtime separation receipts. The same contract freezes the exact
+comparison predicate, domain, alignment, norm, unit, comparator, tolerance, and
+a hidden shared-helper adverse control. Run intake, rigor, synthesis, and
+replication verification preserve both comparison successes and misses while
+distinguishing them from code-separation failures. The resulting ceiling is
+declared code-level separation within the stated methods and limitations, not
+independent reasoning, authorship, correctness, or physical validation.
+
 ## Phase 5 — durable multi-user operation
 
 Add transactional storage, locking, authenticated executor identities, signed

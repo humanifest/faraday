@@ -1,0 +1,38 @@
+{
+  "contract_id": "two-route-comparison",
+  "comparison_predicate_contract_id": "route-output-agreement",
+  "route_ids": ["route-a", "route-b"],
+  "implementation_bundle_contract_ids": ["bundle-route-a", "bundle-route-b"],
+  "approved_shared_input_object_ids": ["shared-fixture-v1"],
+  "approved_shared_member_locators": ["analysis/shared_fixture.py"],
+  "forbidden_cross_route_dependency_edges": [
+    {
+      "source_route_id": "route-a",
+      "target_route_id": "route-b",
+      "dependency_member_locator": "analysis/route_b.py"
+    },
+    {
+      "source_route_id": "route-b",
+      "target_route_id": "route-a",
+      "dependency_member_locator": "analysis/route_a.py"
+    }
+  ],
+  "comparison_domain": "Aligned shared-input result pairs",
+  "comparison_domain_specification_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+  "alignment_specification_sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+  "norm_id": "absolute-difference",
+  "norm_specification_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+  "comparison_unit": "dimensionless fixture units",
+  "comparison_comparator": "less_than_or_equal",
+  "comparison_tolerance": 1e-12,
+  "static_separation_method": "static_import_graph",
+  "static_separation_specification_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "runtime_separation_method": "runtime_import_trace",
+  "runtime_separation_specification_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "separation_limitations": [
+    "Runtime tracing covers only the frozen primary and adverse paths.",
+    "Static inspection may miss generated or reflective dependencies."
+  ],
+  "adverse_shared_helper_control_id": "shared-helper-control",
+  "evaluation_gate_id": "route-separation-check"
+}
