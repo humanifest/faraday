@@ -60,7 +60,11 @@ methods without changing its epistemic rules or canonical state.
   factor plan, design status, and retained hypothesis-discrimination targets,
   and protocol-level rigor and synthesis now expose frozen manipulated-factor
   interpretability plans while flagging legacy simultaneous interventions that
-  remain unresolved. Synthesis also reports selected candidates' eligibility
+  remain unresolved. Information-only actions may reduce uncertainty through
+  typed information targets, but they must keep `expected_discrimination` at
+  zero; recommendation creation and replay reject any infrastructure candidate
+  that claims hypothesis-discrimination utility without naming hypotheses and
+  exact discrimination targets. Synthesis also reports selected candidates' eligibility
   references and marks older sealed recommendations without them as
   `legacy_missing` rather than treating bare booleans as fully anchored. The
   weight vector must contain finite,

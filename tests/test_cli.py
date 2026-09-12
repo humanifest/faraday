@@ -87,7 +87,7 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
                         "title": "Audit machine",
                         "distinguishes_hypotheses": [],
                         "information_targets": ["machine:false-acceptance"],
-                        "expected_discrimination": 0.9,
+                        "expected_discrimination": 0.0,
                         "uncertainty_reduction": 0.8,
                         "cost": 0.2,
                         "burden": 0.1,
@@ -105,7 +105,7 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
                         "title": "Run falsifier",
                         "distinguishes_hypotheses": [],
                         "information_targets": ["science:first-failing-gate"],
-                        "expected_discrimination": 0.7,
+                        "expected_discrimination": 0.0,
                         "uncertainty_reduction": 0.6,
                         "cost": 0.2,
                         "burden": 0.1,
@@ -146,7 +146,7 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
         score for score in recommendation["ranked_scores"]
         if score["action_id"] == "machine-audit"
     )
-    assert machine_score["weighted_components"]["expected_discrimination"] == 0.9
+    assert machine_score["weighted_components"]["expected_discrimination"] == 0.0
     assert machine_score["weighted_components"]["ambiguity_risk_penalty"] == -0.075
 
 

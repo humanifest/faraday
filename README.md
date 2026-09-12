@@ -2329,7 +2329,10 @@ The competing-model reference is retained and replayed against the hypothesis
 alternative set, so a later report cannot silently change which alternative the
 action was supposed to distinguish.
 Infrastructure actions may instead name typed `information_targets` without
-pretending to discriminate a hypothesis.
+pretending to discriminate a hypothesis. Such information-only actions must keep
+`expected_discrimination` at zero and use `uncertainty_reduction` for their
+utility, so a useful infrastructure task cannot outrank a discriminating
+experiment by claiming model-discrimination credit it did not specify.
 For every hypothesis-discriminating action, Faraday derives and retains the
 target hypothesis workflow state (`active` or `pending_review`) from canonical
 records at recommendation time. That status is not accepted through action-spec
@@ -2355,7 +2358,9 @@ identifiers cannot silently decide a supposedly information-driven
 recommendation. Candidate score inputs must remain finite numbers from zero to
 one, candidate action IDs must remain unique, and every retained candidate must
 still distinguish at least one hypothesis or name at least one information
-target.
+target. Replay also rejects information-only candidates with nonzero
+`expected_discrimination`, so edited or legacy recommendation records cannot
+turn infrastructure progress into hypothesis discrimination after ranking.
 Each ranked score preserves the signed weighted contribution of expected
 discrimination, uncertainty reduction, cost, burden, safety risk, and ambiguity
 risk, and deterministic synthesis reports the selected actions' components so

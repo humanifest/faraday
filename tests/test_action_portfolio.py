@@ -61,7 +61,7 @@ def candidate(
         title=action_id.replace("-", " ").title(),
         distinguishes_hypotheses=distinguishes_hypotheses or [],
         information_targets=[f"{lane_id}:uncertainty"],
-        expected_discrimination=score,
+        expected_discrimination=score if distinguishes_hypotheses else 0.0,
         uncertainty_reduction=score,
         cost=0.1,
         burden=0.1,
@@ -153,22 +153,22 @@ def test_portfolio_selects_one_action_per_active_lane_without_starvation(
         score.action_id: score for score in recommendation.ranked_scores
     }
     assert score_by_id["machine-high"].weighted_components == {
-        "expected_discrimination": 1.0,
+        "expected_discrimination": 0.0,
         "uncertainty_reduction": 0.5,
         "cost_penalty": -0.025,
         "burden_penalty": -0.035,
         "safety_risk_penalty": -0.0,
         "ambiguity_risk_penalty": -0.075,
     }
-    assert score_by_id["machine-high"].utility == 1.365
+    assert score_by_id["machine-high"].utility == 0.365
     assert service.list_recommendations() == [recommendation]
     synthesis = service.build_synthesis()["content"]
     assert (
         "Selected next actions by lane: machine: machine-high; "
         "theory: theory-best" in synthesis
     )
-    assert "machine: utility 1.365" in synthesis
-    assert "expected_discrimination 1" in synthesis
+    assert "machine: utility 0.365" in synthesis
+    assert "expected_discrimination 0" in synthesis
     assert (
         "Eligibility basis: machine: prerequisites_met=True via "
         "prerequisite-review:machine-high; safety_approved=True via "
@@ -456,6 +456,27 @@ def test_new_action_recommendations_require_eligibility_basis(
         )
 
 
+def test_information_only_actions_cannot_claim_expected_discrimination(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    misleading = replace(
+        candidate("info-only", "machine", 0.8),
+        expected_discrimination=0.8,
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="names no hypothesis distinction, so expected_discrimination must be 0",
+    ):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=[ActionLane("machine", "Machine")],
+                candidates=[misleading],
+            )
+        )
+
+
 def test_recommendation_reads_replay_eligibility_basis(
     tmp_path: Path,
 ) -> None:
@@ -481,6 +502,32 @@ def test_recommendation_reads_replay_eligibility_basis(
     with pytest.raises(
         ValidationError,
         match="must retain prerequisite_evidence_refs",
+    ):
+        service.list_recommendations()
+
+
+def test_recommendation_reads_replay_information_only_discrimination_score(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[candidate("info-only", "machine", 0.8)],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][0]["expected_discrimination"] = 0.8
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="names no hypothesis distinction, so expected_discrimination must be 0",
     ):
         service.list_recommendations()
 
@@ -543,7 +590,7 @@ def test_recommendation_reads_replay_ranked_score_components(
     recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
     payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
     payload["ranked_scores"][0]["weighted_components"][
-        "expected_discrimination"
+        "uncertainty_reduction"
     ] = 0.0
     recommendation_file.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",

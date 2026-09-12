@@ -3091,6 +3091,7 @@ def test_next_action_replay_rejects_legacy_candidate_without_target(
     payload["candidates"][0]["hypothesis_discrimination_targets"] = []
     payload["candidates"][0]["hypothesis_workflow_states"] = {}
     payload["candidates"][0]["information_targets"] = []
+    payload["candidates"][0]["expected_discrimination"] = 0.0
     recommendation_file.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
