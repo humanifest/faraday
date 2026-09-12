@@ -1286,9 +1286,10 @@ the screening record's non-evidence, non-conclusion, non-publication boundary,
 false reviewer-identity-authentication boundary, retained limitations,
 source-record counts, duplicate-content conflicts, and derived status before
 trusting the screened-in source set.
-Screening reasons also reject report-prohibited overclaiming language, so an
-include/exclude decision cannot claim that a source proved, confirmed,
-validated, or explained a scientific proposition.
+Screening reasons and retained limitations also reject report-prohibited
+overclaiming language, so an include/exclude decision or copied screening
+boundary cannot claim that a source proved, confirmed, validated, or explained a
+scientific proposition.
 The snapshot boundary itself also replays before publication and again before
 screening trusts retained sources: version, canonical handles, criteria, source
 classifications, retained source SHA-256 digests and sizes, byte-identity

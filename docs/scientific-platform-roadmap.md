@@ -1578,10 +1578,10 @@ authorize publication claims, or establish independent studies.
 Screening reviewer text, pinned source IDs, decision source IDs, reasons, and
 criterion references must be canonical without surrounding whitespace before
 coverage and duplicate checks, so whitespace padding cannot create a second
-apparent screening decision or criterion citation. Screening reasons also reject
-report-prohibited overclaiming language, so an include/exclude decision cannot
-claim that a source proved, confirmed, validated, or explained a scientific
-proposition.
+apparent screening decision or criterion citation. Screening reasons and
+retained limitations also reject report-prohibited overclaiming language, so an
+include/exclude decision or copied screening boundary cannot claim that a source
+proved, confirmed, validated, or explained a scientific proposition.
 Screening now also carries each source's exact retained-file SHA-256 from the
 pinned snapshot into the downstream decision record. Extraction preserves that
 source-byte anchor by source review; citation verification retains it on each

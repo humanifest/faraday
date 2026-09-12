@@ -55,7 +55,10 @@ def validate_screening_boundary(screening: dict[str, Any]) -> None:
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("screening requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"screening limitation {index + 1}")
+        _bounded_screening_text(
+            limitation,
+            f"screening limitation {index + 1}",
+        )
 
     criteria = screening.get("criteria")
     if not isinstance(criteria, dict) or not criteria:
