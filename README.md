@@ -1475,6 +1475,10 @@ and non-publication boundaries, retained limitations, `record_count`,
 and every mapped claim's compact extraction-payload digest against the supplied
 extraction bytes before trusting an evidence-map claim, so a rewritten
 extraction cannot be laundered by updating only the evidence-map input hash.
+The input JSON bytes for the plan, extraction, evidence map, and deviation
+declaration must also be unambiguous: duplicate object keys and non-finite JSON
+constants fail before synthesis trusts the parsed object, even when the supplied
+hash matches those bytes.
 Qualitative synthesis and quantitative effect preparation also replay the
 evidence map's non-evidence, non-conclusion, non-publication flags, retained
 limitations, claim count, and interpretive-ceiling counts before using it as an
