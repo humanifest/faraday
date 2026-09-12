@@ -2002,18 +2002,18 @@ names an inspectable evidence location for the deviation review. Reviewer and
 departure text must be canonical without surrounding whitespace before the
 artifact is hashed, so Faraday rejects padded disclosures rather than silently
 rewriting them. Departure commitments, methods, reasons, impact assessments,
-and corrective actions must also be bounded report prose, so the artifact cannot
-claim proof, confirmation, validation, or explanation while disclosing a
-departure. Changes after results were seen—or with unknown timing—force
-heightened review. The artifact also retains a compact frozen-plan commitment
-snapshot, and rejects synthesis-type-incompatible stages such as qualitative
-effect preparation. It cannot amend the plan, retroactively preregister a choice,
-raise a claim ceiling, authorize conclusions or publication, or authenticate the
-researcher's account. Its non-authority flags, false
-reviewer-identity-authentication boundary, `cannot_raise` ceiling effect,
-`plan_amended: false`, retained limitations, timing counts, and status are
-replayed from the retained departure rows before downstream synthesis can trust
-the declaration.
+corrective actions, and retained deviation limitations must also be bounded
+report prose, so the artifact cannot claim proof, confirmation, validation, or
+explanation while disclosing a departure. Changes after results were seen—or
+with unknown timing—force heightened review. The artifact also retains a compact
+frozen-plan commitment snapshot, and rejects synthesis-type-incompatible stages
+such as qualitative effect preparation. It cannot amend the plan,
+retroactively preregister a choice, raise a claim ceiling, authorize conclusions
+or publication, or authenticate the researcher's account. Its non-authority
+flags, false reviewer-identity-authentication boundary, `cannot_raise` ceiling
+effect, `plan_amended: false`, retained limitations, timing counts, and status
+are replayed from the retained departure rows before downstream synthesis can
+trust the declaration.
 The artifact now also replays its own retained boundary before it is written:
 version and trusted plan hash, plan and snapshot handles, reviewer text, exact
 frozen-plan commitment fields, canonical included source IDs, timing counts,

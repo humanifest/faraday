@@ -187,7 +187,9 @@ def validate_synthesis_deviations_boundary(
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("synthesis deviations require retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"synthesis-deviation limitation {index + 1}")
+        _bounded_deviation_text(
+            limitation, f"synthesis-deviation limitation {index + 1}"
+        )
     _retained, timing_counts, status = validate_retained_synthesis_deviations(
         deviations.get("deviations"), synthesis_type=synthesis_type
     )
