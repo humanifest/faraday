@@ -4,10 +4,15 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from research_machine.application.commands import ProposeHypothesis
+from research_machine.application.commands import (
+    AddClaim,
+    AddQuestion,
+    ProposeHypothesis,
+)
 from research_machine.application.service import ResearchService
 from research_machine.design.scaffold import scaffold_design
 from research_machine.domain.errors import ValidationError
+from research_machine.domain.models import ClaimLevel
 
 
 def revise_design(
@@ -57,6 +62,20 @@ def revise_design(
         expected_effect_direction=proposal["expected_effect_direction"],
         falsification_conditions=proposal["falsification_conditions"],
     ), state["inquiry"]["inquiry_id"])
+    for question in brief.get("ambiguity_questions", []):
+        service.add_question(
+            AddQuestion("[Guided revision ambiguity] " + question),
+            state["inquiry"]["inquiry_id"],
+        )
+    for claim in brief.get("claim_boundaries", []):
+        service.add_claim(
+            AddClaim(
+                statement=claim["statement"],
+                level=ClaimLevel(claim["level"]),
+                scope=claim["scope"],
+            ),
+            state["inquiry"]["inquiry_id"],
+        )
     return {
         "hypothesis": hypothesis.to_dict(), "scaffold": scaffold,
         "chronology": chronology,

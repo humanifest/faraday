@@ -69,6 +69,68 @@ def test_revision_retains_prior_run_chronology(tmp_path):
     assert service.verify_ledger()["valid"]
 
 
+def test_revision_records_guided_ambiguity_and_claim_boundaries(tmp_path):
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry(title="Fixture", initial_statement="Question"))
+    parent = service.propose_hypothesis(ProposeHypothesis(statement="Fixture"))
+
+    brief = {
+        "title": "Revised fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "outcome": "Score",
+        "unit_of_observation": "unit",
+        "ambiguity_questions": [
+            "Could an unmeasured setup difference explain the result?"
+        ],
+        "claim_boundaries": [
+            {
+                "statement": "The registered score measurement is usable.",
+                "level": "measurement_validity",
+                "scope": "This revised fixture measurement only.",
+            },
+            {
+                "statement": "Condition is associated with score.",
+                "level": "statistical_association",
+                "scope": "This revised fixture contrast only.",
+            },
+        ],
+    }
+
+    result = revise_design(
+        service,
+        brief,
+        hypothesis_id=parent.hypothesis_id,
+        reason="Separate claim levels before review",
+    )
+
+    state = service.show_inquiry()
+    assert any(
+        question["text"] == (
+            "[Guided revision ambiguity] "
+            "Could an unmeasured setup difference explain the result?"
+        )
+        and question["status"] == "open"
+        for question in state["questions"]
+    )
+    claim_by_statement = {
+        claim["statement"]: claim for claim in state["claims"]
+    }
+    assert claim_by_statement[
+        "The registered score measurement is usable."
+    ]["level"] == "measurement_validity"
+    assert claim_by_statement[
+        "The registered score measurement is usable."
+    ]["epistemic_layer"] == "unresolved"
+    assert claim_by_statement[
+        "Condition is associated with score."
+    ]["disposition"] == "unresolved"
+    provenance = json.loads(result["hypothesis"]["source_context"][0])
+    assert provenance["brief"] == brief
+    assert service.verify_ledger()["valid"]
+
+
 @pytest.mark.parametrize("cancel", [False, True])
 def test_interactive_revision_and_cancellation(tmp_path, monkeypatch, capsys, cancel):
     service = make_service(tmp_path)

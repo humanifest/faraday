@@ -768,20 +768,21 @@ review material.
 Guided ambiguity-question delivery: JSON briefs and the provider-free interview
 can now preserve explicit unresolved ambiguity questions. The scaffold emits
 `ambiguity-questions-draft.json` and repeats the questions in the collection
-plan, while `design initialize` records supplied ambiguities as canonical open
-questions through the application service. Missing questions remain visible
-warnings, padded supplied questions block review readiness, and the draft keeps
-them as unanswered review questions rather than evidence, protocol commitments,
-or preferred explanations.
+plan, while `design initialize` and guided revision record supplied ambiguities
+as canonical open questions through the application service. Missing questions
+remain visible warnings, padded supplied questions block review readiness, and
+the draft keeps them as unanswered review questions rather than evidence,
+protocol commitments, or preferred explanations.
 Guided claim-boundary delivery: JSON briefs and the provider-free interview can
 now preserve typed claim-level boundary proposals. The scaffold emits
 `claim-boundaries-draft.json` and repeats the proposed ladder in the collection
-plan, while `design initialize` records supplied boundaries as unresolved
-canonical claims through the application service. Missing boundaries remain
-visible warnings, padded statements or scopes block readiness, and the draft
-keeps measurement-validity, association, causal, mechanism, adaptation,
-attribution/intent, robustness, and other claims separate before review instead
-of allowing favorable results to launder a stronger interpretation.
+plan, while `design initialize` and guided revision record supplied boundaries
+as unresolved canonical claims through the application service. Missing
+boundaries remain visible warnings, padded statements or scopes block readiness,
+and the draft keeps measurement-validity, association, causal, mechanism,
+adaptation, attribution/intent, robustness, and other claims separate before
+review instead of allowing favorable results to launder a stronger
+interpretation.
 Guided data-availability delivery: JSON briefs and the provider-free interview
 can now preserve declared available data sources, unavailable or out-of-scope
 data, access owner, access constraints, and a source-provenance plan. The

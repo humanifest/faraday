@@ -515,13 +515,14 @@ into the canonical inquiry, while missing values remain explicit
 `[REVIEW REQUIRED]` placeholders and padded supplied values block review
 readiness. Guided briefs and the provider-free interview can also preserve
 explicit unresolved ambiguity questions in `ambiguity-questions-draft.json`
-and the collection plan; `design initialize` records supplied ambiguities as
-canonical open questions rather than answers. Missing ambiguity questions remain
-visible warnings, and padded questions block readiness. They can also preserve
-typed claim-level boundary proposals in `claim-boundaries-draft.json` and the
-collection plan; `design initialize` records supplied boundaries as unresolved
-canonical claims with their declared levels and scopes, not as accepted
-interpretations or evidence. Missing boundaries remain warnings, and padded
+and the collection plan; `design initialize` and guided revision record supplied
+ambiguities as canonical open questions rather than answers. Missing ambiguity
+questions remain visible warnings, and padded questions block readiness. They
+can also preserve typed claim-level boundary proposals in
+`claim-boundaries-draft.json` and the collection plan; `design initialize` and
+guided revision record supplied boundaries as unresolved canonical claims with
+their declared levels and scopes, not as accepted interpretations or evidence.
+Missing boundaries remain warnings, and padded
 statements or scopes block readiness before review artifacts can blur
 measurement-validity, association, causal, mechanism, adaptation, attribution,
 intent, robustness, or other claims. Guided briefs can also preserve
