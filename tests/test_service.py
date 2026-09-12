@@ -20,6 +20,8 @@ from research_machine.application.service import ResearchService
 from research_machine.application.claim_integrity import claim_scientific_sha256
 from research_machine.domain.errors import IntegrityError, ValidationError
 from research_machine.domain.models import (
+    ClaimDisposition,
+    ClaimEpistemicLayer,
     ClaimLevel,
     DatasetArtifact,
     DatasetRole,
@@ -82,6 +84,46 @@ def test_unreferenced_claims_and_hypotheses_reject_scientific_content_drift(
         ValidationError, match=f"hypothesis {hypothesis.hypothesis_id} scientific content"
     ):
         service.list_hypotheses()
+
+
+def test_authoritative_inquiry_read_rejects_accepted_claim_authority_drift(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry("Claim authority", "Can accepted claims drift?", "claim-authority")
+    )
+    service.add_claim(
+        AddClaim(
+            statement="The source record documents the fixture observation.",
+            level=ClaimLevel.OTHER,
+            epistemic_layer=ClaimEpistemicLayer.DOCUMENTED_FACT,
+            disposition=ClaimDisposition.ACCEPTED,
+            confidence=0.8,
+            source_refs=["fixture:source-record"],
+            last_reviewed="2026-09-01T12:00:00Z",
+            decision_owner="review-owner",
+        )
+    )
+    service.show_inquiry()
+
+    claims_path = tmp_path / "inquiries" / "claim-authority" / "claims.json"
+    claims_bytes = claims_path.read_bytes()
+    claims = json.loads(claims_bytes)
+    claims[0]["decision_owner"] = ""
+    claims_path.write_text(json.dumps(claims), encoding="utf-8")
+    with pytest.raises(ValidationError, match="accepted claims require decision_owner"):
+        service.show_inquiry()
+
+    claims = json.loads(claims_bytes)
+    claims[0]["source_refs"] = []
+    claims_path.write_text(json.dumps(claims), encoding="utf-8")
+    with pytest.raises(
+        ValidationError,
+        match="accepted documented facts and source claims require source_refs",
+    ):
+        service.show_inquiry()
 
 
 def test_claim_hierarchy_rejects_higher_inference_parent_dependencies(

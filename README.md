@@ -2055,7 +2055,8 @@ gate evidence.
   owner are explicit; accepted documented facts and source claims also require
   source references. Claim dependency, source, conflict, and falsifier handles
   must be canonical without surrounding whitespace before they can enter the
-  canonical claim spine.
+  canonical claim spine, and authoritative inquiry reads replay the accepted-
+  claim authority checks before using the spine for display, audit, or synthesis.
 - Propose structured hypotheses as unreviewed candidates.
 - Prevent incomplete hypotheses from entering the active model set.
 - Support an auditable `pending_review` lane for delegated autonomous

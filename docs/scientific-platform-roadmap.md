@@ -406,7 +406,10 @@ accepted disposition unless the retained claim has a review time and decision
 owner. Source-grounded accepted claims continue to require source references.
 Claim dependency, source, conflict, and falsifier handles must be canonical
 before writing or review, so whitespace padding cannot silently rewrite the
-claim spine or provenance trail.
+claim spine or provenance trail. Authoritative inquiry reads replay the same
+accepted-claim authority checks, so out-of-band edits to review owner, review
+time, or required source references fail before synthesis, audit, or display can
+treat the claim spine as usable.
 The published claim-command schema now preflights those same handle and accepted-
 claim authority requirements for provider-neutral clients while leaving
 referenced-claim existence, conflict/dependency overlap, and inferential

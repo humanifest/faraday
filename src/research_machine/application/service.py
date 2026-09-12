@@ -1234,6 +1234,7 @@ class ResearchService:
         for claim in claims:
             validate_claim_scientific_commitment(claim)
             validate_claim_dependency_levels(claim, claims_by_id)
+            self._validate_claim_authority(claim)
         from research_machine.application.hypothesis_integrity import (
             validate_hypothesis_scientific_commitment,
         )
