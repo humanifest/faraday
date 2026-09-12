@@ -4756,7 +4756,7 @@ class ResearchService:
         self, command: RecommendNextAction, inquiry_id: str | None = None
     ) -> ActionRecommendation:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        hypotheses = self.repository.list_hypotheses(resolved)
+        hypotheses = self.list_hypotheses(resolved)
         researchable_hypotheses = {
             hypothesis.hypothesis_id: hypothesis.workflow_state.value
             for hypothesis in hypotheses
@@ -4815,7 +4815,7 @@ class ResearchService:
         self, command: RecommendActionPortfolio, inquiry_id: str | None = None
     ) -> ActionRecommendation:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        hypotheses = self.repository.list_hypotheses(resolved)
+        hypotheses = self.list_hypotheses(resolved)
         researchable_hypotheses = {
             hypothesis.hypothesis_id: hypothesis.workflow_state.value
             for hypothesis in hypotheses
@@ -4978,7 +4978,7 @@ class ResearchService:
     ) -> list[ActionRecommendation]:
         recommendations = self.repository.list_recommendations(inquiry_id)
         hypothesis_alternatives = _hypothesis_alternatives(
-            self.repository.list_hypotheses(inquiry_id)
+            self.list_hypotheses(inquiry_id)
         )
         for recommendation in recommendations:
             verify_recommendation_score_replay(

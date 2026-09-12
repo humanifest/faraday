@@ -92,6 +92,10 @@ methods without changing its epistemic rules or canonical state.
   replay also rejects portfolio-only
   lane selection fields and dependent candidates, preventing a stored
   single-action recommendation from smuggling in unreplayed work-plan state.
+  Recommendation creation and replay now derive hypothesis alternatives only
+  after validating the cited hypothesis records' service-generated scientific
+  content seals, so drifted null or competing models fail before recommendation
+  scoring can use them.
   New recommendations also carry
   a service-generated payload commitment over the complete immutable
   recommendation, excluding only that commitment field, so canonical rewrites of

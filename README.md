@@ -2482,7 +2482,9 @@ inputs, and candidate-score inputs, then replay the selected action, lane
 selections, ranked utilities, and signed components from the stored candidates,
 lanes, dependencies, completed actions, weights, and
 hypothesis-discrimination targets, including the requirement that target and
-alternative expectations remain distinct. Portfolio replay also revalidates
+hypothesis scientific-content commitments remain intact before deriving the
+current alternative set and checking that target and alternative expectations
+remain distinct. Portfolio replay also revalidates
 lane status, blocking reasons, candidate lane membership, completed-action IDs,
 and dependency acyclicity, so an edited recommendation cannot hide an unsafe or
 impossible work plan behind stale score arithmetic. Single-mode replay rejects

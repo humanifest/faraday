@@ -2853,6 +2853,24 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
         hypothesis_id: "active"
     }
     assert service.list_recommendations() == [recommendation]
+    hypothesis_file = (
+        tmp_path
+        / "inquiries"
+        / "formal"
+        / "hypotheses"
+        / "active"
+        / f"{hypothesis_id}.json"
+    )
+    hypothesis_bytes = hypothesis_file.read_bytes()
+    hypothesis_payload = json.loads(hypothesis_bytes)
+    hypothesis_payload["null_model"] = "A rewritten null model after ranking."
+    hypothesis_file.write_text(
+        json.dumps(hypothesis_payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValidationError, match="hypothesis .* scientific content"):
+        service.list_recommendations()
+    hypothesis_file.write_bytes(hypothesis_bytes)
     synthesis = service.build_synthesis()["content"]
     assert "Utility components: utility 1.14" in synthesis
     assert "expected_discrimination 0.9" in synthesis
