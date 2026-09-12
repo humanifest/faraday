@@ -6328,14 +6328,20 @@ class ResearchService:
         )
         for recommendation in recommendations:
             if recommendation.recommendation_payload_sha256:
+                if recommendation.score_contract_version == 1:
+                    # Historical v1 replay is allowed only for the exact
+                    # payload already committed to the ledger.  Check that
+                    # custody boundary before applying current semantic
+                    # replay so a self-consistent rewritten file is reported
+                    # as historical tampering, not merely as a rationale or
+                    # scoring-contract defect.
+                    self.repository.verify_historical_recommendation_integrity(
+                        inquiry_id, recommendation
+                    )
                 verify_recommendation_score_replay(
                     recommendation,
                     hypothesis_alternatives=hypothesis_alternatives,
                 )
-                if recommendation.score_contract_version == 1:
-                    self.repository.verify_historical_recommendation_integrity(
-                        inquiry_id, recommendation
-                    )
             elif not self.repository.has_legacy_recommendation_event(
                 inquiry_id, recommendation.recommendation_id
             ):
