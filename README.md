@@ -1492,9 +1492,10 @@ canonical reason and evidence location, and measure-compatible
 experimental/comparator arm values. Independent effect verification also
 requires canonical effect reviewer, retained study IDs, verification reviewer,
 checked locations, rationales, and service-derived claim source anchors before
-coverage checks. Verification rationales also reject report-prohibited
-overclaiming language, so an independent arithmetic/transcription check cannot
-claim proof, confirmation, validation, or explanation of the reviewed effect.
+coverage checks. Verification rationales and retained effect-verification
+limitations also reject report-prohibited overclaiming language, so an
+independent arithmetic/transcription check cannot claim proof, confirmation,
+validation, or explanation of the reviewed effect.
 The verification artifact preserves the same frozen contrast
 definition and each verification assessment also carries the service-derived
 digest of the exact retained source summary it checked.

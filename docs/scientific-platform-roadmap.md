@@ -1893,7 +1893,10 @@ Effect verification now also replays the effect-record non-authority boundary
 before accepting a reproducible effect artifact: scientific-evidence,
 conclusion, and publication authorization must all remain false; limitations must
 remain retained and canonical; and study, available-effect, unavailable-effect,
-and readiness-status counts must replay from the retained records. The
+and readiness-status counts must replay from the retained records. Effect
+verification retained limitations are also bounded report prose: they reject
+proof, confirmation, validation, or explanation claims just like verifier
+rationales. The
 verification artifact carries the same explicit false authority flags, an
 explicit false reviewer-identity-authentication boundary, and retained
 limitations, plus service-derived independent-review and mismatch summaries.
