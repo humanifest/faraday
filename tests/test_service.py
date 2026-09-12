@@ -267,6 +267,44 @@ def test_complete_inquiry_loop_preserves_rejected_hypotheses(tmp_path: Path) -> 
     }
 
 
+def test_synthesis_surfaces_open_questions_as_live_ambiguity(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Ambiguity synthesis",
+            initial_statement="Can the design distinguish models?",
+            inquiry_id="ambiguity-synthesis",
+            decision_to_support="Choose whether to proceed.",
+            minimum_evidence="A reviewed result answers the decision boundary.",
+            decision_change_criteria=[
+                "Stop if the registered falsifier appears."
+            ],
+            decision_owner="review-owner",
+        )
+    )
+    answered = service.add_question(
+        AddQuestion("Which outcome is primary?")
+    )
+    service.answer_question(answered.question_id, "Primary score.")
+    service.add_question(
+        AddQuestion("Could measurement drift explain the apparent effect?")
+    )
+
+    synthesis = service.build_synthesis()["content"]
+
+    assert "- Open questions still unresolved: 1" in synthesis
+    assert (
+        "Open questions remain live ambiguity, not evidence, answers, or "
+        "authorization to choose a preferred explanation."
+    ) in synthesis
+    assert "[open] Could measurement drift explain the apparent effect?" in synthesis
+    assert "[answered] Which outcome is primary? — Primary score." in synthesis
+    assert service.verify_ledger()["valid"]
+
+
 def test_hypothesis_retirement_requires_bounded_limitations_and_resurrection(
     tmp_path: Path,
 ) -> None:

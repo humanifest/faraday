@@ -235,6 +235,10 @@ def build_synthesis(
     latest_status: dict[str, EvidenceStatusEvent] = {}
     for event in sorted(evidence_status_events, key=lambda item: (item.evidence_id, item.sequence)):
         latest_status[event.evidence_id] = event
+    open_questions = [
+        question for question in questions
+        if question.status.value == "open"
+    ]
     contributing_ids = {
         record.evidence_id for record in evidence
         if record.evidence_id not in latest_status
@@ -262,10 +266,19 @@ def build_synthesis(
             "; ".join(inquiry.decision_change_criteria)
             or "No change criteria recorded."
         ),
+        f"- Open questions still unresolved: {len(open_questions)}",
         "",
         "## Clarifying questions",
         "",
     ]
+    if open_questions:
+        lines.extend(
+            [
+                "Open questions remain live ambiguity, not evidence, answers, or "
+                "authorization to choose a preferred explanation.",
+                "",
+            ]
+        )
     if questions:
         for question in questions:
             answer = f" — {question.answer}" if question.answer else ""
