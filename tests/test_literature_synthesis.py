@@ -40,7 +40,17 @@ def claim_digest(source_id, record, source_retained_file_sha256="legacy_missing"
     ).hexdigest()
 
 
-def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
+def passage_receipt():
+    return {
+        "passage_verification_sha256": "4" * 64,
+        "evidence_quote_sha256": "5" * 64,
+        "quote_utf8_byte_count": 24,
+        "quote_occurrence_count": 1,
+        "machine_verification": "exact_utf8_quote_found_in_retained_source_bytes",
+    }
+
+
+def artifacts(tmp_path, minimum=1, synthesis_type="qualitative", with_passage=False):
     screening_sha = "1" * 64
     plan = tmp_path / "plan.json"
     plan_sha = write_json(plan, {"synthesis_plan_version": 1, "status": "synthesis_plan_frozen",
@@ -79,6 +89,8 @@ def artifacts(tmp_path, minimum=1, synthesis_type="qualitative"):
             {"domain": "selection", "judgment": "high", "evidence_locations": ["table 1"]}
         ],
         "interpretive_ceiling": "insufficient_for_conclusion"}
+    if with_passage:
+        claim["passage_verification"] = passage_receipt()
     evidence_map = tmp_path / "map.json"
     limitations = [
         "This deterministic map joins reviewed assertions without authorizing conclusions."
@@ -140,6 +152,10 @@ def test_qualitative_synthesis_cli_preserves_null_high_bias_claim_and_is_write_o
     assert result["result_direction_counts"]["null"] == 1
     assert result["interpretive_ceiling_counts"]["insufficient_for_conclusion"] == 1
     assert result["claims"][0]["citation_checked_location"] == "page 1"
+    assert result["passage_verification_counts"] == {
+        "exact_utf8_quote_found_in_retained_source_bytes": 0,
+        "not_provided": 1,
+    }
     extraction_record = json.loads(extraction.read_text())["source_reviews"][0]["records"][0]
     assert result["claims"][0]["extraction_claim_sha256"] == claim_digest("s1", extraction_record)
     assert result["claims"][0]["bias_domain_judgments"][0]["judgment"] == "high"
@@ -317,6 +333,26 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
     assert result["claims"][0]["bias_domain_judgments"][0]["evidence_locations"] == ["table 1"]
 
 
+def test_qualitative_synthesis_reports_passage_verification_coverage(tmp_path):
+    plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha = artifacts(
+        tmp_path, with_passage=True
+    )
+    result = execute_qualitative_synthesis(
+        plan, plan_sha, extraction, evidence_map, map_sha, deviations, deviations_sha,
+        tmp_path / "synthesis",
+    )
+    assert result["claims"][0]["passage_verification"] == passage_receipt()
+    assert result["passage_verification_counts"] == {
+        "exact_utf8_quote_found_in_retained_source_bytes": 1,
+        "not_provided": 0,
+    }
+
+    candidate = copy.deepcopy(result)
+    candidate["passage_verification_counts"]["not_provided"] = 1
+    with pytest.raises(ValidationError, match="passage_verification_counts"):
+        validate_literature_synthesis_boundary(candidate)
+
+
 @pytest.mark.parametrize("failure", [
     "plan-hash",
     "plan-authority",
@@ -344,6 +380,7 @@ def test_qualitative_synthesis_preserves_canonical_source_and_claim_handles(tmp_
     "map-claim-count",
     "map-ceiling-count",
     "map-boundary-limitations",
+    "map-passage-receipt",
     "snapshot",
     "claim",
     "padded-claim-id",
@@ -450,6 +487,13 @@ def test_invalid_synthesis_chain_never_publishes(tmp_path, failure):
         map_sha = write_json(evidence_map, value)
     elif failure == "map-boundary-limitations":
         value = json.loads(evidence_map.read_text()); value["limitations"] = []; map_sha = write_json(evidence_map, value)
+    elif failure == "map-passage-receipt":
+        value = json.loads(evidence_map.read_text())
+        value["claims"][0]["passage_verification"] = {
+            **passage_receipt(),
+            "machine_verification": "reviewer_attestation",
+        }
+        map_sha = write_json(evidence_map, value)
     elif failure == "snapshot":
         value = json.loads(evidence_map.read_text()); value["snapshot_id"] = "other"; map_sha = write_json(evidence_map, value)
     elif failure == "claim":
