@@ -886,6 +886,12 @@ def verify_recommendation_score_replay(
         )
         expected_selected_action_id = expected_scores[0].action_id
         expected_selected_by_lane: dict[str, str] = {}
+        expected_candidate = next(
+            candidate
+            for candidate in recommendation.candidates
+            if candidate.action_id == expected_selected_action_id
+        )
+        expected_rationale = expected_candidate.rationale
     elif recommendation.selection_mode == "portfolio":
         if hypothesis_alternatives is not None:
             for candidate in recommendation.candidates:
@@ -908,6 +914,13 @@ def verify_recommendation_score_replay(
         }
         selected_ids = list(expected_selected_by_lane.values())
         expected_selected_action_id = selected_ids[0] if selected_ids else ""
+        candidates_by_id = {
+            candidate.action_id: candidate for candidate in recommendation.candidates
+        }
+        expected_rationale = "; ".join(
+            f"{lane_id}: {candidates_by_id[action_id].rationale}"
+            for lane_id, action_id in expected_selected_by_lane.items()
+        )
         expected_scores = [
             score
             for lane in recommendation.lanes
@@ -920,6 +933,14 @@ def verify_recommendation_score_replay(
             f"selection_mode {recommendation.selection_mode!r}"
         )
 
+    _require_bounded_recommendation_text(
+        recommendation.rationale, "recommendation rationale"
+    )
+    if recommendation.rationale != expected_rationale:
+        raise ValidationError(
+            f"recommendation {recommendation.recommendation_id} rationale does "
+            "not replay from the selected action rationales"
+        )
     if recommendation.selected_action_id != expected_selected_action_id:
         raise ValidationError(
             f"recommendation {recommendation.recommendation_id} selected action "

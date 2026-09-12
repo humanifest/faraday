@@ -2568,7 +2568,10 @@ lanes, dependencies, completed actions, weights, and
 hypothesis-discrimination targets, including the requirement that target and
 hypothesis scientific-content commitments remain intact before deriving the
 current alternative set and checking that target and alternative expectations
-remain distinct. Portfolio replay also revalidates
+remain distinct. Replay also requires the top-level recommendation rationale to
+be bounded report prose and to derive exactly from the selected candidate
+rationales, so legacy summaries cannot add proof, confirmation, validation, or a
+friendlier reason after scoring. Portfolio replay also revalidates
 lane status, blocking reasons, candidate lane membership, completed-action IDs,
 and dependency acyclicity, so an edited recommendation cannot hide an unsafe or
 impossible work plan behind stale score arithmetic. Single-mode replay rejects

@@ -86,7 +86,11 @@ methods without changing its epistemic rules or canonical state.
   candidate identities, target declarations, discriminator contrast, lane
   status, blocking reasons, candidate lane membership, completed-action IDs,
   dependency acyclicity, eligibility references, weight vector, and candidate
-  score inputs before recomputing those choices, so a legacy record cannot
+  score inputs before recomputing those choices. The retained top-level
+  recommendation rationale must also remain bounded and replay exactly from the
+  selected candidate rationales, so a legacy summary cannot add a separate
+  proof, confirmation, validation, or explanation channel after selection.
+  A legacy record cannot
   remain trusted merely because invalid work-plan structure, weights, and scores
   were rewritten consistently. Single-mode
   replay also rejects portfolio-only
