@@ -304,7 +304,7 @@ def validate_effect_records_boundary(effects: dict[str, Any]) -> None:
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("effect records require retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"effect-record limitation {index + 1}")
+        _bounded_effect_text(limitation, f"effect-record limitation {index + 1}")
 
     records = effects.get("records")
     if not isinstance(records, list) or not records:
@@ -623,7 +623,7 @@ def create_effect_records(
         "publication_authorized": False,
         "reviewer_identity_authenticated": False,
         "limitations": [
-            "Effect values and derivations are reviewer assertions; the machine validates shape and variance but does not reproduce calculations from source data.",
+            "Effect values and derivations are reviewer assertions; the machine checks shape and variance but does not reproduce calculations from source data.",
             "Unavailable statistics remain explicit and are not imputed or silently excluded.",
             "One planned effect per study avoids within-study double counting but does not establish outcome compatibility or authorize pooling.",
         ]}

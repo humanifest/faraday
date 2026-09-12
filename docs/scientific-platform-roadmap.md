@@ -1851,10 +1851,11 @@ derived effects.
 Effect preparation requires canonical frozen plan source IDs, extraction source
 IDs, mapped study/source/claim IDs, citation anchors, reviewer text, derivation
 scope, reasons, evidence locations, and derivation prose before coverage and
-duplicate checks. Effect reasons, derivation prose, and retained source-summary
-reasons now also reject report-prohibited overclaiming language, so availability
-notes and arithmetic descriptions cannot claim proof, confirmation, validation,
-or explanation. The prepared effect artifact must preserve the plan's
+duplicate checks. Retained effect-record limitations, effect reasons, derivation
+prose, and retained source-summary reasons now also reject report-prohibited
+overclaiming language, so availability notes, boundary disclosures, and
+arithmetic descriptions cannot claim proof, confirmation, validation, or
+explanation. The prepared effect artifact must preserve the plan's
 exact frozen contrast rather than a later reviewer-entered comparison. Effect
 verification also requires canonical effect reviewer, retained study IDs,
 source-summary study IDs, verification reviewer, checked locations, rationales,

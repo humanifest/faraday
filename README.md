@@ -1483,10 +1483,11 @@ extraction source IDs, mapped study/source/claim IDs, citation anchors, reviewer
 text, frozen contrast definition, derivation scope, reasons, evidence locations,
 and derivation prose before coverage and duplicate checks; reviewer-entered and
 reproducibly derived effect paths must preserve the exact frozen contrast rather
-than supplying a later comparison. Effect reasons, derivation prose, and
-retained source-summary reasons also reject report-prohibited overclaiming
-language, so availability notes and arithmetic descriptions cannot claim proof,
-confirmation, validation, or explanation. Reproducible derivation and independent
+than supplying a later comparison. Retained effect-record limitations, effect
+reasons, derivation prose, and retained source-summary reasons also reject
+report-prohibited overclaiming language, so availability notes, boundary
+disclosures, and arithmetic descriptions cannot claim proof, confirmation,
+validation, or explanation. Reproducible derivation and independent
 effect verification also validate the retained source-summary contract: every
 source summary must cover exactly one effect record with matching status,
 canonical reason and evidence location, and measure-compatible
