@@ -775,7 +775,9 @@ questions block review readiness, and the draft keeps them as unanswered review
 questions rather than evidence, protocol commitments, or preferred explanations.
 Deterministic synthesis now reports the count of still-open questions and labels
 them as live ambiguity rather than evidence, answers, or authorization to choose
-a preferred explanation.
+a preferred explanation. Rigor audit now emits a warning for still-open
+canonical questions, preserving unresolved ambiguity as a visible quality signal
+without making unfinished inquiry structurally invalid.
 Guided claim-boundary delivery: JSON briefs and the provider-free interview can
 now preserve typed claim-level boundary proposals. The scaffold emits
 `claim-boundaries-draft.json` and repeats the proposed ladder in the collection

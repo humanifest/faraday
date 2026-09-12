@@ -5744,6 +5744,7 @@ class ResearchService:
         runs = self.repository.list_runs(resolved)
         rigor_audit = audit_research_state(
             inquiry=inquiry,
+            questions=self.repository.load_questions(resolved),
             claims=claims,
             hypotheses=hypotheses,
             evidence=currently_contributing_evidence,
@@ -5790,6 +5791,7 @@ class ResearchService:
         )
         audit = audit_research_state(
             inquiry=self.repository.load_inquiry(resolved),
+            questions=self.repository.load_questions(resolved),
             claims=self.repository.load_claims(resolved),
             hypotheses=self.repository.list_hypotheses(resolved),
             evidence=evidence,

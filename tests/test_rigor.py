@@ -10,6 +10,7 @@ import pytest
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import (
     AddClaim,
+    AddQuestion,
     CreateInquiry,
     CreateProtocol,
     ProposeHypothesis,
@@ -56,6 +57,44 @@ def _service(root: Path, *, actor: str = "author") -> ResearchService:
         clock=lambda: "2026-09-02T12:00:00Z",
         token=lambda: next(counter),
     )
+
+
+def test_rigor_flags_open_questions_as_live_ambiguity(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Ambiguity audit",
+            initial_statement="Can the design distinguish the alternatives?",
+            inquiry_id="ambiguity-audit",
+            decision_to_support="Decide whether to proceed with protected collection.",
+            minimum_evidence="A reviewed protocol can discriminate the alternatives.",
+            decision_change_criteria=[
+                "Stop if the measurement artifact explanation remains unresolved."
+            ],
+            decision_owner="review-owner",
+        )
+    )
+    service.add_question(
+        AddQuestion("Could measurement drift explain the apparent effect?")
+    )
+
+    audit = service.audit_rigor()
+
+    finding = next(
+        item for item in audit.findings
+        if item.code == "INQUIRY_OPEN_QUESTIONS_UNRESOLVED"
+    )
+    assert finding.severity is RigorSeverity.WARNING
+    assert finding.entity_id == "ambiguity-audit"
+    assert "live ambiguity rather than evidence" in finding.message
+    assert "q-author00" in finding.remediation
+    assert audit.structurally_valid is True
+
+    synthesis = service.build_synthesis()["content"]
+    assert "- Open questions still unresolved: 1" in synthesis
+    assert "INQUIRY_OPEN_QUESTIONS_UNRESOLVED (1)" in synthesis
+    assert service.verify_ledger()["valid"]
 
 
 def _prepared_run(
