@@ -502,3 +502,28 @@ def test_initializer_rejects_conflicting_data_availability_before_writing(
             initialize_git=False,
         )
     assert not (tmp_path / "light-trial").exists()
+
+
+def test_initializer_rejects_duplicate_review_conditions_before_writing(
+    tmp_path: Path,
+) -> None:
+    brief_payload = {
+        **_basic_brief(),
+        "human_participants": True,
+        "independent_review": True,
+        "independent_review_receipt": "IRB-001",
+        "independent_review_decision": "approved_with_conditions",
+        "independent_review_conditions": [
+            "Submit annual report.",
+            "submit annual report.",
+        ],
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier review condition"):
+        initializer.initialize_experiment_repository(
+            brief_payload,
+            tmp_path / "light-trial",
+            actor="test",
+            initialize_git=False,
+        )
+    assert not (tmp_path / "light-trial").exists()

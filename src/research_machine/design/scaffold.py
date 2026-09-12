@@ -195,6 +195,19 @@ def _data_availability_boundary(
     return available, unavailable, constraints
 
 
+def _independent_review_conditions(brief: dict[str, Any]) -> list[str]:
+    conditions = _text_list(brief, "independent_review_conditions")
+    seen: set[str] = set()
+    for index, condition in enumerate(conditions, start=1):
+        condition_key = condition.strip().casefold()
+        if condition_key in seen:
+            raise ValueError(
+                f"independent_review_conditions[{index}] duplicates an earlier review condition"
+            )
+        seen.add(condition_key)
+    return conditions
+
+
 def _claim_boundaries(brief: dict[str, Any]) -> list[dict[str, str]]:
     value = brief.get("claim_boundaries", [])
     if not isinstance(value, list):
@@ -472,7 +485,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
             raise ValueError("control definition requires exactly the documented fields") from exc
         if any(not isinstance(value, str) for value in definition.to_dict().values()):
             raise ValueError("control definition fields must be strings")
-    _text_list(brief, "independent_review_conditions")
+    _independent_review_conditions(brief)
     study_type = brief.get("study_type", "exploratory")
     if study_type not in _STUDY_TYPES:
         raise ValueError("study_type must be one of: " + ", ".join(sorted(_STUDY_TYPES)))
@@ -1844,7 +1857,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                     for field, _, _ in review_fields
                 )
                 or has_noncanonical_text_items(
-                    _text_list(brief, "independent_review_conditions")
+                    _independent_review_conditions(brief)
                 )
             ):
                 add(
@@ -1862,7 +1875,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                     "Independent review artifact SHA-256 is not a canonical lowercase digest.",
                     "Record the exact 64-character lowercase hexadecimal SHA-256 of the review artifact before staging local-byte verification.",
                 )
-            if decision == "approved_with_conditions" and not _text_list(brief, "independent_review_conditions"):
+            if decision == "approved_with_conditions" and not _independent_review_conditions(brief):
                 add("HUMAN_REVIEW_CONDITIONS_MISSING", "error", "Conditional approval does not record its conditions.", "Record every condition so the frozen protocol preserves the obligations.")
     dedicated_gate_ids = [
         *[item["evaluation_gate_id"] for item in brief.get("control_definitions", [])],
@@ -2155,7 +2168,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         "independent_review_scope": brief.get("independent_review_scope", ""),
         "independent_review_artifact_locator": brief.get("independent_review_artifact_locator", ""),
         "independent_review_artifact_sha256": brief.get("independent_review_artifact_sha256", ""),
-        "independent_review_conditions": _text_list(brief, "independent_review_conditions"),
+        "independent_review_conditions": _independent_review_conditions(brief),
     }
 
     def add_quality_requirements(gate_ids: list[str]) -> None:

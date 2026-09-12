@@ -2072,6 +2072,16 @@ def test_conditional_human_review_requires_recorded_conditions() -> None:
     }
     result = scaffold_design(brief)
     assert "HUMAN_REVIEW_CONDITIONS_MISSING" in {item["code"] for item in result["findings"]}
+    with pytest.raises(ValueError, match="duplicates an earlier review condition"):
+        scaffold_design(
+            {
+                **brief,
+                "independent_review_conditions": [
+                    "Submit annual report.",
+                    "submit annual report.",
+                ],
+            }
+        )
     padded_safeguard = scaffold_design({
         **brief,
         "consent_plan": " Written consent.",

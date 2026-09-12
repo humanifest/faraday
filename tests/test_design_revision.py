@@ -357,6 +357,38 @@ def test_revision_rejects_conflicting_data_availability_before_writing(tmp_path)
     assert service.verify_ledger()["valid"]
 
 
+def test_revision_rejects_duplicate_review_conditions_before_writing(tmp_path):
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry(title="Fixture", initial_statement="Question"))
+    parent = service.propose_hypothesis(ProposeHypothesis(statement="Fixture"))
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+    with pytest.raises(ValueError, match="duplicates an earlier review condition"):
+        revise_design(
+            service,
+            {
+                "title": "Revised fixture",
+                "question": "Question",
+                "decision": "Decision",
+                "outcome": "Score",
+                "unit_of_observation": "participant",
+                "human_participants": True,
+                "independent_review": True,
+                "independent_review_receipt": "IRB-001",
+                "independent_review_decision": "approved_with_conditions",
+                "independent_review_conditions": [
+                    "Submit annual report.",
+                    "submit annual report.",
+                ],
+            },
+            hypothesis_id=parent.hypothesis_id,
+            reason="Reject duplicated review conditions",
+        )
+    assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
+    assert service.verify_ledger()["valid"]
+
+
 @pytest.mark.parametrize("cancel", [False, True])
 def test_interactive_revision_and_cancellation(tmp_path, monkeypatch, capsys, cancel):
     service = make_service(tmp_path)
