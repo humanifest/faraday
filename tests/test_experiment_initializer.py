@@ -412,3 +412,32 @@ def test_initializer_rejects_divergent_claim_boundaries_before_publication(
             initialize_git=False,
         )
     assert not (tmp_path / "light-trial").exists()
+
+
+def test_initializer_rejects_duplicate_claim_boundaries_before_writing(
+    tmp_path: Path,
+) -> None:
+    brief_payload = {
+        **_basic_brief(),
+        "claim_boundaries": [
+            {
+                "statement": "The height measurement is usable.",
+                "level": "measurement_validity",
+                "scope": "Registered greenhouse height measurement only.",
+            },
+            {
+                "statement": "the height measurement is usable.",
+                "level": "statistical_association",
+                "scope": "This initialized fixture only.",
+            },
+        ],
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier claim boundary"):
+        initializer.initialize_experiment_repository(
+            brief_payload,
+            tmp_path / "light-trial",
+            actor="test",
+            initialize_git=False,
+        )
+    assert not (tmp_path / "light-trial").exists()

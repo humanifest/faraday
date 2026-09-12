@@ -225,6 +225,42 @@ def test_revision_leaves_incomplete_decision_boundary_as_review_material(tmp_pat
     assert service.verify_ledger()["valid"]
 
 
+def test_revision_rejects_duplicate_claim_boundaries_before_writing(tmp_path):
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry(title="Fixture", initial_statement="Question"))
+    parent = service.propose_hypothesis(ProposeHypothesis(statement="Fixture"))
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+    with pytest.raises(ValueError, match="duplicates an earlier claim boundary"):
+        revise_design(
+            service,
+            {
+                "title": "Revised fixture",
+                "question": "Question",
+                "decision": "Decision",
+                "outcome": "Score",
+                "unit_of_observation": "unit",
+                "claim_boundaries": [
+                    {
+                        "statement": "The registered score measurement is usable.",
+                        "level": "measurement_validity",
+                        "scope": "This revised fixture measurement only.",
+                    },
+                    {
+                        "statement": "the registered score measurement is usable.",
+                        "level": "statistical_association",
+                        "scope": "This revised fixture contrast only.",
+                    },
+                ],
+            },
+            hypothesis_id=parent.hypothesis_id,
+            reason="Reject duplicate claim boundary",
+        )
+    assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
+    assert service.verify_ledger()["valid"]
+
+
 @pytest.mark.parametrize("cancel", [False, True])
 def test_interactive_revision_and_cancellation(tmp_path, monkeypatch, capsys, cancel):
     service = make_service(tmp_path)

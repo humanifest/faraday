@@ -525,7 +525,8 @@ can also preserve typed claim-level boundary proposals in
 `claim-boundaries-draft.json` and the collection plan; `design initialize` and
 guided revision record supplied boundaries as unresolved canonical claims with
 their declared levels and scopes, not as accepted interpretations or evidence.
-Missing boundaries remain warnings, and padded
+Missing boundaries remain warnings; duplicate boundary statements are rejected;
+and padded
 statements or scopes block readiness before review artifacts can blur
 measurement-validity, association, causal, mechanism, adaptation, attribution,
 intent, robustness, or other claims. Guided briefs can also preserve

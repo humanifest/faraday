@@ -997,6 +997,32 @@ def test_scaffold_preserves_claim_level_boundaries():
     assert padded["status"] == "blocked"
 
 
+def test_scaffold_rejects_duplicate_claim_boundary_statements():
+    brief = {
+        "title": "Claim boundary duplicate fixture",
+        "question": "Question",
+        "decision": "Choose whether the claim ladder is reviewable.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "claim_boundaries": [
+            {
+                "statement": "The instrument captured a usable outcome.",
+                "level": "measurement_validity",
+                "scope": "Registered instrument and outcome only.",
+            },
+            {
+                "statement": "the instrument captured a usable outcome.",
+                "level": "statistical_association",
+                "scope": "This dataset and contrast only.",
+            },
+        ],
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier claim boundary"):
+        scaffold_design(brief)
+
+
 def test_scaffold_preserves_data_availability_boundary():
     brief = {
         "title": "Data availability fixture",

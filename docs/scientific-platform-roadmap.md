@@ -778,10 +778,11 @@ now preserve typed claim-level boundary proposals. The scaffold emits
 `claim-boundaries-draft.json` and repeats the proposed ladder in the collection
 plan, while `design initialize` and guided revision record supplied boundaries
 as unresolved canonical claims through the application service. Missing
-boundaries remain visible warnings, padded statements or scopes block readiness,
-and the draft keeps measurement-validity, association, causal, mechanism,
-adaptation, attribution/intent, robustness, and other claims separate before
-review instead of allowing favorable results to launder a stronger
+boundaries remain visible warnings, duplicate boundary statements are rejected,
+padded statements or scopes block readiness, and the draft keeps
+measurement-validity, association, causal, mechanism, adaptation,
+attribution/intent, robustness, and other claims separate before review instead
+of allowing favorable results to launder a stronger
 interpretation.
 Guided data-availability delivery: JSON briefs and the provider-free interview
 can now preserve declared available data sources, unavailable or out-of-scope

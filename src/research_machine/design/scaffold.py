@@ -145,6 +145,7 @@ def _claim_boundaries(brief: dict[str, Any]) -> list[dict[str, str]]:
     if not isinstance(value, list):
         raise ValueError("claim_boundaries must be an array")
     claims: list[dict[str, str]] = []
+    statements: list[str] = []
     for index, item in enumerate(value, start=1):
         if not isinstance(item, dict) or set(item) != _CLAIM_BOUNDARY_FIELDS:
             raise ValueError(
@@ -159,6 +160,12 @@ def _claim_boundaries(brief: dict[str, Any]) -> list[dict[str, str]]:
             raise ValueError(
                 f"claim_boundaries[{index}].level must be a supported claim level"
             )
+        statement_key = item["statement"].strip().casefold()
+        if statement_key in statements:
+            raise ValueError(
+                f"claim_boundaries[{index}].statement duplicates an earlier claim boundary"
+            )
+        statements.append(statement_key)
         claims.append(
             {
                 "statement": item["statement"],
