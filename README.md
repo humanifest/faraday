@@ -515,8 +515,9 @@ draft text. Guided briefs may also supply the inquiry's minimum evidence
 threshold, decision-change criteria, and decision owner. The scaffold emits
 those as a dedicated `inquiry-draft.json`; `design initialize` carries them
 into the canonical inquiry, while missing values remain explicit
-`[REVIEW REQUIRED]` placeholders and padded supplied values block review
-readiness. Guided briefs and the provider-free interview can also preserve
+`[REVIEW REQUIRED]` placeholders, duplicate decision-change criteria are
+rejected, and padded supplied values block review readiness. Guided briefs and
+the provider-free interview can also preserve
 explicit unresolved ambiguity questions in `ambiguity-questions-draft.json`
 and the collection plan; `design initialize` and guided revision record supplied
 ambiguities as canonical open questions rather than answers. Missing ambiguity

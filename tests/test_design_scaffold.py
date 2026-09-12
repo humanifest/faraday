@@ -897,6 +897,26 @@ def test_scaffold_preserves_inquiry_decision_boundary():
     assert padded["status"] == "blocked"
 
 
+def test_scaffold_rejects_duplicate_decision_change_criteria():
+    brief = {
+        "title": "Decision boundary duplicate fixture",
+        "question": "Question",
+        "decision": "Choose whether to proceed.",
+        "minimum_evidence": "Two independent checks support action.",
+        "decision_change_criteria": [
+            "Stop if the registered falsifier appears.",
+            "stop if the registered falsifier appears.",
+        ],
+        "decision_owner": "project-owner",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier criterion"):
+        scaffold_design(brief)
+
+
 def test_scaffold_preserves_ambiguity_questions_boundary():
     brief = {
         "title": "Ambiguity fixture",

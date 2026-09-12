@@ -140,6 +140,19 @@ def _text_list(brief: dict[str, Any], key: str) -> list[str]:
     return value
 
 
+def _decision_change_criteria(brief: dict[str, Any]) -> list[str]:
+    criteria = _text_list(brief, "decision_change_criteria")
+    seen: set[str] = set()
+    for index, criterion in enumerate(criteria, start=1):
+        criterion_key = criterion.strip().casefold()
+        if criterion_key in seen:
+            raise ValueError(
+                f"decision_change_criteria[{index}] duplicates an earlier criterion"
+            )
+        seen.add(criterion_key)
+    return criteria
+
+
 def _ambiguity_questions(brief: dict[str, Any]) -> list[str]:
     questions = _text_list(brief, "ambiguity_questions")
     seen: set[str] = set()
@@ -270,9 +283,7 @@ def inquiry_decision_commitments(brief: dict[str, Any]) -> dict[str, Any]:
             "minimum_evidence",
             "[REVIEW REQUIRED] Define the minimum decision-relevant evidence.",
         ),
-        "decision_change_criteria": _text_list(
-            brief, "decision_change_criteria"
-        )
+        "decision_change_criteria": _decision_change_criteria(brief)
         or ["[REVIEW REQUIRED] Define what result changes the decision."],
         "decision_owner": brief.get("decision_owner", "[REVIEW REQUIRED]"),
     }
@@ -440,7 +451,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
         raise ValueError("assignment_type must be randomized or observational")
     for key in {"controls", "confounds", "exclusions", "falsification_conditions", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
         _text_list(brief, key)
-    _text_list(brief, "decision_change_criteria")
+    _decision_change_criteria(brief)
     _ambiguity_questions(brief)
     _claim_boundaries(brief)
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
@@ -710,9 +721,10 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "A required design brief field contains surrounding whitespace.",
             "Use exact unpadded title, question, decision, outcome, and unit-of-observation text before review drafts preserve them as inquiry, hypothesis, protocol, and collection commitments.",
         )
+    decision_change_criteria = _decision_change_criteria(brief)
     if (
         not str(brief.get("minimum_evidence", "")).strip()
-        or not _text_list(brief, "decision_change_criteria")
+        or not decision_change_criteria
         or not str(brief.get("decision_owner", "")).strip()
     ):
         add(
@@ -730,7 +742,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             isinstance(brief.get("decision_owner"), str)
             and brief["decision_owner"] != brief["decision_owner"].strip()
         )
-        or has_noncanonical_text_items(_text_list(brief, "decision_change_criteria"))
+        or has_noncanonical_text_items(decision_change_criteria)
     ):
         add(
             "INQUIRY_DECISION_BOUNDARY_NONCANONICAL",

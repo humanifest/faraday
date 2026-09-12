@@ -225,6 +225,48 @@ def test_revision_leaves_incomplete_decision_boundary_as_review_material(tmp_pat
     assert service.verify_ledger()["valid"]
 
 
+def test_revision_rejects_duplicate_decision_boundary_before_writing(tmp_path):
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Fixture",
+            initial_statement="Question",
+            decision_to_support="Original decision.",
+            minimum_evidence="Original evidence threshold.",
+            decision_change_criteria=["Original stopping observation."],
+            decision_owner="original-owner",
+        )
+    )
+    parent = service.propose_hypothesis(ProposeHypothesis(statement="Fixture"))
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+    with pytest.raises(ValueError, match="duplicates an earlier criterion"):
+        revise_design(
+            service,
+            {
+                "title": "Revised fixture",
+                "question": "Question",
+                "decision": "Choose the revised design.",
+                "minimum_evidence": "A reviewed revision clears the support rule.",
+                "decision_change_criteria": [
+                    "Stop if the registered falsifier appears.",
+                    "stop if the registered falsifier appears.",
+                ],
+                "decision_owner": "revision-owner",
+                "outcome": "Score",
+                "unit_of_observation": "unit",
+            },
+            hypothesis_id=parent.hypothesis_id,
+            reason="Reject duplicate decision boundary",
+        )
+    assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
+    inquiry = service.show_inquiry()["inquiry"]
+    assert inquiry["decision_to_support"] == "Original decision."
+    assert inquiry["decision_change_criteria"] == ["Original stopping observation."]
+    assert service.verify_ledger()["valid"]
+
+
 def test_revision_rejects_duplicate_claim_boundaries_before_writing(tmp_path):
     service = make_service(tmp_path)
     service.init_workspace()

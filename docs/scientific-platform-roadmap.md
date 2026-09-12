@@ -762,9 +762,9 @@ can now collect the minimum decision-relevant evidence, exact observations that
 would change the practical decision, and the decision owner. The scaffold emits
 those commitments in `inquiry-draft.json` and the collection plan; initialization
 uses them for the canonical inquiry instead of overwriting them with generic
-placeholders. Missing values remain visibly `[REVIEW REQUIRED]`, while padded
-supplied values block readiness before the practical decision boundary becomes
-review material.
+placeholders. Missing values remain visibly `[REVIEW REQUIRED]`, duplicate
+decision-change criteria are rejected, and padded supplied values block readiness
+before the practical decision boundary becomes review material.
 Guided ambiguity-question delivery: JSON briefs and the provider-free interview
 can now preserve explicit unresolved ambiguity questions. The scaffold emits
 `ambiguity-questions-draft.json` and repeats the questions in the collection

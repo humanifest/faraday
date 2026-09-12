@@ -43,7 +43,8 @@ def _complete_canonical_decision_commitments(
         texts.append(criterion)
     if any(text != text.strip() for text in texts):
         return None
-    if len(set(criteria)) != len(criteria):
+    criteria_keys = [criterion.casefold() for criterion in criteria]
+    if len(set(criteria_keys)) != len(criteria_keys):
         return None
     return inquiry_decision_commitments(brief)
 
