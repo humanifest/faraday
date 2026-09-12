@@ -10,7 +10,7 @@ def test_interview_emits_reviewable_control_definitions(complete):
     answers = iter(["Fixture", "Question", "Decision", "Height", "pot", "exploratory", "no"]
         + [""] * 29 + ["Blank sample", ""]
         + (["negative", "Detect background signal", "No signal"] if complete else ["", "", ""])
-        + [""] * 43)
+        + [""] * 45)
     result = interview_design(lambda prompt: next(answers))
     draft = result["scaffold"]["artifacts"]["protocol-draft.json"]
     definition = draft["control_definitions"][0]
@@ -28,6 +28,8 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
         + [
             "Target 40 independent pots per group for a two-millimeter interval half-width under the stated variance assumption.",
             *([""] * 15),
+            "Minimize stress to seedlings and avoid unauthorized greenhouse disruption",
+            "Review procedures before collection and stop if stress or facility constraints are exceeded",
             "Higher mean height after 7 days",
             "No difference between conditions",
             "A zero or negative mean difference",
@@ -111,6 +113,12 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
         "consent covers seedling imaging",
     ]
     assert result["brief"]["data_provenance_plan"].startswith("hash source bytes")
+    assert result["brief"]["ethical_constraints"] == [
+        "Minimize stress to seedlings and avoid unauthorized greenhouse disruption"
+    ]
+    assert result["brief"]["ethical_safeguards_plan"].startswith(
+        "Review procedures"
+    )
     measurement = result["scaffold"]["artifacts"]["measurement-definition-draft.json"]
     assert measurement["data_column"] == "height_mm"
     assert measurement["observable"] == "Mean marked-stem height in millimetres"
@@ -709,7 +717,7 @@ def test_provider_free_interview_collects_auditable_causal_design() -> None:
 
 def test_human_interview_retains_hold_and_retries_invalid_choice():
     answers = iter(["Fixture", "Question", "Decision", "Score", "participant-day",
-                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 41)
+                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 43)
     result = interview_design(lambda prompt: next(answers))
     codes = {item["code"] for item in result["scaffold"]["findings"]}
     assert result["brief"]["study_type"] == "causal"
@@ -723,3 +731,5 @@ def test_human_interview_retains_hold_and_retries_invalid_choice():
     assert "DATA_AVAILABILITY_UNRESOLVED" in codes
     assert "DATA_PROVENANCE_PLAN_MISSING" in codes
     assert "DATA_ACCESS_OWNER_UNRESOLVED" in codes
+    assert "ETHICAL_CONSTRAINTS_UNRESOLVED" in codes
+    assert "ETHICAL_SAFEGUARDS_PLAN_MISSING" in codes

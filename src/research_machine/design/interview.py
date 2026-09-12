@@ -385,6 +385,14 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             if brief["independent_review_decision"] == "approved_with_conditions":
                 conditions = ask("List every approval condition, separated by semicolons")
                 brief["independent_review_conditions"] = _split_semicolon_answer(conditions)
+    raw_ethical_constraints = ask(
+        "What ethical, safety, consent, community, environmental, dual-use, resource, animal-welfare, or other constraints apply? Separate exact constraints with semicolons [blank = unresolved]"
+    )
+    brief["ethical_constraints"] = _split_semicolon_answer(raw_ethical_constraints)
+    answer(
+        "ethical_safeguards_plan",
+        "How will those ethical or safety constraints be reviewed, monitored, and turned into stop conditions or qualified-review requirements?",
+    )
     answer("observable_prediction", "What observable result do you predict, including direction and time window?")
     answer("null_model", "What no-effect or competing explanation could account for the observations?")
     falsifiers = ask("What observations would weaken your hypothesis? Separate conditions with semicolons [blank = unresolved]")

@@ -75,7 +75,11 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
     )
     assert {
         entry["name"] for entry in state["review_artifacts"]
-    } >= {"data-availability-draft.json", "inquiry-draft.json"}
+    } >= {
+        "data-availability-draft.json",
+        "ethical-safeguards-draft.json",
+        "inquiry-draft.json",
+    }
     assert (destination / "drafts" / "protocol-draft.json").is_file()
     manifest = json.loads((destination / "drafts" / "design-scaffold-provenance.json").read_text())
     assert manifest["artifact_manifest_sha256"] == result["scaffold_provenance"]["artifact_manifest_sha256"]

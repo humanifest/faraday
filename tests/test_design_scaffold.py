@@ -968,6 +968,68 @@ def test_scaffold_preserves_data_availability_boundary():
     assert padded["status"] == "blocked"
 
 
+def test_scaffold_preserves_ethical_safeguards_boundary():
+    brief = {
+        "title": "Ethical safeguards fixture",
+        "question": "Question",
+        "decision": "Choose whether collection can proceed.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "ethical_constraints": [
+            "Avoid unnecessary equipment stress.",
+            "Do not collect during facility emergency operations.",
+        ],
+        "ethical_safeguards_plan": (
+            "Review constraints before collection and stop if a constraint is exceeded."
+        ),
+    }
+
+    result = scaffold_design(brief)
+
+    safeguards = result["artifacts"]["ethical-safeguards-draft.json"]
+    assert safeguards["ethical_constraints"] == brief["ethical_constraints"]
+    assert safeguards["ethical_safeguards_plan"].startswith(
+        "Review constraints"
+    )
+    protocol = result["artifacts"]["protocol-draft.json"]
+    assert protocol["safety_constraints"] == brief["ethical_constraints"]
+    assert "Ethical and safety constraints: Avoid unnecessary equipment stress." in result[
+        "artifacts"
+    ]["collection-plan.md"]
+    codes = {item["code"] for item in result["findings"]}
+    assert "ETHICAL_CONSTRAINTS_UNRESOLVED" not in codes
+    assert "ETHICAL_SAFEGUARDS_PLAN_MISSING" not in codes
+
+    unresolved = scaffold_design(
+        {
+            **brief,
+            "ethical_constraints": [],
+            "ethical_safeguards_plan": "",
+        }
+    )
+    unresolved_safeguards = unresolved["artifacts"][
+        "ethical-safeguards-draft.json"
+    ]
+    assert unresolved_safeguards["ethical_constraints"] == []
+    assert unresolved_safeguards["ethical_safeguards_plan"].startswith(
+        "[REVIEW REQUIRED]"
+    )
+    unresolved_codes = {item["code"] for item in unresolved["findings"]}
+    assert "ETHICAL_CONSTRAINTS_UNRESOLVED" in unresolved_codes
+    assert "ETHICAL_SAFEGUARDS_PLAN_MISSING" in unresolved_codes
+
+    padded = scaffold_design(
+        {
+            **brief,
+            "ethical_constraints": [" Avoid unnecessary equipment stress."],
+        }
+    )
+    padded_codes = {item["code"] for item in padded["findings"]}
+    assert "ETHICAL_SAFEGUARDS_NONCANONICAL" in padded_codes
+    assert padded["status"] == "blocked"
+
+
 def test_secondary_outcomes_require_exact_typed_measurement_coverage():
     base = {
         "title": "Secondary measurement fixture", "question": "Question",

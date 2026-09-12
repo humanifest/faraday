@@ -774,6 +774,14 @@ warnings, as does a missing data access owner, while padded supplied source,
 access, or provenance text blocks review readiness. The artifact is review-only:
 it does not verify access, custody, consent, authenticity, or evidentiary
 suitability.
+Guided ethical-safeguards delivery: JSON briefs and the provider-free interview
+can now preserve general ethical and safety constraints plus a safeguards plan.
+The scaffold emits `ethical-safeguards-draft.json`, carries the constraints into
+the protocol draft's safety constraints, and repeats the boundary in the
+collection plan. Missing constraints or safeguards remain visible warnings, and
+padded supplied values block review readiness. The artifact is review-only: it
+does not grant approval, authenticate reviewers, satisfy human-subject review,
+or prove substantive ethical adequacy.
 Guided review-list commitments, including exclusions, falsification conditions,
 and unsupported higher-level conclusions, now receive blocking findings when
 surrounding whitespace would otherwise be preserved in draft artifacts.

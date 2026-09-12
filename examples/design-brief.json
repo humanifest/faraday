@@ -20,6 +20,11 @@
     "Raw tray labels remain local until privacy review."
   ],
   "data_provenance_plan": "Hash source bytes, retain collection context, and record custody before analysis.",
+  "ethical_constraints": [
+    "Avoid avoidable seedling stress outside the assigned light exposure.",
+    "Stop collection if greenhouse safety or access restrictions are active."
+  ],
+  "ethical_safeguards_plan": "Review greenhouse access and plant-stress constraints before collection; stop and record a deviation if a constraint is exceeded.",
   "study_type": "causal",
   "intervention": "Blue light",
   "comparison": "White-light control",

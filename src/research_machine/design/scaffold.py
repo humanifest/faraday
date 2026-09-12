@@ -63,6 +63,7 @@ DESIGN_BRIEF_FIELDS = {
     "decision_change_criteria", "decision_owner", "study_type", "population", "setting",
     "available_data_sources", "unavailable_data", "data_access_constraints",
     "data_access_owner", "data_provenance_plan",
+    "ethical_constraints", "ethical_safeguards_plan",
     "intervention", "exposure_definition", "assignment_type",
     "manipulated_factors", "factorial_or_crossover_design",
     "factor_interpretability_plan",
@@ -362,7 +363,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     unknown = set(brief) - DESIGN_BRIEF_FIELDS
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "available_data_sources", "unavailable_data", "data_access_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -385,7 +386,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
         raise ValueError("study_type must be one of: " + ", ".join(sorted(_STUDY_TYPES)))
     if brief.get("assignment_type", "") not in {"", "randomized", "observational"}:
         raise ValueError("assignment_type must be randomized or observational")
-    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "available_data_sources", "unavailable_data", "data_access_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
+    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
         _text_list(brief, key)
     _text_list(brief, "decision_change_criteria")
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
@@ -723,6 +724,34 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "error",
             "The guided data-availability record contains text with surrounding whitespace.",
             "Use exact unpadded source, unavailable-data, access-owner, constraint, and provenance-plan text before review artifacts preserve it.",
+        )
+    if not _text_list(brief, "ethical_constraints"):
+        add(
+            "ETHICAL_CONSTRAINTS_UNRESOLVED",
+            "warning",
+            "The guided design has no declared ethical or safety constraint boundary.",
+            "Name applicable consent, safety, community, environmental, dual-use, resource, animal-welfare, or other ethical constraints before collection or analysis.",
+        )
+    if not str(brief.get("ethical_safeguards_plan", "")).strip():
+        add(
+            "ETHICAL_SAFEGUARDS_PLAN_MISSING",
+            "warning",
+            "The guided design has no plan for handling its declared ethical constraints.",
+            "State how constraints will be reviewed, monitored, and turned into stop conditions or qualified-review requirements before collection or analysis.",
+        )
+    if (
+        has_noncanonical_text_items(_text_list(brief, "ethical_constraints"))
+        or (
+            isinstance(brief.get("ethical_safeguards_plan"), str)
+            and brief["ethical_safeguards_plan"]
+            and brief["ethical_safeguards_plan"] != brief["ethical_safeguards_plan"].strip()
+        )
+    ):
+        add(
+            "ETHICAL_SAFEGUARDS_NONCANONICAL",
+            "error",
+            "The guided ethical-safeguards record contains text with surrounding whitespace.",
+            "Use exact unpadded ethical constraints and safeguards text before review artifacts preserve them.",
         )
     require_canonical_list_items("secondary_outcomes", "SECONDARY_OUTCOME_LABEL_NONCANONICAL", "Secondary outcomes")
     require_canonical_list_items("confirmatory_outcomes", "CONFIRMATORY_OUTCOME_LABEL_NONCANONICAL", "Confirmatory outcomes")
@@ -1750,6 +1779,10 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     data_provenance_plan = brief.get(
         "data_provenance_plan"
     ) or "[REVIEW REQUIRED] bind source bytes, custody, and collection context"
+    ethical_constraints = _text_list(brief, "ethical_constraints")
+    ethical_safeguards_plan = brief.get(
+        "ethical_safeguards_plan"
+    ) or "[REVIEW REQUIRED] define review, monitoring, and stop-condition safeguards"
     canary_target_plan = (
         dict(brief["canary_target_plan"])
         if isinstance(brief.get("canary_target_plan"), dict)
@@ -1962,7 +1995,14 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             "[REVIEW REQUIRED] maximum tolerable timing uncertainty or synchronization rule",
         ),
         "control_windows": control_windows,
-        "safety_constraints": ["Human-participant review required before collection."] if brief.get("human_participants") else ["[REVIEW REQUIRED] assess applicable safety constraints."],
+        "safety_constraints": (
+            (["Human-participant review required before collection."] if brief.get("human_participants") else [])
+            + (
+                ethical_constraints
+                if ethical_constraints
+                else ["[REVIEW REQUIRED] assess applicable ethical and safety constraints."]
+            )
+        ),
         "human_subjects": brief.get("human_participants"),
         "consent_plan": brief.get("consent_plan", ""),
         "withdrawal_plan": brief.get("withdrawal_plan", ""),
@@ -2054,6 +2094,12 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "data_access_constraints": data_access_constraints,
                 "data_provenance_plan": data_provenance_plan,
                 "notice": "This is a review-only data availability record. It does not verify access, custody, consent, source authenticity, or suitability for evidence.",
+            },
+            "ethical-safeguards-draft.json": {
+                "status": "review_required",
+                "ethical_constraints": ethical_constraints,
+                "ethical_safeguards_plan": ethical_safeguards_plan,
+                "notice": "This is a review-only ethical-safeguards record. It does not grant approval, authenticate reviewers, satisfy human-subject review, or prove substantive ethical adequacy.",
             },
             "data-dictionary-draft.json": {
                 "outcome": brief["outcome"], "unit_or_scale": brief.get("outcome_unit", "[REVIEW REQUIRED]"), "scale_type": brief.get("outcome_scale", "[REVIEW REQUIRED]"), "admissible_values": _text_list(brief, "outcome_admissible_values"), "valid_min": brief.get("outcome_valid_min"), "valid_max": brief.get("outcome_valid_max"), "missing_value_codes": _text_list(brief, "outcome_missing_value_codes"), "primary_analysis_family": brief.get("primary_analysis_family", "[REVIEW REQUIRED]"), "unit_of_observation": brief["unit_of_observation"], "measurement_validity": brief.get("measurement_validity", "[REVIEW REQUIRED]"),
@@ -2344,6 +2390,13 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 )
                 + "\n\n"
                 f"Data provenance plan: {brief.get('data_provenance_plan') or '[REVIEW REQUIRED]'}\n\n"
+                "Ethical and safety constraints: "
+                + (
+                    "; ".join(ethical_constraints)
+                    if ethical_constraints else "[REVIEW REQUIRED]"
+                )
+                + "\n\n"
+                f"Ethical safeguards plan: {brief.get('ethical_safeguards_plan') or '[REVIEW REQUIRED]'}\n\n"
                 "Collect only after blocking findings are resolved and the applicable protocol is reviewed and frozen.\n\n"
                 "Keep observation identity separate from independent-unit identity. Repeated observations retain the same unit ID; do not manufacture independence by assigning each row a new unit ID. "
                 "Use pseudonymous IDs and keep identifying lookup tables under the approved privacy controls.\n\n"
