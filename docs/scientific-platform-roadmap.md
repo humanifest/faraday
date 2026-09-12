@@ -1617,9 +1617,10 @@ Extraction reviewer text, pinned screening source IDs, extraction source IDs,
 study IDs, claim IDs, evidence locations, uncertainty, and notes must be
 canonical without surrounding whitespace before coverage and duplicate checks,
 preventing whitespace-padded reports from becoming separate claims or study
-groupings. Source-review reasons plus reviewer-entered uncertainty and notes
-also reject report-prohibited overclaiming language, while source `claim_text`
-remains preserved as source content for later citation review.
+groupings. Retained extraction limitations, source-review reasons,
+reviewer-entered uncertainty, and notes also reject report-prohibited
+overclaiming language, while source `claim_text` remains preserved as source
+content for later citation review.
 `research literature verify-citations` adds a second, hash-bound review covering
 every extracted claim. The expected extraction hash must be canonical lowercase
 SHA-256 before it can pin the extraction bytes. The citation reviewer must

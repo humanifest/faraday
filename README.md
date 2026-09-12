@@ -1347,10 +1347,10 @@ before they can bind downstream review artifacts. Extraction reviewer text,
 pinned screening source IDs, extraction source IDs, study IDs, claim IDs,
 evidence locations, uncertainty, and notes must be canonical before coverage and
 duplicate checks, preventing whitespace-padded reports from becoming separate
-claims or study groupings. Source-review reasons plus reviewer-entered
-uncertainty and notes also reject report-prohibited overclaiming language,
-while source `claim_text` remains preserved as source content for later
-citation review. Citation verification also requires canonical
+claims or study groupings. Retained extraction limitations, source-review
+reasons, reviewer-entered uncertainty, and notes also reject report-prohibited
+overclaiming language, while source `claim_text` remains preserved as source
+content for later citation review. Citation verification also requires canonical
 extraction reviewer, source, study, claim, evidence-location, citation-reviewer,
 checked-location, and rationale text before coverage and duplicate checks, so
 the independent review cannot trim a second apparent assessment or rewrite the
