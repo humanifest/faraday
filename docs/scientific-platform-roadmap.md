@@ -1915,9 +1915,12 @@ boundary before it is written: false scientific-evidence, conclusion, and
 publication authorization plus false reviewer-identity authentication; the versioned input-hash envelope and
 plan/snapshot/scope handles; claim and independent-study counts; the frozen
 minimum-study requirement status; deviation-derived review status; directional
-and interpretive-ceiling counts; embedded deviation-bound plan commitments; and
-bounded-conclusion wording must all remain canonical or derive from retained
-claims and deviation status rather than being trusted summary fields.
+and interpretive-ceiling counts; passage-verification coverage counts; embedded
+deviation-bound plan commitments; and bounded-conclusion wording must all remain
+canonical or derive from retained claims and deviation status rather than being
+trusted summary fields. The passage-verification counts distinguish exact
+quote-byte receipts from reviewer-only citation locations without treating
+either as semantic source support.
 Retained qualitative-synthesis limitations and bounded-conclusion prose now also
 reject report-prohibited overclaiming language, so a copied synthesis cannot
 keep its non-authority flags false while describing proof, confirmation,

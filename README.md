@@ -1511,8 +1511,11 @@ must remain false; reviewer identity authentication must remain false; the
 versioned input-hash envelope and plan/snapshot/scope handles must be retained
 in canonical form; claim and independent-study counts,
 minimum-study status, deviation-derived review status, the embedded
-deviation-bound plan commitments, directional counts, ceiling counts, and the
-bounded-conclusion wording must derive from retained claims and deviation status.
+deviation-bound plan commitments, directional counts, ceiling counts,
+passage-verification coverage counts, and the bounded-conclusion wording must
+derive from retained claims and deviation status. The passage-verification
+counts distinguish exact quote-byte receipts from reviewer-only citation
+locations without treating either path as semantic source support.
 Retained synthesis limitations and the bounded-conclusion boundary also reject
 report-prohibited overclaiming language, so an organized source map cannot pass
 replay while narrating proof, confirmation, validation, or explanation in its

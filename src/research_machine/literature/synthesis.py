@@ -35,6 +35,7 @@ _INTERPRETIVE_CEILINGS = (
     "source_hypothesis_only",
     "insufficient_for_conclusion",
 )
+_PASSAGE_MACHINE_VERIFICATION = "exact_utf8_quote_found_in_retained_source_bytes"
 _SYNTHESIS_PROSE_OVERCLAIM = re.compile(
     r"\b(?:proved|confirmed|explained|validates?|validated)\b",
     re.IGNORECASE,
@@ -212,6 +213,10 @@ def validate_literature_synthesis_boundary(synthesis: dict[str, Any]) -> None:
         raise ValidationError("literature synthesis requires retained claims")
     seen_claims: set[str] = set()
     study_ids: set[str] = set()
+    passage_verification_counts = {
+        _PASSAGE_MACHINE_VERIFICATION: 0,
+        "not_provided": 0,
+    }
     for claim in claims:
         if not isinstance(claim, dict):
             raise ValidationError("literature synthesis claim is malformed")
@@ -246,6 +251,14 @@ def validate_literature_synthesis_boundary(synthesis: dict[str, Any]) -> None:
             raise ValidationError("literature synthesis citation verdict is invalid")
         if claim.get("risk_of_bias") not in {"low", "some_concerns", "high", "unclear"}:
             raise ValidationError("literature synthesis risk_of_bias is invalid")
+        if "passage_verification" in claim:
+            receipt = _validate_passage_receipt(
+                claim.get("passage_verification"),
+                "literature synthesis passage_verification",
+            )
+            passage_verification_counts[receipt["machine_verification"]] += 1
+        else:
+            passage_verification_counts["not_provided"] += 1
         domains = claim.get("bias_domain_judgments")
         if not isinstance(domains, list) or not domains:
             raise ValidationError("literature synthesis requires retained bias-domain judgments")
@@ -317,6 +330,8 @@ def validate_literature_synthesis_boundary(synthesis: dict[str, Any]) -> None:
     }
     if synthesis.get("interpretive_ceiling_counts") != expected_ceilings:
         raise ValidationError("literature synthesis interpretive_ceiling_counts do not replay from claims")
+    if synthesis.get("passage_verification_counts") != passage_verification_counts:
+        raise ValidationError("literature synthesis passage_verification_counts do not replay from claims")
 
 
 def execute_qualitative_synthesis(
@@ -479,7 +494,7 @@ def execute_qualitative_synthesis(
                 or extracted["extraction_claim_sha256"] != extraction_claim_sha256):
             raise ValidationError("evidence-map claim does not replay from the exact extraction payload")
         if "passage_verification" in claim:
-            _validate_passage_receipt(
+            claim["passage_verification"] = _validate_passage_receipt(
                 claim.get("passage_verification"),
                 "literature synthesis passage_verification",
             )
@@ -495,6 +510,14 @@ def execute_qualitative_synthesis(
                   for value in _RESULT_DIRECTIONS}
     ceilings = {value: sum(claim["interpretive_ceiling"] == value for claim in normalized_claims)
                 for value in _INTERPRETIVE_CEILINGS}
+    passage_verification_counts = {
+        _PASSAGE_MACHINE_VERIFICATION: sum(
+            "passage_verification" in claim for claim in normalized_claims
+        ),
+        "not_provided": sum(
+            "passage_verification" not in claim for claim in normalized_claims
+        ),
+    }
     result = {
         "literature_synthesis_version": 1,
         "inputs": {"synthesis_plan_sha256": plan_sha, "extraction_sha256": extraction_sha,
@@ -510,6 +533,7 @@ def execute_qualitative_synthesis(
         "claim_count": len(normalized_claims), "independent_study_count": len(study_ids),
         "minimum_independent_studies": minimum, "minimum_study_requirement_met": minimum_met,
         "result_direction_counts": directions, "interpretive_ceiling_counts": ceilings,
+        "passage_verification_counts": passage_verification_counts,
         "status": ("deviation_review_required"
                    if deviation_status == "retrospective_or_uncertain_deviation_review_required" else
                    "qualitative_synthesis_recorded" if minimum_met else "insufficient_independent_studies"),
