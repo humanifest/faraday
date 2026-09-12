@@ -381,7 +381,7 @@ def audit_research_state(
     open_questions = [
         question
         for question in (questions or [])
-        if question.status is QuestionStatus.OPEN
+        if question.status in {QuestionStatus.OPEN, QuestionStatus.DEFERRED}
     ]
     if open_questions:
         question_ids = ", ".join(question.question_id for question in open_questions)
@@ -390,7 +390,7 @@ def audit_research_state(
             RigorSeverity.WARNING,
             (
                 f"The inquiry still has {len(open_questions)} unresolved "
-                "clarifying question(s); these remain live ambiguity rather than "
+                "open or deferred clarifying question(s); these remain live ambiguity rather than "
                 "evidence, answers, or authorization to prefer an explanation."
             ),
             entity_type="inquiry",

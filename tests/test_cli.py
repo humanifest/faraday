@@ -346,6 +346,64 @@ def test_json_cli_rejects_malformed_proposal_contract(tmp_path: Path, capsys) ->
     assert "competing_models must be an array" in error["error"]["message"]
 
 
+def test_json_cli_can_defer_clarifying_question(tmp_path: Path, capsys) -> None:
+    workspace = tmp_path / "workspace"
+    global_args = ["--workspace", str(workspace), "--json"]
+    assert main([*global_args, "workspace", "init"]) == 0
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "inquiry",
+                "create",
+                "--id",
+                "defer-question",
+                "--title",
+                "Deferred question",
+                "--statement",
+                "Can the design distinguish alternatives?",
+            ]
+        )
+        == 0
+    )
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "question",
+                "add",
+                "--text",
+                "Could measurement drift explain the apparent effect?",
+            ]
+        )
+        == 0
+    )
+    question = result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "question",
+                "defer",
+                question["question_id"],
+                "--rationale",
+                "Handle this in the next protocol revision before freeze.",
+            ]
+        )
+        == 0
+    )
+    deferred = result_from(capsys)
+
+    assert deferred["status"] == "deferred"
+    assert deferred["answer"] == "Handle this in the next protocol revision before freeze."
+    assert main([*global_args, "workspace", "verify"]) == 0
+    verification = result_from(capsys)
+    assert verification["valid"] is True
+    assert verification["events"] == 3
+
+
 def test_cli_stages_pending_review_without_activation(
     tmp_path: Path, capsys
 ) -> None:

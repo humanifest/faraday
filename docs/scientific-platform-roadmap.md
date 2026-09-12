@@ -773,11 +773,14 @@ as canonical open questions through the application service. Missing questions
 remain visible warnings, duplicate questions are rejected, padded supplied
 questions block review readiness, and the draft keeps them as unanswered review
 questions rather than evidence, protocol commitments, or preferred explanations.
-Deterministic synthesis now reports the count of still-open questions and labels
-them as live ambiguity rather than evidence, answers, or authorization to choose
-a preferred explanation. Rigor audit now emits a warning for still-open
-canonical questions, preserving unresolved ambiguity as a visible quality signal
-without making unfinished inquiry structurally invalid.
+Deterministic synthesis now reports the counts of still-open and deferred
+questions and labels them as live ambiguity rather than evidence, answers, or
+authorization to choose a preferred explanation. Rigor audit now emits a warning
+for still-open or deferred canonical questions, preserving unresolved ambiguity
+as a visible quality signal without making unfinished inquiry structurally
+invalid. Canonical questions can now be deferred with an explicit rationale
+through the service and CLI; deferred questions remain unresolved in rigor and
+synthesis and cannot overwrite an answered question.
 Guided claim-boundary delivery: JSON briefs and the provider-free interview can
 now preserve typed claim-level boundary proposals. The scaffold emits
 `claim-boundaries-draft.json` and repeats the proposed ladder in the collection

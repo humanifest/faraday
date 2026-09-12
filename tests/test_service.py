@@ -10,6 +10,7 @@ from research_machine.application.commands import (
     AddClaim,
     AddQuestion,
     CreateInquiry,
+    DeferQuestion,
     ProposeHypothesis,
     RecordEvidence,
     RegisterDataset,
@@ -296,13 +297,74 @@ def test_synthesis_surfaces_open_questions_as_live_ambiguity(
     synthesis = service.build_synthesis()["content"]
 
     assert "- Open questions still unresolved: 1" in synthesis
+    assert "- Deferred questions retained as unresolved: 0" in synthesis
     assert (
-        "Open questions remain live ambiguity, not evidence, answers, or "
-        "authorization to choose a preferred explanation."
+        "Open and deferred questions remain live ambiguity, not evidence, "
+        "answers, or authorization to choose a preferred explanation."
     ) in synthesis
     assert "[open] Could measurement drift explain the apparent effect?" in synthesis
     assert "[answered] Which outcome is primary? — Primary score." in synthesis
     assert service.verify_ledger()["valid"]
+
+
+def test_question_deferral_preserves_unresolved_ambiguity(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Deferred ambiguity",
+            initial_statement="Can the design discriminate causes?",
+            inquiry_id="deferred-ambiguity",
+            decision_to_support="Decide whether the design is ready to freeze.",
+            minimum_evidence="Every blocking ambiguity has a recorded disposition.",
+            decision_change_criteria=["Do not freeze if measurement drift remains live."],
+            decision_owner="review-owner",
+        )
+    )
+    question = service.add_question(
+        AddQuestion("Could measurement drift explain the apparent effect?")
+    )
+
+    deferred = service.defer_question(
+        question.question_id,
+        DeferQuestion("Handled in the next protocol revision before freeze."),
+    )
+
+    assert deferred.status.value == "deferred"
+    assert deferred.answer == "Handled in the next protocol revision before freeze."
+    audit = service.audit_rigor()
+    finding = next(
+        item for item in audit.findings
+        if item.code == "INQUIRY_OPEN_QUESTIONS_UNRESOLVED"
+    )
+    assert "open or deferred clarifying question" in finding.message
+    assert question.question_id in finding.remediation
+    assert audit.structurally_valid is True
+
+    synthesis = service.build_synthesis()["content"]
+    assert "- Open questions still unresolved: 0" in synthesis
+    assert "- Deferred questions retained as unresolved: 1" in synthesis
+    assert (
+        "[deferred] Could measurement drift explain the apparent effect? — "
+        "Handled in the next protocol revision before freeze."
+    ) in synthesis
+    assert "INQUIRY_OPEN_QUESTIONS_UNRESOLVED (1)" in synthesis
+    assert service.verify_ledger()["valid"]
+
+    with pytest.raises(ValidationError, match="already deferred"):
+        service.defer_question(
+            question.question_id,
+            DeferQuestion("Do not rewrite the retained rationale."),
+        )
+    answered = service.add_question(AddQuestion("Which endpoint is primary?"))
+    service.answer_question(answered.question_id, "Primary score.")
+    with pytest.raises(ValidationError, match="answered question cannot be deferred"):
+        service.defer_question(
+            answered.question_id,
+            DeferQuestion("Do not hide a retained answer by deferring it later."),
+        )
 
 
 def test_hypothesis_retirement_requires_bounded_limitations_and_resurrection(

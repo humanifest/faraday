@@ -81,6 +81,11 @@ class AddQuestion:
 
 
 @dataclass(frozen=True)
+class DeferQuestion:
+    rationale: str
+
+
+@dataclass(frozen=True)
 class AddClaim:
     statement: str
     level: ClaimLevel

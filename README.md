@@ -522,13 +522,16 @@ explicit unresolved ambiguity questions in `ambiguity-questions-draft.json`
 and the collection plan; `design initialize` and guided revision record supplied
 ambiguities as canonical open questions rather than answers. Missing ambiguity
 questions remain visible warnings; duplicate ambiguity questions are rejected;
-and padded questions block readiness. Deterministic synthesis reports the count
-of still-open questions and labels them as live ambiguity, not evidence,
-answers, or authorization to prefer an explanation. Rigor audit now emits a
-warning for still-open canonical questions, preserving unresolved ambiguity as a
-quality signal without making unfinished inquiry structurally invalid. Guided
-briefs and the provider-free interview can also preserve typed claim-level
-boundary proposals in
+and padded questions block readiness. Deterministic synthesis reports the counts
+of still-open and deferred questions and labels them as live ambiguity, not
+evidence, answers, or authorization to prefer an explanation. Rigor audit now
+emits a warning for still-open or deferred canonical questions, preserving
+unresolved ambiguity as a quality signal without making unfinished inquiry
+structurally invalid. Canonical questions can also be deferred with
+`question defer --rationale`; deferral requires nonempty rationale prose, remains
+unresolved in rigor and synthesis, and cannot overwrite an answered question.
+Guided briefs and the provider-free
+interview can also preserve typed claim-level boundary proposals in
 `claim-boundaries-draft.json` and the collection plan; `design initialize` and
 guided revision record supplied boundaries as unresolved canonical claims with
 their declared levels and scopes, not as accepted interpretations or evidence.

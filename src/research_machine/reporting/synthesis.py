@@ -16,6 +16,7 @@ from research_machine.domain.models import (
     Hypothesis,
     Inquiry,
     Question,
+    QuestionStatus,
     ResearchRun,
     RigorAudit,
     RigorSeverity,
@@ -237,7 +238,11 @@ def build_synthesis(
         latest_status[event.evidence_id] = event
     open_questions = [
         question for question in questions
-        if question.status.value == "open"
+        if question.status is QuestionStatus.OPEN
+    ]
+    deferred_questions = [
+        question for question in questions
+        if question.status is QuestionStatus.DEFERRED
     ]
     contributing_ids = {
         record.evidence_id for record in evidence
@@ -267,15 +272,16 @@ def build_synthesis(
             or "No change criteria recorded."
         ),
         f"- Open questions still unresolved: {len(open_questions)}",
+        f"- Deferred questions retained as unresolved: {len(deferred_questions)}",
         "",
         "## Clarifying questions",
         "",
     ]
-    if open_questions:
+    if open_questions or deferred_questions:
         lines.extend(
             [
-                "Open questions remain live ambiguity, not evidence, answers, or "
-                "authorization to choose a preferred explanation.",
+                "Open and deferred questions remain live ambiguity, not evidence, "
+                "answers, or authorization to choose a preferred explanation.",
                 "",
             ]
         )

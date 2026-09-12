@@ -14,6 +14,7 @@ from research_machine.application.commands import (
     AddQuestion,
     CreateProtocol,
     CreateInquiry,
+    DeferQuestion,
     ProposeHypothesis,
     RecommendActionPortfolio,
     RecommendNextAction,
@@ -1584,6 +1585,39 @@ class ResearchService:
                 self._event(
                     resolved,
                     "question.answer",
+                    "question",
+                    question_id,
+                    updated.to_dict(),
+                )
+                return updated
+        raise NotFoundError(f"question {question_id} does not exist")
+
+    def defer_question(
+        self, question_id: str, command: DeferQuestion, inquiry_id: str | None = None
+    ) -> Question:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        questions = self.repository.load_questions(resolved)
+        for index, question in enumerate(questions):
+            if question.question_id == question_id:
+                if question.status is QuestionStatus.ANSWERED:
+                    raise ValidationError(
+                        "answered question cannot be deferred; record a new clarifying question instead"
+                    )
+                if question.status is QuestionStatus.DEFERRED:
+                    raise ValidationError(
+                        "question is already deferred; record a new question for a changed ambiguity"
+                    )
+                updated = replace(
+                    question,
+                    answer=require_text(command.rationale, "defer rationale"),
+                    status=QuestionStatus.DEFERRED,
+                    answered_at=self.clock(),
+                )
+                questions[index] = updated
+                self.repository.save_questions(resolved, questions)
+                self._event(
+                    resolved,
+                    "question.defer",
                     "question",
                     question_id,
                     updated.to_dict(),
