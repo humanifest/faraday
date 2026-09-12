@@ -1,4 +1,55 @@
-# Research Machine
+# Faraday
+
+[![Sponsor Faraday](https://img.shields.io/badge/Sponsor-Faraday-2ea44f?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/humanifest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+Faraday is the open-source **Research Machine**: a local, inspectable engine for
+independent inquiry. It is named for Michael Faraday, whose experimental work
+showed that careful measurement and an honest record are not reserved for people
+with the usual credentials.
+
+The software cannot confer a scientific education, certify a result, or replace
+review. It can give anyone, anywhere, a way to turn “I think …” into a testable
+inquiry, keep competing explanations in view, freeze a method before seeing
+outcomes, and stop evidence from quietly becoming a stronger claim than it
+supports.
+
+This repository is the tool. Keep live hypotheses, protocols, collected data,
+and domain conclusions in a separate experiment workspace. No account, cloud
+service, or institutional affiliation is required to run Faraday from this
+checkout.
+
+## License
+
+Faraday is licensed under the [MIT License](LICENSE). See
+[licensing notes](docs/licensing.md) and [how to contribute](CONTRIBUTING.md).
+
+## Sponsorship
+
+Donations support Faraday development. They do not buy feature priority, claim
+outcomes, protocol exceptions, or a weaker evidence standard. Faraday is
+currently fiscally administered by Avaelus LLC/Inc.; funds should be tracked
+separately from Avaelus operating funds. Donations are not described as tax
+deductible.
+
+Use [GitHub Sponsors](https://github.com/sponsors/humanifest) or this
+repository's Sponsor button. Funding configuration lives in
+[.github/FUNDING.yml](.github/FUNDING.yml).
+
+## Start here
+
+```bash
+git clone https://github.com/humanifest/faraday.git
+cd faraday
+./research --workspace .research workspace init
+./research --help
+```
+
+Then follow [Quick start](#quick-start) to turn a suspicion into an inquiry
+without strengthening it. The sections below are the current Research Machine
+contracts, not a tutorial.
+
+## Research Machine contracts
 
 `./research --json design randomize --spec-file assignment-plan.json` generates
 deterministic, balanced fixed-block assignments from explicit unit IDs, groups,
@@ -2238,10 +2289,11 @@ bytes are compared or used. Details and the supported schema profile are in
 
 ## Quick start
 
-No installation or network access is required during development:
+From a clone of this repository, no package installation is required:
 
 ```bash
-cd /Users/admin/dev/faraday
+git clone https://github.com/humanifest/faraday.git
+cd faraday
 ./research --workspace .research workspace init
 ./research --workspace .research inquiry create \
   --id ai-hiring-bias \

@@ -557,9 +557,14 @@ canonical write path.
 
 ## Publishing safety
 
+- Faraday (`humanifest/faraday`) is an owner-authorized public Research Machine
+  publication under the MIT License. That authorization is specific to this
+  repository. It does not make Sherlock, experiment workspaces, datasets, or
+  later remotes public.
 - Default every newly created remote repository, release artifact, dataset, and
   hosted project to **private** visibility.
 - Public visibility requires an explicit instruction from the project owner for
-  that specific publication. Do not infer public authorization from an existing
-  open-source repository, a prior publication, or a request merely to “push.”
+  that specific publication. Do not infer further public authorization from
+  Faraday's visibility, an existing open-source repository, a prior publication,
+  or a request merely to “push.”
 - Verify the destination and visibility before the first upload.

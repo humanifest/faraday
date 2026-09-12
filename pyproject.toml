@@ -5,10 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "research-machine"
 dynamic = ["version"]
-description = "A headless, provenance-first engine for turning curiosity into testable inquiries."
+description = "Faraday: a local Research Machine for turning curiosity into testable inquiries."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
+authors = [{ name = "Humanifest contributors" }]
+keywords = ["research", "science", "provenance", "reproducibility", "open-science"]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/humanifest/faraday"
+Repository = "https://github.com/humanifest/faraday"
+Issues = "https://github.com/humanifest/faraday/issues"
+Sponsor = "https://github.com/sponsors/humanifest"
 
 [project.optional-dependencies]
 test = ["pytest>=8", "jsonschema>=4.23"]

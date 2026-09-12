@@ -1,0 +1,10 @@
+# GitHub Sponsors funding configuration.
+#
+# Faraday is currently fiscally administered by Avaelus LLC/Inc. Sponsorship
+# supports Faraday / Research Machine development: the inquiry engine,
+# provenance and evidence contracts, documentation, and review. It does not buy
+# feature priority, claim outcomes, protocol exceptions, or a different
+# evidence standard.
+
+github:
+  - humanifest
