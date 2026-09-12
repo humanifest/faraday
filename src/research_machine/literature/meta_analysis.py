@@ -24,6 +24,7 @@ from research_machine.literature.effects import (
     validate_retained_source_summaries,
 )
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.synthesis_plan import (
     QUANTITATIVE_SENSITIVITIES,
     validate_synthesis_plan_boundary,
@@ -68,13 +69,7 @@ def _t_critical_95(degrees_of_freedom: int) -> float:
 
 
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
-    try:
-        content = path.read_bytes(); value = json.loads(content)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise ValidationError(f"could not read valid {label} JSON") from exc
-    if not isinstance(value, dict):
-        raise ValidationError(f"{label} must be a JSON object")
-    return value, hashlib.sha256(content).hexdigest()
+    return load_json_object(path, label)
 
 
 def _canonical_text(value: Any, field: str) -> str:

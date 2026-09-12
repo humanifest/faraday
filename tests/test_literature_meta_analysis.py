@@ -297,6 +297,43 @@ def test_meta_analysis_preserves_passage_verification_receipts(tmp_path):
         )
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"effect_records_version": 1, "effect_records_version": 1}\n', "duplicate JSON object key"),
+        ('{"effect_records_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_meta_analysis_rejects_ambiguous_json_input_bytes(tmp_path, payload, message):
+    (
+        plan,
+        plan_sha,
+        effects,
+        _effects_sha,
+        verification,
+        verification_sha,
+        deviations,
+        deviations_sha,
+    ) = artifacts(tmp_path, count=2)
+    effects.write_text(payload, encoding="utf-8")
+    tampered_effects_sha = hashlib.sha256(effects.read_bytes()).hexdigest()
+    output = tmp_path / "meta"
+
+    with pytest.raises(ValidationError, match=message):
+        execute_meta_analysis(
+            plan,
+            plan_sha,
+            effects,
+            tampered_effects_sha,
+            verification,
+            verification_sha,
+            deviations,
+            deviations_sha,
+            output,
+        )
+    assert not output.exists()
+
+
 def test_random_effects_reports_heterogeneity_prediction_and_influence(tmp_path):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path, model="random_effects")
     result = execute_meta_analysis(plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha, tmp_path / "meta")
