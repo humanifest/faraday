@@ -1582,8 +1582,11 @@ anchors, hide malformed arm summaries, or hide studies with missing compatible
 statistics. The same table retains the mapped claim source provenance, the
 retained source-summary digest, the exact available-study effect estimate,
 standard error, and variance consumed by pooling, plus the independent
-source-transcription and arithmetic verification status for each effect record,
-and pooling replays the retained effect-status contract:
+source-transcription and arithmetic verification status for each effect record.
+If compact passage-verification receipts reached effect verification, pooling
+preserves and replays them in both mapped-claim and verifier claim provenance,
+without treating exact quote-byte occurrence as effect validity or source
+support. Pooling also replays the retained effect-status contract:
 available effects must carry clean source and calculation checks, while
 unavailable effects must remain not-applicable rather than acquiring
 after-the-fact numeric-looking verification. The meta-analysis boundary also
