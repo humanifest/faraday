@@ -770,9 +770,9 @@ can now preserve explicit unresolved ambiguity questions. The scaffold emits
 `ambiguity-questions-draft.json` and repeats the questions in the collection
 plan, while `design initialize` and guided revision record supplied ambiguities
 as canonical open questions through the application service. Missing questions
-remain visible warnings, padded supplied questions block review readiness, and
-the draft keeps them as unanswered review questions rather than evidence,
-protocol commitments, or preferred explanations.
+remain visible warnings, duplicate questions are rejected, padded supplied
+questions block review readiness, and the draft keeps them as unanswered review
+questions rather than evidence, protocol commitments, or preferred explanations.
 Guided claim-boundary delivery: JSON briefs and the provider-free interview can
 now preserve typed claim-level boundary proposals. The scaffold emits
 `claim-boundaries-draft.json` and repeats the proposed ladder in the collection

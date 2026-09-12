@@ -441,3 +441,24 @@ def test_initializer_rejects_duplicate_claim_boundaries_before_writing(
             initialize_git=False,
         )
     assert not (tmp_path / "light-trial").exists()
+
+
+def test_initializer_rejects_duplicate_ambiguity_questions_before_writing(
+    tmp_path: Path,
+) -> None:
+    brief_payload = {
+        **_basic_brief(),
+        "ambiguity_questions": [
+            "Could baseline tray position explain the result?",
+            "could baseline tray position explain the result?",
+        ],
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier ambiguity question"):
+        initializer.initialize_experiment_repository(
+            brief_payload,
+            tmp_path / "light-trial",
+            actor="test",
+            initialize_git=False,
+        )
+    assert not (tmp_path / "light-trial").exists()

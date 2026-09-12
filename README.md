@@ -520,7 +520,8 @@ readiness. Guided briefs and the provider-free interview can also preserve
 explicit unresolved ambiguity questions in `ambiguity-questions-draft.json`
 and the collection plan; `design initialize` and guided revision record supplied
 ambiguities as canonical open questions rather than answers. Missing ambiguity
-questions remain visible warnings, and padded questions block readiness. They
+questions remain visible warnings; duplicate ambiguity questions are rejected;
+and padded questions block readiness. They
 can also preserve typed claim-level boundary proposals in
 `claim-boundaries-draft.json` and the collection plan; `design initialize` and
 guided revision record supplied boundaries as unresolved canonical claims with

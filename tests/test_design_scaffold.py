@@ -942,6 +942,24 @@ def test_scaffold_preserves_ambiguity_questions_boundary():
     assert padded["status"] == "blocked"
 
 
+def test_scaffold_rejects_duplicate_ambiguity_questions():
+    brief = {
+        "title": "Ambiguity duplicate fixture",
+        "question": "Question",
+        "decision": "Choose whether the current design can discriminate models.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "ambiguity_questions": [
+            "Can measurement drift explain the apparent difference?",
+            "can measurement drift explain the apparent difference?",
+        ],
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier ambiguity question"):
+        scaffold_design(brief)
+
+
 def test_scaffold_preserves_claim_level_boundaries():
     brief = {
         "title": "Claim boundary fixture",

@@ -140,6 +140,19 @@ def _text_list(brief: dict[str, Any], key: str) -> list[str]:
     return value
 
 
+def _ambiguity_questions(brief: dict[str, Any]) -> list[str]:
+    questions = _text_list(brief, "ambiguity_questions")
+    seen: set[str] = set()
+    for index, question in enumerate(questions, start=1):
+        question_key = question.strip().casefold()
+        if question_key in seen:
+            raise ValueError(
+                f"ambiguity_questions[{index}] duplicates an earlier ambiguity question"
+            )
+        seen.add(question_key)
+    return questions
+
+
 def _claim_boundaries(brief: dict[str, Any]) -> list[dict[str, str]]:
     value = brief.get("claim_boundaries", [])
     if not isinstance(value, list):
@@ -428,6 +441,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     for key in {"controls", "confounds", "exclusions", "falsification_conditions", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
         _text_list(brief, key)
     _text_list(brief, "decision_change_criteria")
+    _ambiguity_questions(brief)
     _claim_boundaries(brief)
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
         raise ValueError("outcome_scale is unsupported")
@@ -724,14 +738,15 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "The inquiry decision boundary contains text with surrounding whitespace.",
             "Use exact unpadded minimum-evidence, decision-change, and decision-owner commitments before review artifacts preserve them.",
         )
-    if not _text_list(brief, "ambiguity_questions"):
+    ambiguity_questions = _ambiguity_questions(brief)
+    if not ambiguity_questions:
         add(
             "AMBIGUITY_QUESTIONS_UNRESOLVED",
             "warning",
             "The guided design records no explicit unresolved ambiguity questions.",
             "Before design review, state the important unknowns, ambiguities, or discriminator questions that should remain open rather than being answered by the scaffold.",
         )
-    if has_noncanonical_text_items(_text_list(brief, "ambiguity_questions")):
+    if has_noncanonical_text_items(ambiguity_questions):
         add(
             "AMBIGUITY_QUESTION_NONCANONICAL",
             "error",
@@ -1846,7 +1861,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     sensor_requirements = _text_list(brief, "sensor_requirements")
     control_windows = _text_list(brief, "control_windows")
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
-    ambiguity_questions = _text_list(brief, "ambiguity_questions")
+    ambiguity_questions = _ambiguity_questions(brief)
     claim_boundaries = _claim_boundaries(brief)
     available_data_sources = _text_list(brief, "available_data_sources")
     unavailable_data = _text_list(brief, "unavailable_data")
