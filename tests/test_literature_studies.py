@@ -47,7 +47,7 @@ def bias_file(tmp_path):
         "publication_authorized": False,
         "limitations": [
             "Overall judgments are conservative deterministic summaries of reviewer-entered domain judgments, not automated validity findings.",
-            "The generic domains do not replace design-specific validated instruments or authenticate reviewer expertise or independence.",
+            "The generic domains do not replace design-specific risk-of-bias instruments or authenticate reviewer expertise or independence.",
             "Risk-of-bias assessment does not make a literature claim true or authorize quantitative synthesis.",
         ],
         "assessments": [

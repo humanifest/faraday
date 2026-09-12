@@ -1675,11 +1675,12 @@ or citation-location text, malformed source-byte anchors, and altered
 extracted-claim digests cannot hide behind matching verdict counts.
 Bias-assessment boundary replay now also validates its own version, retained
 citation-verification SHA-256, canonical snapshot handle, reviewer handle,
-domain order, retained assessment list, derived overall-judgment counts, and
-recorded status before study reconciliation or evidence-map construction can
-trust it. A hash-consistent bias review can no longer rewrite its upstream
-citation anchor, reviewer identity, domain order, or study-level summary through
-envelope fields alone.
+domain order, retained limitations, retained assessment list, derived
+overall-judgment counts, and recorded status before study reconciliation or
+evidence-map construction can trust it. Retained bias limitations are bounded
+report prose, so a hash-consistent bias review can no longer rewrite its
+upstream citation anchor, reviewer identity, domain order, boundary limitations,
+or study-level summary through envelope fields alone.
 Every reviewed study must cover all seven documented bias domains, cite
 locations for each applicable judgment, and exactly identify all source reports
 grouped under that study. Overall judgments are computed conservatively from

@@ -91,7 +91,10 @@ def validate_bias_assessment_boundary(
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("bias assessment requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"bias assessment limitation {index + 1}")
+        _bounded_bias_text(
+            limitation,
+            f"bias assessment limitation {index + 1}",
+        )
     if bias.get("domain_order") != list(_DOMAINS):
         raise ValidationError("bias assessment domain_order is invalid")
     if (
@@ -329,7 +332,7 @@ def create_bias_assessment(
         "reviewer_identity_authenticated": False,
         "limitations": [
             "Overall judgments are conservative deterministic summaries of reviewer-entered domain judgments, not automated validity findings.",
-            "The generic domains do not replace design-specific validated instruments or authenticate reviewer expertise or independence.",
+            "The generic domains do not replace design-specific risk-of-bias instruments or authenticate reviewer expertise or independence.",
             "Risk-of-bias assessment does not make a literature claim true or authorize quantitative synthesis.",
         ],
     }
