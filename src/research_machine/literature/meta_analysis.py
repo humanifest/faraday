@@ -28,6 +28,7 @@ from research_machine.literature.synthesis_plan import (
     QUANTITATIVE_SENSITIVITIES,
     validate_synthesis_plan_boundary,
 )
+from research_machine.literature.verification import _validate_passage_receipt
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
 _DEVIATION_STATUSES = {
@@ -101,7 +102,7 @@ def _source_anchor(value: object, field: str) -> str:
     return require_sha256(value, field)
 
 
-def _claim_source_provenance(claims: list[object], field_prefix: str) -> list[dict[str, str]]:
+def _claim_source_provenance(claims: list[object], field_prefix: str) -> list[dict[str, Any]]:
     retained = []
     seen_claims = set()
     for claim in claims:
@@ -113,7 +114,7 @@ def _claim_source_provenance(claims: list[object], field_prefix: str) -> list[di
         if extraction_id in seen_claims:
             raise ValidationError(f"{field_prefix} claim source provenance requires unique extraction IDs")
         seen_claims.add(extraction_id)
-        retained.append({
+        claim_summary = {
             "extraction_id": extraction_id,
             "extraction_claim_sha256": require_sha256(
                 claim.get("extraction_claim_sha256"),
@@ -128,7 +129,13 @@ def _claim_source_provenance(claims: list[object], field_prefix: str) -> list[di
                 claim.get("citation_checked_location"),
                 f"{field_prefix} citation_checked_location",
             ),
-        })
+        }
+        if "passage_verification" in claim:
+            claim_summary["passage_verification"] = _validate_passage_receipt(
+                claim.get("passage_verification"),
+                f"{field_prefix} passage_verification",
+            )
+        retained.append(claim_summary)
     return sorted(retained, key=lambda claim: claim["extraction_id"])
 
 

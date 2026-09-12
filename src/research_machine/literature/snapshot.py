@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -133,6 +134,7 @@ def create_snapshot(manifest: dict[str, Any], output: Path) -> dict[str, Any]:
         raise ValidationError("literature snapshot sources must be a non-empty array")
     seen_ids: set[str] = set()
     records: list[dict[str, Any]] = []
+    retained_files: dict[str, Path] = {}
     for item in sources:
         if not isinstance(item, dict):
             raise ValidationError("each literature source must be an object")
@@ -151,6 +153,7 @@ def create_snapshot(manifest: dict[str, Any], output: Path) -> dict[str, Any]:
         if not path.is_file():
             raise ValidationError(f"literature source file is not a file: {path}")
         digest, size = _hash(path)
+        retained_files.setdefault(digest, path)
         records.append({
             "source_id": source_id,
             "title": _text(item.get("title"), "source title"),
@@ -187,6 +190,16 @@ def create_snapshot(manifest: dict[str, Any], output: Path) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix=f".{root.name}-", dir=root.parent) as temporary:
         staging = Path(temporary) / root.name
         staging.mkdir()
+        retained_root = staging / "sources"
+        retained_root.mkdir()
+        for digest, path in retained_files.items():
+            target = retained_root / digest
+            shutil.copyfile(path, target)
+            copied_digest, _ = _hash(target)
+            if copied_digest != digest:
+                raise ValidationError(
+                    f"copied retained source bytes changed for digest {digest}"
+                )
         (staging / "literature-snapshot.json").write_bytes(content)
         try:
             os.replace(staging, root)

@@ -111,6 +111,7 @@ _PROPOSAL_RECORD_FIELDS = {
     "context_scientific_constraints",
     "context_write_boundary",
     "proposal_input",
+    "proposal_payload_sha256",
     "proposal_body_grounding",
     "proposal",
     "status",
@@ -120,7 +121,6 @@ _PROPOSAL_RECORD_FIELDS = {
     "authorized_actions",
     "conclusion_ceiling",
 }
-_LEGACY_PROPOSAL_RECORD_FIELDS = _PROPOSAL_RECORD_FIELDS - {"context_write_boundary"}
 _REVIEW_RECORD_FIELDS = {
     "collaborator_proposal_review_record_version",
     "proposal_record_input",
@@ -131,6 +131,7 @@ _REVIEW_RECORD_FIELDS = {
     "context_write_boundary",
     "proposal_body_grounding",
     "review_input",
+    "review_payload_sha256",
     "review",
     "reviewed_suggestions",
     "advanced_suggestions",
@@ -900,6 +901,7 @@ def validate_collaborator_proposal(
             "sha256": hashlib.sha256(proposal_content).hexdigest(),
             "size_bytes": len(proposal_content),
         },
+        "proposal_payload_sha256": _sha256_json(proposal),
         "proposal_body_grounding": proposal_body_grounding,
         "proposal": proposal,
         "status": "pending_human_review",
@@ -941,11 +943,15 @@ def verify_collaborator_proposal_record(
             "collaborator proposal record does not match trusted SHA-256"
         )
     has_context_write_boundary = "context_write_boundary" in record
+    has_proposal_payload = "proposal_payload_sha256" in record
+    expected_fields = _PROPOSAL_RECORD_FIELDS
+    if not has_context_write_boundary:
+        expected_fields = expected_fields - {"context_write_boundary"}
+    if not has_proposal_payload:
+        expected_fields = expected_fields - {"proposal_payload_sha256"}
     _exact_fields(
         record,
-        _PROPOSAL_RECORD_FIELDS
-        if has_context_write_boundary
-        else _LEGACY_PROPOSAL_RECORD_FIELDS,
+        expected_fields,
         "collaborator proposal record",
     )
     if record.get("collaborator_proposal_record_version") != 1:
@@ -984,6 +990,7 @@ def verify_collaborator_proposal_record(
     proposal = record.get("proposal")
     if not isinstance(proposal, dict):
         raise ValidationError("collaborator proposal record has no proposal object")
+    proposal_payload_status = "legacy_missing"
     replay_context = {
         "purpose": proposal.get("purpose"),
         "context_reference_index": record["context_reference_index"],
@@ -997,6 +1004,13 @@ def verify_collaborator_proposal_record(
         raise ValidationError(
             "collaborator proposal body grounding disagrees with retained proposal"
         )
+    if has_proposal_payload:
+        _validate_payload_digest(
+            record["proposal_payload_sha256"],
+            proposal,
+            "collaborator proposal record proposal_payload_sha256",
+        )
+        proposal_payload_status = "verified"
     return {
         "record_sha256": record_digest,
         "record_status": record["status"],
@@ -1007,6 +1021,7 @@ def verify_collaborator_proposal_record(
         "body_grounding_count": len(proposal_body_grounding),
         "context_reference_replay": "retained_index_verified",
         "context_write_boundary_replay": context_write_boundary_status,
+        "proposal_payload_replay": proposal_payload_status,
         "canonical_writes_performed": False,
         "model_invoked_by_faraday": False,
         "scientific_evidence_eligible": False,
@@ -1045,11 +1060,15 @@ def adjudicate_collaborator_proposal(
             "collaborator proposal record does not match trusted SHA-256"
         )
     has_context_write_boundary = "context_write_boundary" in record
+    has_proposal_payload = "proposal_payload_sha256" in record
+    expected_fields = _PROPOSAL_RECORD_FIELDS
+    if not has_context_write_boundary:
+        expected_fields = expected_fields - {"context_write_boundary"}
+    if not has_proposal_payload:
+        expected_fields = expected_fields - {"proposal_payload_sha256"}
     _exact_fields(
         record,
-        _PROPOSAL_RECORD_FIELDS
-        if has_context_write_boundary
-        else _LEGACY_PROPOSAL_RECORD_FIELDS,
+        expected_fields,
         "collaborator proposal record",
     )
     if record.get("collaborator_proposal_record_version") != 1:
@@ -1104,6 +1123,12 @@ def adjudicate_collaborator_proposal(
     if record["proposal_body_grounding"] != proposal_body_grounding:
         raise ValidationError(
             "collaborator proposal body grounding disagrees with retained proposal"
+        )
+    if has_proposal_payload:
+        _validate_payload_digest(
+            record["proposal_payload_sha256"],
+            proposal,
+            "collaborator proposal record proposal_payload_sha256",
         )
 
     review, review_content = _load_object(review_file, "collaborator proposal review")
@@ -1206,6 +1231,7 @@ def adjudicate_collaborator_proposal(
             "sha256": hashlib.sha256(review_content).hexdigest(),
             "size_bytes": len(review_content),
         },
+        "review_payload_sha256": _sha256_json(review),
         "review": review,
         "reviewed_suggestions": reviewed_suggestions,
         "advanced_suggestions": advanced,
@@ -1246,6 +1272,13 @@ def _validate_input_receipt(value: Any, label: str) -> dict[str, Any]:
     return value
 
 
+def _validate_payload_digest(digest: Any, payload: Any, label: str) -> None:
+    if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+        raise ValidationError(f"{label} is invalid")
+    if digest != _sha256_json(payload):
+        raise ValidationError(f"{label} does not match retained payload")
+
+
 def verify_collaborator_review_record(
     review_record_file: Path,
     expected_review_record_sha256: str,
@@ -1270,9 +1303,11 @@ def verify_collaborator_review_record(
     has_proposal_record_replay = "proposal_record_replay" in record
     has_proposal_suggestion_ids = "proposal_suggestion_ids" in record
     has_context_write_boundary = "context_write_boundary" in record
+    has_review_payload = "review_payload_sha256" in record
 
     def fields_for_boundary(expected: set[str]) -> set[str]:
-        return expected if has_context_write_boundary else expected - {"context_write_boundary"}
+        fields = expected if has_context_write_boundary else expected - {"context_write_boundary"}
+        return fields if has_review_payload else fields - {"review_payload_sha256"}
 
     if (
         has_context_reference_index
@@ -1393,6 +1428,7 @@ def verify_collaborator_review_record(
     review = record["review"]
     if not isinstance(review, dict):
         raise ValidationError("collaborator proposal review record review must be an object")
+    review_payload_status = "legacy_missing"
     _exact_fields(review, _REVIEW_FIELDS, "collaborator proposal review")
     if review["review_version"] != 1:
         raise ValidationError("collaborator proposal review_version must be 1")
@@ -1548,6 +1584,13 @@ def verify_collaborator_review_record(
             "collaborator proposal review record omits reviewed suggestions: "
             + ", ".join(missing)
         )
+    if has_review_payload:
+        _validate_payload_digest(
+            record["review_payload_sha256"],
+            review,
+            "collaborator proposal review record review_payload_sha256",
+        )
+        review_payload_status = "verified"
     record_advanced = record["advanced_suggestions"]
     if not isinstance(record_advanced, list):
         raise ValidationError(
@@ -1571,6 +1614,7 @@ def verify_collaborator_review_record(
         "context_write_boundary_replay": context_write_boundary_status,
         "proposal_record_replay": proposal_record_replay_status,
         "proposal_suggestion_replay": proposal_suggestion_replay_status,
+        "review_payload_replay": review_payload_status,
         "canonical_writes_performed": False,
         "scientific_evidence_eligible": False,
     }

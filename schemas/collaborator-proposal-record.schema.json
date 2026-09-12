@@ -10,6 +10,7 @@
     "context_scientific_constraints",
     "context_write_boundary",
     "proposal_input",
+    "proposal_payload_sha256",
     "proposal_body_grounding",
     "proposal",
     "status",
@@ -58,6 +59,7 @@
       "additionalProperties": false
     },
     "proposal_input": {"$ref": "#/$defs/inputReceipt"},
+    "proposal_payload_sha256": {"$ref": "#/$defs/sha256"},
     "proposal_body_grounding": {
       "type": "array",
       "items": {

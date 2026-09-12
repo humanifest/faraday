@@ -39,7 +39,17 @@ def claim_digest(source_id, record, source_retained_file_sha256="legacy_missing"
     ).hexdigest()
 
 
-def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
+def passage_receipt():
+    return {
+        "passage_verification_sha256": "c" * 64,
+        "evidence_quote_sha256": "d" * 64,
+        "quote_utf8_byte_count": 17,
+        "quote_occurrence_count": 1,
+        "machine_verification": "exact_utf8_quote_found_in_retained_source_bytes",
+    }
+
+
+def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing", with_passage=False):
     extraction = tmp_path / "extraction.json"
     extraction_record = {"extraction_id": "e1", "study_id": "study-1",
         "claim_text": "Synthetic claim", "evidence_location": "page fixture",
@@ -64,6 +74,8 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
         "extraction_claim_sha256": claim_digest("s1", extraction_record, source_sha)}
     if source_sha != "legacy_missing":
         citation["source_retained_file_sha256"] = source_sha
+    if with_passage:
+        citation["passage_verification"] = passage_receipt()
     verification_sha = write_json(verification, {"citation_verification_version": 1, "status": "citation_review_recorded",
         "extraction_sha256": extraction_sha, "snapshot_id": "snap",
         "extraction_reviewer": "Extractor", "citation_reviewer": "Citation verifier",
@@ -188,6 +200,23 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
         json.loads(extraction.read_text())["source_reviews"][0]["records"][0],
         "b" * 64,
     )
+
+
+def test_evidence_map_preserves_passage_verification_receipt(tmp_path):
+    extraction, verification, bias, reconciliation, digest = chain(
+        tmp_path, source_sha="b" * 64, with_passage=True
+    )
+    result = create_evidence_map(
+        extraction, verification, bias, reconciliation, digest, tmp_path / "map"
+    )
+
+    assert result["claims"][0]["passage_verification"] == passage_receipt()
+    validate_evidence_map_boundary(result, result["claims"])
+
+    candidate = json.loads(json.dumps(result))
+    candidate["claims"][0]["passage_verification"]["evidence_quote_sha256"] = "A" * 64
+    with pytest.raises(ValidationError):
+        validate_evidence_map_boundary(candidate, candidate["claims"])
 
 
 @pytest.mark.parametrize("tamper", [

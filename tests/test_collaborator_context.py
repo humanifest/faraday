@@ -810,6 +810,9 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
     assert record["proposal_body_grounding"] == _proposal_body_grounding(
         record["proposal"]
     )
+    assert record["proposal_payload_sha256"] == _canonical_json_sha256(
+        record["proposal"]
+    )
     assert record["proposal"]["suggestions"][0]["evidence_refs"] == cited_refs
     assert record["canonical_writes_performed"] is False
     assert record["model_invoked_by_faraday"] is False
@@ -829,6 +832,7 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
         "body_grounding_count": 4,
         "context_reference_replay": "retained_index_verified",
         "context_write_boundary_replay": "verified",
+        "proposal_payload_replay": "verified",
         "canonical_writes_performed": False,
         "model_invoked_by_faraday": False,
         "scientific_evidence_eligible": False,
@@ -1050,6 +1054,34 @@ def test_verify_collaborator_proposal_record_replays_retained_boundaries(
     trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
 
     with pytest.raises(ValidationError, match=message):
+        verify_collaborator_proposal_record(record_path, trusted_hash)
+
+
+def test_verify_collaborator_proposal_record_replays_embedded_proposal_payload(
+    tmp_path: Path,
+) -> None:
+    context = _context()
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(_proposal(snapshot["context_sha256"])), encoding="utf-8"
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    record_path = Path(validated["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["proposal"]["summary"] = "The contrast may reflect unresolved selection."
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="proposal_payload_sha256"):
         verify_collaborator_proposal_record(record_path, trusted_hash)
 
 
@@ -1689,6 +1721,7 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
             "scientific_evidence_eligible": False,
         }
     ]
+    assert record["review_payload_sha256"] == _canonical_json_sha256(review)
     assert record["proposal_suggestion_ids"] == ["suggestion-1", "suggestion-2"]
     assert record["context_reference_index"] == []
     assert record["context_write_boundary"] == {
@@ -1751,7 +1784,61 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
     assert verified["context_write_boundary_replay"] == "verified"
     assert verified["proposal_record_replay"] == "verified"
     assert verified["proposal_suggestion_replay"] == "verified"
+    assert verified["review_payload_replay"] == "verified"
     assert verified["scientific_evidence_eligible"] is False
+
+
+def test_verify_collaborator_review_replays_embedded_review_payload(
+    tmp_path: Path,
+) -> None:
+    context = _context()
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(
+        json.dumps(_proposal(snapshot["context_sha256"])), encoding="utf-8"
+    )
+    validated = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review_path = tmp_path / "review.json"
+    review_path.write_text(
+        json.dumps(_review(validated["record_sha256"])), encoding="utf-8"
+    )
+    reviewed = adjudicate_collaborator_proposal(
+        Path(validated["record_file"]),
+        validated["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    record_path = Path(reviewed["record_file"])
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["review"]["decisions"][0].update(
+        {
+            "disposition": "reject",
+            "rationale": "The idea is not ready for domain review.",
+            "domain_route": "none",
+        }
+    )
+    record["reviewed_suggestions"][0].update(
+        {
+            "disposition": "reject",
+            "rationale": "The idea is not ready for domain review.",
+            "domain_route": "none",
+            "manual_domain_review_required": False,
+        }
+    )
+    record["advanced_suggestions"] = []
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    trusted_hash = hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match="review_payload_sha256"):
+        verify_collaborator_review_record(record_path, trusted_hash)
 
 
 def test_verify_collaborator_review_replays_conclusion_ceiling(

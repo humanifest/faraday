@@ -17,6 +17,7 @@ from research_machine.literature.effects import (
 )
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.snapshot import _text
+from research_machine.literature.verification import _validate_passage_receipt
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
 _EFFECT_VERIFICATION_PROSE_OVERCLAIM = re.compile(
@@ -117,6 +118,7 @@ def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -
         "source_retained_file_sha256",
         "citation_checked_location",
     }
+    optional_claim_fields = {"passage_verification"}
     mismatches = []
     for assessment in assessments:
         if not isinstance(assessment, dict) or set(assessment) != required_assessment:
@@ -148,7 +150,10 @@ def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -
             raise ValidationError("effect-verification assessment requires retained claim source provenance")
         seen_claims = set()
         for claim in claims:
-            if not isinstance(claim, dict) or set(claim) != required_claim:
+            if (
+                not isinstance(claim, dict)
+                or not required_claim <= set(claim) <= required_claim | optional_claim_fields
+            ):
                 raise ValidationError("effect-verification claim source provenance is malformed")
             extraction_id = _canonical_text(
                 claim.get("extraction_id"), "effect-verification claim extraction_id"
@@ -169,6 +174,11 @@ def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -
                 claim.get("citation_checked_location"),
                 "effect-verification claim citation_checked_location",
             )
+            if "passage_verification" in claim:
+                _validate_passage_receipt(
+                    claim.get("passage_verification"),
+                    "effect-verification claim passage_verification",
+                )
         _canonical_text(
             assessment.get("checked_location"),
             "effect-verification assessment checked_location",
@@ -204,7 +214,7 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
     if not isinstance(records, list) or not records:
         raise ValidationError("effect verification requires effect records")
     statuses = {}
-    claim_provenance: dict[str, list[dict[str, str]]] = {}
+    claim_provenance: dict[str, list[dict[str, Any]]] = {}
     for item in records:
         if not isinstance(item, dict):
             raise ValidationError("effect record is malformed")
@@ -244,6 +254,11 @@ def create_effect_verification(effects_path: Path, expected_sha256: str,
                     "effect mapped claim citation_checked_location",
                 ),
             })
+            if "passage_verification" in claim:
+                retained[-1]["passage_verification"] = _validate_passage_receipt(
+                    claim.get("passage_verification"),
+                    "effect mapped claim passage_verification",
+                )
         claim_provenance[study_id] = sorted(retained, key=lambda claim: claim["extraction_id"])
     retained_source_summaries = validate_retained_source_summaries(
         effects.get("source_summaries"),

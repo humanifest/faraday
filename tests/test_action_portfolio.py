@@ -1650,6 +1650,64 @@ def test_recommendation_replay_rejects_legacy_overclaiming_rationale(
         service.list_recommendations()
 
 
+def test_recommendation_replay_rejects_legacy_overclaiming_summary_rationale(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate("machine-high", "machine", 1.0),
+                candidate("theory-best", "theory", 0.6),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["rationale"] = "Confirmed that these selected actions are correct."
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="recommendation rationale uses recommendation-prohibited",
+    ):
+        service.list_recommendations()
+
+
+def test_recommendation_replay_rejects_legacy_summary_rationale_drift(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=lanes(),
+            candidates=[
+                candidate("machine-high", "machine", 1.0),
+                candidate("theory-best", "theory", 0.6),
+            ],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["rationale"] = "machine: Reduce uncertainty in machine."
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="rationale does not replay from the selected action rationales",
+    ):
+        service.list_recommendations()
+
+
 @pytest.mark.parametrize(
     ("lane_values", "candidate_values", "completed", "message"),
     [

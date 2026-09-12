@@ -18,32 +18,53 @@ def write_json(path, value):
     return hashlib.sha256(encoded).hexdigest()
 
 
-def mapped_claim(study_id):
+def passage_receipt():
+    return {
+        "passage_verification_sha256": "c" * 64,
+        "evidence_quote_sha256": "d" * 64,
+        "quote_utf8_byte_count": 17,
+        "quote_occurrence_count": 1,
+        "machine_verification": "exact_utf8_quote_found_in_retained_source_bytes",
+    }
+
+
+def mapped_claim(study_id, with_passage=False):
     if study_id == "missing":
-        return {"extraction_id": "claim-missing",
-                "extraction_claim_sha256": "a" * 64,
-                "source_id": "source-missing",
-                "source_retained_file_sha256": "legacy_missing",
-                "result_direction": "mixed",
-                "interpretive_ceiling": "reviewed_source_claim",
-                "citation_verdict": "supported",
-                "citation_checked_location": "not reported"}
+        claim = {"extraction_id": "claim-missing",
+                 "extraction_claim_sha256": "a" * 64,
+                 "source_id": "source-missing",
+                 "source_retained_file_sha256": "legacy_missing",
+                 "result_direction": "mixed",
+                 "interpretive_ceiling": "reviewed_source_claim",
+                 "citation_verdict": "supported",
+                 "citation_checked_location": "not reported"}
+        if with_passage:
+            claim["passage_verification"] = passage_receipt()
+        return claim
     suffix = study_id.removeprefix("s")
-    return {"extraction_id": f"claim-{suffix}",
-            "extraction_claim_sha256": "a" * 64,
-            "source_id": f"source-{suffix}",
-            "source_retained_file_sha256": "b" * 64,
-            "result_direction": "mixed",
-            "interpretive_ceiling": "reviewed_source_claim",
-            "citation_verdict": "supported",
-            "citation_checked_location": f"page {suffix}"}
+    claim = {"extraction_id": f"claim-{suffix}",
+             "extraction_claim_sha256": "a" * 64,
+             "source_id": f"source-{suffix}",
+             "source_retained_file_sha256": "b" * 64,
+             "result_direction": "mixed",
+             "interpretive_ceiling": "reviewed_source_claim",
+             "citation_verdict": "supported",
+             "citation_checked_location": f"page {suffix}"}
+    if with_passage:
+        claim["passage_verification"] = passage_receipt()
+    return claim
 
 
 def claim_source_provenance(record):
-    return [{key: claim[key] for key in ("extraction_id", "extraction_claim_sha256",
-                                         "source_id", "source_retained_file_sha256",
-                                         "citation_checked_location")}
-            for claim in record["mapped_claims"]]
+    retained = []
+    for claim in record["mapped_claims"]:
+        summary = {key: claim[key] for key in ("extraction_id", "extraction_claim_sha256",
+                                               "source_id", "source_retained_file_sha256",
+                                               "citation_checked_location")}
+        if "passage_verification" in claim:
+            summary["passage_verification"] = passage_receipt()
+        retained.append(summary)
+    return retained
 
 
 def source_summary_digest(summary):
@@ -66,7 +87,7 @@ def source_summary(study_id, status="available"):
 
 
 def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
-              sensitivities=None):
+              sensitivities=None, with_passage=False):
     if sensitivities is None:
         sensitivities = ["leave_one_study_out", "exclude_high_or_unclear_bias",
                          "alternate_random_effects" if model == "fixed_effect" else "alternate_fixed_effect"]
@@ -87,13 +108,13 @@ def artifacts(tmp_path, model="fixed_effect", minimum=2, count=3,
                 "standard_error": 1.0, "variance": 1.0, "sample_size": 50,
                 "evidence_location": f"table {i}", "derivation": "Recomputed from retained arm summaries",
                 "risk_of_bias": "high" if i == 3 else "low",
-                "mapped_claims": [mapped_claim(f"s{i}")]}
+                "mapped_claims": [mapped_claim(f"s{i}", with_passage=with_passage)]}
                for i, value in enumerate([1.0, 2.0, 6.0][:count], start=1)]
     records.append({"study_id": "missing", "status": "unavailable", "reason": "Not reported",
                     "effect_measure": "mean_difference", "estimate": None,
                     "standard_error": None, "variance": None, "sample_size": None,
                     "evidence_location": "results", "derivation": "Not reported",
-                    "risk_of_bias": "unclear", "mapped_claims": [mapped_claim("missing")]})
+                    "risk_of_bias": "unclear", "mapped_claims": [mapped_claim("missing", with_passage=with_passage)]})
     source_summaries = [source_summary(f"s{i}") for i in range(1, count + 1)]
     source_summaries.append(source_summary("missing", "unavailable"))
     effects = tmp_path / "effects.json"
@@ -234,6 +255,46 @@ def test_fixed_effect_cli_pools_and_preserves_unavailable(tmp_path, capsys):
         "leave_one_study_out", "exclude_high_or_unclear_bias", "alternate_random_effects"]
     with pytest.raises(ValidationError, match="already exists"):
         execute_meta_analysis(plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha, output)
+
+
+def test_meta_analysis_preserves_passage_verification_receipts(tmp_path):
+    (
+        plan,
+        plan_sha,
+        effects,
+        effects_sha,
+        verification,
+        verification_sha,
+        deviations,
+        deviations_sha,
+    ) = artifacts(tmp_path, count=2, with_passage=True)
+    result = execute_meta_analysis(
+        plan,
+        plan_sha,
+        effects,
+        effects_sha,
+        verification,
+        verification_sha,
+        deviations,
+        deviations_sha,
+        tmp_path / "meta",
+    )
+    expected = claim_source_provenance({"mapped_claims": [mapped_claim("s1", with_passage=True)]})
+    assert result["study_provenance"][0]["mapped_claim_source_provenance"] == expected
+    assert result["study_provenance"][0]["effect_verification"]["claim_source_provenance"] == expected
+    validate_meta_analysis_boundary(
+        result,
+        planned_sensitivity_analyses=json.loads(plan.read_text())["sensitivity_analyses"],
+    )
+    candidate = copy.deepcopy(result)
+    candidate["study_provenance"][0]["effect_verification"]["claim_source_provenance"][0][
+        "passage_verification"
+    ]["evidence_quote_sha256"] = "A" * 64
+    with pytest.raises(ValidationError):
+        validate_meta_analysis_boundary(
+            candidate,
+            planned_sensitivity_analyses=json.loads(plan.read_text())["sensitivity_analyses"],
+        )
 
 
 def test_random_effects_reports_heterogeneity_prediction_and_influence(tmp_path):

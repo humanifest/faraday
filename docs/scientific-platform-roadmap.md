@@ -92,7 +92,11 @@ methods without changing its epistemic rules or canonical state.
   candidate identities, target declarations, discriminator contrast, lane
   status, blocking reasons, candidate lane membership, completed-action IDs,
   dependency acyclicity, eligibility references, weight vector, and candidate
-  score inputs before recomputing those choices, so a legacy record cannot
+  score inputs before recomputing those choices. The retained top-level
+  recommendation rationale must also remain bounded and replay exactly from the
+  selected candidate rationales, so a legacy summary cannot add a separate
+  proof, confirmation, validation, or explanation channel after selection.
+  A legacy record cannot
   remain trusted merely because invalid work-plan structure, weights, and scores
   were rewritten consistently. Single-mode
   replay also rejects portfolio-only
@@ -1550,8 +1554,8 @@ this workflow has no provider or API-cost dependency.
 `research collaborator verify-proposal` now independently replays a saved
 proposal record against a trusted proposal-record hash before it is used as
 review input. It checks retained context/proposal input receipts, authority
-flags, retained scientific constraints, retained context reference index,
-proposal body grounding, suggestion references, and the
+flags, retained proposal payload digest, retained scientific constraints,
+retained context reference index, proposal body grounding, suggestion references, and the
 `pending_human_review` boundary while explicitly limiting replay to the retained
 index and guardrails rather than reopening original context bytes or
 authenticating the generator. Replay also requires the exact non-authority
@@ -1575,7 +1579,7 @@ detect guardrail rewrites inside the review record itself. `research
 collaborator verify-review` independently replays a saved review record against
 a trusted review-record hash, checking the authority flags, retained scientific
 constraints, retained context reference index, proposal-record replay digests,
-review payload version, reviewed suggestion digests, the ordered
+retained review payload digest, review payload version, reviewed suggestion digests, the ordered
 proposal-suggestion snapshot anchor, reviewed-suggestion evidence-reference
 coverage, exact coverage of the retained ordered proposal suggestion IDs,
 compatible routes, and advanced-suggestion summary, including each advanced
@@ -1596,9 +1600,10 @@ anchor remain visible with `legacy_missing` replay rather than being silently
 upgraded. The collaborator context, proposal, and review input contracts are now
 published as provider-neutral JSON Schemas with synthetic examples. Generated
 proposal and review record contracts are published separately, including the
-pending-review authority boundary for proposal records and the retained
-suggestion digest plus non-authority flags required for every advanced triage
-entry. Apps and plugins can preflight the frozen context shape, retained write
+pending-review authority boundary plus retained proposal payload digest for
+proposal records and the retained review payload digest, retained suggestion
+digest, and non-authority flags required for every advanced triage entry. Apps
+and plugins can preflight the frozen context shape, retained write
 boundary, required uncertainty, alternatives, disconfirmers, falsification
 conditions, review-only authority, including capitalization variants of
 prohibited authority claims, pending-review records, manual route decisions, and
@@ -1611,7 +1616,10 @@ invoke a provider, or authorize any canonical write.
 
 Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally
-retained source files. Sources are classified but never promoted to facts or
+retained source files. It also publishes the retained source bytes under
+`sources/<retained_file_sha256>` inside the snapshot directory, so later
+machine checks can start from the same hash-bound local bytes without exposing
+operational roots in review records. Sources are classified but never promoted to facts or
 evidence merely by retrieval; claim extraction, citation verification, bias
 assessment, and synthesis remain distinct next gates. Snapshot IDs, queries,
 criteria entries, source IDs, titles, locators, and retained-file paths must be
@@ -1660,7 +1668,7 @@ and claim provenance and expose it to qualitative synthesis and quantitative
 effect preparation. Legacy chains without the anchor remain readable as
 `legacy_missing`, but they are not silently upgraded to hash-anchored
 source-byte provenance. This is byte provenance only: it still does not
-interpret source text, verify that a cited passage supports a claim,
+interpret source text, prove that a cited passage supports a claim,
 authenticate reviewers, or assess bias. Extraction and synthesis planning replay
 the screening artifact's non-authority flags, false
 reviewer-identity-authentication boundary, retained limitations, source-record
@@ -1677,8 +1685,33 @@ declared study, exact evidence location, epistemic layer, result direction, and
 uncertainty; included sources with no extractable claim remain explicit. The
 screening bytes are hash-pinned and excluded sources cannot enter extraction.
 These records are reviewer assertions, not accepted facts or scientific evidence.
-The machine has not yet verified the cited passage, authenticated the reviewer,
-assessed risk of bias, reconciled independent extractors, or synthesized effects.
+`research literature verify-passages --extraction-file <extraction>
+--expected-extraction-sha256 <hash> --retained-source-root <snapshot>/sources
+--review-file <review> --output <new-directory>` can now add a separate
+machine-verification artifact for exact reviewer-supplied `evidence_quote`
+strings. It requires one quote for every extracted claim, recomputes the
+retained source file hash from the supplied source root, rejects legacy
+unanchored sources, and fails closed if the quote does not occur as exact UTF-8
+bytes in the retained source. The artifact retains the quote SHA-256, byte
+count, occurrence count, source hash, extraction claim digest, and false
+scientific-evidence/conclusion/publication/reviewer-authentication boundaries.
+This proves only byte occurrence under a retained source hash; it does not parse
+PDF structure, interpret source semantics, prove that the cited passage supports
+the extracted claim, authenticate the reviewer, assess risk of bias, reconcile
+independent extractors, or synthesize effects.
+Citation verification can now consume the passage-verification artifact by
+trusted hash. It replays the artifact against the same extraction SHA-256 and
+each exact extracted-claim digest, then retains only a compact passage receipt
+per citation assessment: passage artifact hash, quote hash, byte count,
+occurrence count, and the machine-verification method. Evidence maps preserve
+and replay the same receipt for mapped claims. A later review chain can
+therefore distinguish claims whose cited quotes were byte-verified from claims
+with reviewer-only locations, without upgrading either path to semantic source
+support, authenticated review, or scientific evidence. Quantitative effect
+preparation and independent effect verification now preserve and replay the
+same compact receipt inside mapped-claim provenance, so byte-occurrence custody
+survives study-level effect preparation and review without becoming effect
+validity or scientific evidence.
 Extraction artifacts carry explicit false scientific-evidence,
 conclusion-authorization, publication-authorization, and
 reviewer-identity-authentication boundaries with retained limitations.
@@ -1908,6 +1941,10 @@ against the frozen minimum-study requirement. This validates finite values,
 positive variance, coverage, review provenance, source-byte continuity, and plan
 consistency, but does not reproduce source calculations, prove outcome
 compatibility, impute missing values, or authorize pooling.
+When evidence-map claims carry compact passage-verification receipts, effect
+preparation preserves and replays them with the mapped claim provenance, keeping
+quote-byte verification continuity visible without letting it substitute for
+semantic citation support or source-transcription review.
 The effect-record artifact now replays its own non-authority and retained
 provenance boundary before it is written: version, exact retained input hashes,
 plan and snapshot handles, reviewer handle, registered derivation scope, false
@@ -1950,11 +1987,12 @@ every available study under a canonical lowercase effect-record hash;
 unavailable studies receive explicit not-applicable checks. Any mismatch remains
 visible and blocks `pool-effects`. The verifier also retains the exact mapped
 claim source provenance derived from the effect records, including extraction
-claim digests and retained source-file hashes. The verifier now also replays the
-retained source-summary contract for reproducibly derived effects: every source
-summary must cover exactly one effect record with matching status, canonical
-reason and evidence location, and measure-compatible experimental/comparator arm
-values. Each assessment carries the service-derived digest of the exact retained
+claim digests, retained source-file hashes, and any compact
+passage-verification receipts preserved by effect preparation. The verifier now
+also replays the retained source-summary contract for reproducibly derived
+effects: every source summary must cover exactly one effect record with matching
+status, canonical reason and evidence location, and measure-compatible
+experimental/comparator arm values. Each assessment carries the service-derived digest of the exact retained
 source summary it checked, so downstream pooling can detect stale or substituted
 summary values in the verification artifact. This authenticates neither reviewer
 nor source content, but closes the cleanly-coded/wrongly-copied input path and
@@ -1988,10 +2026,13 @@ three studies exist, leave-one-study-out estimates, and a study-provenance table
 spanning available and unavailable studies. That table retains the mapped claim
 IDs, study risk of bias, retained source-summary digest, and independent
 effect-verification assessment for each record, including mapped claim source
-provenance. For available studies it now also retains the exact effect estimate,
-standard error, and variance consumed by pooling, then replays heterogeneity,
-the selected pooled estimate, confidence interval, prediction interval,
-leave-one-study-out estimates, executable planned sensitivities, and
+provenance. If compact passage-verification receipts reached effect
+verification, pooling preserves and replays them in both mapped-claim and
+verifier claim provenance without treating exact quote-byte occurrence as effect
+validity or source support. For available studies it now also retains the exact
+effect estimate, standard error, and variance consumed by pooling, then replays
+heterogeneity, the selected pooled estimate, confidence interval, prediction
+interval, leave-one-study-out estimates, executable planned sensitivities, and
 small-study-effect diagnostics from those retained numeric inputs. It also
 replays the verification artifact's retained effect status, claim source
 anchors, frozen contrast, and source-summary digest against the effect records,

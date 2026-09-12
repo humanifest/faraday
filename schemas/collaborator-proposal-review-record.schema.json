@@ -13,6 +13,7 @@
     "context_write_boundary",
     "proposal_body_grounding",
     "review_input",
+    "review_payload_sha256",
     "review",
     "reviewed_suggestions",
     "advanced_suggestions",
@@ -101,6 +102,7 @@
       }
     },
     "review_input": {"$ref": "#/$defs/inputReceipt"},
+    "review_payload_sha256": {"$ref": "#/$defs/sha256"},
     "review": {"$ref": "#/$defs/review"},
     "reviewed_suggestions": {
       "type": "array",
