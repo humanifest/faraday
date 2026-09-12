@@ -1557,10 +1557,11 @@ entry. Apps and plugins can preflight the frozen context shape, retained write
 boundary, required uncertainty, alternatives, disconfirmers, falsification
 conditions, review-only authority, including capitalization variants of
 prohibited authority claims, pending-review records, manual route decisions, and
-digest-bound advanced triage before Faraday's service repeats the trusted-hash,
-grounding, and compatibility checks. The schemas are only exchange shape
-contracts; they do not validate scientific adequacy, authenticate reviewers,
-invoke a provider, or authorize any canonical write.
+digest-bound advanced triage. Generated review records also preflight
+disposition/route/manual-review consistency before Faraday's service repeats the
+trusted-hash, grounding, and compatibility checks. The schemas are only exchange
+shape contracts; they do not validate scientific adequacy, authenticate
+reviewers, invoke a provider, or authorize any canonical write.
 
 Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally

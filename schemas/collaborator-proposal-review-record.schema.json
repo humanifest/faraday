@@ -129,6 +129,36 @@
           "canonical_writes_performed": {"const": false},
           "scientific_evidence_eligible": {"const": false}
         },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "disposition": {"const": "advance_to_domain_review"}
+              },
+              "required": ["disposition"]
+            },
+            "then": {
+              "properties": {
+                "domain_route": {
+                  "enum": [
+                    "question.add",
+                    "hypothesis.propose",
+                    "design.revise",
+                    "protocol.amend",
+                    "next-action.recommend"
+                  ]
+                },
+                "manual_domain_review_required": {"const": true}
+              }
+            },
+            "else": {
+              "properties": {
+                "domain_route": {"const": "none"},
+                "manual_domain_review_required": {"const": false}
+              }
+            }
+          }
+        ],
         "additionalProperties": false
       }
     },
@@ -230,6 +260,32 @@
               "rationale": {"$ref": "#/$defs/boundedReviewText"},
               "domain_route": {"$ref": "#/$defs/domainRoute"}
             },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "disposition": {"const": "advance_to_domain_review"}
+                  },
+                  "required": ["disposition"]
+                },
+                "then": {
+                  "properties": {
+                    "domain_route": {
+                      "enum": [
+                        "question.add",
+                        "hypothesis.propose",
+                        "design.revise",
+                        "protocol.amend",
+                        "next-action.recommend"
+                      ]
+                    }
+                  }
+                },
+                "else": {
+                  "properties": {"domain_route": {"const": "none"}}
+                }
+              }
+            ],
             "additionalProperties": false
           }
         }

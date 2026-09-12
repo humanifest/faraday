@@ -1013,6 +1013,19 @@ def test_collaborator_schema_examples_match_service_validator(tmp_path):
         lambda record: record.update(
             {"conclusion_ceiling": "This review authorizes the design revision."}
         ),
+        lambda record: record["review"]["decisions"][0].update(
+            {"disposition": "defer", "domain_route": "design.revise"}
+        ),
+        lambda record: record["reviewed_suggestions"][0].update(
+            {"disposition": "reject", "domain_route": "design.revise"}
+        ),
+        lambda record: record["reviewed_suggestions"][0].update(
+            {
+                "disposition": "reject",
+                "domain_route": "none",
+                "manual_domain_review_required": True,
+            }
+        ),
     ],
 )
 def test_collaborator_review_record_schema_keeps_advanced_triage_bounded(
