@@ -1327,11 +1327,13 @@ class ResearchService:
             self._validate_run_datasets(protocol, run_datasets, all_datasets=datasets)
             if not artifact_integrity_replayed:
                 reverify_run_artifacts(run)
-        from research_machine.application.evidence_admission import (
-            validate_evidence_admission_receipts,
-        )
-        validate_evidence_admission_receipts(
-            evidence, claims, runs, protocols, datasets, ethics_events
+        self._validate_evidence_admission_receipts(
+            evidence=evidence,
+            claims=claims,
+            runs=runs,
+            protocols=protocols,
+            datasets=datasets,
+            ethics_events=ethics_events,
         )
         return {
             "inquiry": self.repository.load_inquiry(resolved).to_dict(),
@@ -5748,6 +5750,14 @@ class ResearchService:
     ) -> list[EvidenceStatusEvent]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         evidence = self.repository.list_evidence(resolved)
+        self._validate_evidence_admission_receipts(
+            evidence=evidence,
+            claims=self.repository.load_claims(resolved),
+            runs=self.repository.list_runs(resolved),
+            protocols=self.repository.list_protocols(resolved),
+            datasets=self.repository.list_datasets(resolved),
+            ethics_events=self._validated_ethics_review_events(resolved),
+        )
         events = self.repository.list_evidence_status_events(resolved)
         from research_machine.application.evidence_status import (
             validate_evidence_status_event_chains,
@@ -5757,6 +5767,23 @@ class ResearchService:
             event for event in events
             if evidence_id is None or event.evidence_id == evidence_id
         ]
+
+    @staticmethod
+    def _validate_evidence_admission_receipts(
+        *,
+        evidence: list[EvidenceRecord],
+        claims: list[Claim],
+        runs: list[ResearchRun],
+        protocols: list[ExperimentProtocol],
+        datasets: list[DatasetManifest],
+        ethics_events: list[EthicsReviewEvent],
+    ) -> None:
+        from research_machine.application.evidence_admission import (
+            validate_evidence_admission_receipts,
+        )
+        validate_evidence_admission_receipts(
+            evidence, claims, runs, protocols, datasets, ethics_events
+        )
 
     def _currently_contributing_evidence(
         self, inquiry_id: str, evidence: list[EvidenceRecord]

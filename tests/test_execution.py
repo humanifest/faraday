@@ -1955,6 +1955,8 @@ def test_domain_neutral_protocol_run_and_evidence_chain(tmp_path: Path) -> None:
     forged["summary"] = "A stronger conclusion inserted after admission."
     evidence_path.write_text(json.dumps(forged), encoding="utf-8")
     with pytest.raises(ValidationError, match="admission receipt"):
+        service.list_evidence_status_events()
+    with pytest.raises(ValidationError, match="admission receipt"):
         service.list_evidence()
     with pytest.raises(ValidationError, match="admission receipt"):
         service.show_inquiry()

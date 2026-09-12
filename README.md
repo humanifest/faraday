@@ -1088,9 +1088,11 @@ the report and history but cannot contribute to current rigor capabilities or
 conclusion ceilings. Faraday verifies the local review artifact and chronology;
 it does not authenticate the reviewer or decide whether the scientific judgment
 is correct. It retains the local artifact root and re-hashes the review bytes
-whenever the status history is used for inquiry display, rigor audit, or
-synthesis. Missing, moved, changed, symlinked, padded, or receipt-inconsistent
-review material therefore fails closed.
+whenever status history is listed or used for inquiry display, rigor audit, or
+synthesis. Status-history reads also replay the underlying evidence admission
+receipt first, so correction events cannot remain readable for a tampered
+scientific evidence payload. Missing, moved, changed, symlinked, padded, or
+receipt-inconsistent review material therefore fails closed.
 
 ## Optional model or app collaboration
 
