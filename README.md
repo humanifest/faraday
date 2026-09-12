@@ -1345,6 +1345,10 @@ retaining a compact passage receipt on each citation assessment. Evidence maps
 preserve and replay that receipt for each mapped claim, so later literature
 artifacts can see which source claims had exact quote-byte occurrence checked
 without treating the quote check as semantic support or scientific evidence.
+Quantitative effect preparation and independent effect verification preserve and
+replay the same compact receipt inside mapped-claim provenance, so the
+quantitative branch cannot silently shed the byte-occurrence check while
+preparing or reviewing study-level effects.
 
 Downstream literature evidence maps retain the extraction location, independent
 citation-review location and rationale, and study-level bias-domain judgments
@@ -1514,6 +1518,10 @@ boundaries, retained limitations, `record_count`, and every mapped claim's
 compact extraction-payload digest against the supplied extraction bytes. It also
 replays the evidence map's
 non-evidence, non-conclusion, non-publication boundary and summary counts.
+When evidence-map claims carry compact passage-verification receipts, effect
+preparation preserves and replays them alongside mapped claim provenance. This
+records byte-occurrence verification continuity without allowing an exact quote
+check to become semantic support, effect validity, or scientific evidence.
 The effect-record artifact now replays its own retained boundary before it is
 written: version, exact retained input hashes, plan and snapshot handles,
 reviewer handle, registered derivation scope, false scientific-evidence,
@@ -1548,7 +1556,10 @@ independent arithmetic/transcription check cannot claim proof, confirmation,
 validation, or explanation of the reviewed effect.
 The verification artifact preserves the same frozen contrast
 definition and each verification assessment also carries the service-derived
-digest of the exact retained source summary it checked.
+digest of the exact retained source summary it checked. If prepared effects
+retained compact passage-verification receipts, effect verification carries and
+replays those receipts in its claim-source provenance rather than dropping the
+quote-byte custody trail during independent review.
 The effect-verification artifact now replays its own retained boundary before it
 is written: version and trusted effect-record hash, plan and snapshot handles,
 independent reviewer separation, exact assessment shape, retained source-summary

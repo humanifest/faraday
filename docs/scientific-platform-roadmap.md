@@ -1657,7 +1657,11 @@ occurrence count, and the machine-verification method. Evidence maps preserve
 and replay the same receipt for mapped claims. A later review chain can
 therefore distinguish claims whose cited quotes were byte-verified from claims
 with reviewer-only locations, without upgrading either path to semantic source
-support, authenticated review, or scientific evidence.
+support, authenticated review, or scientific evidence. Quantitative effect
+preparation and independent effect verification now preserve and replay the
+same compact receipt inside mapped-claim provenance, so byte-occurrence custody
+survives study-level effect preparation and review without becoming effect
+validity or scientific evidence.
 Extraction artifacts carry explicit false scientific-evidence,
 conclusion-authorization, publication-authorization, and
 reviewer-identity-authentication boundaries with retained limitations.
@@ -1887,6 +1891,10 @@ against the frozen minimum-study requirement. This validates finite values,
 positive variance, coverage, review provenance, source-byte continuity, and plan
 consistency, but does not reproduce source calculations, prove outcome
 compatibility, impute missing values, or authorize pooling.
+When evidence-map claims carry compact passage-verification receipts, effect
+preparation preserves and replays them with the mapped claim provenance, keeping
+quote-byte verification continuity visible without letting it substitute for
+semantic citation support or source-transcription review.
 The effect-record artifact now replays its own non-authority and retained
 provenance boundary before it is written: version, exact retained input hashes,
 plan and snapshot handles, reviewer handle, registered derivation scope, false
@@ -1929,11 +1937,12 @@ every available study under a canonical lowercase effect-record hash;
 unavailable studies receive explicit not-applicable checks. Any mismatch remains
 visible and blocks `pool-effects`. The verifier also retains the exact mapped
 claim source provenance derived from the effect records, including extraction
-claim digests and retained source-file hashes. The verifier now also replays the
-retained source-summary contract for reproducibly derived effects: every source
-summary must cover exactly one effect record with matching status, canonical
-reason and evidence location, and measure-compatible experimental/comparator arm
-values. Each assessment carries the service-derived digest of the exact retained
+claim digests, retained source-file hashes, and any compact
+passage-verification receipts preserved by effect preparation. The verifier now
+also replays the retained source-summary contract for reproducibly derived
+effects: every source summary must cover exactly one effect record with matching
+status, canonical reason and evidence location, and measure-compatible
+experimental/comparator arm values. Each assessment carries the service-derived digest of the exact retained
 source summary it checked, so downstream pooling can detect stale or substituted
 summary values in the verification artifact. This authenticates neither reviewer
 nor source content, but closes the cleanly-coded/wrongly-copied input path and

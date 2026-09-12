@@ -39,7 +39,17 @@ def claim_digest(source_id, record, source_retained_file_sha256="legacy_missing"
     ).hexdigest()
 
 
-def artifacts(tmp_path, minimum=1):
+def passage_receipt():
+    return {
+        "passage_verification_sha256": "c" * 64,
+        "evidence_quote_sha256": "d" * 64,
+        "quote_utf8_byte_count": 17,
+        "quote_occurrence_count": 1,
+        "machine_verification": "exact_utf8_quote_found_in_retained_source_bytes",
+    }
+
+
+def artifacts(tmp_path, minimum=1, with_passage=False):
     screening_sha = "1" * 64
     plan = tmp_path / "plan.json"
     plan_sha = write_json(plan, {"synthesis_plan_version": 1, "status": "synthesis_plan_frozen",
@@ -76,15 +86,18 @@ def artifacts(tmp_path, minimum=1):
         "source_reviews": [{"source_id": "source-fixture", "records": extraction_records}]})
     evidence_map = tmp_path / "map.json"
     def mapped_claim(extraction_id, study_id, digest):
-        return {"study_id": study_id, "risk_of_bias": "low" if study_id == "study-1" else "high",
-        "extraction_id": extraction_id,
-        "source_id": "source-fixture",
-        "extraction_claim_sha256": digest,
-        "result_direction": "mixed",
-        "interpretive_ceiling": "reviewed_source_claim",
-        "citation_verdict": "supported",
-        "citation_checked_location": "page fixture",
+        claim = {"study_id": study_id, "risk_of_bias": "low" if study_id == "study-1" else "high",
+            "extraction_id": extraction_id,
+            "source_id": "source-fixture",
+            "extraction_claim_sha256": digest,
+            "result_direction": "mixed",
+            "interpretive_ceiling": "reviewed_source_claim",
+            "citation_verdict": "supported",
+            "citation_checked_location": "page fixture",
         }
+        if with_passage:
+            claim["passage_verification"] = passage_receipt()
+        return claim
     map_sha = write_json(evidence_map, {"evidence_map_version": 1, "status": "evidence_map_recorded",
         "snapshot_id": "snap", "inputs": {
             "extraction_sha256": extraction_sha,
@@ -155,6 +168,21 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     assert result["records"][0]["study_id"] == "study-1"
     assert result["records"][0]["mapped_claims"][0]["source_id"] == "source-fixture"
     assert result["records"][0]["evidence_location"] == "table 2"
+
+
+def test_effect_records_preserve_passage_verification_receipts(tmp_path):
+    plan, plan_sha, extraction, evidence_map, map_sha = artifacts(tmp_path, with_passage=True)
+    result = create_effect_records(
+        plan, plan_sha, extraction, evidence_map, map_sha, review(), tmp_path / "effects"
+    )
+    assert result["records"][0]["mapped_claims"][0]["passage_verification"] == passage_receipt()
+    validate_effect_records_boundary(result)
+    candidate = copy.deepcopy(result)
+    candidate["records"][0]["mapped_claims"][0]["passage_verification"][
+        "evidence_quote_sha256"
+    ] = "A" * 64
+    with pytest.raises(ValidationError):
+        validate_effect_records_boundary(candidate)
 
 
 @pytest.mark.parametrize("tamper", [

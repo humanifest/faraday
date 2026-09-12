@@ -13,17 +13,30 @@ from research_machine.literature.effect_verification import (
 )
 
 
-def mapped_claim(study):
-    suffix = "1" if study == "s1" else "2"
-    return {"extraction_id": f"claim-{suffix}", "extraction_claim_sha256": "a" * 64,
-            "source_id": f"source-{suffix}", "source_retained_file_sha256": "b" * 64,
-            "result_direction": "mixed", "interpretive_ceiling": "reviewed_source_claim",
-            "citation_verdict": "supported", "citation_checked_location": f"page {suffix}"}
-
-
-def verification_claim_source(study):
-    claim = mapped_claim(study)
+def passage_receipt():
     return {
+        "passage_verification_sha256": "c" * 64,
+        "evidence_quote_sha256": "d" * 64,
+        "quote_utf8_byte_count": 17,
+        "quote_occurrence_count": 1,
+        "machine_verification": "exact_utf8_quote_found_in_retained_source_bytes",
+    }
+
+
+def mapped_claim(study, with_passage=False):
+    suffix = "1" if study == "s1" else "2"
+    claim = {"extraction_id": f"claim-{suffix}", "extraction_claim_sha256": "a" * 64,
+             "source_id": f"source-{suffix}", "source_retained_file_sha256": "b" * 64,
+             "result_direction": "mixed", "interpretive_ceiling": "reviewed_source_claim",
+             "citation_verdict": "supported", "citation_checked_location": f"page {suffix}"}
+    if with_passage:
+        claim["passage_verification"] = passage_receipt()
+    return claim
+
+
+def verification_claim_source(study, with_passage=False):
+    claim = mapped_claim(study, with_passage=with_passage)
+    retained = {
         key: claim[key]
         for key in (
             "extraction_id",
@@ -33,6 +46,9 @@ def verification_claim_source(study):
             "citation_checked_location",
         )
     }
+    if with_passage:
+        retained["passage_verification"] = passage_receipt()
+    return retained
 
 
 def source_summary_digest(summary):
@@ -50,7 +66,7 @@ def source_summary(study_id, status="available"):
             "comparator": {"sample_size": 25, "mean": 3.0, "standard_deviation": 1.0}}
 
 
-def effects_file(tmp_path):
+def effects_file(tmp_path, with_passage=False):
     summaries = [source_summary("s1"), source_summary("s2", "unavailable")]
     value = {"effect_records_version": 1, "status": "effects_ready",
         "derivation_scope": "recomputed_from_source_reported_arm_summaries", "reviewer": "Effect reviewer",
@@ -63,13 +79,13 @@ def effects_file(tmp_path):
         "contrast_definition": "experimental versus comparator",
         "source_summaries": summaries, "records": [
             {"study_id": "s1", "status": "available", "reason": "Reported arms",
-             "risk_of_bias": "low", "mapped_claims": [mapped_claim("s1")],
+             "risk_of_bias": "low", "mapped_claims": [mapped_claim("s1", with_passage=with_passage)],
              "effect_measure": "mean_difference", "estimate": 1.0,
              "standard_error": 0.4472135954999579, "variance": 0.2,
              "sample_size": 50, "evidence_location": "table 1",
              "derivation": "Recomputed from retained arm summaries"},
             {"study_id": "s2", "status": "unavailable", "reason": "No compatible outcome",
-             "risk_of_bias": "unclear", "mapped_claims": [mapped_claim("s2")],
+             "risk_of_bias": "unclear", "mapped_claims": [mapped_claim("s2", with_passage=with_passage)],
              "effect_measure": "mean_difference", "estimate": None,
              "standard_error": None, "variance": None, "sample_size": None,
              "evidence_location": "results", "derivation": "No compatible outcome"}],
@@ -123,6 +139,21 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     assert result["assessments"][0]["checked_location"] == "table 1"
     assert result["assessments"][0]["claim_source_provenance"] == [verification_claim_source("s1")]
     assert result["assessments"][0]["retained_source_summary_sha256"] == source_summary_digest(source_summary("s1"))
+
+
+def test_effect_verification_preserves_passage_verification_receipts(tmp_path):
+    effects, digest = effects_file(tmp_path, with_passage=True)
+    result = create_effect_verification(effects, digest, review(), tmp_path / "verification")
+    assert result["assessments"][0]["claim_source_provenance"] == [
+        verification_claim_source("s1", with_passage=True)
+    ]
+    validate_effect_verification_boundary(result)
+    candidate = copy.deepcopy(result)
+    candidate["assessments"][0]["claim_source_provenance"][0]["passage_verification"][
+        "evidence_quote_sha256"
+    ] = "A" * 64
+    with pytest.raises(ValidationError):
+        validate_effect_verification_boundary(candidate)
 
 
 @pytest.mark.parametrize("tamper", [
