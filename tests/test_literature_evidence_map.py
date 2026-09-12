@@ -126,7 +126,7 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
         "limitations": [
             "Pairwise identity judgments are reviewer assertions; metadata similarity cannot prove cohort independence.",
             "Overlap, duplicate, and unclear relationships are preserved and block a reconciled status rather than being silently deduplicated.",
-            "Study reconciliation does not validate outcomes, assess applicability, or authorize quantitative synthesis.",
+            "Study reconciliation does not assess outcomes, assess applicability, or authorize quantitative synthesis.",
         ],
         "studies": [{
             "study_id": "study-1",

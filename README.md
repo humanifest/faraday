@@ -1333,11 +1333,11 @@ proof, confirmation, validation, or explanation beyond the retained judgment.
 Study-reconciliation artifacts themselves also carry explicit false
 scientific-evidence, conclusion-authorization, and publication-authorization
 boundaries, explicit unauthenticated-reviewer boundaries, and retained
-limitations. Their retained identity notes and pairwise relationship rationales
-also reject report-prohibited overclaiming language, so a study-identity review
-cannot claim proof, confirmation, validation, or explanation of cohort
-independence. Evidence-map construction replays those boundaries before any
-claim join.
+limitations. Retained study-reconciliation limitations, identity notes, and
+pairwise relationship rationales also reject report-prohibited overclaiming
+language, so a study-identity review cannot claim proof, confirmation,
+validation, or explanation of cohort independence. Evidence-map construction
+replays those boundaries before any claim join.
 Qualitative synthesis now requires the extraction source set to match the
 synthesis plan's frozen included sources, and preserves those provenance anchors
 instead of carrying only a ceiling label.

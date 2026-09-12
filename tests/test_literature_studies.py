@@ -121,12 +121,17 @@ def test_reconciliation_preserves_canonical_study_source_and_registration_handle
     assert result["relationships"][0]["study_ids"] == ["study-1", "study-2"]
 
 
-@pytest.mark.parametrize("field", ["identity_notes", "relationship_rationale"])
+@pytest.mark.parametrize(
+    "field",
+    ["limitation", "identity_notes", "relationship_rationale"],
+)
 def test_reconciliation_boundary_rejects_retained_overclaiming_prose(tmp_path, field):
     bias, digest = bias_file(tmp_path)
     result = create_study_reconciliation(bias, digest, review(), tmp_path / "reconciliation")
     candidate = json.loads(json.dumps(result))
-    if field == "identity_notes":
+    if field == "limitation":
+        candidate["limitations"][0] = "Study reconciliation confirmed cohort independence"
+    elif field == "identity_notes":
         candidate["studies"][0]["identity_notes"] = "Confirmed independent cohort"
     else:
         candidate["relationships"][0]["rationale"] = "Validated cohort independence"
