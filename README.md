@@ -1194,9 +1194,12 @@ JSON Schemas for provider-neutral exchange artifacts live in
 `schemas/collaborator-context.schema.json`,
 `schemas/collaborator-proposal.schema.json`, and
 `schemas/collaborator-proposal-review.schema.json`, with synthetic examples in
-`examples/`. They let future plugins and apps preflight the frozen context
-shape, typed reference-prefix matching, write boundary, proposal shape, and
-review-only authority boundary, including case-insensitive rejection of summary,
+`examples/`. The generated review-record contract is published separately as
+`schemas/collaborator-proposal-review-record.schema.json` so apps can validate
+digest-bound advanced triage summaries without treating them as actions. These
+schemas let future plugins and apps preflight the frozen context shape, typed
+reference-prefix matching, write boundary, proposal shape, and review-only
+authority boundary, including case-insensitive rejection of summary,
 body-claim, suggestion, and review prose that claims acceptance, approval,
 authorization, proof, confirmation, validation, evidence creation, or canonical
 action, human-review completion, or authenticated reviewer identity, before the

@@ -1,0 +1,315 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/collaborator-proposal-review-record.schema.json",
+  "title": "Provider-neutral collaborator proposal review record",
+  "type": "object",
+  "required": [
+    "collaborator_proposal_review_record_version",
+    "proposal_record_input",
+    "proposal_record_replay",
+    "proposal_suggestion_ids",
+    "context_reference_index",
+    "context_scientific_constraints",
+    "context_write_boundary",
+    "proposal_body_grounding",
+    "review_input",
+    "review",
+    "reviewed_suggestions",
+    "advanced_suggestions",
+    "status",
+    "reviewer_identity_authenticated",
+    "canonical_writes_performed",
+    "scientific_evidence_eligible",
+    "authorized_actions",
+    "conclusion_ceiling"
+  ],
+  "properties": {
+    "collaborator_proposal_review_record_version": {"const": 1},
+    "proposal_record_input": {"$ref": "#/$defs/inputReceipt"},
+    "proposal_record_replay": {
+      "type": "object",
+      "required": [
+        "context_reference_index_sha256",
+        "context_scientific_constraints_sha256",
+        "context_write_boundary_sha256",
+        "proposal_body_grounding_sha256",
+        "proposal_suggestions_sha256"
+      ],
+      "properties": {
+        "context_reference_index_sha256": {"$ref": "#/$defs/sha256"},
+        "context_scientific_constraints_sha256": {"$ref": "#/$defs/sha256"},
+        "context_write_boundary_sha256": {"$ref": "#/$defs/sha256"},
+        "proposal_body_grounding_sha256": {"$ref": "#/$defs/sha256"},
+        "proposal_suggestions_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "proposal_suggestion_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/canonicalNonEmptyText"}
+    },
+    "context_reference_index": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "kind"],
+        "properties": {
+          "ref": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "kind": {"$ref": "#/$defs/canonicalNonEmptyText"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "context_scientific_constraints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/canonicalNonEmptyText"}
+    },
+    "context_write_boundary": {
+      "type": "object",
+      "required": [
+        "context_is_read_only",
+        "provider_required",
+        "canonical_changes_require"
+      ],
+      "properties": {
+        "context_is_read_only": {"const": true},
+        "provider_required": {"const": false},
+        "canonical_changes_require": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/canonicalNonEmptyText"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "proposal_body_grounding": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["section", "statement_sha256", "context_refs"],
+        "properties": {
+          "section": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "statement_sha256": {"$ref": "#/$defs/sha256"},
+          "context_refs": {
+            "type": "array",
+            "items": {"$ref": "#/$defs/canonicalNonEmptyText"}
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "review_input": {"$ref": "#/$defs/inputReceipt"},
+    "review": {"$ref": "#/$defs/review"},
+    "reviewed_suggestions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "suggestion_id",
+          "suggestion_sha256",
+          "suggestion",
+          "disposition",
+          "rationale",
+          "domain_route",
+          "manual_domain_review_required",
+          "canonical_writes_performed",
+          "scientific_evidence_eligible"
+        ],
+        "properties": {
+          "suggestion_id": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "suggestion_sha256": {"$ref": "#/$defs/sha256"},
+          "suggestion": {"$ref": "#/$defs/suggestion"},
+          "disposition": {"$ref": "#/$defs/disposition"},
+          "rationale": {"$ref": "#/$defs/boundedReviewText"},
+          "domain_route": {"$ref": "#/$defs/domainRoute"},
+          "manual_domain_review_required": {"type": "boolean"},
+          "canonical_writes_performed": {"const": false},
+          "scientific_evidence_eligible": {"const": false}
+        },
+        "additionalProperties": false
+      }
+    },
+    "advanced_suggestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "suggestion_id",
+          "domain_route",
+          "suggestion_sha256",
+          "manual_domain_review_required",
+          "canonical_writes_performed",
+          "scientific_evidence_eligible"
+        ],
+        "properties": {
+          "suggestion_id": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "domain_route": {
+            "enum": [
+              "question.add",
+              "hypothesis.propose",
+              "design.revise",
+              "protocol.amend",
+              "next-action.recommend"
+            ]
+          },
+          "suggestion_sha256": {"$ref": "#/$defs/sha256"},
+          "manual_domain_review_required": {"const": true},
+          "canonical_writes_performed": {"const": false},
+          "scientific_evidence_eligible": {"const": false}
+        },
+        "additionalProperties": false
+      }
+    },
+    "status": {"const": "reviewed_requires_manual_domain_action"},
+    "reviewer_identity_authenticated": {"const": false},
+    "canonical_writes_performed": {"const": false},
+    "scientific_evidence_eligible": {"const": false},
+    "authorized_actions": {"type": "array", "maxItems": 0},
+    "conclusion_ceiling": {
+      "const": "Accountable triage only. Advancement requests a separate domain review; it does not accept a claim, amend a protocol, create evidence, or authorize action."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "inputReceipt": {
+      "type": "object",
+      "required": ["sha256", "size_bytes"],
+      "properties": {
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "review": {
+      "type": "object",
+      "required": [
+        "review_version",
+        "review_id",
+        "proposal_record_sha256",
+        "reviewer",
+        "reviewed_at",
+        "overall_assessment",
+        "decisions"
+      ],
+      "properties": {
+        "review_version": {"const": 1},
+        "review_id": {"$ref": "#/$defs/canonicalNonEmptyText"},
+        "proposal_record_sha256": {"$ref": "#/$defs/sha256"},
+        "reviewer": {
+          "type": "object",
+          "required": ["reviewer_id", "role"],
+          "properties": {
+            "reviewer_id": {"$ref": "#/$defs/canonicalNonEmptyText"},
+            "role": {"$ref": "#/$defs/canonicalNonEmptyText"}
+          },
+          "additionalProperties": false
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2}))$"
+        },
+        "overall_assessment": {"$ref": "#/$defs/boundedReviewText"},
+        "decisions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "suggestion_id",
+              "disposition",
+              "rationale",
+              "domain_route"
+            ],
+            "properties": {
+              "suggestion_id": {"$ref": "#/$defs/canonicalNonEmptyText"},
+              "disposition": {"$ref": "#/$defs/disposition"},
+              "rationale": {"$ref": "#/$defs/boundedReviewText"},
+              "domain_route": {"$ref": "#/$defs/domainRoute"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "suggestion": {
+      "type": "object",
+      "required": [
+        "suggestion_id",
+        "kind",
+        "statement",
+        "rationale",
+        "uncertainty",
+        "evidence_refs",
+        "falsification_conditions",
+        "next_test",
+        "authority"
+      ],
+      "properties": {
+        "suggestion_id": {"$ref": "#/$defs/canonicalNonEmptyText"},
+        "kind": {
+          "enum": [
+            "question",
+            "hypothesis",
+            "design_revision",
+            "analysis_interpretation",
+            "next_action"
+          ]
+        },
+        "statement": {"$ref": "#/$defs/boundedProposalText"},
+        "rationale": {"$ref": "#/$defs/boundedProposalText"},
+        "uncertainty": {"$ref": "#/$defs/boundedProposalText"},
+        "evidence_refs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/canonicalNonEmptyText"}
+        },
+        "falsification_conditions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/boundedProposalText"}
+        },
+        "next_test": {"$ref": "#/$defs/boundedProposalText"},
+        "authority": {"const": "review_only"}
+      },
+      "additionalProperties": false
+    },
+    "disposition": {
+      "enum": ["advance_to_domain_review", "reject", "defer"]
+    },
+    "domainRoute": {
+      "enum": [
+        "none",
+        "question.add",
+        "hypothesis.propose",
+        "design.revise",
+        "protocol.amend",
+        "next-action.recommend"
+      ]
+    },
+    "canonicalNonEmptyText": {
+      "type": "string",
+      "pattern": "^(?:\\S|\\S.*\\S)$"
+    },
+    "boundedProposalText": {
+      "allOf": [
+        {"$ref": "#/$defs/canonicalNonEmptyText"},
+        {
+          "not": {
+            "pattern": "\\b(?:[Aa][Cc][Cc][Ee][Pp][Tt][Ss]?|[Aa][Cc][Cc][Ee][Pp][Tt][Ee][Dd]|[Aa][Pp][Pp][Rr][Oo][Vv][Ee][Ss]?|[Aa][Pp][Pp][Rr][Oo][Vv][Ee][Dd]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Ee][Ss]?|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Ee][Dd]|[Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ss]?|[Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd]|[Pp][Rr][Oo][Vv][Ee][Ss]?|[Pp][Rr][Oo][Vv][Ee][Dd]|[Pp][Rr][Oo][Oo][Ff]|[Vv][Aa][Ll][Ii][Dd][Aa][Tt][Ee][Ss]?|[Vv][Aa][Ll][Ii][Dd][Aa][Tt][Ee][Dd])\\b|[Cc][Aa][Nn][Oo][Nn][Ii][Cc][Aa][Ll] [Ww][Rr][Ii][Tt][Ee]|[Cc][Aa][Nn][Oo][Nn][Ii][Cc][Aa][Ll] [Aa][Cc][Tt][Ii][Oo][Nn]|[Ee][Vv][Ii][Dd][Ee][Nn][Cc][Ee] [Cc][Rr][Ee][Aa][Tt][Ii][Oo][Nn]|[Cc][Rr][Ee][Aa][Tt][Ee][Ss] [Ee][Vv][Ii][Dd][Ee][Nn][Cc][Ee]|[Cc][Rr][Ee][Aa][Tt][Ee][Dd] [Ee][Vv][Ii][Dd][Ee][Nn][Cc][Ee]|[Hh][Uu][Mm][Aa][Nn][- ][Rr][Ee][Vv][Ii][Ee][Ww][Ee][Dd]|[Rr][Ee][Vv][Ii][Ee][Ww][Ee][Dd] [Bb][Yy] [Hh][Uu][Mm][Aa][Nn]|[Rr][Ee][Vv][Ii][Ee][Ww][Ee][Rr] [Ii][Dd][Ee][Nn][Tt][Ii][Tt][Yy] [Aa][Uu][Tt][Hh][Ee][Nn][Tt][Ii][Cc][Aa][Tt][Ee][Dd]|[Aa][Uu][Tt][Hh][Ee][Nn][Tt][Ii][Cc][Aa][Tt][Ee][Dd] [Rr][Ee][Vv][Ii][Ee][Ww][Ee][Rr]|[Aa][Uu][Tt][Hh][Ee][Nn][Tt][Ii][Cc][Aa][Tt][Ee][Dd] [Ii][Dd][Ee][Nn][Tt][Ii][Tt][Yy]"
+          }
+        }
+      ]
+    },
+    "boundedReviewText": {
+      "$ref": "#/$defs/boundedProposalText"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
