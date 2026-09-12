@@ -117,6 +117,18 @@ canonical write path.
   static-preflight receipt, and passed no-analysis runtime receipt. Hashes
   mentioned only in `inputs_required` are prose, not commitments, and cannot
   authorize a new freeze.
+- Multi-file formal or computational analyses outside the notebook-specific
+  path should freeze an `analysis_implementation_bundle_contracts` entry. Bind
+  the protocol analysis hash, safe relative entrypoints, an exact sorted member
+  inventory and machine-recomputed aggregate, closure method and limitations,
+  external-dependency boundary, observed-closure receipt specification, and an
+  adverse omitted-helper control. A passed run requires exact
+  declared-versus-observed entrypoint, member, hash, aggregate, method, and
+  dependency equality plus a successful control. Preserve safe relative code
+  locators during default replication export so metadata replay remains
+  possible, but continue redacting operational artifact locators. Treat hashes
+  as byte identity and a closure receipt as bounded executor metadata, never as
+  proof of semantic correctness or complete dynamic execution.
 - Never hardcode or infer the primary outcome's dataset column. Require every
   executable primary, secondary, and control measurement column to be explicit,
   case-insensitively unique, and distinct from identity, assignment, and

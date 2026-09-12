@@ -2243,6 +2243,16 @@ local integrity evidence only; it does not establish chronology or scientific
 validity. See
 [notebook freeze-input bundles](docs/notebook-freeze-input-bundle.md).
 
+For multi-file formal or computational analyses outside the notebook-specific
+path, freeze an `analysis_implementation_bundle_contracts` entry. It binds the
+protocol analysis hash to safe relative entrypoints, an exact sorted member
+inventory and aggregate, a declared closure method with explicit limitations,
+an external-dependency boundary, and an omitted-helper adverse control. Passed
+run intake and replication-package verification require exact
+declared-versus-observed member equality. Hashes establish byte identity, not
+semantic correctness or unbounded runtime completeness. See
+[analysis implementation bundles](docs/analysis-implementation-bundle-contract.md).
+
 This command accepts no source notebook and no arbitrary code. It starts the
 requested kernel, runs one built-in marker cell, verifies the kernel working
 directory, shuts the kernel down, and writes a non-overwriting report. Its

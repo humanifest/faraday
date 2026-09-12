@@ -1068,6 +1068,58 @@ def build_synthesis(
                             f"artifact `{result.get('evidence_sha256', 'unavailable')}` "
                             f"at `{result.get('evidence_location', 'unavailable')}`."
                         )
+    implementation_bundle_protocols = [
+        protocol
+        for protocol in protocols
+        if protocol.analysis_implementation_bundle_contracts
+    ]
+    if implementation_bundle_protocols:
+        lines.extend(["", "### Analysis implementation bundles", ""])
+        for protocol in implementation_bundle_protocols:
+            contracts_by_id = {
+                contract.contract_id: contract
+                for contract in protocol.analysis_implementation_bundle_contracts
+            }
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}` froze: "
+                + "; ".join(
+                    f"`{contract.contract_id}` with "
+                    f"{len(contract.members)} members via "
+                    f"`{contract.closure_method}`"
+                    for contract in protocol.analysis_implementation_bundle_contracts
+                )
+                + ". Member hashes establish declared byte identity only; "
+                "the frozen closure limitations still apply and semantic "
+                "correctness is not implied."
+            )
+            for run in sorted(
+                (item for item in runs if item.protocol_id == protocol.protocol_id),
+                key=lambda item: item.run_id,
+            ):
+                for gate in run.quality_gates:
+                    results = gate.details.get(
+                        "analysis_implementation_bundle_results"
+                    )
+                    if not isinstance(results, dict):
+                        continue
+                    for contract_id, result in sorted(results.items()):
+                        if not isinstance(result, dict):
+                            continue
+                        contract = contracts_by_id.get(contract_id)
+                        lines.append(
+                            f"  - Run `{run.run_id}` / `{contract_id}`"
+                            + (
+                                f" ({len(contract.members)} frozen members)"
+                                if contract is not None
+                                else ""
+                            )
+                            + f": gate `{gate.gate_id}` {gate.status.value}; "
+                            f"{result.get('assessment_status', 'unclassified')}; "
+                            f"closure complete "
+                            f"{result.get('observed_closure_complete', 'unavailable')}; "
+                            f"artifact `{result.get('evidence_sha256', 'unavailable')}` "
+                            f"at `{result.get('evidence_location', 'unavailable')}`."
+                        )
     validity_protocols = [
         protocol for protocol in protocols if protocol.measurement_validity_checks
     ]

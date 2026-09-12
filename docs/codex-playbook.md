@@ -131,6 +131,14 @@ primal and dual norms, stability statistic and threshold, test span, two-way
 cross-projections, transfer maps, and a collapsing-stability adverse control.
 Finite invertibility at each resolution is not uniform stability.
 
+When a formal or computational analysis executes a multi-file implementation,
+also freeze `analysis_implementation_bundle_contracts`. See
+`analysis-implementation-bundle-contract.md`. Bind safe relative entrypoints,
+the exact sorted member records and aggregate, the closure method and
+limitations, external dependencies, an observed-closure receipt format, and an
+omitted-helper adverse control. A submitter-defined scalar digest is not proof
+that the declared member list is complete.
+
 An exploratory protocol may be frozen against `pending_review` hypotheses.
 Confirmatory and replication protocols require every tested hypothesis to be
 active after human review.

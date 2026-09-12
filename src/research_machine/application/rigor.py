@@ -1860,6 +1860,57 @@ def audit_research_state(
                     )
         if (
             protocol is not None
+            and protocol.analysis_implementation_bundle_contracts
+        ):
+            gates_by_id = {item.gate_id: item for item in run.quality_gates}
+            for contract in protocol.analysis_implementation_bundle_contracts:
+                gate = gates_by_id.get(contract.evaluation_gate_id)
+                results = (
+                    gate.details.get(
+                        "analysis_implementation_bundle_results", {}
+                    )
+                    if gate is not None
+                    else {}
+                )
+                result = (
+                    results.get(contract.contract_id)
+                    if isinstance(results, dict)
+                    else None
+                )
+                if not isinstance(result, dict):
+                    continue
+                status = result.get("assessment_status")
+                if status == "inconclusive":
+                    add(
+                        "ANALYSIS_IMPLEMENTATION_BUNDLE_INCONCLUSIVE",
+                        RigorSeverity.WARNING,
+                        f"Analysis implementation bundle contract "
+                        f"{contract.contract_id} was inconclusive.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the member inventory and inspect the "
+                            "frozen closure method, observed receipt, external "
+                            "dependency boundary, and declared limitations."
+                        ),
+                    )
+                elif status == "contradicted_implementation_bundle_contract":
+                    add(
+                        "ANALYSIS_IMPLEMENTATION_BUNDLE_CONTRADICTED",
+                        RigorSeverity.ERROR,
+                        f"Analysis implementation bundle contract "
+                        f"{contract.contract_id} was contradicted.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the closure failure. Do not treat the run "
+                            "as implementation-reproducible; changed entrypoints, "
+                            "members, hashes, or dependency boundaries require a "
+                            "new protocol version."
+                        ),
+                    )
+        if (
+            protocol is not None
             and protocol.sample_size_plan
             and run.metadata.get("sample_size_plan_check", {}).get("status")
             != "passed"

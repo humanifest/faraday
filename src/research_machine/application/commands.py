@@ -7,6 +7,7 @@ from research_machine.domain.models import (
     ActionLane,
     AnalysisMode,
     AnalysisContract,
+    AnalysisImplementationBundleContract,
     AnalysisStepContract,
     CanaryTargetPlan,
     ConclusionContract,
@@ -221,6 +222,9 @@ class CreateProtocol:
     )
     reconstruction_family_stability_contracts: list[
         ReconstructionFamilyStabilityContract
+    ] = field(default_factory=list)
+    analysis_implementation_bundle_contracts: list[
+        AnalysisImplementationBundleContract
     ] = field(default_factory=list)
     measurement_validity_checks: list[MeasurementValidityCheck] = field(default_factory=list)
     expected_outputs: list[str] = field(default_factory=list)

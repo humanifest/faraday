@@ -60,6 +60,8 @@ from research_machine.domain.models import (
     ActionLane,
     AnalysisMode,
     AnalysisContract,
+    AnalysisImplementationBundleContract,
+    AnalysisImplementationMember,
     AnalysisFamilyMember,
     AnalysisStepContract,
     CalibrationCriterion,
@@ -144,6 +146,7 @@ _PROTOCOL_FIELDS = {
     "mathematical_predicate_contracts",
     "duality_reconstruction_contracts",
     "reconstruction_family_stability_contracts",
+    "analysis_implementation_bundle_contracts",
     "measurement_validity_checks",
     "expected_outputs",
     "success_conditions",
@@ -1377,6 +1380,9 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
     reconstruction_family_stability_values = spec.get(
         "reconstruction_family_stability_contracts", []
     )
+    analysis_implementation_bundle_values = spec.get(
+        "analysis_implementation_bundle_contracts", []
+    )
     if named_component_values is None:
         named_component_values = []
     if mathematical_predicate_values is None:
@@ -1385,6 +1391,8 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         duality_reconstruction_values = []
     if reconstruction_family_stability_values is None:
         reconstruction_family_stability_values = []
+    if analysis_implementation_bundle_values is None:
+        analysis_implementation_bundle_values = []
     validity_values = spec.get("measurement_validity_checks", [])
     control_values = spec.get("control_definitions", [])
     calibration_values = spec.get("calibration_acceptance_criteria", [])
@@ -1728,6 +1736,65 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         raise ValueError(
             f"invalid reconstruction family stability contract: {exc}"
         ) from exc
+    analysis_implementation_bundle_fields = {
+        "contract_id",
+        "analysis_code_hash",
+        "entrypoint_locators",
+        "members",
+        "bundle_sha256",
+        "closure_method",
+        "closure_specification_sha256",
+        "closure_limitations",
+        "allowed_external_dependency_ids",
+        "external_dependency_specification_sha256",
+        "observed_member_receipt_specification_sha256",
+        "adverse_omission_control_id",
+        "evaluation_gate_id",
+    }
+    member_fields = {"locator", "role", "sha256", "size_bytes"}
+    if not isinstance(analysis_implementation_bundle_values, list) or any(
+        not isinstance(item, dict)
+        for item in analysis_implementation_bundle_values
+    ):
+        raise ValueError(
+            "analysis_implementation_bundle_contracts must be an array of objects"
+        )
+    if any(
+        set(item) - analysis_implementation_bundle_fields
+        for item in analysis_implementation_bundle_values
+    ):
+        raise ValueError(
+            "analysis implementation bundle contract contains unknown fields"
+        )
+    try:
+        analysis_implementation_bundle_contracts = [
+            AnalysisImplementationBundleContract(
+                **{
+                    **item,
+                    "members": [
+                        AnalysisImplementationMember(**member)
+                        for member in item.get("members", [])
+                        if isinstance(member, dict)
+                        and not (set(member) - member_fields)
+                    ],
+                }
+            )
+            for item in analysis_implementation_bundle_values
+        ]
+    except TypeError as exc:
+        raise ValueError(
+            f"invalid analysis implementation bundle contract: {exc}"
+        ) from exc
+    if any(
+        len(contract.members) != len(item.get("members", []))
+        for contract, item in zip(
+            analysis_implementation_bundle_contracts,
+            analysis_implementation_bundle_values,
+        )
+    ):
+        raise ValueError(
+            "analysis implementation bundle member contains unknown fields or is not an object"
+        )
     try:
         return CreateProtocol(
             experiment_id=spec["experiment_id"],
@@ -1747,6 +1814,9 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             duality_reconstruction_contracts=duality_reconstruction_contracts,
             reconstruction_family_stability_contracts=(
                 reconstruction_family_stability_contracts
+            ),
+            analysis_implementation_bundle_contracts=(
+                analysis_implementation_bundle_contracts
             ),
             measurement_validity_checks=validity_checks,
             expected_outputs=lists["expected_outputs"],

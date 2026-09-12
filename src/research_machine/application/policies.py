@@ -1,5 +1,7 @@
 from collections.abc import Mapping, Sequence
 from datetime import datetime
+import hashlib
+import json
 import math
 from pathlib import Path
 import re
@@ -12,6 +14,8 @@ from research_machine.domain.models import (
     ActionLane,
     AnalysisMode,
     AnalysisContract,
+    AnalysisImplementationBundleContract,
+    AnalysisImplementationMember,
     AnalysisFamilyMember,
     AnalysisStepContract,
     CalibrationCriterion,
@@ -2330,6 +2334,8 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         validate_duality_reconstruction_contracts(protocol)
     if protocol.reconstruction_family_stability_contracts:
         validate_reconstruction_family_stability_contracts(protocol)
+    if protocol.analysis_implementation_bundle_contracts:
+        validate_analysis_implementation_bundle_contracts(protocol)
     custody_requirement_ids = []
     for gate_id in protocol.measurement_custody_requirements:
         canonical_gate_id = require_text(
@@ -3969,6 +3975,404 @@ def validate_reconstruction_family_stability_gate_metadata(
             raise ValidationError(
                 f"{label}passed reconstruction family stability gate requires "
                 "its adverse-family control to match expectation"
+            )
+        if result.get("selected_value_sha256") is not None:
+            require_sha256(
+                result["selected_value_sha256"],
+                f"{prefix}.selected_value_sha256",
+            )
+
+
+_ANALYSIS_IMPLEMENTATION_CLOSURE_METHODS = {
+    "runtime_trace",
+    "static_import_graph",
+    "static_plus_runtime_trace",
+}
+
+
+def analysis_implementation_bundle_sha256(
+    members: Sequence[AnalysisImplementationMember],
+) -> str:
+    """Hash the complete ordered member records, not a submitter scalar."""
+
+    payload = [member.to_dict() for member in members]
+    try:
+        content = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(
+            "analysis implementation members are not canonical JSON"
+        ) from exc
+    return hashlib.sha256(content).hexdigest()
+
+
+def validate_analysis_implementation_bundle_contracts(
+    protocol: ExperimentProtocol,
+) -> None:
+    """Bind an analysis to an exact declared implementation member surface."""
+
+    contracts = protocol.analysis_implementation_bundle_contracts
+    if any(
+        not isinstance(item, AnalysisImplementationBundleContract)
+        for item in contracts
+    ):
+        raise ValidationError(
+            "analysis_implementation_bundle_contracts must contain "
+            "AnalysisImplementationBundleContract values"
+        )
+    controls = {item.control_id: item for item in protocol.control_definitions}
+    contract_ids: set[str] = set()
+    for index, contract in enumerate(contracts):
+        prefix = f"analysis_implementation_bundle_contracts[{index}]"
+        for field_name in (
+            "contract_id",
+            "closure_method",
+            "adverse_omission_control_id",
+            "evaluation_gate_id",
+        ):
+            require_canonical_text(
+                getattr(contract, field_name), f"{prefix}.{field_name}"
+            )
+        if contract.contract_id in contract_ids:
+            raise ValidationError(
+                "analysis implementation bundle contract IDs must be unique"
+            )
+        contract_ids.add(contract.contract_id)
+        require_sha256(
+            contract.analysis_code_hash, f"{prefix}.analysis_code_hash"
+        )
+        if contract.analysis_code_hash != protocol.analysis_code_hash:
+            raise ValidationError(
+                "analysis implementation bundle must bind the protocol "
+                "analysis_code_hash"
+            )
+        if contract.closure_method not in _ANALYSIS_IMPLEMENTATION_CLOSURE_METHODS:
+            raise ValidationError(f"{prefix}.closure_method is unsupported")
+        entrypoints = require_unique_canonical_text_list(
+            contract.entrypoint_locators, f"{prefix}.entrypoint_locators"
+        )
+        if not entrypoints:
+            raise ValidationError(
+                "analysis implementation bundle requires at least one entrypoint"
+            )
+        if any(
+            not isinstance(member, AnalysisImplementationMember)
+            for member in contract.members
+        ):
+            raise ValidationError(
+                "analysis implementation bundle members must be "
+                "AnalysisImplementationMember values"
+            )
+        if not contract.members:
+            raise ValidationError(
+                "analysis implementation bundle requires at least one member"
+            )
+        locators: list[str] = []
+        for member_index, member in enumerate(contract.members):
+            member_prefix = f"{prefix}.members[{member_index}]"
+            locator = require_canonical_text(
+                member.locator, f"{member_prefix}.locator"
+            )
+            locator_path = Path(locator)
+            if locator_path.is_absolute() or ".." in locator_path.parts:
+                raise ValidationError(
+                    f"{member_prefix}.locator must be a safe relative code locator"
+                )
+            require_canonical_text(member.role, f"{member_prefix}.role")
+            require_sha256(member.sha256, f"{member_prefix}.sha256")
+            if type(member.size_bytes) is bool or not isinstance(
+                member.size_bytes, int
+            ) or member.size_bytes < 0:
+                raise ValidationError(
+                    f"{member_prefix}.size_bytes must be a nonnegative integer"
+                )
+            locators.append(locator)
+        if len(set(locators)) != len(locators):
+            raise ValidationError(
+                "analysis implementation bundle member locators must be unique"
+            )
+        if locators != sorted(locators):
+            raise ValidationError(
+                "analysis implementation bundle members must be sorted by locator"
+            )
+        if not set(entrypoints) <= set(locators):
+            raise ValidationError(
+                "analysis implementation bundle entrypoints must be exact members"
+            )
+        limitations = require_unique_canonical_text_list(
+            contract.closure_limitations, f"{prefix}.closure_limitations"
+        )
+        if not limitations:
+            raise ValidationError(
+                "analysis implementation bundle must declare closure limitations"
+            )
+        require_unique_canonical_text_list(
+            contract.allowed_external_dependency_ids,
+            f"{prefix}.allowed_external_dependency_ids",
+        )
+        for field_name in (
+            "bundle_sha256",
+            "closure_specification_sha256",
+            "external_dependency_specification_sha256",
+            "observed_member_receipt_specification_sha256",
+        ):
+            require_sha256(getattr(contract, field_name), f"{prefix}.{field_name}")
+        expected_bundle_sha256 = analysis_implementation_bundle_sha256(
+            contract.members
+        )
+        if contract.bundle_sha256 != expected_bundle_sha256:
+            raise ValidationError(
+                "analysis implementation bundle_sha256 does not match its "
+                "complete frozen member records"
+            )
+        control = controls.get(contract.adverse_omission_control_id)
+        if control is None:
+            raise ValidationError(
+                "analysis implementation bundle must bind an exact adverse "
+                "omission control_id"
+            )
+        if control.family != "adversarial":
+            raise ValidationError(
+                "analysis implementation bundle omission control must be adversarial"
+            )
+        if control.evaluation_gate_id != contract.evaluation_gate_id:
+            raise ValidationError(
+                "analysis implementation bundle and omission control must share "
+                "an evaluation gate"
+            )
+        if contract.evaluation_gate_id not in set(protocol.quality_requirements):
+            raise ValidationError(
+                "analysis implementation bundle evaluation gate must be a "
+                "required protocol quality gate"
+            )
+
+
+def validate_analysis_implementation_bundle_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    gate: QualityGateResult,
+    output_hashes: set[str],
+    context: str = "",
+) -> None:
+    """Replay declared-versus-observed analysis implementation closure."""
+
+    contracts = [
+        item
+        for item in protocol.analysis_implementation_bundle_contracts
+        if item.evaluation_gate_id == gate.gate_id
+    ]
+    if not contracts or gate.status is QualityGateStatus.SKIPPED:
+        return
+    label = f"{context} " if context else ""
+    results = gate.details.get("analysis_implementation_bundle_results")
+    expected_ids = {item.contract_id for item in contracts}
+    if not isinstance(results, dict) or set(results) != expected_ids:
+        raise ValidationError(
+            f"{label}performed analysis implementation bundle gate "
+            f"{gate.gate_id} requires exact results for: "
+            + ", ".join(sorted(expected_ids))
+        )
+    expected_status = {
+        QualityGateStatus.PASSED: "consistent_with_implementation_bundle_contract",
+        QualityGateStatus.WARNING: "inconclusive",
+        QualityGateStatus.FAILED: "contradicted_implementation_bundle_contract",
+    }.get(gate.status)
+    if expected_status is None:
+        raise ValidationError(
+            f"{label}analysis implementation bundle gate {gate.gate_id} has "
+            "an unsupported status"
+        )
+    frozen_fields = (
+        "analysis_code_hash",
+        "entrypoint_locators",
+        "members",
+        "bundle_sha256",
+        "closure_method",
+        "closure_specification_sha256",
+        "closure_limitations",
+        "allowed_external_dependency_ids",
+        "external_dependency_specification_sha256",
+        "observed_member_receipt_specification_sha256",
+    )
+    required_fields = {
+        *frozen_fields,
+        "observed_entrypoint_locators",
+        "observed_member_locators",
+        "observed_member_sha256s",
+        "observed_bundle_sha256",
+        "observed_closure_method",
+        "observed_external_dependency_ids",
+        "observed_closure_complete",
+        "assessment_status",
+        "observed_witness",
+        "interpretation",
+        "evidence_sha256",
+        "evidence_location",
+    }
+    derived_fields = {"selected_value_sha256"}
+    control_results = gate.details.get("control_results")
+    for contract in contracts:
+        result = results[contract.contract_id]
+        prefix = (
+            f"{label}gate {gate.gate_id} "
+            "analysis_implementation_bundle_results "
+            f"{contract.contract_id}"
+        )
+        if (
+            not isinstance(result, dict)
+            or not required_fields <= set(result)
+            or set(result) - required_fields - derived_fields
+        ):
+            raise ValidationError(
+                f"{label}analysis implementation bundle result for "
+                f"{contract.contract_id} must contain exactly the documented fields"
+            )
+        frozen_expected = {
+            **contract.to_dict(),
+        }
+        frozen_expected.pop("contract_id")
+        frozen_expected.pop("adverse_omission_control_id")
+        frozen_expected.pop("evaluation_gate_id")
+        for field_name in frozen_fields:
+            if result[field_name] != frozen_expected[field_name]:
+                raise ValidationError(
+                    f"{label}analysis implementation bundle {field_name} "
+                    "does not match the frozen contract"
+                )
+        observed_entrypoints = require_unique_canonical_text_list(
+            result["observed_entrypoint_locators"],
+            f"{prefix}.observed_entrypoint_locators",
+        )
+        observed_locators = require_unique_canonical_text_list(
+            result["observed_member_locators"],
+            f"{prefix}.observed_member_locators",
+        )
+        expected_locators = [member.locator for member in contract.members]
+        if observed_entrypoints != contract.entrypoint_locators:
+            raise ValidationError(
+                f"{label}analysis implementation observed entrypoints do not "
+                "match the frozen contract"
+            )
+        if observed_locators != expected_locators:
+            raise ValidationError(
+                f"{label}analysis implementation observed member set does not "
+                "match the frozen complete member set: "
+                f"observed={observed_locators!r}, expected={expected_locators!r}"
+            )
+        observed_hashes = result["observed_member_sha256s"]
+        expected_hashes = {
+            member.locator: member.sha256 for member in contract.members
+        }
+        if not isinstance(observed_hashes, dict) or observed_hashes != expected_hashes:
+            raise ValidationError(
+                f"{label}analysis implementation observed member hashes do not "
+                "match the frozen complete member records"
+            )
+        observed_bundle = require_sha256(
+            result["observed_bundle_sha256"],
+            f"{prefix}.observed_bundle_sha256",
+        )
+        if observed_bundle != contract.bundle_sha256:
+            raise ValidationError(
+                f"{label}analysis implementation observed bundle hash does not "
+                "match the frozen contract"
+            )
+        require_canonical_text(
+            result["observed_closure_method"],
+            f"{prefix}.observed_closure_method",
+        )
+        if result["observed_closure_method"] != contract.closure_method:
+            raise ValidationError(
+                f"{label}analysis implementation observed closure method does "
+                "not match the frozen contract"
+            )
+        observed_external = require_unique_canonical_text_list(
+            result["observed_external_dependency_ids"],
+            f"{prefix}.observed_external_dependency_ids",
+        )
+        if observed_external != contract.allowed_external_dependency_ids:
+            raise ValidationError(
+                f"{label}analysis implementation observed external dependencies "
+                "do not match the frozen boundary"
+            )
+        if type(result["observed_closure_complete"]) is not bool:
+            raise ValidationError(
+                f"{prefix}.observed_closure_complete must be a boolean"
+            )
+        if gate.status is QualityGateStatus.PASSED and not result[
+            "observed_closure_complete"
+        ]:
+            raise ValidationError(
+                f"{label}passed analysis implementation bundle gate requires "
+                "complete declared-versus-observed closure"
+            )
+        for field_name in (
+            "assessment_status",
+            "observed_witness",
+            "interpretation",
+            "evidence_location",
+        ):
+            require_canonical_text(result[field_name], f"{prefix}.{field_name}")
+        if result["assessment_status"] != expected_status:
+            raise ValidationError(
+                f"{label}{gate.status.value} analysis implementation bundle "
+                f"gate requires {expected_status}"
+            )
+        digest = require_sha256(
+            result["evidence_sha256"], f"{prefix}.evidence_sha256"
+        )
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"{label}analysis implementation bundle evidence must reference "
+                "a run output artifact"
+            )
+        linked_control = (
+            control_results.get(contract.adverse_omission_control_id)
+            if isinstance(control_results, dict)
+            else None
+        )
+        control_fields = {
+            "observed_behavior",
+            "interpretation",
+            "matches_expected",
+            "evidence_sha256",
+            "evidence_location",
+        }
+        control_derived_fields = {"selected_value_sha256"}
+        if (
+            not isinstance(linked_control, dict)
+            or not control_fields <= set(linked_control)
+            or set(linked_control) - control_fields - control_derived_fields
+        ):
+            raise ValidationError(
+                f"{label}analysis implementation bundle result requires its "
+                "exact linked adverse-omission control evaluation"
+            )
+        if type(linked_control["matches_expected"]) is not bool:
+            raise ValidationError(
+                f"{label}analysis implementation bundle linked control "
+                "matches_expected must be a boolean"
+            )
+        control_digest = require_sha256(
+            linked_control["evidence_sha256"],
+            f"{prefix}.linked_control.evidence_sha256",
+        )
+        if control_digest not in output_hashes:
+            raise ValidationError(
+                f"{label}analysis implementation bundle linked control evidence "
+                "must reference a run output artifact"
+            )
+        if gate.status is QualityGateStatus.PASSED and not linked_control[
+            "matches_expected"
+        ]:
+            raise ValidationError(
+                f"{label}passed analysis implementation bundle gate requires "
+                "its adverse-omission control to match expectation"
             )
         if result.get("selected_value_sha256") is not None:
             require_sha256(

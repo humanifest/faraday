@@ -526,6 +526,35 @@ class ReconstructionFamilyStabilityContract(Serializable):
 
 
 @dataclass(frozen=True)
+class AnalysisImplementationMember(Serializable):
+    """One content-addressed member of a frozen analysis implementation."""
+
+    locator: str
+    role: str
+    sha256: str
+    size_bytes: int
+
+
+@dataclass(frozen=True)
+class AnalysisImplementationBundleContract(Serializable):
+    """Frozen code surface and declared closure method for one analysis."""
+
+    contract_id: str
+    analysis_code_hash: str
+    entrypoint_locators: list[str]
+    members: list[AnalysisImplementationMember]
+    bundle_sha256: str
+    closure_method: str
+    closure_specification_sha256: str
+    closure_limitations: list[str]
+    allowed_external_dependency_ids: list[str]
+    external_dependency_specification_sha256: str
+    observed_member_receipt_specification_sha256: str
+    adverse_omission_control_id: str
+    evaluation_gate_id: str
+
+
+@dataclass(frozen=True)
 class ControlWitnessContract(Serializable):
     """Prospective shape for one artifact-selected scalar control comparison."""
 
@@ -735,6 +764,9 @@ class ExperimentProtocol(Serializable):
     reconstruction_family_stability_contracts: list[
         ReconstructionFamilyStabilityContract
     ] = field(default_factory=list)
+    analysis_implementation_bundle_contracts: list[
+        AnalysisImplementationBundleContract
+    ] = field(default_factory=list)
     measurement_validity_checks: list[MeasurementValidityCheck] = field(
         default_factory=list
     )
@@ -838,6 +870,8 @@ class ExperimentProtocol(Serializable):
             payload.pop("duality_reconstruction_contracts", None)
         if not self.reconstruction_family_stability_contracts:
             payload.pop("reconstruction_family_stability_contracts", None)
+        if not self.analysis_implementation_bundle_contracts:
+            payload.pop("analysis_implementation_bundle_contracts", None)
         return payload
 
     @classmethod
@@ -879,6 +913,24 @@ class ExperimentProtocol(Serializable):
             else ReconstructionFamilyStabilityContract(**item)
             for item in copied.get(
                 "reconstruction_family_stability_contracts", []
+            )
+        ]
+        copied["analysis_implementation_bundle_contracts"] = [
+            item
+            if isinstance(item, AnalysisImplementationBundleContract)
+            else AnalysisImplementationBundleContract(
+                **{
+                    **item,
+                    "members": [
+                        member
+                        if isinstance(member, AnalysisImplementationMember)
+                        else AnalysisImplementationMember(**member)
+                        for member in item.get("members", [])
+                    ],
+                }
+            )
+            for item in copied.get(
+                "analysis_implementation_bundle_contracts", []
             )
         ]
         if copied.get("canary_target_plan") is not None and not isinstance(

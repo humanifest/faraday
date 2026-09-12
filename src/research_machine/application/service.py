@@ -56,6 +56,7 @@ from research_machine.application.policies import (
     validate_cross_lane_lesson,
     validate_duality_reconstruction_gate_metadata,
     validate_reconstruction_family_stability_gate_metadata,
+    validate_analysis_implementation_bundle_gate_metadata,
     validate_historical_cross_lane_lesson_structure,
     validate_dataset_artifacts,
     validate_evidence_annotations,
@@ -4405,6 +4406,112 @@ class ResearchService:
                         "does not match the verified JSON value"
                     )
                 result["selected_value_sha256"] = selected_value_sha256
+        analysis_implementation_bundle_gates = {
+            contract.evaluation_gate_id
+            for contract in protocol.analysis_implementation_bundle_contracts
+        }
+        for gate_id in analysis_implementation_bundle_gates:
+            gate = gates_by_id.get(gate_id)
+            if gate is None or gate.status is QualityGateStatus.SKIPPED:
+                continue
+            validate_analysis_implementation_bundle_gate_metadata(
+                protocol=protocol,
+                gate=gate,
+                output_hashes=output_hashes,
+            )
+            results = gate.details["analysis_implementation_bundle_results"]
+            for contract in protocol.analysis_implementation_bundle_contracts:
+                if contract.evaluation_gate_id != gate_id:
+                    continue
+                result = results[contract.contract_id]
+                digest = result["evidence_sha256"]
+                location = result["evidence_location"]
+                location_verified, structured_evidence = (
+                    _resolve_json_artifact_location(
+                        outputs,
+                        command.artifact_root,
+                        digest,
+                        location,
+                        (
+                            "analysis implementation bundle "
+                            f"{contract.contract_id} evidence_location"
+                        ),
+                    )
+                )
+                if (
+                    not location_verified
+                    and verified_gate_result is not None
+                    and digest == verified_gate_output_sha256
+                ):
+                    if not location.startswith("/"):
+                        raise ValidationError(
+                            "analysis implementation bundle evidence in the "
+                            "verified analysis output requires an absolute JSON "
+                            "Pointer evidence_location"
+                        )
+                    structured_evidence = _resolve_json_pointer(
+                        verified_gate_result,
+                        location,
+                        (
+                            "analysis implementation bundle "
+                            f"{contract.contract_id} evidence_location"
+                        ),
+                    )
+                    location_verified = True
+                if not location_verified or not isinstance(
+                    structured_evidence, dict
+                ):
+                    raise ValidationError(
+                        "analysis implementation bundle result requires retained, "
+                        "artifact-bound JSON object evidence"
+                    )
+                evidence_fields = {
+                    "analysis_code_hash",
+                    "entrypoint_locators",
+                    "members",
+                    "bundle_sha256",
+                    "closure_method",
+                    "closure_specification_sha256",
+                    "closure_limitations",
+                    "allowed_external_dependency_ids",
+                    "external_dependency_specification_sha256",
+                    "observed_member_receipt_specification_sha256",
+                    "observed_entrypoint_locators",
+                    "observed_member_locators",
+                    "observed_member_sha256s",
+                    "observed_bundle_sha256",
+                    "observed_closure_method",
+                    "observed_external_dependency_ids",
+                    "observed_closure_complete",
+                    "assessment_status",
+                    "observed_witness",
+                    "interpretation",
+                }
+                expected_evidence = {
+                    field_name: result[field_name]
+                    for field_name in evidence_fields
+                }
+                if structured_evidence != expected_evidence:
+                    raise ValidationError(
+                        "analysis implementation bundle result does not match "
+                        "its retained typed JSON evidence"
+                    )
+                selected_value_sha256 = _result_selection_sha256(
+                    structured_evidence
+                )
+                supplied = result.get("selected_value_sha256")
+                if supplied is not None and require_sha256(
+                    supplied,
+                    (
+                        "analysis implementation bundle "
+                        f"{contract.contract_id} selected_value_sha256"
+                    ),
+                ) != selected_value_sha256:
+                    raise ValidationError(
+                        "analysis implementation bundle selected_value_sha256 "
+                        "does not match the verified JSON value"
+                    )
+                result["selected_value_sha256"] = selected_value_sha256
         contract = protocol.analysis_contract
         if contract is not None and contract.missingness_assessment_gate_id:
             gate = gates_by_id.get(contract.missingness_assessment_gate_id)
@@ -5087,6 +5194,13 @@ class ResearchService:
             reconstruction_family_stability_contracts_by_gate.setdefault(
                 contract.evaluation_gate_id, []
             ).append(contract)
+        analysis_implementation_bundle_contracts_by_gate: dict[
+            str, list[Any]
+        ] = {}
+        for contract in protocol.analysis_implementation_bundle_contracts:
+            analysis_implementation_bundle_contracts_by_gate.setdefault(
+                contract.evaluation_gate_id, []
+            ).append(contract)
         missingness_gate_id = (
             protocol.analysis_contract.missingness_assessment_gate_id
             if protocol.analysis_contract is not None
@@ -5117,6 +5231,10 @@ class ResearchService:
             "reconstruction_family_stability_plan": [
                 contract.to_dict()
                 for contract in protocol.reconstruction_family_stability_contracts
+            ],
+            "analysis_implementation_bundle_plan": [
+                contract.to_dict()
+                for contract in protocol.analysis_implementation_bundle_contracts
             ],
             "canary_target_plan": (
                 canary_plan.to_dict() if canary_plan is not None else None
@@ -5388,6 +5506,39 @@ class ResearchService:
                                     gate_id
                                 ]
                             }} if gate_id in reconstruction_family_stability_contracts_by_gate else {}),
+                            **({"analysis_implementation_bundle_results": {
+                                contract.contract_id: {
+                                    "analysis_code_hash": contract.analysis_code_hash,
+                                    "entrypoint_locators": list(contract.entrypoint_locators),
+                                    "members": [
+                                        member.to_dict()
+                                        for member in contract.members
+                                    ],
+                                    "bundle_sha256": contract.bundle_sha256,
+                                    "closure_method": contract.closure_method,
+                                    "closure_specification_sha256": contract.closure_specification_sha256,
+                                    "closure_limitations": list(contract.closure_limitations),
+                                    "allowed_external_dependency_ids": list(contract.allowed_external_dependency_ids),
+                                    "external_dependency_specification_sha256": contract.external_dependency_specification_sha256,
+                                    "observed_member_receipt_specification_sha256": contract.observed_member_receipt_specification_sha256,
+                                    "observed_entrypoint_locators": [],
+                                    "observed_member_locators": [],
+                                    "observed_member_sha256s": {},
+                                    "observed_bundle_sha256": "<64 lowercase hexadecimal characters>",
+                                    "observed_closure_method": contract.closure_method,
+                                    "observed_external_dependency_ids": [],
+                                    "observed_closure_complete": None,
+                                    "assessment_status": "<consistent_with_implementation_bundle_contract if passed; inconclusive if warning; contradicted_implementation_bundle_contract if failed>",
+                                    "observed_witness": "",
+                                    "interpretation": "",
+                                    "evidence_sha256": "<hash of a listed run output artifact>",
+                                    "evidence_location": "<exact JSON Pointer or location within that artifact>",
+                                    "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
+                                }
+                                for contract in analysis_implementation_bundle_contracts_by_gate[
+                                    gate_id
+                                ]
+                            }} if gate_id in analysis_implementation_bundle_contracts_by_gate else {}),
                         },
                     }
                     for gate_id in protocol.quality_requirements
@@ -6894,6 +7045,9 @@ class ResearchService:
             ),
             reconstruction_family_stability_contracts=list(
                 command.reconstruction_family_stability_contracts
+            ),
+            analysis_implementation_bundle_contracts=list(
+                command.analysis_implementation_bundle_contracts
             ),
             measurement_validity_checks=list(command.measurement_validity_checks),
             expected_outputs=require_text_list(
