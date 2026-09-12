@@ -24,6 +24,8 @@ def test_literature_snapshot_hashes_retained_source_and_preserves_boundary(
     assert result["source_count"] == 1
     saved = json.loads((tmp_path / "snapshot" / "literature-snapshot.json").read_text())
     assert saved["sources"][0]["retained_file_sha256"]
+    retained = tmp_path / "snapshot" / "sources" / saved["sources"][0]["retained_file_sha256"]
+    assert retained.read_text(encoding="utf-8") == "retained source"
     assert "not accepted claims" in saved["evidence_boundary"]
     validate_snapshot_boundary(saved)
 

@@ -1566,7 +1566,10 @@ invoke a provider, or authorize any canonical write.
 
 Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally
-retained source files. Sources are classified but never promoted to facts or
+retained source files. It also publishes the retained source bytes under
+`sources/<retained_file_sha256>` inside the snapshot directory, so later
+machine checks can start from the same hash-bound local bytes without exposing
+operational roots in review records. Sources are classified but never promoted to facts or
 evidence merely by retrieval; claim extraction, citation verification, bias
 assessment, and synthesis remain distinct next gates. Snapshot IDs, queries,
 criteria entries, source IDs, titles, locators, and retained-file paths must be
@@ -1615,7 +1618,7 @@ and claim provenance and expose it to qualitative synthesis and quantitative
 effect preparation. Legacy chains without the anchor remain readable as
 `legacy_missing`, but they are not silently upgraded to hash-anchored
 source-byte provenance. This is byte provenance only: it still does not
-interpret source text, verify that a cited passage supports a claim,
+interpret source text, prove that a cited passage supports a claim,
 authenticate reviewers, or assess bias. Extraction and synthesis planning replay
 the screening artifact's non-authority flags, false
 reviewer-identity-authentication boundary, retained limitations, source-record
@@ -1632,8 +1635,20 @@ declared study, exact evidence location, epistemic layer, result direction, and
 uncertainty; included sources with no extractable claim remain explicit. The
 screening bytes are hash-pinned and excluded sources cannot enter extraction.
 These records are reviewer assertions, not accepted facts or scientific evidence.
-The machine has not yet verified the cited passage, authenticated the reviewer,
-assessed risk of bias, reconciled independent extractors, or synthesized effects.
+`research literature verify-passages --extraction-file <extraction>
+--expected-extraction-sha256 <hash> --retained-source-root <snapshot>/sources
+--review-file <review> --output <new-directory>` can now add a separate
+machine-verification artifact for exact reviewer-supplied `evidence_quote`
+strings. It requires one quote for every extracted claim, recomputes the
+retained source file hash from the supplied source root, rejects legacy
+unanchored sources, and fails closed if the quote does not occur as exact UTF-8
+bytes in the retained source. The artifact retains the quote SHA-256, byte
+count, occurrence count, source hash, extraction claim digest, and false
+scientific-evidence/conclusion/publication/reviewer-authentication boundaries.
+This proves only byte occurrence under a retained source hash; it does not parse
+PDF structure, interpret source semantics, prove that the cited passage supports
+the extracted claim, authenticate the reviewer, assess risk of bias, reconcile
+independent extractors, or synthesize effects.
 Extraction artifacts carry explicit false scientific-evidence,
 conclusion-authorization, publication-authorization, and
 reviewer-identity-authentication boundaries with retained limitations.

@@ -1286,7 +1286,8 @@ search tool as evidence authority:
 ```
 
 Each source in the manifest names a locally retained file. The snapshot hashes
-that file, records its primary/secondary/registry/preprint classification and
+that file, copies the retained bytes under `sources/<retained_file_sha256>`,
+records its primary/secondary/registry/preprint classification and
 screening criteria, and states that claims still require separate extraction,
 verification, and bias assessment. Snapshot IDs, queries, criteria, source IDs,
 source titles, locators, and retained-file paths must be canonical without
@@ -1303,7 +1304,7 @@ digest; evidence maps replay the same anchor before joining claims and expose it
 to synthesis and effect preparation. Legacy chains without the anchor remain
 readable as `legacy_missing`, but they are not treated as hash-anchored
 source-byte provenance. This still does not mean Faraday has interpreted the
-source text or verified a cited passage. The trusted snapshot hash supplied to
+source text or verified that a cited passage supports a claim. The trusted snapshot hash supplied to
 screening must be a canonical lowercase SHA-256 digest before it can pin the
 source bytes. Downstream extraction and synthesis-planning commands apply the
 same canonical hash contract when they pin a screening record. They also replay
@@ -1322,6 +1323,20 @@ deduplication counts/groups, and the explicit non-evidence boundary must derive
 from the source records. A caller-provided snapshot hash cannot launder a
 rewritten duplicate summary or claim-authorizing boundary into downstream
 screening.
+
+`research literature verify-passages --extraction-file <extraction>
+--expected-extraction-sha256 <hash> --retained-source-root
+<snapshot>/sources --review-file <review> --output <new-directory>` adds a
+separate write-once machine check for exact quoted passages. The review must
+provide one `evidence_quote` for every extracted claim. Faraday reloads the
+hash-pinned extraction, requires hash-anchored retained source bytes, recomputes
+each retained source file hash from `<retained-source-root>/<sha256>`, and
+rejects any quote that does not occur as exact UTF-8 bytes in that source. The
+artifact retains the quote SHA-256, byte count, occurrence count, source hash,
+extraction claim digest, and non-evidence/non-conclusion/non-publication
+boundaries. This verifies byte occurrence only; it does not parse PDFs,
+interpret the passage, authenticate the reviewer, prove source support, assess
+bias, or create scientific evidence.
 
 Downstream literature evidence maps retain the extraction location, independent
 citation-review location and rationale, and study-level bias-domain judgments
