@@ -625,10 +625,11 @@ intervention.
 Deterministic rigor and synthesis reports then expose the frozen factor plan as
 prospective interpretability provenance, and flag legacy multi-factor protocols
 whose simultaneous interventions still lack a separable design and plan.
-Guided briefs can also declare `controlled_acceptance_scenarios`: review-only
-synthetic or controlled readiness targets with stable IDs, purposes, expected
-observations, alternatives they distinguish, failure responses, and claim
-ceilings. The scaffold emits
+Guided briefs and the provider-free interview can also declare
+`controlled_acceptance_scenarios`: review-only synthetic or controlled
+readiness targets with stable IDs, purposes, expected observations,
+alternatives they distinguish, failure responses, and claim ceilings. The
+scaffold emits
 `controlled-acceptance-scenarios-draft.json`, includes it in the hash-bound
 manifest, and initialization replays it before publishing an experiment
 workspace. These scenarios are not observed results, pass criteria, protocol

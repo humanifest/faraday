@@ -785,6 +785,58 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
                 brief.pop("_claim_scope", None)
         if claim_boundaries:
             brief["claim_boundaries"] = claim_boundaries
+    answer(
+        "_enter_acceptance_scenarios",
+        "Would you like to add controlled acceptance scenarios for synthetic or controlled readiness targets?",
+        choices=("yes", "no"),
+    )
+    if brief.pop("_enter_acceptance_scenarios", "no") == "yes":
+        raw_scenarios = ask(
+            "List every controlled acceptance scenario ID, separated by semicolons [blank = unresolved]"
+        )
+        scenarios = []
+        for scenario_id in _split_semicolon_answer(raw_scenarios):
+            draft: dict[str, Any] = {"scenario_id": scenario_id}
+            for key, prompt in (
+                (
+                    "purpose",
+                    f"What machine-readiness behavior should scenario '{scenario_id}' test?",
+                ),
+                (
+                    "expected_observation",
+                    f"What bounded observation is expected in scenario '{scenario_id}'?",
+                ),
+                (
+                    "failure_response",
+                    f"What should happen if scenario '{scenario_id}' fails or is inconclusive?",
+                ),
+                (
+                    "claim_ceiling",
+                    f"What claim ceiling remains after scenario '{scenario_id}', even if it behaves as expected?",
+                ),
+            ):
+                answer("_scenario_value", prompt)
+                draft[key] = brief.pop("_scenario_value", "")
+            raw_alternatives = ask(
+                f"What alternatives does scenario '{scenario_id}' distinguish? Separate exact alternatives with semicolons [blank = unresolved]"
+            )
+            draft["distinguishes_from"] = _split_semicolon_answer(raw_alternatives)
+            if (
+                all(
+                    draft[key]
+                    for key in (
+                        "scenario_id",
+                        "purpose",
+                        "expected_observation",
+                        "failure_response",
+                        "claim_ceiling",
+                    )
+                )
+                and draft["distinguishes_from"]
+            ):
+                scenarios.append(draft)
+        if scenarios:
+            brief["controlled_acceptance_scenarios"] = scenarios
     raw_available = ask(
         "What data sources are available or will be collected? Separate exact sources with semicolons [blank = unresolved]"
     )

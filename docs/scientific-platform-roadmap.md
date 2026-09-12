@@ -766,12 +766,13 @@ the same registered digest and a required protocol quality gate. This preserves
 the draft chain of custody for human review without treating the scaffold as
 approval, protocol freeze, hidden-assignment authentication, preprocessing
 adherence evidence, or reviewer authentication.
-Guided controlled-acceptance delivery: design briefs can now carry
-`controlled_acceptance_scenarios`, a discipline-agnostic set of synthetic or
-controlled readiness targets that state what future harnesses must distinguish
-before the machine should be treated as campaign-ready. Each scenario has a
-stable ID, purpose, expected observation, exact alternatives it distinguishes,
-failure response, and claim ceiling. The scaffold emits
+Guided controlled-acceptance delivery: design briefs and the provider-free
+interview can now carry `controlled_acceptance_scenarios`, a
+discipline-agnostic set of synthetic or controlled readiness targets that state
+what future harnesses must distinguish before the machine should be treated as
+campaign-ready. Each scenario has a stable ID, purpose, expected observation,
+exact alternatives it distinguishes, failure response, and claim ceiling. The
+scaffold emits
 `controlled-acceptance-scenarios-draft.json`, includes it in the manifest, and
 `design initialize` replays the draft against the source brief before publishing
 the local experiment repository. Empty discriminator lists, duplicate scenario
