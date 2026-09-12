@@ -5637,12 +5637,17 @@ class ResearchService:
                 )
         else:
             supersedes_event_id = None
+        all_evidence = self.repository.list_evidence(resolved)
+        self._validate_evidence_admission_receipts(
+            evidence=all_evidence,
+            claims=self.repository.load_claims(resolved),
+            runs=self.repository.list_runs(resolved),
+            protocols=self.repository.list_protocols(resolved),
+            datasets=self.repository.list_datasets(resolved),
+            ethics_events=self._validated_ethics_review_events(resolved),
+        )
         evidence = next(
-            (
-                item
-                for item in self.repository.list_evidence(resolved)
-                if item.evidence_id == evidence_id
-            ),
+            (item for item in all_evidence if item.evidence_id == evidence_id),
             None,
         )
         if evidence is None:
@@ -5668,7 +5673,6 @@ class ResearchService:
         from research_machine.application.evidence_status import (
             validate_evidence_status_event_chains,
         )
-        all_evidence = self.repository.list_evidence(resolved)
         all_events = self.repository.list_evidence_status_events(resolved)
         chains = validate_evidence_status_event_chains(all_evidence, all_events)
         prior = chains.get(evidence.evidence_id, [])

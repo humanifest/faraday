@@ -362,10 +362,10 @@ the scientific correctness of the disposition.
 The event retains its local artifact root. Every authoritative read recomputes
 the complete integrity receipt from present bytes and rejects missing, moved,
 mutated, symlinked, padded, or receipt-inconsistent review material instead of
-trusting a historical `passed` flag. Status-history listing also replays the
-underlying scientific evidence admission receipt before validating the event
-chain, so a correction history cannot stay readable after the evidence payload
-it qualifies has drifted.
+trusting a historical `passed` flag. Status-event writes and status-history
+listing also replay the underlying scientific evidence admission receipt before
+appending or validating the event chain, so a correction history cannot be added
+to or stay readable after the evidence payload it qualifies has drifted.
 
 Human-subject ethics review-event replay now applies the same canonical
 immutable-text boundary to review reasons, creators, retained artifact handles,

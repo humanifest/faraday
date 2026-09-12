@@ -817,6 +817,32 @@ def test_evidence_status_chain_requires_exact_predecessor_and_retraction_is_term
         )
 
 
+def test_evidence_status_write_replays_underlying_evidence_admission_receipt(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service, hypothesis, run = _prepared_run(workspace)
+    evidence = service.record_evidence(
+        _classified_evidence(hypothesis.hypothesis_id, run.run_id)
+    )
+    evidence_file = next(workspace.rglob(f"{evidence.evidence_id}.json"))
+    tampered = json.loads(evidence_file.read_text(encoding="utf-8"))
+    tampered["summary"] = "A stronger conclusion inserted after admission."
+    evidence_file.write_text(json.dumps(tampered), encoding="utf-8")
+    review_root = tmp_path / "reviews"
+    review_root.mkdir()
+
+    with pytest.raises(ValidationError, match="admission receipt"):
+        service.record_evidence_status_event(
+            _status_command(
+                evidence.evidence_id,
+                review_root,
+                "qualified.txt",
+                "qualified",
+            )
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
