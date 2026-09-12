@@ -513,7 +513,13 @@ threshold, decision-change criteria, and decision owner. The scaffold emits
 those as a dedicated `inquiry-draft.json`; `design initialize` carries them
 into the canonical inquiry, while missing values remain explicit
 `[REVIEW REQUIRED]` placeholders and padded supplied values block review
-readiness. Review-list commitments such as exclusions,
+readiness. Guided briefs and the provider-free interview can also preserve
+available data sources, unavailable or out-of-scope data, data access owner,
+access constraints, and a source-provenance plan in
+`data-availability-draft.json` and the collection plan. Missing source or
+access-owner, or provenance commitments remain visible warnings, and supplied
+padded data availability text blocks readiness; the draft does not verify
+access, custody, consent, authenticity, or evidentiary suitability. Review-list commitments such as exclusions,
 falsification conditions, and unsupported higher-level conclusions must be
 canonical without surrounding whitespace before they are treated as draft
 protocol, hypothesis, or conclusion-contract text. Prospective prose

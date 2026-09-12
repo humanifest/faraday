@@ -61,6 +61,8 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 DESIGN_BRIEF_FIELDS = {
     "title", "question", "decision", "minimum_evidence",
     "decision_change_criteria", "decision_owner", "study_type", "population", "setting",
+    "available_data_sources", "unavailable_data", "data_access_constraints",
+    "data_access_owner", "data_provenance_plan",
     "intervention", "exposure_definition", "assignment_type",
     "manipulated_factors", "factorial_or_crossover_design",
     "factor_interpretability_plan",
@@ -360,7 +362,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     unknown = set(brief) - DESIGN_BRIEF_FIELDS
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "available_data_sources", "unavailable_data", "data_access_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -383,7 +385,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
         raise ValueError("study_type must be one of: " + ", ".join(sorted(_STUDY_TYPES)))
     if brief.get("assignment_type", "") not in {"", "randomized", "observational"}:
         raise ValueError("assignment_type must be randomized or observational")
-    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
+    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "available_data_sources", "unavailable_data", "data_access_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
         _text_list(brief, key)
     _text_list(brief, "decision_change_criteria")
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
@@ -680,6 +682,47 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "error",
             "The inquiry decision boundary contains text with surrounding whitespace.",
             "Use exact unpadded minimum-evidence, decision-change, and decision-owner commitments before review artifacts preserve them.",
+        )
+    if not _text_list(brief, "available_data_sources"):
+        add(
+            "DATA_AVAILABILITY_UNRESOLVED",
+            "warning",
+            "The guided design has no declared available data source.",
+            "Identify existing records, instruments, field collection, simulations, or unavailable data before choosing a discriminating test.",
+        )
+    if not str(brief.get("data_provenance_plan", "")).strip():
+        add(
+            "DATA_PROVENANCE_PLAN_MISSING",
+            "warning",
+            "The guided design has no plan for binding source data to provenance.",
+            "State how source bytes, collection context, custody, and access limitations will be retained before collection or analysis.",
+        )
+    if not str(brief.get("data_access_owner", "")).strip():
+        add(
+            "DATA_ACCESS_OWNER_UNRESOLVED",
+            "warning",
+            "The guided design has no declared data access owner.",
+            "Name who controls access to the needed data so custody, consent, licensing, and operational limits remain accountable before collection or analysis.",
+        )
+    if (
+        has_noncanonical_text_items(_text_list(brief, "available_data_sources"))
+        or has_noncanonical_text_items(_text_list(brief, "unavailable_data"))
+        or has_noncanonical_text_items(_text_list(brief, "data_access_constraints"))
+        or (
+            isinstance(brief.get("data_access_owner"), str)
+            and brief["data_access_owner"] != brief["data_access_owner"].strip()
+        )
+        or (
+            isinstance(brief.get("data_provenance_plan"), str)
+            and brief["data_provenance_plan"]
+            and brief["data_provenance_plan"] != brief["data_provenance_plan"].strip()
+        )
+    ):
+        add(
+            "DATA_AVAILABILITY_NONCANONICAL",
+            "error",
+            "The guided data-availability record contains text with surrounding whitespace.",
+            "Use exact unpadded source, unavailable-data, access-owner, constraint, and provenance-plan text before review artifacts preserve it.",
         )
     require_canonical_list_items("secondary_outcomes", "SECONDARY_OUTCOME_LABEL_NONCANONICAL", "Secondary outcomes")
     require_canonical_list_items("confirmatory_outcomes", "CONFIRMATORY_OUTCOME_LABEL_NONCANONICAL", "Confirmatory outcomes")
@@ -1700,6 +1743,13 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     sensor_requirements = _text_list(brief, "sensor_requirements")
     control_windows = _text_list(brief, "control_windows")
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
+    available_data_sources = _text_list(brief, "available_data_sources")
+    unavailable_data = _text_list(brief, "unavailable_data")
+    data_access_constraints = _text_list(brief, "data_access_constraints")
+    data_access_owner = brief.get("data_access_owner") or "[REVIEW REQUIRED]"
+    data_provenance_plan = brief.get(
+        "data_provenance_plan"
+    ) or "[REVIEW REQUIRED] bind source bytes, custody, and collection context"
     canary_target_plan = (
         dict(brief["canary_target_plan"])
         if isinstance(brief.get("canary_target_plan"), dict)
@@ -1996,6 +2046,15 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "steps": analysis_steps,
                 "notice": "Freeze exact methods, specifications, implementations, dependencies, hypotheses, outcomes, and measurements before execution. Generated placeholders are not registrations.",
             },
+            "data-availability-draft.json": {
+                "status": "review_required",
+                "available_data_sources": available_data_sources,
+                "unavailable_data": unavailable_data,
+                "data_access_owner": data_access_owner,
+                "data_access_constraints": data_access_constraints,
+                "data_provenance_plan": data_provenance_plan,
+                "notice": "This is a review-only data availability record. It does not verify access, custody, consent, source authenticity, or suitability for evidence.",
+            },
             "data-dictionary-draft.json": {
                 "outcome": brief["outcome"], "unit_or_scale": brief.get("outcome_unit", "[REVIEW REQUIRED]"), "scale_type": brief.get("outcome_scale", "[REVIEW REQUIRED]"), "admissible_values": _text_list(brief, "outcome_admissible_values"), "valid_min": brief.get("outcome_valid_min"), "valid_max": brief.get("outcome_valid_max"), "missing_value_codes": _text_list(brief, "outcome_missing_value_codes"), "primary_analysis_family": brief.get("primary_analysis_family", "[REVIEW REQUIRED]"), "unit_of_observation": brief["unit_of_observation"], "measurement_validity": brief.get("measurement_validity", "[REVIEW REQUIRED]"),
                 "independent_unit": brief.get("independent_unit", "[REVIEW REQUIRED]"),
@@ -2265,6 +2324,26 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 + "; ".join(inquiry_commitments["decision_change_criteria"])
                 + "\n\n"
                 f"Decision owner: {inquiry_commitments['decision_owner']}\n\n"
+                "Available data sources: "
+                + (
+                    "; ".join(available_data_sources)
+                    if available_data_sources else "[REVIEW REQUIRED]"
+                )
+                + "\n\n"
+                "Unavailable or out-of-reach data: "
+                + (
+                    "; ".join(unavailable_data)
+                    if unavailable_data else "[none declared]"
+                )
+                + "\n\n"
+                f"Data access owner: {brief.get('data_access_owner') or '[REVIEW REQUIRED]'}\n\n"
+                "Data access constraints: "
+                + (
+                    "; ".join(data_access_constraints)
+                    if data_access_constraints else "[none declared]"
+                )
+                + "\n\n"
+                f"Data provenance plan: {brief.get('data_provenance_plan') or '[REVIEW REQUIRED]'}\n\n"
                 "Collect only after blocking findings are resolved and the applicable protocol is reviewed and frozen.\n\n"
                 "Keep observation identity separate from independent-unit identity. Repeated observations retain the same unit ID; do not manufacture independence by assigning each row a new unit ID. "
                 "Use pseudonymous IDs and keep identifying lookup tables under the approved privacy controls.\n\n"

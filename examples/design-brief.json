@@ -8,6 +8,18 @@
     "Do not choose blue light if measurement validity is contradicted."
   ],
   "decision_owner": "greenhouse-reviewer",
+  "available_data_sources": [
+    "Greenhouse height CSV exported from the registered measurement sheet.",
+    "Light-meter calibration log retained as PDF."
+  ],
+  "unavailable_data": [
+    "No baseline stem-height photograph exists before assignment."
+  ],
+  "data_access_owner": "greenhouse-data-steward",
+  "data_access_constraints": [
+    "Raw tray labels remain local until privacy review."
+  ],
+  "data_provenance_plan": "Hash source bytes, retain collection context, and record custody before analysis.",
   "study_type": "causal",
   "intervention": "Blue light",
   "comparison": "White-light control",

@@ -897,6 +897,77 @@ def test_scaffold_preserves_inquiry_decision_boundary():
     assert padded["status"] == "blocked"
 
 
+def test_scaffold_preserves_data_availability_boundary():
+    brief = {
+        "title": "Data availability fixture",
+        "question": "Question",
+        "decision": "Choose whether records can support the test.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "available_data_sources": [
+            "Instrument export retained as CSV.",
+            "Operator log retained as PDF.",
+        ],
+        "unavailable_data": ["No pre-intervention baseline exists."],
+        "data_access_owner": "lab-data-steward",
+        "data_access_constraints": [
+            "Raw identifiers require approved local review."
+        ],
+        "data_provenance_plan": (
+            "Hash source bytes and retain collection context before analysis."
+        ),
+    }
+
+    result = scaffold_design(brief)
+
+    availability = result["artifacts"]["data-availability-draft.json"]
+    assert availability["available_data_sources"] == brief[
+        "available_data_sources"
+    ]
+    assert availability["unavailable_data"] == brief["unavailable_data"]
+    assert availability["data_access_owner"] == "lab-data-steward"
+    assert availability["data_access_constraints"] == brief[
+        "data_access_constraints"
+    ]
+    assert availability["data_provenance_plan"].startswith("Hash source bytes")
+    codes = {item["code"] for item in result["findings"]}
+    assert "DATA_AVAILABILITY_UNRESOLVED" not in codes
+    assert "DATA_PROVENANCE_PLAN_MISSING" not in codes
+    assert "DATA_ACCESS_OWNER_UNRESOLVED" not in codes
+    assert "Available data sources: Instrument export retained as CSV." in result[
+        "artifacts"
+    ]["collection-plan.md"]
+
+    unresolved = scaffold_design(
+        {
+            **brief,
+            "data_access_owner": "",
+            "data_provenance_plan": "",
+        }
+    )
+    unresolved_availability = unresolved["artifacts"][
+        "data-availability-draft.json"
+    ]
+    assert unresolved_availability["data_access_owner"] == "[REVIEW REQUIRED]"
+    assert unresolved_availability["data_provenance_plan"].startswith(
+        "[REVIEW REQUIRED]"
+    )
+    unresolved_codes = {item["code"] for item in unresolved["findings"]}
+    assert "DATA_ACCESS_OWNER_UNRESOLVED" in unresolved_codes
+    assert "DATA_PROVENANCE_PLAN_MISSING" in unresolved_codes
+
+    padded = scaffold_design(
+        {
+            **brief,
+            "available_data_sources": [" Instrument export retained as CSV."],
+        }
+    )
+    padded_codes = {item["code"] for item in padded["findings"]}
+    assert "DATA_AVAILABILITY_NONCANONICAL" in padded_codes
+    assert padded["status"] == "blocked"
+
+
 def test_secondary_outcomes_require_exact_typed_measurement_coverage():
     base = {
         "title": "Secondary measurement fixture", "question": "Question",

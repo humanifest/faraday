@@ -739,4 +739,21 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
         raw_change_criteria
     )
     answer("decision_owner", "Who owns the practical decision?")
+    raw_available = ask(
+        "What data sources are available or will be collected? Separate exact sources with semicolons [blank = unresolved]"
+    )
+    brief["available_data_sources"] = _split_semicolon_answer(raw_available)
+    raw_unavailable = ask(
+        "What important data are unavailable, unobservable, or out of scope? Separate exact items with semicolons [blank = none declared]"
+    )
+    brief["unavailable_data"] = _split_semicolon_answer(raw_unavailable)
+    answer("data_access_owner", "Who controls access to the needed data?")
+    raw_constraints = ask(
+        "What access, privacy, consent, licensing, or operational constraints apply to the data? Separate exact constraints with semicolons [blank = none declared]"
+    )
+    brief["data_access_constraints"] = _split_semicolon_answer(raw_constraints)
+    answer(
+        "data_provenance_plan",
+        "How will source bytes, collection context, custody, and access limitations be retained?",
+    )
     return {"brief": brief, "scaffold": scaffold_design(brief)}
