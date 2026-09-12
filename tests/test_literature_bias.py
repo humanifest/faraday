@@ -113,6 +113,24 @@ def test_bias_assessment_preserves_canonical_study_and_source_handles(tmp_path):
     assert result["assessments"][0]["domains"][0]["evidence_locations"] == ["methods"]
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"citation_verification_version": 1, "citation_verification_version": 1}\n', "duplicate JSON object key"),
+        ('{"citation_verification_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_bias_assessment_rejects_ambiguous_citation_json_bytes(tmp_path, payload, message):
+    verification, _digest = verification_file(tmp_path)
+    verification.write_text(payload, encoding="utf-8")
+    tampered_digest = hashlib.sha256(verification.read_bytes()).hexdigest()
+    output = tmp_path / "bias"
+
+    with pytest.raises(ValidationError, match=message):
+        create_bias_assessment(verification, tampered_digest, review(), output)
+    assert not output.exists()
+
+
 def test_bias_assessment_boundary_replays_artifact_envelope(tmp_path):
     verification, digest = verification_file(tmp_path)
     result = create_bias_assessment(verification, digest, review(), tmp_path / "bias")

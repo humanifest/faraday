@@ -11,6 +11,7 @@ from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.snapshot import _text
 from research_machine.literature.verification import validate_citation_verification_boundary
 
@@ -213,12 +214,7 @@ def create_bias_assessment(
     output: Path,
 ) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_citation_verification_sha256")
-    try:
-        content = verification_path.read_bytes()
-        verification = json.loads(content)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise ValidationError("could not read valid citation-verification JSON") from exc
-    digest = hashlib.sha256(content).hexdigest()
+    verification, digest = load_json_object(verification_path, "citation-verification")
     if digest != expected_sha256:
         raise ValidationError("bias assessment citation verification does not match the expected SHA-256")
     if (not isinstance(verification, dict)

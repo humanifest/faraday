@@ -1475,10 +1475,12 @@ and non-publication boundaries, retained limitations, `record_count`,
 and every mapped claim's compact extraction-payload digest against the supplied
 extraction bytes before trusting an evidence-map claim, so a rewritten
 extraction cannot be laundered by updating only the evidence-map input hash.
-The retained literature JSON bytes used by evidence-map creation, effect
-preparation, effect verification, deviation recording, qualitative synthesis,
-and meta-analysis must also be unambiguous: duplicate object keys and non-finite
-JSON constants fail before the command trusts the parsed object, even when the
+The retained literature JSON bytes used from screening through extraction,
+passage verification, citation verification, bias assessment, study
+reconciliation, synthesis planning, evidence-map creation, effect preparation,
+effect verification, deviation recording, qualitative synthesis, and
+meta-analysis must also be unambiguous: duplicate object keys and non-finite JSON
+constants fail before the command trusts the parsed object, even when the
 supplied hash matches those bytes.
 Qualitative synthesis and quantitative effect preparation also replay the
 evidence map's non-evidence, non-conclusion, non-publication flags, retained

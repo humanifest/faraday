@@ -80,6 +80,24 @@ def test_extraction_preserves_canonical_source_study_and_record_ids(tmp_path):
     assert source_review["records"][0]["study_id"] == "study-1"
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"screening_version": 2, "screening_version": 2}\n', "duplicate JSON object key"),
+        ('{"screening_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_extraction_rejects_ambiguous_screening_json_bytes(tmp_path, payload, message):
+    screening, _digest = prepared_screening(tmp_path)
+    screening.write_text(payload, encoding="utf-8")
+    tampered_digest = hashlib.sha256(screening.read_bytes()).hexdigest()
+    output = tmp_path / "extraction"
+
+    with pytest.raises(ValidationError, match=message):
+        create_extraction(screening, tampered_digest, extraction_review(), output)
+    assert not output.exists()
+
+
 @pytest.mark.parametrize("field", ["limitation", "source_reason", "uncertainty", "notes"])
 def test_extraction_boundary_rejects_retained_overclaiming_prose(tmp_path, field):
     screening, digest = prepared_screening(tmp_path)

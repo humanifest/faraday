@@ -163,6 +163,24 @@ def test_citation_verification_preserves_canonical_extraction_handles(tmp_path):
     )
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"extraction_version": 1, "extraction_version": 1}\n', "duplicate JSON object key"),
+        ('{"extraction_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_citation_verification_rejects_ambiguous_extraction_json_bytes(tmp_path, payload, message):
+    extraction, _digest = extraction_file(tmp_path)
+    extraction.write_text(payload, encoding="utf-8")
+    tampered_digest = hashlib.sha256(extraction.read_bytes()).hexdigest()
+    output = tmp_path / "verification"
+
+    with pytest.raises(ValidationError, match=message):
+        create_citation_verification(extraction, tampered_digest, review(), output)
+    assert not output.exists()
+
+
 def test_citation_verification_binds_retained_source_bytes_when_available(tmp_path):
     extraction, digest = extraction_file(tmp_path)
     retained_source_sha = "b" * 64
@@ -180,6 +198,32 @@ def test_citation_verification_binds_retained_source_bytes_when_available(tmp_pa
     assert result["assessments"][0]["extraction_claim_sha256"] == claim_digest(
         "source-1", extraction_record, retained_source_sha
     )
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"passage_verification_version": 1, "passage_verification_version": 1}\n', "duplicate JSON object key"),
+        ('{"passage_verification_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_citation_verification_rejects_ambiguous_passage_json_bytes(tmp_path, payload, message):
+    extraction, digest = anchored_extraction_file(tmp_path)
+    passage, _passage_digest = passage_file(tmp_path, extraction, digest)
+    passage.write_text(payload, encoding="utf-8")
+    tampered_passage_digest = hashlib.sha256(passage.read_bytes()).hexdigest()
+    output = tmp_path / "verification"
+
+    with pytest.raises(ValidationError, match=message):
+        create_citation_verification(
+            extraction,
+            digest,
+            review(),
+            output,
+            passage_verification_path=passage,
+            expected_passage_verification_sha256=tampered_passage_digest,
+        )
+    assert not output.exists()
 
 
 def test_citation_verification_replays_passage_verification_receipts(tmp_path, capsys):

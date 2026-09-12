@@ -1854,13 +1854,15 @@ later reader from seeing only an unsupported ceiling label. It requires canonica
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims or
 publishing the qualitative artifact, so padded map artifacts cannot be silently
-rewritten into a synthesis. The retained literature JSON bytes used by
-evidence-map creation, effect preparation, effect verification, deviation
-recording, qualitative synthesis, and meta-analysis must also be unambiguous:
-duplicate object keys and non-finite JSON constants fail before the command
-trusts the parsed object, even when the supplied hash matches those bytes. It
-also replays the evidence map's non-authority flags, including the explicit
-non-evidence, non-conclusion, and non-publication boundary, retained
+rewritten into a synthesis. The retained literature JSON bytes used from
+screening through extraction, passage verification, citation verification, bias
+assessment, study reconciliation, synthesis planning, evidence-map creation,
+effect preparation, effect verification, deviation recording, qualitative
+synthesis, and meta-analysis must also be unambiguous: duplicate object keys and
+non-finite JSON constants fail before the command trusts the parsed object, even
+when the supplied hash matches those bytes. It also replays the evidence map's
+non-authority flags, including the explicit non-evidence, non-conclusion, and
+non-publication boundary, retained
 limitations, claim count, and interpretive-ceiling counts before using the map,
 so an internally rewritten map cannot authorize or sanitize later synthesis. It
 never treats claim counts as effect

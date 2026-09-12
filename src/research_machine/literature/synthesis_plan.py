@@ -11,6 +11,7 @@ from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.screening import validate_screening_boundary
 from research_machine.literature.snapshot import _text
 
@@ -95,12 +96,7 @@ def create_synthesis_plan(
     output: Path,
 ) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_screening_sha256")
-    try:
-        content = screening_path.read_bytes()
-        screening = json.loads(content)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise ValidationError("could not read valid screening JSON") from exc
-    digest = hashlib.sha256(content).hexdigest()
+    screening, digest = load_json_object(screening_path, "screening")
     if digest != expected_sha256:
         raise ValidationError("synthesis plan screening does not match the expected SHA-256")
     if (not isinstance(screening, dict) or screening.get("screening_version") != 2
