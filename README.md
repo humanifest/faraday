@@ -1258,7 +1258,8 @@ reference index, proposal-record guardrail replay digests, review payload versio
 retained suggestion digest, the ordered proposal-suggestion snapshot anchor,
 reviewed-suggestion evidence-reference coverage, exact
 coverage of the proposal's ordered suggestion IDs, and the advanced-suggestion
-summary. It still does not authenticate the reviewer or turn the review into a
+summary, including each advanced suggestion's retained digest and non-authority
+flags. It still does not authenticate the reviewer or turn the review into a
 canonical scientific action. The retained non-authority conclusion ceiling must
 match exactly, so trusted triage cannot be rewritten into claim acceptance,
 protocol amendment, evidence creation, or action authorization. Older review

@@ -179,6 +179,14 @@ _REVIEWED_SUGGESTION_FIELDS = {
     "canonical_writes_performed",
     "scientific_evidence_eligible",
 }
+_ADVANCED_SUGGESTION_FIELDS = {
+    "suggestion_id",
+    "domain_route",
+    "suggestion_sha256",
+    "manual_domain_review_required",
+    "canonical_writes_performed",
+    "scientific_evidence_eligible",
+}
 _INPUT_FIELDS = {"sha256", "size_bytes"}
 _CONTEXT_REFERENCE_FIELDS = {"ref", "kind"}
 _BODY_GROUNDING_RECEIPT_FIELDS = {"section", "statement_sha256", "context_refs"}
@@ -686,6 +694,19 @@ def _sha256_json(value: Any) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def _advanced_suggestion_entry(
+    suggestion_id: str, domain_route: str, suggestion_sha256: str
+) -> dict[str, Any]:
+    return {
+        "suggestion_id": suggestion_id,
+        "domain_route": domain_route,
+        "suggestion_sha256": suggestion_sha256,
+        "manual_domain_review_required": True,
+        "canonical_writes_performed": False,
+        "scientific_evidence_eligible": False,
+    }
+
+
 def _proposal_record_replay(record: dict[str, Any]) -> dict[str, str]:
     replay = {
         "context_reference_index_sha256": _sha256_json(
@@ -1108,7 +1129,7 @@ def adjudicate_collaborator_proposal(
     if not isinstance(decisions, list):
         raise ValidationError("collaborator proposal review decisions must be an array")
     seen: set[str] = set()
-    advanced: list[dict[str, str]] = []
+    advanced: list[dict[str, Any]] = []
     decisions_by_id: dict[str, dict[str, Any]] = {}
     for index, decision in enumerate(decisions):
         label = f"collaborator proposal review decision {index + 1}"
@@ -1135,7 +1156,13 @@ def adjudicate_collaborator_proposal(
                 raise ValidationError(
                     f"{label} domain_route is incompatible with suggestion kind {kind}"
                 )
-            advanced.append({"suggestion_id": suggestion_id, "domain_route": route})
+            advanced.append(
+                _advanced_suggestion_entry(
+                    suggestion_id,
+                    route,
+                    _sha256_json(suggestions_by_id[suggestion_id]),
+                )
+            )
         elif route != "none":
             raise ValidationError(
                 f"{label} domain_route must be none unless advanced to domain review"
@@ -1407,7 +1434,7 @@ def verify_collaborator_review_record(
         )
     reviewed_ids: set[str] = set()
     reviewed_suggestion_sha256s: list[str] = []
-    advanced: list[dict[str, str]] = []
+    advanced: list[dict[str, Any]] = []
     for index, item in enumerate(reviewed_suggestions):
         label = f"collaborator proposal reviewed_suggestion {index + 1}"
         if not isinstance(item, dict):
@@ -1479,7 +1506,13 @@ def verify_collaborator_review_record(
                 raise ValidationError(
                     f"{label} domain_route is incompatible with suggestion kind {kind}"
                 )
-            advanced.append({"suggestion_id": suggestion_id, "domain_route": route})
+            advanced.append(
+                _advanced_suggestion_entry(
+                    suggestion_id,
+                    route,
+                    suggestion_sha256,
+                )
+            )
         elif route != "none":
             raise ValidationError(f"{label} domain_route must be none unless advanced")
     if proposal_suggestion_ids is not None:
@@ -1515,7 +1548,17 @@ def verify_collaborator_review_record(
             "collaborator proposal review record omits reviewed suggestions: "
             + ", ".join(missing)
         )
-    if record["advanced_suggestions"] != advanced:
+    record_advanced = record["advanced_suggestions"]
+    if not isinstance(record_advanced, list):
+        raise ValidationError(
+            "collaborator proposal review record advanced_suggestions must be an array"
+        )
+    for index, item in enumerate(record_advanced):
+        label = f"collaborator proposal advanced_suggestion {index + 1}"
+        if not isinstance(item, dict):
+            raise ValidationError(f"{label} must be an object")
+        _exact_fields(item, _ADVANCED_SUGGESTION_FIELDS, label)
+    if record_advanced != advanced:
         raise ValidationError(
             "collaborator proposal review record advanced_suggestions disagrees with reviewed suggestions"
         )

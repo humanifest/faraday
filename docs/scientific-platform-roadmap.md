@@ -1533,8 +1533,9 @@ constraints, retained context reference index, proposal-record replay digests,
 review payload version, reviewed suggestion digests, the ordered
 proposal-suggestion snapshot anchor, reviewed-suggestion evidence-reference
 coverage, exact coverage of the retained ordered proposal suggestion IDs,
-compatible routes, and advanced-suggestion summary without performing canonical
-writes or authenticating the reviewer. Review assessments and rationales now
+compatible routes, and advanced-suggestion summary, including each advanced
+suggestion's retained digest and non-authority flags, without performing
+canonical writes or authenticating the reviewer. Review assessments and rationales now
 also fail closed when they claim acceptance, approval, authorization, proof,
 confirmation, validation, evidence creation, canonical action, or authenticated
 reviewer identity, and the published review schema preflights the same
