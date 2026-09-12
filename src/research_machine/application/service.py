@@ -14,6 +14,7 @@ from research_machine.application.commands import (
     AddQuestion,
     CreateProtocol,
     CreateInquiry,
+    DeferQuestion,
     ProposeHypothesis,
     RecommendActionPortfolio,
     RecommendNextAction,
@@ -138,6 +139,7 @@ from research_machine.ports.repository import WorkspaceRepository
 from research_machine.reporting.synthesis import build_synthesis
 from research_machine.replication.package import export_replication_package
 from research_machine.selection import (
+    CURRENT_RECOMMENDATION_SCORE_CONTRACT_VERSION,
     rank_actions,
     rank_actions_by_lane,
     recommendation_payload_sha256,
@@ -1413,6 +1415,7 @@ class ResearchService:
         for claim in claims:
             validate_claim_scientific_commitment(claim)
             validate_claim_dependency_levels(claim, claims_by_id)
+            self._validate_claim_authority(claim)
         from research_machine.application.hypothesis_integrity import (
             validate_hypothesis_scientific_commitment,
         )
@@ -1526,12 +1529,14 @@ class ResearchService:
             self._validate_run_datasets(protocol, run_datasets, all_datasets=datasets)
             if not artifact_integrity_replayed:
                 reverify_run_artifacts(run)
-        from research_machine.application.evidence_admission import (
-            validate_evidence_admission_receipts,
-        )
         current_evidence = [item for item in evidence if item.admission_checks]
-        validate_evidence_admission_receipts(
-            current_evidence, claims, runs, protocols, datasets, ethics_events
+        self._validate_evidence_admission_receipts(
+            evidence=current_evidence,
+            claims=claims,
+            runs=runs,
+            protocols=protocols,
+            datasets=datasets,
+            ethics_events=ethics_events,
         )
         for record in evidence:
             if not record.admission_checks:
@@ -1791,6 +1796,39 @@ class ResearchService:
                 self._event(
                     resolved,
                     "question.answer",
+                    "question",
+                    question_id,
+                    updated.to_dict(),
+                )
+                return updated
+        raise NotFoundError(f"question {question_id} does not exist")
+
+    def defer_question(
+        self, question_id: str, command: DeferQuestion, inquiry_id: str | None = None
+    ) -> Question:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        questions = self.repository.load_questions(resolved)
+        for index, question in enumerate(questions):
+            if question.question_id == question_id:
+                if question.status is QuestionStatus.ANSWERED:
+                    raise ValidationError(
+                        "answered question cannot be deferred; record a new clarifying question instead"
+                    )
+                if question.status is QuestionStatus.DEFERRED:
+                    raise ValidationError(
+                        "question is already deferred; record a new question for a changed ambiguity"
+                    )
+                updated = replace(
+                    question,
+                    answer=require_text(command.rationale, "defer rationale"),
+                    status=QuestionStatus.DEFERRED,
+                    answered_at=self.clock(),
+                )
+                questions[index] = updated
+                self.repository.save_questions(resolved, questions)
+                self._event(
+                    resolved,
+                    "question.defer",
                     "question",
                     question_id,
                     updated.to_dict(),
@@ -2471,6 +2509,7 @@ class ResearchService:
 
     def list_datasets(self, inquiry_id: str | None = None) -> list[DatasetManifest]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         return self.repository.list_datasets(resolved)
 
     def export_replication_package(
@@ -2482,6 +2521,7 @@ class ResearchService:
         include_locators: bool = False,
     ) -> dict[str, Any]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         return export_replication_package(
             self.repository.find_protocol(resolved, protocol_id),
             self.repository.list_datasets(resolved),
@@ -5822,17 +5862,19 @@ class ResearchService:
 
     def list_runs(self, inquiry_id: str | None = None) -> list[ResearchRun]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         return self.repository.list_runs(resolved)
 
     def get_run(self, run_id: str, inquiry_id: str | None = None) -> ResearchRun:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         return self.repository.find_run(resolved, run_id)
 
     def recommend_next_action(
         self, command: RecommendNextAction, inquiry_id: str | None = None
     ) -> ActionRecommendation:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        hypotheses = self.repository.list_hypotheses(resolved)
+        hypotheses = self.list_hypotheses(resolved)
         researchable_hypotheses = {
             hypothesis.hypothesis_id: hypothesis.workflow_state.value
             for hypothesis in hypotheses
@@ -5870,6 +5912,7 @@ class ResearchService:
             candidates=candidates,
             ranked_scores=scores,
             weights=weights,
+            score_contract_version=CURRENT_RECOMMENDATION_SCORE_CONTRACT_VERSION,
         )
         recommendation = replace(
             recommendation,
@@ -5891,7 +5934,7 @@ class ResearchService:
         self, command: RecommendActionPortfolio, inquiry_id: str | None = None
     ) -> ActionRecommendation:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
-        hypotheses = self.repository.list_hypotheses(resolved)
+        hypotheses = self.list_hypotheses(resolved)
         researchable_hypotheses = {
             hypothesis.hypothesis_id: hypothesis.workflow_state.value
             for hypothesis in hypotheses
@@ -5944,6 +5987,7 @@ class ResearchService:
             selected_action_ids_by_lane=selected_by_lane,
             lanes=lanes,
             completed_action_ids=completed,
+            score_contract_version=CURRENT_RECOMMENDATION_SCORE_CONTRACT_VERSION,
         )
         recommendation = replace(
             recommendation,
@@ -6102,14 +6146,20 @@ class ResearchService:
     ) -> list[ActionRecommendation]:
         recommendations = self.repository.list_recommendations(inquiry_id)
         hypothesis_alternatives = _hypothesis_alternatives(
-            self.repository.list_hypotheses(inquiry_id)
+            self.list_hypotheses(inquiry_id)
         )
         for recommendation in recommendations:
-            if (
-                recommendation.recommendation_payload_sha256
-                or not self.repository.has_legacy_recommendation_event(
-                    inquiry_id, recommendation.recommendation_id
+            if recommendation.recommendation_payload_sha256:
+                verify_recommendation_score_replay(
+                    recommendation,
+                    hypothesis_alternatives=hypothesis_alternatives,
                 )
+                if recommendation.score_contract_version == 1:
+                    self.repository.verify_historical_recommendation_integrity(
+                        inquiry_id, recommendation
+                    )
+            elif not self.repository.has_legacy_recommendation_event(
+                inquiry_id, recommendation.recommendation_id
             ):
                 verify_recommendation_score_replay(
                     recommendation,
@@ -6655,6 +6705,7 @@ class ResearchService:
 
     def list_evidence(self, inquiry_id: str | None = None) -> list[EvidenceRecord]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         return self.repository.list_evidence(resolved)
 
     def export_sherlock_evidence(
@@ -6784,12 +6835,17 @@ class ResearchService:
                 )
         else:
             supersedes_event_id = None
+        all_evidence = self.repository.list_evidence(resolved)
+        self._validate_evidence_admission_receipts(
+            evidence=all_evidence,
+            claims=self.repository.load_claims(resolved),
+            runs=self.repository.list_runs(resolved),
+            protocols=self.repository.list_protocols(resolved),
+            datasets=self.repository.list_datasets(resolved),
+            ethics_events=self._validated_ethics_review_events(resolved),
+        )
         evidence = next(
-            (
-                item
-                for item in self.repository.list_evidence(resolved)
-                if item.evidence_id == evidence_id
-            ),
+            (item for item in all_evidence if item.evidence_id == evidence_id),
             None,
         )
         if evidence is None:
@@ -6815,7 +6871,6 @@ class ResearchService:
         from research_machine.application.evidence_status import (
             validate_evidence_status_event_chains,
         )
-        all_evidence = self.repository.list_evidence(resolved)
         all_events = self.repository.list_evidence_status_events(resolved)
         chains = validate_evidence_status_event_chains(all_evidence, all_events)
         prior = chains.get(evidence.evidence_id, [])
@@ -6897,6 +6952,20 @@ class ResearchService:
     ) -> list[EvidenceStatusEvent]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         evidence = self.repository.list_evidence(resolved)
+        current_evidence = [item for item in evidence if item.admission_checks]
+        self._validate_evidence_admission_receipts(
+            evidence=current_evidence,
+            claims=self.repository.load_claims(resolved),
+            runs=self.repository.list_runs(resolved),
+            protocols=self.repository.list_protocols(resolved),
+            datasets=self.repository.list_datasets(resolved),
+            ethics_events=self._validated_ethics_review_events(resolved),
+        )
+        for record in evidence:
+            if not record.admission_checks:
+                self.repository.verify_legacy_evidence_integrity(
+                    resolved, record
+                )
         events = self.repository.list_evidence_status_events(resolved)
         from research_machine.application.evidence_status import (
             validate_evidence_status_event_chains,
@@ -6906,6 +6975,23 @@ class ResearchService:
             event for event in events
             if evidence_id is None or event.evidence_id == evidence_id
         ]
+
+    @staticmethod
+    def _validate_evidence_admission_receipts(
+        *,
+        evidence: list[EvidenceRecord],
+        claims: list[Claim],
+        runs: list[ResearchRun],
+        protocols: list[ExperimentProtocol],
+        datasets: list[DatasetManifest],
+        ethics_events: list[EthicsReviewEvent],
+    ) -> None:
+        from research_machine.application.evidence_admission import (
+            validate_evidence_admission_receipts,
+        )
+        validate_evidence_admission_receipts(
+            evidence, claims, runs, protocols, datasets, ethics_events
+        )
 
     def _currently_contributing_evidence(
         self, inquiry_id: str, evidence: list[EvidenceRecord]
@@ -6933,6 +7019,7 @@ class ResearchService:
         cross_lane_lessons = self._verified_cross_lane_lessons(resolved)
         rigor_audit = audit_research_state(
             inquiry=inquiry,
+            questions=self.repository.load_questions(resolved),
             claims=claims,
             hypotheses=hypotheses,
             evidence=currently_contributing_evidence,
@@ -6980,6 +7067,7 @@ class ResearchService:
         )
         audit = audit_research_state(
             inquiry=self.repository.load_inquiry(resolved),
+            questions=self.repository.load_questions(resolved),
             claims=self.repository.load_claims(resolved),
             hypotheses=self.repository.list_hypotheses(resolved),
             evidence=evidence,

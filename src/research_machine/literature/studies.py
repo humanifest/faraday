@@ -79,7 +79,10 @@ def validate_study_reconciliation_boundary(
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("study reconciliation requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"study reconciliation limitation {index + 1}")
+        _bounded_study_text(
+            limitation,
+            f"study reconciliation limitation {index + 1}",
+        )
     if (
         not isinstance(reconciliation.get("studies"), list)
         or not reconciliation["studies"]
@@ -372,7 +375,7 @@ def create_study_reconciliation(
         "limitations": [
             "Pairwise identity judgments are reviewer assertions; metadata similarity cannot prove cohort independence.",
             "Overlap, duplicate, and unclear relationships are preserved and block a reconciled status rather than being silently deduplicated.",
-            "Study reconciliation does not validate outcomes, assess applicability, or authorize quantitative synthesis.",
+            "Study reconciliation does not assess outcomes, assess applicability, or authorize quantitative synthesis.",
         ],
     }
     validate_study_reconciliation_boundary(

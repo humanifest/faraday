@@ -87,9 +87,10 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
                         "title": "Audit machine",
                         "distinguishes_hypotheses": [],
                         "information_targets": ["machine:false-acceptance"],
-                        "expected_discrimination": 0.9,
+                        "expected_discrimination": 0.0,
                         "uncertainty_reduction": 0.8,
                         "cost": 0.2,
+                        "duration": 0.2,
                         "burden": 0.1,
                         "safety_risk": 0.0,
                         "ambiguity_risk": 0.1,
@@ -105,7 +106,7 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
                         "title": "Run falsifier",
                         "distinguishes_hypotheses": [],
                         "information_targets": ["science:first-failing-gate"],
-                        "expected_discrimination": 0.7,
+                        "expected_discrimination": 0.0,
                         "uncertainty_reduction": 0.6,
                         "cost": 0.2,
                         "burden": 0.1,
@@ -146,7 +147,7 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
         score for score in recommendation["ranked_scores"]
         if score["action_id"] == "machine-audit"
     )
-    assert machine_score["weighted_components"]["expected_discrimination"] == 0.9
+    assert machine_score["weighted_components"]["expected_discrimination"] == 0.0
     assert machine_score["weighted_components"]["ambiguity_risk_penalty"] == -0.075
 
 
@@ -343,6 +344,64 @@ def test_json_cli_rejects_malformed_proposal_contract(tmp_path: Path, capsys) ->
     error = json.loads(captured.err)
     assert error["ok"] is False
     assert "competing_models must be an array" in error["error"]["message"]
+
+
+def test_json_cli_can_defer_clarifying_question(tmp_path: Path, capsys) -> None:
+    workspace = tmp_path / "workspace"
+    global_args = ["--workspace", str(workspace), "--json"]
+    assert main([*global_args, "workspace", "init"]) == 0
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "inquiry",
+                "create",
+                "--id",
+                "defer-question",
+                "--title",
+                "Deferred question",
+                "--statement",
+                "Can the design distinguish alternatives?",
+            ]
+        )
+        == 0
+    )
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "question",
+                "add",
+                "--text",
+                "Could measurement drift explain the apparent effect?",
+            ]
+        )
+        == 0
+    )
+    question = result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "question",
+                "defer",
+                question["question_id"],
+                "--rationale",
+                "Handle this in the next protocol revision before freeze.",
+            ]
+        )
+        == 0
+    )
+    deferred = result_from(capsys)
+
+    assert deferred["status"] == "deferred"
+    assert deferred["answer"] == "Handle this in the next protocol revision before freeze."
+    assert main([*global_args, "workspace", "verify"]) == 0
+    verification = result_from(capsys)
+    assert verification["valid"] is True
+    assert verification["events"] == 3
 
 
 def test_cli_stages_pending_review_without_activation(
@@ -803,6 +862,7 @@ def test_cli_records_general_protocol_run_and_next_action(
                         "expected_discrimination": 0.9,
                         "uncertainty_reduction": 0.8,
                         "cost": 0.2,
+                        "duration": 0.2,
                         "burden": 0.1,
                         "safety_risk": 0.0,
                         "ambiguity_risk": 0.1,
@@ -836,6 +896,7 @@ def test_cli_records_general_protocol_run_and_next_action(
         "expected_discrimination": 0.9,
         "uncertainty_reduction": 0.4,
         "cost_penalty": -0.05,
+        "duration_penalty": -0.05,
         "burden_penalty": -0.035,
         "safety_risk_penalty": -0.0,
         "ambiguity_risk_penalty": -0.075,

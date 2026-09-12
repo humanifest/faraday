@@ -1141,6 +1141,9 @@ def test_instrument_inspection_discloses_absent_stream_metadata(tmp_path: Path) 
     [
         lambda metadata: metadata.update({"limitations": []}),
         lambda metadata: metadata.update({"limitations": [" No typed stream metadata. "]}),
+        lambda metadata: metadata.update(
+            {"limitations": ["This source inspection validated synchronized timing."]}
+        ),
     ],
 )
 def test_verify_instrument_inspection_requires_temporal_limitations(
@@ -1654,6 +1657,16 @@ def test_stream_timing_verifier_replays_hidden_failure_conditions(
             "has unknown fields",
         ),
         (
+            lambda record: record["findings"].append(
+                {
+                    "severity": "warning",
+                    "code": "HIDDEN",
+                    "message": "Validated synchronized timing.",
+                }
+            ),
+            "stream_timing findings\\[0\\].message uses assessment-prohibited",
+        ),
+        (
             lambda record: record.update({
                 "conclusion_ceiling": "This timing record clears protocol gates."
             }),
@@ -2082,6 +2095,16 @@ def test_temporal_order_verifier_replays_retained_order_status(
                 }
             ),
             "has unknown fields",
+        ),
+        (
+            lambda record: record["findings"].append(
+                {
+                    "severity": "warning",
+                    "code": "HIDDEN",
+                    "message": "Confirmed causal event order.",
+                }
+            ),
+            "temporal_order findings\\[0\\].message uses assessment-prohibited",
         ),
         (
             lambda record: record.update({

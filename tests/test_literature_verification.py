@@ -166,6 +166,17 @@ def test_citation_verification_boundary_rejects_retained_overclaiming_rationale(
         )
 
 
+def test_citation_verification_boundary_rejects_retained_overclaiming_limitation(tmp_path):
+    extraction, digest = extraction_file(tmp_path)
+    result = create_citation_verification(
+        extraction, digest, review(), tmp_path / "verification"
+    )
+    result["limitations"][0] = "Citation verification confirmed source support"
+
+    with pytest.raises(ValidationError, match="prohibited overclaiming language"):
+        validate_citation_verification_boundary(result, result["assessments"])
+
+
 @pytest.mark.parametrize("failure", [
     "hash",
     "same-reviewer",

@@ -66,7 +66,8 @@ def test_screening_boundary_rejects_retained_overclaiming_reason(tmp_path):
 
 @pytest.mark.parametrize("tamper", [
     "scientific_evidence_eligible", "conclusion_authorized", "publication_authorized",
-    "reviewer_identity_authenticated", "limitations", "source_record_counts",
+    "reviewer_identity_authenticated", "limitations", "limitation_overclaim",
+    "source_record_counts",
     "duplicate_decision_conflicts", "status",
 ])
 def test_screening_boundary_replays_authority_counts_and_status(tmp_path, tamper):
@@ -82,6 +83,8 @@ def test_screening_boundary_replays_authority_counts_and_status(tmp_path, tamper
         result["reviewer_identity_authenticated"] = True
     elif tamper == "limitations":
         result["limitations"] = []
+    elif tamper == "limitation_overclaim":
+        result["limitations"][0] = "Screening confirmed that the source proves the claim."
     elif tamper == "source_record_counts":
         result["source_record_counts"] = {"include": 2, "exclude": 0, "unresolved": 0}
     elif tamper == "duplicate_decision_conflicts":

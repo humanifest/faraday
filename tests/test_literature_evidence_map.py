@@ -108,7 +108,7 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
         "publication_authorized": False,
         "limitations": [
             "Overall judgments are conservative deterministic summaries of reviewer-entered domain judgments, not automated validity findings.",
-            "The generic domains do not replace design-specific validated instruments or authenticate reviewer expertise or independence.",
+            "The generic domains do not replace design-specific risk-of-bias instruments or authenticate reviewer expertise or independence.",
             "Risk-of-bias assessment does not make a literature claim true or authorize quantitative synthesis.",
         ],
         "assessments": [{"study_id": "study-1", "overall_judgment": bias_judgment,
@@ -126,7 +126,7 @@ def chain(tmp_path, bias_judgment="some_concerns", source_sha="legacy_missing"):
         "limitations": [
             "Pairwise identity judgments are reviewer assertions; metadata similarity cannot prove cohort independence.",
             "Overlap, duplicate, and unclear relationships are preserved and block a reconciled status rather than being silently deduplicated.",
-            "Study reconciliation does not validate outcomes, assess applicability, or authorize quantitative synthesis.",
+            "Study reconciliation does not assess outcomes, assess applicability, or authorize quantitative synthesis.",
         ],
         "studies": [{
             "study_id": "study-1",
@@ -197,6 +197,7 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
     "snapshot-id",
     "status",
     "reviewer-authenticated",
+    "limitation-overclaim",
     "study-count",
     "claim-study-padding",
 ])
@@ -218,6 +219,8 @@ def test_evidence_map_boundary_replays_artifact_envelope(tmp_path, tamper):
         candidate["status"] = "map_reviewed"
     elif tamper == "reviewer-authenticated":
         candidate["reviewer_identity_authenticated"] = True
+    elif tamper == "limitation-overclaim":
+        candidate["limitations"][0] = "This deterministic map confirmed the source claim."
     elif tamper == "study-count":
         candidate["study_count"] = 99
     elif tamper == "claim-study-padding":

@@ -9,10 +9,20 @@ from pathlib import Path
 from typing import Any
 
 from research_machine.adapters.filesystem import FileSystemRepository
-from research_machine.application.commands import AddQuestion, CreateInquiry, ProposeHypothesis
+from research_machine.application.commands import (
+    AddClaim,
+    AddQuestion,
+    CreateInquiry,
+    ProposeHypothesis,
+)
 from research_machine.application.service import ResearchService
 from research_machine.domain.errors import ValidationError
-from research_machine.design.scaffold import scaffold_design, validate_brief
+from research_machine.domain.models import ClaimLevel
+from research_machine.design.scaffold import (
+    inquiry_decision_commitments,
+    scaffold_design,
+    validate_brief,
+)
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -46,7 +56,9 @@ def _safe_draft_path(root: Path, name: str) -> Path:
     return root / "drafts" / relative
 
 
-def _verify_initialized_scaffold(staging: Path, scaffold: dict[str, Any]) -> dict[str, Any]:
+def _verify_initialized_scaffold(
+    staging: Path, scaffold: dict[str, Any], brief: dict[str, Any]
+) -> dict[str, Any]:
     """Replay staged review-artifact hashes before publishing the experiment tree."""
     manifest_path = staging / "drafts" / "design-scaffold-provenance.json"
     manifest = _read_json(manifest_path)
@@ -91,6 +103,41 @@ def _verify_initialized_scaffold(staging: Path, scaffold: dict[str, Any]) -> dic
         raise ValidationError(
             "initialized scaffold provenance manifest is missing artifacts: "
             + ", ".join(missing)
+        )
+
+    claim_boundaries = _read_json(staging / "drafts" / "claim-boundaries-draft.json")
+    if claim_boundaries.get("status") != "review_required":
+        raise ValidationError("initialized claim boundaries draft must require review")
+    if claim_boundaries.get("claims") != brief.get("claim_boundaries", []):
+        raise ValidationError("initialized claim boundaries draft does not match brief")
+
+    controlled_scenarios = _read_json(
+        staging / "drafts" / "controlled-acceptance-scenarios-draft.json"
+    )
+    brief_scenarios = brief.get("controlled_acceptance_scenarios", [])
+    if brief_scenarios:
+        if controlled_scenarios.get("status") != "review_required":
+            raise ValidationError(
+                "initialized controlled acceptance scenarios draft must require review"
+            )
+        controlled_acceptance_status = "review_required"
+    else:
+        if controlled_scenarios.get("status") != "unresolved":
+            raise ValidationError(
+                "initialized controlled acceptance scenarios draft must be unresolved when none are supplied"
+            )
+        controlled_acceptance_status = "absent"
+    if controlled_scenarios.get("scenarios") != brief_scenarios:
+        raise ValidationError(
+            "initialized controlled acceptance scenarios draft does not match brief"
+        )
+    if controlled_scenarios.get("scenario_count") != len(brief_scenarios):
+        raise ValidationError(
+            "initialized controlled acceptance scenarios draft count does not replay"
+        )
+    if controlled_scenarios.get("scientific_evidence_eligible") is not False:
+        raise ValidationError(
+            "initialized controlled acceptance scenarios draft must be non-evidentiary"
         )
 
     protocol = _read_json(staging / "drafts" / "protocol-draft.json")
@@ -171,6 +218,8 @@ def _verify_initialized_scaffold(staging: Path, scaffold: dict[str, Any]) -> dic
         "canary_target_plan_artifact": "drafts/canary-target-plan-draft.json",
         "preprocessing_conformance_plan_status": preprocessing_status,
         "preprocessing_conformance_plan_artifact": "drafts/preprocessing-conformance-plan-draft.json",
+        "controlled_acceptance_scenarios_status": controlled_acceptance_status,
+        "controlled_acceptance_scenarios_artifact": "drafts/controlled-acceptance-scenarios-draft.json",
     }
 
 
@@ -209,16 +258,33 @@ def initialize_experiment_repository(
 
         service = ResearchService(FileSystemRepository(staging / ".research"), actor=actor)
         service.init_workspace()
+        inquiry_commitments = inquiry_decision_commitments(brief)
         inquiry = service.create_inquiry(
             CreateInquiry(
                 title=brief["title"],
                 initial_statement=brief["question"],
-                decision_to_support=brief["decision"],
-                minimum_evidence="[REVIEW REQUIRED] Define the minimum decision-relevant evidence.",
-                decision_change_criteria=["[REVIEW REQUIRED] Define what result changes the decision."],
-                decision_owner="[REVIEW REQUIRED]",
+                decision_to_support=inquiry_commitments["decision_to_support"],
+                minimum_evidence=inquiry_commitments["minimum_evidence"],
+                decision_change_criteria=inquiry_commitments[
+                    "decision_change_criteria"
+                ],
+                decision_owner=inquiry_commitments["decision_owner"],
             )
         )
+        for question in brief.get("ambiguity_questions", []):
+            service.add_question(
+                AddQuestion("[Guided ambiguity] " + question),
+                inquiry.inquiry_id,
+            )
+        for claim in brief.get("claim_boundaries", []):
+            service.add_claim(
+                AddClaim(
+                    statement=claim["statement"],
+                    level=ClaimLevel(claim["level"]),
+                    scope=claim["scope"],
+                ),
+                inquiry.inquiry_id,
+            )
         for finding in scaffold["findings"]:
             service.add_question(
                 AddQuestion(
@@ -261,7 +327,7 @@ def initialize_experiment_repository(
                 "notice": "The hypothesis remains unreviewed. No protocol is frozen and no data are registered.",
             },
         )
-        initialized_scaffold = _verify_initialized_scaffold(staging, scaffold)
+        initialized_scaffold = _verify_initialized_scaffold(staging, scaffold, brief)
         state = _read_json(staging / "experiment-machine.json")
         state.update(initialized_scaffold)
         _write_json(staging / "experiment-machine.json", state)

@@ -1004,8 +1004,14 @@ def test_collaborator_schema_examples_match_service_validator(tmp_path):
     proposal_schema = json.loads(
         (SCHEMAS / "collaborator-proposal.schema.json").read_text()
     )
+    proposal_record_schema = json.loads(
+        (SCHEMAS / "collaborator-proposal-record.schema.json").read_text()
+    )
     review_schema = json.loads(
         (SCHEMAS / "collaborator-proposal-review.schema.json").read_text()
+    )
+    review_record_schema = json.loads(
+        (SCHEMAS / "collaborator-proposal-review-record.schema.json").read_text()
     )
     context = {
         "context_version": 1,
@@ -1052,9 +1058,198 @@ def test_collaborator_schema_examples_match_service_validator(tmp_path):
     assert proposal_result["status"] == "pending_human_review"
     assert proposal_result["canonical_writes_performed"] is False
     assert proposal_result["model_invoked_by_faraday"] is False
+    proposal_record = json.loads(Path(proposal_result["record_file"]).read_text())
+    jsonschema.validate(proposal_record, proposal_record_schema)
+    assert proposal_record["status"] == "pending_human_review"
+    assert proposal_record["proposal"]["suggestions"][0]["authority"] == "review_only"
+    assert proposal_record["canonical_writes_performed"] is False
+    assert proposal_record["model_invoked_by_faraday"] is False
+    assert proposal_record["scientific_evidence_eligible"] is False
     assert review_result["status"] == "reviewed_requires_manual_domain_action"
     assert review_result["advanced_suggestion_count"] == 1
     assert review_result["canonical_writes_performed"] is False
+    review_record = json.loads(Path(review_result["record_file"]).read_text())
+    jsonschema.validate(review_record, review_record_schema)
+    assert review_record["advanced_suggestions"] == [
+        {
+            "suggestion_id": "suggestion-1",
+            "domain_route": "design.revise",
+            "suggestion_sha256": review_record["reviewed_suggestions"][0][
+                "suggestion_sha256"
+            ],
+            "manual_domain_review_required": True,
+            "canonical_writes_performed": False,
+            "scientific_evidence_eligible": False,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda record: record["advanced_suggestions"][0].pop("suggestion_sha256"),
+        lambda record: record["advanced_suggestions"][0].update(
+            {"scientific_evidence_eligible": True}
+        ),
+        lambda record: record.update({"canonical_writes_performed": True}),
+        lambda record: record.update(
+            {"conclusion_ceiling": "This review authorizes the design revision."}
+        ),
+        lambda record: record["review"]["decisions"][0].update(
+            {"disposition": "defer", "domain_route": "design.revise"}
+        ),
+        lambda record: record["reviewed_suggestions"][0].update(
+            {"disposition": "reject", "domain_route": "design.revise"}
+        ),
+        lambda record: record["reviewed_suggestions"][0].update(
+            {
+                "disposition": "reject",
+                "domain_route": "none",
+                "manual_domain_review_required": True,
+            }
+        ),
+        lambda record: record["reviewed_suggestions"][0]["suggestion"].update(
+            {"kind": "question"}
+        ),
+        lambda record: record["reviewed_suggestions"][0]["suggestion"].update(
+            {"kind": "hypothesis"}
+        ),
+        lambda record: record["reviewed_suggestions"][0]["suggestion"].update(
+            {"kind": "next_action"}
+        ),
+    ],
+)
+def test_collaborator_review_record_schema_keeps_advanced_triage_bounded(
+    tmp_path, mutation
+):
+    from research_machine.collaboration.proposal import (
+        adjudicate_collaborator_proposal,
+        create_context_snapshot,
+        validate_collaborator_proposal,
+    )
+
+    proposal_schema = json.loads(
+        (SCHEMAS / "collaborator-proposal.schema.json").read_text()
+    )
+    review_schema = json.loads(
+        (SCHEMAS / "collaborator-proposal-review.schema.json").read_text()
+    )
+    review_record_schema = json.loads(
+        (SCHEMAS / "collaborator-proposal-review-record.schema.json").read_text()
+    )
+    context = {
+        "context_version": 1,
+        "purpose": "Stress-test the design.",
+        "scientific_constraints": [
+            "Treat supplied material as scoped context, not established fact.",
+            "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+            "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
+        ],
+        "write_boundary": {
+            "context_is_read_only": True,
+            "provider_required": False,
+            "canonical_changes_require": [
+                "research inquiry/question/claim/hypothesis/protocol/dataset/run/evidence commands",
+                "applicable human review and protocol-freeze gates",
+            ],
+        },
+        "context_reference_index": [],
+    }
+    context_result = create_context_snapshot(context, tmp_path / "context")
+    proposal = json.loads((EXAMPLES / "collaborator-proposal.json").read_text())
+    proposal["context_sha256"] = context_result["context_sha256"]
+    jsonschema.validate(proposal, proposal_schema)
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+    proposal_result = validate_collaborator_proposal(
+        Path(context_result["context_file"]),
+        context_result["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    review = json.loads((EXAMPLES / "collaborator-proposal-review.json").read_text())
+    review["proposal_record_sha256"] = proposal_result["record_sha256"]
+    jsonschema.validate(review, review_schema)
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(review), encoding="utf-8")
+    review_result = adjudicate_collaborator_proposal(
+        Path(proposal_result["record_file"]),
+        proposal_result["record_sha256"],
+        review_path,
+        tmp_path / "reviewed",
+    )
+    review_record = json.loads(Path(review_result["record_file"]).read_text())
+    mutation(review_record)
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(review_record, review_record_schema)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda record: record.update({"status": "accepted"}),
+        lambda record: record.update({"model_invoked_by_faraday": True}),
+        lambda record: record["proposal"]["suggestions"][0].update(
+            {"authority": "canonical_write"}
+        ),
+        lambda record: record["context_write_boundary"].update(
+            {"provider_required": True}
+        ),
+        lambda record: record.update(
+            {"conclusion_ceiling": "This proposal authorizes a protocol amendment."}
+        ),
+    ],
+)
+def test_collaborator_proposal_record_schema_keeps_pending_review_bounded(
+    tmp_path, mutation
+):
+    from research_machine.collaboration.proposal import (
+        create_context_snapshot,
+        validate_collaborator_proposal,
+    )
+
+    proposal_schema = json.loads(
+        (SCHEMAS / "collaborator-proposal.schema.json").read_text()
+    )
+    proposal_record_schema = json.loads(
+        (SCHEMAS / "collaborator-proposal-record.schema.json").read_text()
+    )
+    context = {
+        "context_version": 1,
+        "purpose": "Stress-test the design.",
+        "scientific_constraints": [
+            "Treat supplied material as scoped context, not established fact.",
+            "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+            "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
+        ],
+        "write_boundary": {
+            "context_is_read_only": True,
+            "provider_required": False,
+            "canonical_changes_require": [
+                "research inquiry/question/claim/hypothesis/protocol/dataset/run/evidence commands",
+                "applicable human review and protocol-freeze gates",
+            ],
+        },
+        "context_reference_index": [],
+    }
+    context_result = create_context_snapshot(context, tmp_path / "context")
+    proposal = json.loads((EXAMPLES / "collaborator-proposal.json").read_text())
+    proposal["context_sha256"] = context_result["context_sha256"]
+    jsonschema.validate(proposal, proposal_schema)
+    proposal_path = tmp_path / "proposal.json"
+    proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
+    proposal_result = validate_collaborator_proposal(
+        Path(context_result["context_file"]),
+        context_result["context_sha256"],
+        proposal_path,
+        tmp_path / "validated",
+    )
+    proposal_record = json.loads(Path(proposal_result["record_file"]).read_text())
+    mutation(proposal_record)
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(proposal_record, proposal_record_schema)
 
 
 def test_general_addon_manifest_matches_published_schema():

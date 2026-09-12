@@ -7,7 +7,7 @@ import math
 import re
 from typing import Any
 from research_machine.domain.models import (
-    ControlDefinition, CONTROL_FAMILIES, MEASUREMENT_TEMPORAL_ROLES,
+    ClaimLevel, ControlDefinition, CONTROL_FAMILIES, MEASUREMENT_TEMPORAL_ROLES,
 )
 from research_machine.design.causal import audit_causal_identification
 from research_machine.design.precision import build_sample_size_planning_receipt
@@ -36,6 +36,7 @@ _CONTROL_MEASUREMENT_FIELDS = (
 _CAUSAL_MEASUREMENT_FIELDS = (
     _SECONDARY_MEASUREMENT_FIELDS - {"outcome"}
 ) | {"variable", "role"}
+_CLAIM_BOUNDARY_FIELDS = {"statement", "level", "scope"}
 _VALIDITY_CHECK_FIELDS = {
     "check_id", "evidence_type", "validity_claim", "assessment_plan",
     "acceptance_criterion", "failure_response", "assessment_gate_id",
@@ -44,6 +45,7 @@ _VALIDITY_EVIDENCE_TYPES = {
     "criterion", "convergent", "discriminant", "known_groups", "test_retest",
     "inter_rater", "content", "calibration", "other",
 }
+_CLAIM_LEVELS = {level.value for level in ClaimLevel}
 _CANARY_TARGET_PLAN_FIELDS = {
     "plan_id",
     "candidate_target_ids",
@@ -53,13 +55,30 @@ _CANARY_TARGET_PLAN_FIELDS = {
     "ethical_disclosure",
     "assessment_gate_id",
 }
+_CONTROLLED_ACCEPTANCE_SCENARIO_FIELDS = {
+    "scenario_id",
+    "purpose",
+    "expected_observation",
+    "distinguishes_from",
+    "failure_response",
+    "claim_ceiling",
+}
 _FALSIFYING_CONTROL_FAMILIES = {
     "negative", "sham", "replay", "random_time", "adversarial",
     "apparatus_only",
 }
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_REPORT_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 DESIGN_BRIEF_FIELDS = {
-    "title", "question", "decision", "study_type", "population", "setting",
+    "title", "question", "decision", "minimum_evidence",
+    "decision_change_criteria", "decision_owner", "ambiguity_questions",
+    "study_type", "population", "setting",
+    "available_data_sources", "unavailable_data", "data_access_constraints",
+    "data_access_owner", "data_provenance_plan",
+    "ethical_constraints", "ethical_safeguards_plan",
     "intervention", "exposure_definition", "assignment_type",
     "manipulated_factors", "factorial_or_crossover_design",
     "factor_interpretability_plan",
@@ -106,7 +125,8 @@ DESIGN_BRIEF_FIELDS = {
     "smallest_effect_size_of_interest", "effect_scale",
     "conclusion_time_window", "non_supporting_direction",
     "higher_level_conclusions_unsupported",
-    "causal_identification", "canary_target_plan",
+    "claim_boundaries", "causal_identification", "canary_target_plan",
+    "controlled_acceptance_scenarios",
 }
 
 
@@ -131,6 +151,189 @@ def _text_list(brief: dict[str, Any], key: str) -> list[str]:
     if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
         raise ValueError(f"design brief field {key} must be an array of non-blank strings")
     return value
+
+
+def _decision_change_criteria(brief: dict[str, Any]) -> list[str]:
+    criteria = _text_list(brief, "decision_change_criteria")
+    seen: set[str] = set()
+    for index, criterion in enumerate(criteria, start=1):
+        criterion_key = criterion.strip().casefold()
+        if criterion_key in seen:
+            raise ValueError(
+                f"decision_change_criteria[{index}] duplicates an earlier criterion"
+            )
+        seen.add(criterion_key)
+    return criteria
+
+
+def _ambiguity_questions(brief: dict[str, Any]) -> list[str]:
+    questions = _text_list(brief, "ambiguity_questions")
+    seen: set[str] = set()
+    for index, question in enumerate(questions, start=1):
+        question_key = question.strip().casefold()
+        if question_key in seen:
+            raise ValueError(
+                f"ambiguity_questions[{index}] duplicates an earlier ambiguity question"
+            )
+        seen.add(question_key)
+    return questions
+
+
+def _data_availability_boundary(
+    brief: dict[str, Any],
+) -> tuple[list[str], list[str], list[str]]:
+    available = _text_list(brief, "available_data_sources")
+    unavailable = _text_list(brief, "unavailable_data")
+    constraints = _text_list(brief, "data_access_constraints")
+    available_keys: set[str] = set()
+    for index, source in enumerate(available, start=1):
+        source_key = source.strip().casefold()
+        if source_key in available_keys:
+            raise ValueError(
+                f"available_data_sources[{index}] duplicates an earlier available data source"
+            )
+        available_keys.add(source_key)
+    unavailable_keys: set[str] = set()
+    for index, source in enumerate(unavailable, start=1):
+        source_key = source.strip().casefold()
+        if source_key in unavailable_keys:
+            raise ValueError(
+                f"unavailable_data[{index}] duplicates an earlier unavailable data item"
+            )
+        if source_key in available_keys:
+            raise ValueError(
+                f"unavailable_data[{index}] conflicts with an available data source"
+            )
+        unavailable_keys.add(source_key)
+    return available, unavailable, constraints
+
+
+def _independent_review_conditions(brief: dict[str, Any]) -> list[str]:
+    conditions = _text_list(brief, "independent_review_conditions")
+    seen: set[str] = set()
+    for index, condition in enumerate(conditions, start=1):
+        condition_key = condition.strip().casefold()
+        if condition_key in seen:
+            raise ValueError(
+                f"independent_review_conditions[{index}] duplicates an earlier review condition"
+            )
+        seen.add(condition_key)
+    return conditions
+
+
+def _claim_boundaries(brief: dict[str, Any]) -> list[dict[str, str]]:
+    value = brief.get("claim_boundaries", [])
+    if not isinstance(value, list):
+        raise ValueError("claim_boundaries must be an array")
+    claims: list[dict[str, str]] = []
+    statements: list[str] = []
+    for index, item in enumerate(value, start=1):
+        if not isinstance(item, dict) or set(item) != _CLAIM_BOUNDARY_FIELDS:
+            raise ValueError(
+                f"claim_boundaries[{index}] must contain exactly statement, level, and scope"
+            )
+        for field in _CLAIM_BOUNDARY_FIELDS:
+            if not isinstance(item[field], str) or not item[field].strip():
+                raise ValueError(
+                    f"claim_boundaries[{index}].{field} must be non-blank text"
+                )
+        if item["level"] not in _CLAIM_LEVELS:
+            raise ValueError(
+                f"claim_boundaries[{index}].level must be a supported claim level"
+            )
+        statement_key = item["statement"].strip().casefold()
+        if statement_key in statements:
+            raise ValueError(
+                f"claim_boundaries[{index}].statement duplicates an earlier claim boundary"
+            )
+        statements.append(statement_key)
+        claims.append(
+            {
+                "statement": item["statement"],
+                "level": item["level"],
+                "scope": item["scope"],
+            }
+        )
+    return claims
+
+
+def _bounded_review_text(value: str, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field} must be non-blank text")
+    if _REPORT_OVERCLAIM.search(value):
+        raise ValueError(
+            f"{field} uses report-prohibited overclaiming language"
+        )
+    return value
+
+
+def _controlled_acceptance_scenarios(
+    brief: dict[str, Any],
+) -> list[dict[str, Any]]:
+    value = brief.get("controlled_acceptance_scenarios", [])
+    if not isinstance(value, list):
+        raise ValueError("controlled_acceptance_scenarios must be an array")
+    scenarios: list[dict[str, Any]] = []
+    scenario_ids: set[str] = set()
+    for index, item in enumerate(value, start=1):
+        if not isinstance(item, dict) or set(item) != _CONTROLLED_ACCEPTANCE_SCENARIO_FIELDS:
+            raise ValueError(
+                "controlled_acceptance_scenarios["
+                + str(index)
+                + "] must contain exactly scenario_id, purpose, expected_observation, "
+                "distinguishes_from, failure_response, and claim_ceiling"
+            )
+        scenario_id = _bounded_review_text(
+            item["scenario_id"],
+            f"controlled_acceptance_scenarios[{index}].scenario_id",
+        )
+        normalized_id = scenario_id.strip().casefold()
+        if normalized_id in scenario_ids:
+            raise ValueError(
+                f"controlled_acceptance_scenarios[{index}].scenario_id duplicates an earlier scenario"
+            )
+        scenario_ids.add(normalized_id)
+        distinguishes_from = item["distinguishes_from"]
+        if (
+            not isinstance(distinguishes_from, list)
+            or not distinguishes_from
+            or any(
+                not isinstance(entry, str) or not entry.strip()
+                for entry in distinguishes_from
+            )
+        ):
+            raise ValueError(
+                f"controlled_acceptance_scenarios[{index}].distinguishes_from must be a non-empty array of non-blank text"
+            )
+        scenarios.append(
+            {
+                "scenario_id": scenario_id,
+                "purpose": _bounded_review_text(
+                    item["purpose"],
+                    f"controlled_acceptance_scenarios[{index}].purpose",
+                ),
+                "expected_observation": _bounded_review_text(
+                    item["expected_observation"],
+                    f"controlled_acceptance_scenarios[{index}].expected_observation",
+                ),
+                "distinguishes_from": [
+                    _bounded_review_text(
+                        entry,
+                        f"controlled_acceptance_scenarios[{index}].distinguishes_from[{entry_index}]",
+                    )
+                    for entry_index, entry in enumerate(distinguishes_from)
+                ],
+                "failure_response": _bounded_review_text(
+                    item["failure_response"],
+                    f"controlled_acceptance_scenarios[{index}].failure_response",
+                ),
+                "claim_ceiling": _bounded_review_text(
+                    item["claim_ceiling"],
+                    f"controlled_acceptance_scenarios[{index}].claim_ceiling",
+                ),
+            }
+        )
+    return scenarios
 
 
 def _is_canonical_sha256(value: str) -> bool:
@@ -204,6 +407,19 @@ def _scaffold_manifest(
             "produced them. It is not approval, protocol freeze, evidence, or "
             "authentication of reviewer identity."
         ),
+    }
+
+
+def inquiry_decision_commitments(brief: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "decision_to_support": brief["decision"],
+        "minimum_evidence": brief.get(
+            "minimum_evidence",
+            "[REVIEW REQUIRED] Define the minimum decision-relevant evidence.",
+        ),
+        "decision_change_criteria": _decision_change_criteria(brief)
+        or ["[REVIEW REQUIRED] Define what result changes the decision."],
+        "decision_owner": brief.get("decision_owner", "[REVIEW REQUIRED]"),
     }
 
 
@@ -344,7 +560,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     unknown = set(brief) - DESIGN_BRIEF_FIELDS
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "causal_identification", "canary_target_plan", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "claim_boundaries", "causal_identification", "canary_target_plan", "controlled_acceptance_scenarios", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -361,14 +577,19 @@ def validate_brief(brief: dict[str, Any]) -> None:
             raise ValueError("control definition requires exactly the documented fields") from exc
         if any(not isinstance(value, str) for value in definition.to_dict().values()):
             raise ValueError("control definition fields must be strings")
-    _text_list(brief, "independent_review_conditions")
+    _independent_review_conditions(brief)
     study_type = brief.get("study_type", "exploratory")
     if study_type not in _STUDY_TYPES:
         raise ValueError("study_type must be one of: " + ", ".join(sorted(_STUDY_TYPES)))
     if brief.get("assignment_type", "") not in {"", "randomized", "observational"}:
         raise ValueError("assignment_type must be randomized or observational")
-    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
+    for key in {"controls", "confounds", "exclusions", "falsification_conditions", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "higher_level_conclusions_unsupported", "outcome_admissible_values", "outcome_missing_value_codes", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows"}:
         _text_list(brief, key)
+    _decision_change_criteria(brief)
+    _ambiguity_questions(brief)
+    _data_availability_boundary(brief)
+    _claim_boundaries(brief)
+    _controlled_acceptance_scenarios(brief)
     if brief.get("outcome_scale", "") not in {"", *_MEASUREMENT_SCALES}:
         raise ValueError("outcome_scale is unsupported")
     if brief.get("primary_analysis_family", "") not in {"", *_ANALYSIS_FAMILIES}:
@@ -621,11 +842,180 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                 "Use exact stable labels without padding so review artifacts, coverage checks, gates, and execution handles bind the same scientific roles.",
             )
 
+    def has_noncanonical_parameter_values(values: dict[str, str]) -> bool:
+        return any(
+            key != key.strip() or value != value.strip()
+            for key, value in values.items()
+        )
+
+    def has_noncanonical_text_items(values: list[str]) -> bool:
+        return any(value != value.strip() for value in values)
+
     if any(brief[field] != brief[field].strip() for field in _REQUIRED):
         add(
             "CORE_BRIEF_FIELD_NONCANONICAL", "error",
             "A required design brief field contains surrounding whitespace.",
             "Use exact unpadded title, question, decision, outcome, and unit-of-observation text before review drafts preserve them as inquiry, hypothesis, protocol, and collection commitments.",
+        )
+    decision_change_criteria = _decision_change_criteria(brief)
+    if (
+        not str(brief.get("minimum_evidence", "")).strip()
+        or not decision_change_criteria
+        or not str(brief.get("decision_owner", "")).strip()
+    ):
+        add(
+            "INQUIRY_DECISION_BOUNDARY_INCOMPLETE",
+            "warning",
+            "The guided inquiry lacks a complete minimum-evidence threshold, decision-change criterion, or decision owner.",
+            "Before treating the study as decision-ready, state who owns the decision, what minimum evidence is enough, and what observation would change the decision.",
+        )
+    if (
+        (
+            isinstance(brief.get("minimum_evidence"), str)
+            and brief["minimum_evidence"] != brief["minimum_evidence"].strip()
+        )
+        or (
+            isinstance(brief.get("decision_owner"), str)
+            and brief["decision_owner"] != brief["decision_owner"].strip()
+        )
+        or has_noncanonical_text_items(decision_change_criteria)
+    ):
+        add(
+            "INQUIRY_DECISION_BOUNDARY_NONCANONICAL",
+            "error",
+            "The inquiry decision boundary contains text with surrounding whitespace.",
+            "Use exact unpadded minimum-evidence, decision-change, and decision-owner commitments before review artifacts preserve them.",
+        )
+    ambiguity_questions = _ambiguity_questions(brief)
+    if not ambiguity_questions:
+        add(
+            "AMBIGUITY_QUESTIONS_UNRESOLVED",
+            "warning",
+            "The guided design records no explicit unresolved ambiguity questions.",
+            "Before design review, state the important unknowns, ambiguities, or discriminator questions that should remain open rather than being answered by the scaffold.",
+        )
+    if has_noncanonical_text_items(ambiguity_questions):
+        add(
+            "AMBIGUITY_QUESTION_NONCANONICAL",
+            "error",
+            "A guided ambiguity question contains surrounding whitespace.",
+            "Use exact unpadded ambiguity questions before review artifacts and canonical open questions preserve them.",
+        )
+    claim_boundaries = _claim_boundaries(brief)
+    if not claim_boundaries:
+        add(
+            "CLAIM_BOUNDARIES_UNRESOLVED",
+            "warning",
+            "The guided design has no explicit claim-level boundary proposals.",
+            "Separate observation, measurement-validity, association, causal-direction, mechanism, adaptation, attribution/intent, robustness, and other claims before review.",
+        )
+    if any(
+        item["statement"] != item["statement"].strip()
+        or item["scope"] != item["scope"].strip()
+        or item["level"] != item["level"].strip()
+        for item in claim_boundaries
+    ):
+        add(
+            "CLAIM_BOUNDARY_NONCANONICAL",
+            "error",
+            "A guided claim boundary contains text with surrounding whitespace.",
+            "Use exact unpadded claim statements, levels, and scopes before review artifacts and canonical unresolved claims preserve them.",
+        )
+    controlled_acceptance_scenarios = _controlled_acceptance_scenarios(brief)
+    if not controlled_acceptance_scenarios:
+        add(
+            "CONTROLLED_ACCEPTANCE_SCENARIOS_UNRESOLVED",
+            "warning",
+            "The guided design has no controlled acceptance scenarios for discriminating machine behavior.",
+            "Before treating the scaffold as an end-to-end readiness target, name synthetic or controlled scenarios that should recover planted signals, return nulls, expose confounds, reject tampering, and preserve claim boundaries.",
+        )
+    if any(
+        scenario["scenario_id"] != scenario["scenario_id"].strip()
+        or scenario["purpose"] != scenario["purpose"].strip()
+        or scenario["expected_observation"]
+        != scenario["expected_observation"].strip()
+        or scenario["failure_response"] != scenario["failure_response"].strip()
+        or scenario["claim_ceiling"] != scenario["claim_ceiling"].strip()
+        or has_noncanonical_text_items(scenario["distinguishes_from"])
+        for scenario in controlled_acceptance_scenarios
+    ):
+        add(
+            "CONTROLLED_ACCEPTANCE_SCENARIO_NONCANONICAL",
+            "error",
+            "A controlled acceptance scenario contains text with surrounding whitespace.",
+            "Use exact unpadded scenario IDs, expectations, alternatives, failure responses, and claim ceilings before review artifacts preserve them.",
+        )
+    available_data_sources, unavailable_data, data_access_constraints = (
+        _data_availability_boundary(brief)
+    )
+    if not available_data_sources:
+        add(
+            "DATA_AVAILABILITY_UNRESOLVED",
+            "warning",
+            "The guided design has no declared available data source.",
+            "Identify existing records, instruments, field collection, simulations, or unavailable data before choosing a discriminating test.",
+        )
+    if not str(brief.get("data_provenance_plan", "")).strip():
+        add(
+            "DATA_PROVENANCE_PLAN_MISSING",
+            "warning",
+            "The guided design has no plan for binding source data to provenance.",
+            "State how source bytes, collection context, custody, and access limitations will be retained before collection or analysis.",
+        )
+    if not str(brief.get("data_access_owner", "")).strip():
+        add(
+            "DATA_ACCESS_OWNER_UNRESOLVED",
+            "warning",
+            "The guided design has no declared data access owner.",
+            "Name who controls access to the needed data so custody, consent, licensing, and operational limits remain accountable before collection or analysis.",
+        )
+    if (
+        has_noncanonical_text_items(available_data_sources)
+        or has_noncanonical_text_items(unavailable_data)
+        or has_noncanonical_text_items(data_access_constraints)
+        or (
+            isinstance(brief.get("data_access_owner"), str)
+            and brief["data_access_owner"] != brief["data_access_owner"].strip()
+        )
+        or (
+            isinstance(brief.get("data_provenance_plan"), str)
+            and brief["data_provenance_plan"]
+            and brief["data_provenance_plan"] != brief["data_provenance_plan"].strip()
+        )
+    ):
+        add(
+            "DATA_AVAILABILITY_NONCANONICAL",
+            "error",
+            "The guided data-availability record contains text with surrounding whitespace.",
+            "Use exact unpadded source, unavailable-data, access-owner, constraint, and provenance-plan text before review artifacts preserve it.",
+        )
+    if not _text_list(brief, "ethical_constraints"):
+        add(
+            "ETHICAL_CONSTRAINTS_UNRESOLVED",
+            "warning",
+            "The guided design has no declared ethical or safety constraint boundary.",
+            "Name applicable consent, safety, community, environmental, dual-use, resource, animal-welfare, or other ethical constraints before collection or analysis.",
+        )
+    if not str(brief.get("ethical_safeguards_plan", "")).strip():
+        add(
+            "ETHICAL_SAFEGUARDS_PLAN_MISSING",
+            "warning",
+            "The guided design has no plan for handling its declared ethical constraints.",
+            "State how constraints will be reviewed, monitored, and turned into stop conditions or qualified-review requirements before collection or analysis.",
+        )
+    if (
+        has_noncanonical_text_items(_text_list(brief, "ethical_constraints"))
+        or (
+            isinstance(brief.get("ethical_safeguards_plan"), str)
+            and brief["ethical_safeguards_plan"]
+            and brief["ethical_safeguards_plan"] != brief["ethical_safeguards_plan"].strip()
+        )
+    ):
+        add(
+            "ETHICAL_SAFEGUARDS_NONCANONICAL",
+            "error",
+            "The guided ethical-safeguards record contains text with surrounding whitespace.",
+            "Use exact unpadded ethical constraints and safeguards text before review artifacts preserve them.",
         )
     require_canonical_list_items("secondary_outcomes", "SECONDARY_OUTCOME_LABEL_NONCANONICAL", "Secondary outcomes")
     require_canonical_list_items("confirmatory_outcomes", "CONFIRMATORY_OUTCOME_LABEL_NONCANONICAL", "Confirmatory outcomes")
@@ -647,15 +1037,6 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         "UNSUPPORTED_CONCLUSION_NONCANONICAL",
         "Unsupported-conclusion ceilings",
     )
-
-    def has_noncanonical_parameter_values(values: dict[str, str]) -> bool:
-        return any(
-            key != key.strip() or value != value.strip()
-            for key, value in values.items()
-        )
-
-    def has_noncanonical_text_items(values: list[str]) -> bool:
-        return any(value != value.strip() for value in values)
 
     def measurement_contract_is_noncanonical(
         measurement: dict[str, Any],
@@ -1593,7 +1974,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                     for field, _, _ in review_fields
                 )
                 or has_noncanonical_text_items(
-                    _text_list(brief, "independent_review_conditions")
+                    _independent_review_conditions(brief)
                 )
             ):
                 add(
@@ -1611,7 +1992,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
                     "Independent review artifact SHA-256 is not a canonical lowercase digest.",
                     "Record the exact 64-character lowercase hexadecimal SHA-256 of the review artifact before staging local-byte verification.",
                 )
-            if decision == "approved_with_conditions" and not _text_list(brief, "independent_review_conditions"):
+            if decision == "approved_with_conditions" and not _independent_review_conditions(brief):
                 add("HUMAN_REVIEW_CONDITIONS_MISSING", "error", "Conditional approval does not record its conditions.", "Record every condition so the frozen protocol preserves the obligations.")
     dedicated_gate_ids = [
         *[item["evaluation_gate_id"] for item in brief.get("control_definitions", [])],
@@ -1655,6 +2036,20 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     sensor_requirements = _text_list(brief, "sensor_requirements")
     control_windows = _text_list(brief, "control_windows")
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
+    ambiguity_questions = _ambiguity_questions(brief)
+    claim_boundaries = _claim_boundaries(brief)
+    controlled_acceptance_scenarios = _controlled_acceptance_scenarios(brief)
+    available_data_sources, unavailable_data, data_access_constraints = (
+        _data_availability_boundary(brief)
+    )
+    data_access_owner = brief.get("data_access_owner") or "[REVIEW REQUIRED]"
+    data_provenance_plan = brief.get(
+        "data_provenance_plan"
+    ) or "[REVIEW REQUIRED] bind source bytes, custody, and collection context"
+    ethical_constraints = _text_list(brief, "ethical_constraints")
+    ethical_safeguards_plan = brief.get(
+        "ethical_safeguards_plan"
+    ) or "[REVIEW REQUIRED] define review, monitoring, and stop-condition safeguards"
     canary_target_plan = (
         dict(brief["canary_target_plan"])
         if isinstance(brief.get("canary_target_plan"), dict)
@@ -1679,6 +2074,17 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             "[REVIEW REQUIRED] first contrast level",
             "[REVIEW REQUIRED] second contrast level",
         ],
+    }
+    inquiry = {
+        "status": "review_required",
+        "title": brief["title"],
+        "initial_statement": brief["question"],
+        **inquiry_decision_commitments(brief),
+        "notice": (
+            "This inquiry draft records the practical decision boundary for "
+            "review. It is not evidence, approval, or a claim that the listed "
+            "threshold is scientifically adequate."
+        ),
     }
     planned_outcomes = [brief["outcome"], *secondary_outcomes]
     planned_confirmatory = _text_list(brief, "confirmatory_outcomes")
@@ -1856,7 +2262,14 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             "[REVIEW REQUIRED] maximum tolerable timing uncertainty or synchronization rule",
         ),
         "control_windows": control_windows,
-        "safety_constraints": ["Human-participant review required before collection."] if brief.get("human_participants") else ["[REVIEW REQUIRED] assess applicable safety constraints."],
+        "safety_constraints": (
+            (["Human-participant review required before collection."] if brief.get("human_participants") else [])
+            + (
+                ethical_constraints
+                if ethical_constraints
+                else ["[REVIEW REQUIRED] assess applicable ethical and safety constraints."]
+            )
+        ),
         "human_subjects": brief.get("human_participants"),
         "consent_plan": brief.get("consent_plan", ""),
         "withdrawal_plan": brief.get("withdrawal_plan", ""),
@@ -1873,7 +2286,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         "independent_review_scope": brief.get("independent_review_scope", ""),
         "independent_review_artifact_locator": brief.get("independent_review_artifact_locator", ""),
         "independent_review_artifact_sha256": brief.get("independent_review_artifact_sha256", ""),
-        "independent_review_conditions": _text_list(brief, "independent_review_conditions"),
+        "independent_review_conditions": _independent_review_conditions(brief),
     }
 
     def add_quality_requirements(gate_ids: list[str]) -> None:
@@ -1930,13 +2343,51 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         add_quality_requirements([brief["missingness_assessment_gate_id"]])
     status = "blocked" if blockers else "review_required"
     provenance = _scaffold_provenance(brief, findings)
+    inquiry_commitments = inquiry_decision_commitments(brief)
     artifacts = {
+            "inquiry-draft.json": inquiry,
             "hypothesis-proposal.json": hypothesis,
             "protocol-draft.json": protocol,
             "analysis-workflow-draft.json": {
                 "status": "review_required",
                 "steps": analysis_steps,
                 "notice": "Freeze exact methods, specifications, implementations, dependencies, hypotheses, outcomes, and measurements before execution. Generated placeholders are not registrations.",
+            },
+            "ambiguity-questions-draft.json": {
+                "status": "review_required",
+                "ambiguity_questions": ambiguity_questions,
+                "notice": "These are unresolved review questions. They are not evidence, answers, protocol commitments, or authorization to choose a preferred explanation.",
+            },
+            "claim-boundaries-draft.json": {
+                "status": "review_required",
+                "claims": claim_boundaries,
+                "notice": "These are unresolved claim-level proposals. They separate inference levels for review but do not accept, prove, or prioritize any claim.",
+            },
+            "controlled-acceptance-scenarios-draft.json": {
+                "status": (
+                    "review_required"
+                    if controlled_acceptance_scenarios
+                    else "unresolved"
+                ),
+                "scenarios": controlled_acceptance_scenarios,
+                "scenario_count": len(controlled_acceptance_scenarios),
+                "scientific_evidence_eligible": False,
+                "notice": "These are review-only controlled readiness scenarios. They do not report observed results, pass criteria, protocol approval, evidence, or support for any scientific claim.",
+            },
+            "data-availability-draft.json": {
+                "status": "review_required",
+                "available_data_sources": available_data_sources,
+                "unavailable_data": unavailable_data,
+                "data_access_owner": data_access_owner,
+                "data_access_constraints": data_access_constraints,
+                "data_provenance_plan": data_provenance_plan,
+                "notice": "This is a review-only data availability record. It does not verify access, custody, consent, source authenticity, or suitability for evidence.",
+            },
+            "ethical-safeguards-draft.json": {
+                "status": "review_required",
+                "ethical_constraints": ethical_constraints,
+                "ethical_safeguards_plan": ethical_safeguards_plan,
+                "notice": "This is a review-only ethical-safeguards record. It does not grant approval, authenticate reviewers, satisfy human-subject review, or prove substantive ethical adequacy.",
             },
             "data-dictionary-draft.json": {
                 "outcome": brief["outcome"], "unit_or_scale": brief.get("outcome_unit", "[REVIEW REQUIRED]"), "scale_type": brief.get("outcome_scale", "[REVIEW REQUIRED]"), "admissible_values": _text_list(brief, "outcome_admissible_values"), "valid_min": brief.get("outcome_valid_min"), "valid_max": brief.get("outcome_valid_max"), "missing_value_codes": _text_list(brief, "outcome_missing_value_codes"), "primary_analysis_family": brief.get("primary_analysis_family", "[REVIEW REQUIRED]"), "unit_of_observation": brief["unit_of_observation"], "measurement_validity": brief.get("measurement_validity", "[REVIEW REQUIRED]"),
@@ -2202,6 +2653,63 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             },
             "collection-plan.md": (
                 f"# {brief['title']}\n\nQuestion: {brief['question']}\n\nDecision: {brief['decision']}\n\n"
+                f"Minimum decision-relevant evidence: {inquiry_commitments['minimum_evidence']}\n\n"
+                "Decision-change observations: "
+                + "; ".join(inquiry_commitments["decision_change_criteria"])
+                + "\n\n"
+                f"Decision owner: {inquiry_commitments['decision_owner']}\n\n"
+                "Unresolved ambiguity questions: "
+                + (
+                    "; ".join(ambiguity_questions)
+                    if ambiguity_questions else "[REVIEW REQUIRED]"
+                )
+                + "\n\n"
+                "Claim-level boundaries: "
+                + (
+                    "; ".join(
+                        f"{item['level']}: {item['statement']}"
+                        for item in claim_boundaries
+                    )
+                    if claim_boundaries else "[REVIEW REQUIRED]"
+                )
+                + "\n\n"
+                "Controlled acceptance scenarios: "
+                + (
+                    "; ".join(
+                        f"{item['scenario_id']} distinguishes "
+                        + ", ".join(item["distinguishes_from"])
+                        for item in controlled_acceptance_scenarios
+                    )
+                    if controlled_acceptance_scenarios else "[REVIEW REQUIRED]"
+                )
+                + "\n\n"
+                "Available data sources: "
+                + (
+                    "; ".join(available_data_sources)
+                    if available_data_sources else "[REVIEW REQUIRED]"
+                )
+                + "\n\n"
+                "Unavailable or out-of-reach data: "
+                + (
+                    "; ".join(unavailable_data)
+                    if unavailable_data else "[none declared]"
+                )
+                + "\n\n"
+                f"Data access owner: {brief.get('data_access_owner') or '[REVIEW REQUIRED]'}\n\n"
+                "Data access constraints: "
+                + (
+                    "; ".join(data_access_constraints)
+                    if data_access_constraints else "[none declared]"
+                )
+                + "\n\n"
+                f"Data provenance plan: {brief.get('data_provenance_plan') or '[REVIEW REQUIRED]'}\n\n"
+                "Ethical and safety constraints: "
+                + (
+                    "; ".join(ethical_constraints)
+                    if ethical_constraints else "[REVIEW REQUIRED]"
+                )
+                + "\n\n"
+                f"Ethical safeguards plan: {brief.get('ethical_safeguards_plan') or '[REVIEW REQUIRED]'}\n\n"
                 "Collect only after blocking findings are resolved and the applicable protocol is reviewed and frozen.\n\n"
                 "Keep observation identity separate from independent-unit identity. Repeated observations retain the same unit ID; do not manufacture independence by assigning each row a new unit ID. "
                 "Use pseudonymous IDs and keep identifying lookup tables under the approved privacy controls.\n\n"

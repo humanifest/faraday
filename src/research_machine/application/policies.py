@@ -5122,6 +5122,7 @@ def validate_action_candidates(
         "expected_discrimination",
         "uncertainty_reduction",
         "cost",
+        "duration",
         "burden",
         "safety_risk",
         "ambiguity_risk",
@@ -5169,6 +5170,12 @@ def validate_action_candidates(
                 raise ValidationError(f"{field_name} must be a number from 0 to 1")
             if not 0 <= float(value) <= 1:
                 raise ValidationError(f"{field_name} must be a number from 0 to 1")
+        if not hypotheses and float(candidate.expected_discrimination) != 0.0:
+            raise ValidationError(
+                f"action {action_id} names no hypothesis distinction, so "
+                "expected_discrimination must be 0; use uncertainty_reduction "
+                "for infrastructure or information-gathering actions"
+            )
         if not isinstance(candidate.prerequisites_met, bool):
             raise ValidationError("prerequisites_met must be true or false")
         if not isinstance(candidate.safety_approved, bool):
@@ -5238,6 +5245,7 @@ def validate_action_candidates(
                 expected_discrimination=float(candidate.expected_discrimination),
                 uncertainty_reduction=float(candidate.uncertainty_reduction),
                 cost=float(candidate.cost),
+                duration=float(candidate.duration),
                 burden=float(candidate.burden),
                 safety_risk=float(candidate.safety_risk),
                 ambiguity_risk=float(candidate.ambiguity_risk),
@@ -5483,6 +5491,7 @@ def validate_selection_weights(weights: SelectionWeights) -> SelectionWeights:
         "expected_discrimination",
         "uncertainty_reduction",
         "cost",
+        "duration",
         "burden",
         "safety_risk",
         "ambiguity_risk",

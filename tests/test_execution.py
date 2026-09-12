@@ -2146,6 +2146,10 @@ def test_domain_neutral_protocol_run_and_evidence_chain(tmp_path: Path) -> None:
     forged_run["quality_gates"][0]["summary"] = "A substituted gate interpretation."
     run_path.write_text(json.dumps(forged_run), encoding="utf-8")
     with pytest.raises(ValidationError, match="run .* payload"):
+        service.list_runs()
+    with pytest.raises(ValidationError, match="run .* payload"):
+        service.get_run(run.run_id)
+    with pytest.raises(ValidationError, match="run .* payload"):
         service.show_inquiry()
     run_path.write_bytes(run_bytes)
 
@@ -2156,6 +2160,10 @@ def test_domain_neutral_protocol_run_and_evidence_chain(tmp_path: Path) -> None:
     forged = json.loads(evidence_bytes)
     forged["summary"] = "A stronger conclusion inserted after admission."
     evidence_path.write_text(json.dumps(forged), encoding="utf-8")
+    with pytest.raises(ValidationError, match="admission receipt"):
+        service.list_evidence_status_events()
+    with pytest.raises(ValidationError, match="admission receipt"):
+        service.list_evidence()
     with pytest.raises(ValidationError, match="admission receipt"):
         service.show_inquiry()
     evidence_path.write_bytes(evidence_bytes)
@@ -3036,6 +3044,7 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
         "expected_discrimination": 0.9,
         "uncertainty_reduction": 0.4,
         "cost_penalty": -0.05,
+        "duration_penalty": -0.0,
         "burden_penalty": -0.035,
         "safety_risk_penalty": -0.0,
         "ambiguity_risk_penalty": -0.075,
@@ -3050,6 +3059,24 @@ def test_next_action_selection_excludes_unsafe_options_and_is_auditable(
         hypothesis_id: "active"
     }
     assert service.list_recommendations() == [recommendation]
+    hypothesis_file = (
+        tmp_path
+        / "inquiries"
+        / "formal"
+        / "hypotheses"
+        / "active"
+        / f"{hypothesis_id}.json"
+    )
+    hypothesis_bytes = hypothesis_file.read_bytes()
+    hypothesis_payload = json.loads(hypothesis_bytes)
+    hypothesis_payload["null_model"] = "A rewritten null model after ranking."
+    hypothesis_file.write_text(
+        json.dumps(hypothesis_payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValidationError, match="hypothesis .* scientific content"):
+        service.list_recommendations()
+    hypothesis_file.write_bytes(hypothesis_bytes)
     synthesis = service.build_synthesis()["content"]
     assert "Utility components: utility 1.14" in synthesis
     assert "expected_discrimination 0.9" in synthesis
@@ -3180,6 +3207,7 @@ def test_next_action_selection_rejects_degenerate_utility_weights(
                     expected_discrimination=0.0,
                     uncertainty_reduction=0.0,
                     cost=0.0,
+                    duration=0.0,
                     burden=0.0,
                     safety_risk=0.0,
                     ambiguity_risk=0.0,
@@ -3297,6 +3325,7 @@ def test_next_action_replay_rejects_legacy_candidate_without_target(
     payload["candidates"][0]["hypothesis_discrimination_targets"] = []
     payload["candidates"][0]["hypothesis_workflow_states"] = {}
     payload["candidates"][0]["information_targets"] = []
+    payload["candidates"][0]["expected_discrimination"] = 0.0
     recommendation_file.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

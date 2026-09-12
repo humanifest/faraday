@@ -80,12 +80,14 @@ def test_extraction_preserves_canonical_source_study_and_record_ids(tmp_path):
     assert source_review["records"][0]["study_id"] == "study-1"
 
 
-@pytest.mark.parametrize("field", ["source_reason", "uncertainty", "notes"])
+@pytest.mark.parametrize("field", ["limitation", "source_reason", "uncertainty", "notes"])
 def test_extraction_boundary_rejects_retained_overclaiming_prose(tmp_path, field):
     screening, digest = prepared_screening(tmp_path)
     result = create_extraction(screening, digest, extraction_review(), tmp_path / "extraction")
     candidate = json.loads(json.dumps(result))
-    if field == "source_reason":
+    if field == "limitation":
+        candidate["limitations"][0] = "Extraction confirmed that the source proved the claim."
+    elif field == "source_reason":
         candidate["source_reviews"][0]["reason"] = "Confirmed source relevance"
     elif field == "uncertainty":
         candidate["source_reviews"][0]["records"][0]["uncertainty"] = "Validated estimate"

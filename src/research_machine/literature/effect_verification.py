@@ -79,7 +79,10 @@ def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("effect verification requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"effect-verification limitation {index + 1}")
+        _bounded_verification_text(
+            limitation,
+            f"effect-verification limitation {index + 1}",
+        )
 
     if effect_verification.get("independent_review") is not True:
         raise ValidationError("effect verification must retain independent_review true")

@@ -200,6 +200,7 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     "publication-authority",
     "reviewer-authenticated",
     "limitations-missing",
+    "limitations-overclaim",
     "deviation-status",
     "deviation-row-added",
     "deviation-row-padding",
@@ -211,6 +212,7 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     "deviation-plan-statistical-model",
     "deviation-plan-minimum",
     "bounded-conclusion",
+    "bounded-conclusion-overclaim",
     "direction-count",
     "ceiling-count",
     "claim-provenance",
@@ -242,6 +244,8 @@ def test_literature_synthesis_boundary_replays_output_summaries(tmp_path, tamper
         candidate["reviewer_identity_authenticated"] = True
     elif tamper == "limitations-missing":
         candidate["limitations"] = []
+    elif tamper == "limitations-overclaim":
+        candidate["limitations"][0] = "The organized claims confirmed the proposition."
     elif tamper == "deviation-status":
         candidate["deviation_status"] = "review_complete"
     elif tamper == "deviation-row-added":
@@ -286,6 +290,10 @@ def test_literature_synthesis_boundary_replays_output_summaries(tmp_path, tamper
         candidate["deviation_plan_commitments"]["minimum_independent_studies"] = 2
     elif tamper == "bounded-conclusion":
         candidate["bounded_conclusion"] = "Synthetic claim supported."
+    elif tamper == "bounded-conclusion-overclaim":
+        candidate["bounded_conclusion"] = (
+            "No automated substantive conclusion. The mapped claims confirmed the proposition."
+        )
     elif tamper == "direction-count":
         candidate["result_direction_counts"]["supports"] = 1
     elif tamper == "ceiling-count":

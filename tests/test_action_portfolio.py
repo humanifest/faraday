@@ -55,15 +55,17 @@ def candidate(
     prerequisite_evidence_refs: list[str] | None = None,
     safety_review_refs: list[str] | None = None,
     metadata: dict[str, object] | None = None,
+    duration: float = 0.0,
 ) -> ActionCandidate:
     return ActionCandidate(
         action_id=action_id,
         title=action_id.replace("-", " ").title(),
         distinguishes_hypotheses=distinguishes_hypotheses or [],
         information_targets=[f"{lane_id}:uncertainty"],
-        expected_discrimination=score,
+        expected_discrimination=score if distinguishes_hypotheses else 0.0,
         uncertainty_reduction=score,
         cost=0.1,
+        duration=duration,
         burden=0.1,
         safety_risk=0.0,
         ambiguity_risk=0.1,
@@ -153,22 +155,23 @@ def test_portfolio_selects_one_action_per_active_lane_without_starvation(
         score.action_id: score for score in recommendation.ranked_scores
     }
     assert score_by_id["machine-high"].weighted_components == {
-        "expected_discrimination": 1.0,
+        "expected_discrimination": 0.0,
         "uncertainty_reduction": 0.5,
         "cost_penalty": -0.025,
+        "duration_penalty": -0.0,
         "burden_penalty": -0.035,
         "safety_risk_penalty": -0.0,
         "ambiguity_risk_penalty": -0.075,
     }
-    assert score_by_id["machine-high"].utility == 1.365
+    assert score_by_id["machine-high"].utility == 0.365
     assert service.list_recommendations() == [recommendation]
     synthesis = service.build_synthesis()["content"]
     assert (
         "Selected next actions by lane: machine: machine-high; "
         "theory: theory-best" in synthesis
     )
-    assert "machine: utility 1.365" in synthesis
-    assert "expected_discrimination 1" in synthesis
+    assert "machine: utility 0.365" in synthesis
+    assert "expected_discrimination 0" in synthesis
     assert (
         "Eligibility basis: machine: prerequisites_met=True via "
         "prerequisite-review:machine-high; safety_approved=True via "
@@ -178,6 +181,32 @@ def test_portfolio_selects_one_action_per_active_lane_without_starvation(
         "Payload commitment: " + recommendation.recommendation_payload_sha256
         in synthesis
     )
+
+
+def test_action_selection_penalizes_duration_separately_from_cost(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    recommendation = service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[
+                candidate("slow-slightly-better", "machine", 0.9, duration=1.0),
+                candidate("fast-informative", "machine", 0.8, duration=0.0),
+            ],
+        )
+    )
+
+    assert recommendation.selected_action_id == "fast-informative"
+    score_by_id = {
+        score.action_id: score for score in recommendation.ranked_scores
+    }
+    assert score_by_id["slow-slightly-better"].weighted_components[
+        "duration_penalty"
+    ] == -0.25
+    assert score_by_id["fast-informative"].weighted_components[
+        "duration_penalty"
+    ] == -0.0
 
 
 def test_hypothesis_discrimination_targets_are_retained_and_visible(
@@ -211,6 +240,7 @@ def test_hypothesis_discrimination_targets_are_retained_and_visible(
             ],
         )
     )
+    assert recommendation.score_contract_version == 2
     assert len(recommendation.recommendation_payload_sha256) == 64
 
     selected = next(
@@ -456,6 +486,27 @@ def test_new_action_recommendations_require_eligibility_basis(
         )
 
 
+def test_information_only_actions_cannot_claim_expected_discrimination(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    misleading = replace(
+        candidate("info-only", "machine", 0.8),
+        expected_discrimination=0.8,
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="names no hypothesis distinction, so expected_discrimination must be 0",
+    ):
+        service.recommend_action_portfolio(
+            RecommendActionPortfolio(
+                lanes=[ActionLane("machine", "Machine")],
+                candidates=[misleading],
+            )
+        )
+
+
 def test_recommendation_reads_replay_eligibility_basis(
     tmp_path: Path,
 ) -> None:
@@ -481,6 +532,32 @@ def test_recommendation_reads_replay_eligibility_basis(
     with pytest.raises(
         ValidationError,
         match="must retain prerequisite_evidence_refs",
+    ):
+        service.list_recommendations()
+
+
+def test_recommendation_reads_replay_information_only_discrimination_score(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[candidate("info-only", "machine", 0.8)],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["recommendation_payload_sha256"] = ""
+    payload["candidates"][0]["expected_discrimination"] = 0.8
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="names no hypothesis distinction, so expected_discrimination must be 0",
     ):
         service.list_recommendations()
 
@@ -527,6 +604,81 @@ def test_legacy_sealed_recommendation_without_eligibility_basis_remains_visible(
     )
 
 
+def test_legacy_sealed_recommendation_without_duration_remains_readable(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[candidate("legacy-duration", "machine", 0.8)],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["weights"].pop("duration")
+    for item in payload["candidates"]:
+        item.pop("duration")
+    for score in payload["ranked_scores"]:
+        score["weighted_components"].pop("duration_penalty")
+        score["utility"] = round(sum(score["weighted_components"].values()), 8)
+    payload_without_commitment = dict(payload)
+    payload_without_commitment.pop("recommendation_payload_sha256", None)
+    payload["recommendation_payload_sha256"] = hashlib.sha256(
+        json.dumps(
+            payload_without_commitment,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    recommendation = service.list_recommendations()[0]
+    assert recommendation.candidates[0].duration == 0.0
+    assert (
+        "duration_penalty"
+        not in recommendation.ranked_scores[0].weighted_components
+    )
+
+
+def test_current_recommendation_without_duration_component_rejects(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[candidate("current-duration", "machine", 0.8)],
+        )
+    )
+    recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
+    payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    for score in payload["ranked_scores"]:
+        score["weighted_components"].pop("duration_penalty")
+        score["utility"] = round(sum(score["weighted_components"].values()), 8)
+    payload_without_commitment = dict(payload)
+    payload_without_commitment.pop("recommendation_payload_sha256", None)
+    payload["recommendation_payload_sha256"] = hashlib.sha256(
+        json.dumps(
+            payload_without_commitment,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    recommendation_file.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="ranked scores do not replay"):
+        service.list_recommendations()
+
+
 def test_recommendation_reads_replay_ranked_score_components(
     tmp_path: Path,
 ) -> None:
@@ -543,7 +695,7 @@ def test_recommendation_reads_replay_ranked_score_components(
     recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
     payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
     payload["ranked_scores"][0]["weighted_components"][
-        "expected_discrimination"
+        "uncertainty_reduction"
     ] = 0.0
     recommendation_file.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -592,6 +744,7 @@ def test_recommendation_replay_rejects_legacy_invalid_selection_weights(
                 "expected_discrimination": -0.1,
                 "uncertainty_reduction": 0.0,
                 "cost_penalty": -0.0,
+                "duration_penalty": -0.0,
                 "burden_penalty": -0.0,
                 "safety_risk_penalty": -0.0,
                 "ambiguity_risk_penalty": -0.0,
@@ -604,6 +757,7 @@ def test_recommendation_replay_rejects_legacy_invalid_selection_weights(
                 "expected_discrimination": -0.9,
                 "uncertainty_reduction": 0.0,
                 "cost_penalty": -0.0,
+                "duration_penalty": -0.0,
                 "burden_penalty": -0.0,
                 "safety_risk_penalty": -0.0,
                 "ambiguity_risk_penalty": -0.0,
@@ -1031,6 +1185,7 @@ def test_portfolio_rejects_degenerate_utility_weights(tmp_path: Path) -> None:
                     expected_discrimination=0.0,
                     uncertainty_reduction=0.0,
                     cost=0.0,
+                    duration=0.0,
                     burden=0.0,
                     safety_risk=0.0,
                     ambiguity_risk=0.0,

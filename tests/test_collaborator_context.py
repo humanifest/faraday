@@ -1678,8 +1678,16 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
         tmp_path / "reviewed",
     )
     record = json.loads(Path(result["record_file"]).read_text(encoding="utf-8"))
+    expected_suggestions = proposal["suggestions"]
     assert record["advanced_suggestions"] == [
-        {"suggestion_id": "suggestion-1", "domain_route": "design.revise"}
+        {
+            "suggestion_id": "suggestion-1",
+            "domain_route": "design.revise",
+            "suggestion_sha256": _canonical_json_sha256(expected_suggestions[0]),
+            "manual_domain_review_required": True,
+            "canonical_writes_performed": False,
+            "scientific_evidence_eligible": False,
+        }
     ]
     assert record["proposal_suggestion_ids"] == ["suggestion-1", "suggestion-2"]
     assert record["context_reference_index"] == []
@@ -1688,7 +1696,6 @@ def test_proposal_adjudication_is_complete_hash_bound_and_noncanonical(
         "provider_required": False,
         "canonical_changes_require": _CANONICAL_CHANGES_REQUIRE,
     }
-    expected_suggestions = proposal["suggestions"]
     assert record["proposal_record_replay"] == {
         "context_reference_index_sha256": _canonical_json_sha256([]),
         "context_scientific_constraints_sha256": _canonical_json_sha256(
@@ -2246,6 +2253,18 @@ def test_verify_collaborator_review_replays_proposal_body_grounding_refs(
         ),
         (
             lambda record: record.update({"advanced_suggestions": []}),
+            "advanced_suggestions disagrees",
+        ),
+        (
+            lambda record: record["advanced_suggestions"][0].update(
+                {"suggestion_sha256": "0" * 64}
+            ),
+            "advanced_suggestions disagrees",
+        ),
+        (
+            lambda record: record["advanced_suggestions"][0].update(
+                {"scientific_evidence_eligible": True}
+            ),
             "advanced_suggestions disagrees",
         ),
         (

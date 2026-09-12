@@ -61,6 +61,21 @@ def _validity_check(check_id: str = "primary-validity", gate_id: str = "primary-
     }
 
 
+def _controlled_scenario(scenario_id: str = "planted-signal-recovery", **overrides):
+    value = {
+        "scenario_id": scenario_id,
+        "purpose": "Check whether the controlled harness recovers a planted association without upgrading the claim.",
+        "expected_observation": "The planted association is reported as scoped support against the null fixture.",
+        "distinguishes_from": [
+            "independent null fixture",
+            "movement-confounded fixture",
+        ],
+        "failure_response": "Keep the campaign below readiness and inspect measurement, timing, and analysis commitments.",
+        "claim_ceiling": "Association readiness only; mechanism, adaptation, attribution, and intent remain unsupported.",
+    }
+    return {**value, **overrides}
+
+
 def _digest(value):
     if isinstance(value, str):
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
@@ -856,6 +871,390 @@ def test_confirmatory_scaffold_emits_structured_analysis_contract():
     assert "missingness-assessed" in protocol["quality_requirements"]
 
 
+def test_scaffold_preserves_inquiry_decision_boundary():
+    brief = {
+        "title": "Decision boundary fixture",
+        "question": "Question",
+        "decision": "Choose whether to proceed.",
+        "minimum_evidence": "Two independent checks support action.",
+        "decision_change_criteria": [
+            "Stop if the registered falsifier appears.",
+            "Proceed only if the validity check is consistent.",
+        ],
+        "decision_owner": "project-owner",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+    }
+
+    result = scaffold_design(brief)
+
+    inquiry = result["artifacts"]["inquiry-draft.json"]
+    assert inquiry["decision_to_support"] == "Choose whether to proceed."
+    assert inquiry["minimum_evidence"] == "Two independent checks support action."
+    assert inquiry["decision_change_criteria"] == brief["decision_change_criteria"]
+    assert inquiry["decision_owner"] == "project-owner"
+    assert "INQUIRY_DECISION_BOUNDARY_INCOMPLETE" not in {
+        item["code"] for item in result["findings"]
+    }
+    assert "Minimum decision-relevant evidence: Two independent checks" in result[
+        "artifacts"
+    ]["collection-plan.md"]
+
+    padded = scaffold_design(
+        {
+            **brief,
+            "minimum_evidence": " Two independent checks support action.",
+        }
+    )
+    codes = {item["code"] for item in padded["findings"]}
+    assert "INQUIRY_DECISION_BOUNDARY_NONCANONICAL" in codes
+    assert padded["status"] == "blocked"
+
+
+def test_scaffold_rejects_duplicate_decision_change_criteria():
+    brief = {
+        "title": "Decision boundary duplicate fixture",
+        "question": "Question",
+        "decision": "Choose whether to proceed.",
+        "minimum_evidence": "Two independent checks support action.",
+        "decision_change_criteria": [
+            "Stop if the registered falsifier appears.",
+            "stop if the registered falsifier appears.",
+        ],
+        "decision_owner": "project-owner",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier criterion"):
+        scaffold_design(brief)
+
+
+def test_scaffold_preserves_ambiguity_questions_boundary():
+    brief = {
+        "title": "Ambiguity fixture",
+        "question": "Question",
+        "decision": "Choose whether the current design can discriminate models.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "ambiguity_questions": [
+            "Can measurement drift explain the apparent difference?",
+            "Would selection into the sample change the decision?",
+        ],
+    }
+
+    result = scaffold_design(brief)
+
+    ambiguity = result["artifacts"]["ambiguity-questions-draft.json"]
+    assert ambiguity["ambiguity_questions"] == brief["ambiguity_questions"]
+    assert "not evidence" in ambiguity["notice"]
+    codes = {item["code"] for item in result["findings"]}
+    assert "AMBIGUITY_QUESTIONS_UNRESOLVED" not in codes
+    assert "Unresolved ambiguity questions: Can measurement drift" in result[
+        "artifacts"
+    ]["collection-plan.md"]
+
+    unresolved = scaffold_design({**brief, "ambiguity_questions": []})
+    unresolved_codes = {item["code"] for item in unresolved["findings"]}
+    assert "AMBIGUITY_QUESTIONS_UNRESOLVED" in unresolved_codes
+    assert unresolved["artifacts"]["ambiguity-questions-draft.json"][
+        "ambiguity_questions"
+    ] == []
+
+    padded = scaffold_design(
+        {
+            **brief,
+            "ambiguity_questions": [
+                " Can measurement drift explain the apparent difference?"
+            ],
+        }
+    )
+    padded_codes = {item["code"] for item in padded["findings"]}
+    assert "AMBIGUITY_QUESTION_NONCANONICAL" in padded_codes
+    assert padded["status"] == "blocked"
+
+
+def test_scaffold_rejects_duplicate_ambiguity_questions():
+    brief = {
+        "title": "Ambiguity duplicate fixture",
+        "question": "Question",
+        "decision": "Choose whether the current design can discriminate models.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "ambiguity_questions": [
+            "Can measurement drift explain the apparent difference?",
+            "can measurement drift explain the apparent difference?",
+        ],
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier ambiguity question"):
+        scaffold_design(brief)
+
+
+def test_scaffold_preserves_claim_level_boundaries():
+    brief = {
+        "title": "Claim boundary fixture",
+        "question": "Question",
+        "decision": "Choose whether the claim ladder is reviewable.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "claim_boundaries": [
+            {
+                "statement": "The instrument captured a usable outcome.",
+                "level": "measurement_validity",
+                "scope": "Registered instrument and outcome only.",
+            },
+            {
+                "statement": "The outcome is associated with condition.",
+                "level": "statistical_association",
+                "scope": "This dataset and contrast only.",
+            },
+        ],
+    }
+
+    result = scaffold_design(brief)
+
+    draft = result["artifacts"]["claim-boundaries-draft.json"]
+    assert draft["claims"] == brief["claim_boundaries"]
+    assert "do not accept" in draft["notice"]
+    assert "Claim-level boundaries: measurement_validity" in result[
+        "artifacts"
+    ]["collection-plan.md"]
+    codes = {item["code"] for item in result["findings"]}
+    assert "CLAIM_BOUNDARIES_UNRESOLVED" not in codes
+
+    unresolved = scaffold_design({**brief, "claim_boundaries": []})
+    unresolved_codes = {item["code"] for item in unresolved["findings"]}
+    assert "CLAIM_BOUNDARIES_UNRESOLVED" in unresolved_codes
+    assert unresolved["artifacts"]["claim-boundaries-draft.json"]["claims"] == []
+
+    padded = scaffold_design(
+        {
+            **brief,
+            "claim_boundaries": [
+                {
+                    "statement": " The instrument captured a usable outcome.",
+                    "level": "measurement_validity",
+                    "scope": "Registered instrument and outcome only.",
+                }
+            ],
+        }
+    )
+    padded_codes = {item["code"] for item in padded["findings"]}
+    assert "CLAIM_BOUNDARY_NONCANONICAL" in padded_codes
+    assert padded["status"] == "blocked"
+
+
+def test_scaffold_rejects_duplicate_claim_boundary_statements():
+    brief = {
+        "title": "Claim boundary duplicate fixture",
+        "question": "Question",
+        "decision": "Choose whether the claim ladder is reviewable.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "claim_boundaries": [
+            {
+                "statement": "The instrument captured a usable outcome.",
+                "level": "measurement_validity",
+                "scope": "Registered instrument and outcome only.",
+            },
+            {
+                "statement": "the instrument captured a usable outcome.",
+                "level": "statistical_association",
+                "scope": "This dataset and contrast only.",
+            },
+        ],
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier claim boundary"):
+        scaffold_design(brief)
+
+
+def test_scaffold_preserves_data_availability_boundary():
+    brief = {
+        "title": "Data availability fixture",
+        "question": "Question",
+        "decision": "Choose whether records can support the test.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "available_data_sources": [
+            "Instrument export retained as CSV.",
+            "Operator log retained as PDF.",
+        ],
+        "unavailable_data": ["No pre-intervention baseline exists."],
+        "data_access_owner": "lab-data-steward",
+        "data_access_constraints": [
+            "Raw identifiers require approved local review."
+        ],
+        "data_provenance_plan": (
+            "Hash source bytes and retain collection context before analysis."
+        ),
+    }
+
+    result = scaffold_design(brief)
+
+    availability = result["artifacts"]["data-availability-draft.json"]
+    assert availability["available_data_sources"] == brief[
+        "available_data_sources"
+    ]
+    assert availability["unavailable_data"] == brief["unavailable_data"]
+    assert availability["data_access_owner"] == "lab-data-steward"
+    assert availability["data_access_constraints"] == brief[
+        "data_access_constraints"
+    ]
+    assert availability["data_provenance_plan"].startswith("Hash source bytes")
+    codes = {item["code"] for item in result["findings"]}
+    assert "DATA_AVAILABILITY_UNRESOLVED" not in codes
+    assert "DATA_PROVENANCE_PLAN_MISSING" not in codes
+    assert "DATA_ACCESS_OWNER_UNRESOLVED" not in codes
+    assert "Available data sources: Instrument export retained as CSV." in result[
+        "artifacts"
+    ]["collection-plan.md"]
+
+    unresolved = scaffold_design(
+        {
+            **brief,
+            "data_access_owner": "",
+            "data_provenance_plan": "",
+        }
+    )
+    unresolved_availability = unresolved["artifacts"][
+        "data-availability-draft.json"
+    ]
+    assert unresolved_availability["data_access_owner"] == "[REVIEW REQUIRED]"
+    assert unresolved_availability["data_provenance_plan"].startswith(
+        "[REVIEW REQUIRED]"
+    )
+    unresolved_codes = {item["code"] for item in unresolved["findings"]}
+    assert "DATA_ACCESS_OWNER_UNRESOLVED" in unresolved_codes
+    assert "DATA_PROVENANCE_PLAN_MISSING" in unresolved_codes
+
+    padded = scaffold_design(
+        {
+            **brief,
+            "available_data_sources": [" Instrument export retained as CSV."],
+        }
+    )
+    padded_codes = {item["code"] for item in padded["findings"]}
+    assert "DATA_AVAILABILITY_NONCANONICAL" in padded_codes
+    assert padded["status"] == "blocked"
+
+
+def test_scaffold_rejects_conflicting_data_availability_boundary():
+    brief = {
+        "title": "Data availability conflict fixture",
+        "question": "Question",
+        "decision": "Choose whether records can support the test.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "available_data_sources": ["Instrument export retained as CSV."],
+        "unavailable_data": ["instrument export retained as csv."],
+    }
+
+    with pytest.raises(ValueError, match="conflicts with an available data source"):
+        scaffold_design(brief)
+
+
+def test_scaffold_rejects_duplicate_data_availability_items():
+    brief = {
+        "title": "Data availability duplicate fixture",
+        "question": "Question",
+        "decision": "Choose whether records can support the test.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "available_data_sources": [
+            "Instrument export retained as CSV.",
+            "instrument export retained as csv.",
+        ],
+    }
+
+    with pytest.raises(ValueError, match="duplicates an earlier available data source"):
+        scaffold_design(brief)
+
+    with pytest.raises(ValueError, match="duplicates an earlier unavailable data item"):
+        scaffold_design(
+            {
+                **brief,
+                "available_data_sources": [],
+                "unavailable_data": [
+                    "No pre-intervention baseline exists.",
+                    "no pre-intervention baseline exists.",
+                ],
+            }
+        )
+
+
+def test_scaffold_preserves_ethical_safeguards_boundary():
+    brief = {
+        "title": "Ethical safeguards fixture",
+        "question": "Question",
+        "decision": "Choose whether collection can proceed.",
+        "outcome": "Primary score",
+        "unit_of_observation": "unit",
+        "human_participants": False,
+        "ethical_constraints": [
+            "Avoid unnecessary equipment stress.",
+            "Do not collect during facility emergency operations.",
+        ],
+        "ethical_safeguards_plan": (
+            "Review constraints before collection and stop if a constraint is exceeded."
+        ),
+    }
+
+    result = scaffold_design(brief)
+
+    safeguards = result["artifacts"]["ethical-safeguards-draft.json"]
+    assert safeguards["ethical_constraints"] == brief["ethical_constraints"]
+    assert safeguards["ethical_safeguards_plan"].startswith(
+        "Review constraints"
+    )
+    protocol = result["artifacts"]["protocol-draft.json"]
+    assert protocol["safety_constraints"] == brief["ethical_constraints"]
+    assert "Ethical and safety constraints: Avoid unnecessary equipment stress." in result[
+        "artifacts"
+    ]["collection-plan.md"]
+    codes = {item["code"] for item in result["findings"]}
+    assert "ETHICAL_CONSTRAINTS_UNRESOLVED" not in codes
+    assert "ETHICAL_SAFEGUARDS_PLAN_MISSING" not in codes
+
+    unresolved = scaffold_design(
+        {
+            **brief,
+            "ethical_constraints": [],
+            "ethical_safeguards_plan": "",
+        }
+    )
+    unresolved_safeguards = unresolved["artifacts"][
+        "ethical-safeguards-draft.json"
+    ]
+    assert unresolved_safeguards["ethical_constraints"] == []
+    assert unresolved_safeguards["ethical_safeguards_plan"].startswith(
+        "[REVIEW REQUIRED]"
+    )
+    unresolved_codes = {item["code"] for item in unresolved["findings"]}
+    assert "ETHICAL_CONSTRAINTS_UNRESOLVED" in unresolved_codes
+    assert "ETHICAL_SAFEGUARDS_PLAN_MISSING" in unresolved_codes
+
+    padded = scaffold_design(
+        {
+            **brief,
+            "ethical_constraints": [" Avoid unnecessary equipment stress."],
+        }
+    )
+    padded_codes = {item["code"] for item in padded["findings"]}
+    assert "ETHICAL_SAFEGUARDS_NONCANONICAL" in padded_codes
+    assert padded["status"] == "blocked"
+
+
 def test_secondary_outcomes_require_exact_typed_measurement_coverage():
     base = {
         "title": "Secondary measurement fixture", "question": "Question",
@@ -1232,6 +1631,89 @@ def test_guided_design_scaffolds_canary_target_plan():
     assert draft["required_run_assessment"]["gate_id"] == "canary-target-assessed"
     assert "follows_comparator_or_decoy" in draft["required_run_assessment"]["result_shape"]["assessment_status"]
     assert "Canary target plan: masked-target-plan" in result["artifacts"]["collection-plan.md"]
+
+
+def test_guided_design_preserves_controlled_acceptance_scenarios():
+    scenarios = [
+        _controlled_scenario(),
+        _controlled_scenario(
+            "clock-drift-rejection",
+            purpose="Check whether the controlled harness rejects a timing result when clock drift approaches the lag window.",
+            expected_observation="The timing scenario is retained as a failure or unresolved readiness result.",
+            distinguishes_from=["true state-dependent timing fixture"],
+            failure_response="Do not report confirmatory timing readiness until clock uncertainty is bounded.",
+            claim_ceiling="Timing feasibility readiness only; causal direction and mechanism remain unsupported.",
+        ),
+    ]
+    result = scaffold_design({
+        "title": "Acceptance fixture",
+        "question": "Can the scaffold preserve controlled readiness scenarios?",
+        "decision": "Choose the next machine-development increment.",
+        "outcome": "Readiness result",
+        "unit_of_observation": "synthetic fixture",
+        "human_participants": False,
+        "controlled_acceptance_scenarios": scenarios,
+    })
+
+    draft = result["artifacts"]["controlled-acceptance-scenarios-draft.json"]
+    assert draft["status"] == "review_required"
+    assert draft["scenarios"] == scenarios
+    assert draft["scenario_count"] == 2
+    assert draft["scientific_evidence_eligible"] is False
+    assert "controlled readiness scenarios" in draft["notice"]
+    assert "planted-signal-recovery distinguishes independent null fixture" in (
+        result["artifacts"]["collection-plan.md"]
+    )
+    assert "CONTROLLED_ACCEPTANCE_SCENARIOS_UNRESOLVED" not in {
+        item["code"] for item in result["findings"]
+    }
+
+
+def test_guided_design_blocks_invalid_controlled_acceptance_scenarios():
+    padded = scaffold_design({
+        "title": "Acceptance fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "outcome": "Readiness result",
+        "unit_of_observation": "synthetic fixture",
+        "human_participants": False,
+        "controlled_acceptance_scenarios": [
+            _controlled_scenario(scenario_id=" planted-signal-recovery "),
+        ],
+    })
+    assert padded["status"] == "blocked"
+    assert "CONTROLLED_ACCEPTANCE_SCENARIO_NONCANONICAL" in {
+        item["code"] for item in padded["findings"]
+    }
+
+    with pytest.raises(ValueError, match="report-prohibited overclaiming"):
+        scaffold_design({
+            "title": "Acceptance fixture",
+            "question": "Question",
+            "decision": "Decision",
+            "outcome": "Readiness result",
+            "unit_of_observation": "synthetic fixture",
+            "human_participants": False,
+            "controlled_acceptance_scenarios": [
+                _controlled_scenario(
+                    expected_observation="The harness confirmed the favored mechanism."
+                ),
+            ],
+        })
+
+    with pytest.raises(ValueError, match="duplicates an earlier scenario"):
+        scaffold_design({
+            "title": "Acceptance fixture",
+            "question": "Question",
+            "decision": "Decision",
+            "outcome": "Readiness result",
+            "unit_of_observation": "synthetic fixture",
+            "human_participants": False,
+            "controlled_acceptance_scenarios": [
+                _controlled_scenario("planted-signal-recovery"),
+                _controlled_scenario("Planted-Signal-Recovery"),
+            ],
+        })
 
 
 @pytest.mark.parametrize(("mutation", "code"), [
@@ -1688,6 +2170,16 @@ def test_conditional_human_review_requires_recorded_conditions() -> None:
     }
     result = scaffold_design(brief)
     assert "HUMAN_REVIEW_CONDITIONS_MISSING" in {item["code"] for item in result["findings"]}
+    with pytest.raises(ValueError, match="duplicates an earlier review condition"):
+        scaffold_design(
+            {
+                **brief,
+                "independent_review_conditions": [
+                    "Submit annual report.",
+                    "submit annual report.",
+                ],
+            }
+        )
     padded_safeguard = scaffold_design({
         **brief,
         "consent_plan": " Written consent.",

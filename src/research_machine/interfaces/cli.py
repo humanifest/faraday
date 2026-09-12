@@ -17,6 +17,7 @@ from research_machine.application.commands import (
     AddQuestion,
     CreateProtocol,
     CreateInquiry,
+    DeferQuestion,
     ProposeHypothesis,
     RecommendActionPortfolio,
     RecommendNextAction,
@@ -447,6 +448,10 @@ def build_parser() -> argparse.ArgumentParser:
     question_answer.add_argument("question_id")
     question_answer.add_argument("--answer", required=True)
     _add_inquiry_option(question_answer)
+    question_defer = question_commands.add_parser("defer")
+    question_defer.add_argument("question_id")
+    question_defer.add_argument("--rationale", required=True)
+    _add_inquiry_option(question_defer)
     question_list = question_commands.add_parser("list")
     _add_inquiry_option(question_list)
 
@@ -2068,6 +2073,7 @@ def _action_candidates(spec: dict[str, Any]) -> list[ActionCandidate]:
         "expected_discrimination",
         "uncertainty_reduction",
         "cost",
+        "duration",
         "burden",
         "safety_risk",
         "ambiguity_risk",
@@ -2787,6 +2793,10 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
         if args.action == "answer":
             return service.answer_question(
                 args.question_id, args.answer, args.inquiry
+            ).to_dict()
+        if args.action == "defer":
+            return service.defer_question(
+                args.question_id, DeferQuestion(args.rationale), args.inquiry
             ).to_dict()
         return service.show_inquiry(args.inquiry)["questions"]
 

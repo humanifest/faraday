@@ -91,6 +91,7 @@ def test_explicit_no_deviations_declaration_is_recorded(tmp_path):
     "authority",
     "reviewer-authenticated",
     "plan-amended",
+    "overclaim-limitation",
     "timing-counts",
     "status-drift",
     "overclaim-retained",
@@ -129,6 +130,8 @@ def test_synthesis_deviation_boundary_replays_retained_snapshot(tmp_path, tamper
         candidate["reviewer_identity_authenticated"] = True
     elif tamper == "plan-amended":
         candidate["plan_amended"] = True
+    elif tamper == "overclaim-limitation":
+        candidate["limitations"][0] = "This deviation record validated the revised method"
     elif tamper == "timing-counts":
         candidate["timing_counts"]["before_synthesis"] = 99
     elif tamper == "status-drift":

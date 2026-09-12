@@ -10,7 +10,7 @@ def test_interview_emits_reviewable_control_definitions(complete):
     answers = iter(["Fixture", "Question", "Decision", "Height", "pot", "exploratory", "no"]
         + [""] * 29 + ["Blank sample", ""]
         + (["negative", "Detect background signal", "No signal"] if complete else ["", "", ""])
-        + [""] * 35)
+        + [""] * 48)
     result = interview_design(lambda prompt: next(answers))
     draft = result["scaffold"]["artifacts"]["protocol-draft.json"]
     definition = draft["control_definitions"][0]
@@ -28,6 +28,8 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
         + [
             "Target 40 independent pots per group for a two-millimeter interval half-width under the stated variance assumption.",
             *([""] * 15),
+            "Minimize stress to seedlings and avoid unauthorized greenhouse disruption",
+            "Review procedures before collection and stop if stress or facility constraints are exceeded",
             "Higher mean height after 7 days",
             "No difference between conditions",
             "A zero or negative mean difference",
@@ -55,6 +57,21 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
             "retain all valid measurements regardless of direction",
             "post_exposure",
             *( [""] * 27 ),
+            "A reviewed result that clears the support rule.",
+            "Stop if the registered falsifier appears; continue if validity is consistent",
+            "greenhouse-owner",
+            "Is baseline imbalance still plausible?; Can sensor drift explain the result?",
+            "The height measurement is usable; Blue light is associated with height",
+            "measurement_validity",
+            "Registered ruler measurement only",
+            "statistical_association",
+            "This greenhouse dataset and contrast only",
+            "no",
+            "greenhouse height CSV; masking log",
+            "no baseline tray photograph",
+            "lab-data-steward",
+            "raw identifiers stay local; consent covers seedling imaging",
+            "hash source bytes and retain collection context before analysis",
         ]
     )
     monkeypatch.setattr("builtins.input", lambda: next(answers))
@@ -84,6 +101,47 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
     assert result["brief"]["measurement_parameter_values"] == {
         "ruler_resolution": "1 mm", "replicate_readings": "2",
     }
+    assert result["brief"]["minimum_evidence"] == (
+        "A reviewed result that clears the support rule."
+    )
+    assert result["brief"]["decision_change_criteria"] == [
+        "Stop if the registered falsifier appears",
+        "continue if validity is consistent",
+    ]
+    assert result["brief"]["decision_owner"] == "greenhouse-owner"
+    assert result["brief"]["ambiguity_questions"] == [
+        "Is baseline imbalance still plausible?",
+        "Can sensor drift explain the result?",
+    ]
+    assert result["brief"]["claim_boundaries"] == [
+        {
+            "statement": "The height measurement is usable",
+            "level": "measurement_validity",
+            "scope": "Registered ruler measurement only",
+        },
+        {
+            "statement": "Blue light is associated with height",
+            "level": "statistical_association",
+            "scope": "This greenhouse dataset and contrast only",
+        },
+    ]
+    assert result["brief"]["available_data_sources"] == [
+        "greenhouse height CSV",
+        "masking log",
+    ]
+    assert result["brief"]["unavailable_data"] == ["no baseline tray photograph"]
+    assert result["brief"]["data_access_owner"] == "lab-data-steward"
+    assert result["brief"]["data_access_constraints"] == [
+        "raw identifiers stay local",
+        "consent covers seedling imaging",
+    ]
+    assert result["brief"]["data_provenance_plan"].startswith("hash source bytes")
+    assert result["brief"]["ethical_constraints"] == [
+        "Minimize stress to seedlings and avoid unauthorized greenhouse disruption"
+    ]
+    assert result["brief"]["ethical_safeguards_plan"].startswith(
+        "Review procedures"
+    )
     measurement = result["scaffold"]["artifacts"]["measurement-definition-draft.json"]
     assert measurement["data_column"] == "height_mm"
     assert measurement["observable"] == "Mean marked-stem height in millimetres"
@@ -450,6 +508,85 @@ def test_interview_collects_canary_target_plan() -> None:
     }
 
 
+def test_interview_collects_controlled_acceptance_scenarios() -> None:
+    def ask(prompt: str) -> str:
+        responses = {
+            "What is the study's working title?": "Acceptance interview",
+            "What question do you want to investigate?": "Can the harness distinguish controlled fixtures?",
+            "What practical decision would the findings inform?": "Choose the next machine-development increment.",
+            "What exactly will you measure as the primary outcome?": "readiness result",
+            "What does one data row represent, such as one pot-day?": "synthetic fixture",
+            "What kind of claim are you investigating?": "exploratory",
+            "Does this involve people or data about people?": "no",
+            "Would you like to add controlled acceptance scenarios for synthetic or controlled readiness targets?": "yes",
+            "List every controlled acceptance scenario ID": "planted-signal-recovery; clock-drift-rejection",
+            "What machine-readiness behavior should scenario 'planted-signal-recovery' test?": "Check whether the controlled harness recovers a planted association without upgrading the claim.",
+            "What bounded observation is expected in scenario 'planted-signal-recovery'?": "The planted association is reported as scoped support against the null fixture.",
+            "What should happen if scenario 'planted-signal-recovery' fails or is inconclusive?": "Keep the campaign below readiness and inspect measurement, timing, and analysis commitments.",
+            "What claim ceiling remains after scenario 'planted-signal-recovery', even if it behaves as expected?": "Association readiness only; mechanism, adaptation, attribution, and intent remain unsupported.",
+            "What alternatives does scenario 'planted-signal-recovery' distinguish?": "independent null fixture; movement-confounded fixture",
+            "What machine-readiness behavior should scenario 'clock-drift-rejection' test?": "Check whether the controlled harness rejects a timing result when clock drift approaches the lag window.",
+            "What bounded observation is expected in scenario 'clock-drift-rejection'?": "The timing scenario is retained as a failure or unresolved readiness result.",
+            "What should happen if scenario 'clock-drift-rejection' fails or is inconclusive?": "Do not report confirmatory timing readiness until clock uncertainty is bounded.",
+            "What claim ceiling remains after scenario 'clock-drift-rejection', even if it behaves as expected?": "Timing feasibility readiness only; causal direction and mechanism remain unsupported.",
+            "What alternatives does scenario 'clock-drift-rejection' distinguish?": "true state-dependent timing fixture",
+        }
+        return next((value for key, value in responses.items() if prompt.startswith(key)), "")
+
+    result = interview_design(ask)
+
+    scenarios = result["brief"]["controlled_acceptance_scenarios"]
+    assert [item["scenario_id"] for item in scenarios] == [
+        "planted-signal-recovery",
+        "clock-drift-rejection",
+    ]
+    assert scenarios[0]["distinguishes_from"] == [
+        "independent null fixture",
+        "movement-confounded fixture",
+    ]
+    draft = result["scaffold"]["artifacts"][
+        "controlled-acceptance-scenarios-draft.json"
+    ]
+    assert draft["status"] == "review_required"
+    assert draft["scenarios"] == scenarios
+    assert draft["scenario_count"] == 2
+    assert "CONTROLLED_ACCEPTANCE_SCENARIOS_UNRESOLVED" not in {
+        item["code"] for item in result["scaffold"]["findings"]
+    }
+
+
+def test_interview_preserves_noncanonical_controlled_acceptance_scenario_text() -> None:
+    def ask(prompt: str) -> str:
+        responses = {
+            "What is the study's working title?": "Acceptance interview",
+            "What question do you want to investigate?": "Question",
+            "What practical decision would the findings inform?": "Decision",
+            "What exactly will you measure as the primary outcome?": "readiness result",
+            "What does one data row represent, such as one pot-day?": "synthetic fixture",
+            "What kind of claim are you investigating?": "exploratory",
+            "Does this involve people or data about people?": "no",
+            "Would you like to add controlled acceptance scenarios for synthetic or controlled readiness targets?": "yes",
+            "List every controlled acceptance scenario ID": " planted-signal-recovery ",
+            "What machine-readiness behavior should scenario ' planted-signal-recovery ' test?": " Recover a planted association. ",
+            "What bounded observation is expected in scenario ' planted-signal-recovery '?": "The planted association is reported as scoped support.",
+            "What should happen if scenario ' planted-signal-recovery ' fails or is inconclusive?": "Keep the campaign below readiness.",
+            "What claim ceiling remains after scenario ' planted-signal-recovery ', even if it behaves as expected?": "Association readiness only.",
+            "What alternatives does scenario ' planted-signal-recovery ' distinguish?": " null fixture ",
+        }
+        return next((value for key, value in responses.items() if prompt.startswith(key)), "")
+
+    result = interview_design(ask)
+
+    scenario = result["brief"]["controlled_acceptance_scenarios"][0]
+    assert scenario["scenario_id"] == " planted-signal-recovery "
+    assert scenario["purpose"] == " Recover a planted association. "
+    assert scenario["distinguishes_from"] == [" null fixture "]
+    assert "CONTROLLED_ACCEPTANCE_SCENARIO_NONCANONICAL" in {
+        item["code"] for item in result["scaffold"]["findings"]
+    }
+    assert result["scaffold"]["status"] == "blocked"
+
+
 def test_interview_collects_scale_and_analysis_family_without_an_llm() -> None:
     def ask(prompt: str) -> str:
         responses = {
@@ -682,12 +819,21 @@ def test_provider_free_interview_collects_auditable_causal_design() -> None:
 
 def test_human_interview_retains_hold_and_retries_invalid_choice():
     answers = iter(["Fixture", "Question", "Decision", "Score", "participant-day",
-                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 33)
+                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 46)
     result = interview_design(lambda prompt: next(answers))
+    codes = {item["code"] for item in result["scaffold"]["findings"]}
     assert result["brief"]["study_type"] == "causal"
-    assert "BLINDING_UNRESOLVED" in {item["code"] for item in result["scaffold"]["findings"]}
+    assert "BLINDING_UNRESOLVED" in codes
     assert result["brief"]["independent_review"] is False
-    assert "HUMAN_REVIEW_REQUIRED" in {item["code"] for item in result["scaffold"]["findings"]}
+    assert "HUMAN_REVIEW_REQUIRED" in codes
     assert result["scaffold"]["status"] == "blocked"
-    assert "FALSIFIER_UNRESOLVED" in {item["code"] for item in result["scaffold"]["findings"]}
-    assert "SAMPLE_SIZE_JUSTIFICATION_MISSING" in {item["code"] for item in result["scaffold"]["findings"]}
+    assert "FALSIFIER_UNRESOLVED" in codes
+    assert "SAMPLE_SIZE_JUSTIFICATION_MISSING" in codes
+    assert "INQUIRY_DECISION_BOUNDARY_INCOMPLETE" in codes
+    assert "AMBIGUITY_QUESTIONS_UNRESOLVED" in codes
+    assert "CLAIM_BOUNDARIES_UNRESOLVED" in codes
+    assert "DATA_AVAILABILITY_UNRESOLVED" in codes
+    assert "DATA_PROVENANCE_PLAN_MISSING" in codes
+    assert "DATA_ACCESS_OWNER_UNRESOLVED" in codes
+    assert "ETHICAL_CONSTRAINTS_UNRESOLVED" in codes
+    assert "ETHICAL_SAFEGUARDS_PLAN_MISSING" in codes

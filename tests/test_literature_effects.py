@@ -172,6 +172,7 @@ def test_effect_records_preserve_canonical_study_and_source_handles(tmp_path):
     "conclusion-authority",
     "publication-authority",
     "reviewer-authenticated",
+    "overclaim-limitation",
     "claim-count",
     "availability-count",
     "status-drift",
@@ -218,6 +219,8 @@ def test_effect_records_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["publication_authorized"] = True
     elif tamper == "reviewer-authenticated":
         candidate["reviewer_identity_authenticated"] = True
+    elif tamper == "overclaim-limitation":
+        candidate["limitations"][0] = "The retained effect values validated the source calculation"
     elif tamper == "claim-count":
         candidate["study_count"] = 99
     elif tamper == "availability-count":

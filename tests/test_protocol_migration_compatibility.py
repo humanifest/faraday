@@ -9,6 +9,7 @@ import json
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.protocol_integrity import protocol_commitment
 from research_machine.application.policies import require_pending_review_rationale
+from research_machine.application.service import ResearchService
 from research_machine.domain.errors import IntegrityError, ValidationError
 from research_machine.domain.models import (
     ActionCandidate,
@@ -245,6 +246,17 @@ def test_legacy_evidence_requires_exact_hash_chained_projection(tmp_path) -> Non
     result = repository.verify_legacy_evidence_integrity("legacy", evidence)
 
     assert result["current_scientific_admission"] is False
+    (tmp_path / "workspace.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "created_at": "2026-09-09T01:00:00Z",
+            "active_inquiry_id": "legacy",
+            "inquiry_ids": ["legacy"],
+        }),
+        encoding="utf-8",
+    )
+    (destination.parents[1] / "claims.json").write_text("[]", encoding="utf-8")
+    assert ResearchService(repository).list_evidence_status_events("legacy") == []
     destination.write_text(
         json.dumps({**payload, "summary": "retrospectively changed"}),
         encoding="utf-8",
@@ -323,6 +335,136 @@ def test_legacy_recommendation_is_retained_without_current_selection_authority(
     )
 
     assert result["current_selection_authority"] is False
+
+
+def test_committed_v1_information_score_replays_without_retroactive_rewrite(
+    tmp_path,
+) -> None:
+    repository = FileSystemRepository(tmp_path)
+    candidate = ActionCandidate(
+        action_id="historical-information-action",
+        title="Historical information action",
+        distinguishes_hypotheses=[],
+        information_targets=["machine:historical-uncertainty"],
+        expected_discrimination=0.8,
+        uncertainty_reduction=0.6,
+        cost=0.2,
+        burden=0.1,
+        safety_risk=0.0,
+        ambiguity_risk=0.3,
+        prerequisite_evidence_refs=["historical-review:complete"],
+        safety_review_refs=["scope:software-only"],
+        rationale=(
+            "This committed record predates the separation of information "
+            "gain from hypothesis discrimination."
+        ),
+    )
+    weights = SelectionWeights(duration=0.0)
+    recommendation = ActionRecommendation(
+        recommendation_id="rec-committed-v1",
+        selected_action_id=candidate.action_id,
+        created_at="2026-09-11T18:11:56Z",
+        created_by="historical-runtime",
+        rationale=candidate.rationale,
+        candidates=[candidate],
+        ranked_scores=[
+            ActionScore(
+                candidate.action_id,
+                0.79,
+                {
+                    "expected_discrimination": 0.8,
+                    "uncertainty_reduction": 0.3,
+                    "cost_penalty": -0.05,
+                    "duration_penalty": -0.0,
+                    "burden_penalty": -0.035,
+                    "safety_risk_penalty": -0.0,
+                    "ambiguity_risk_penalty": -0.225,
+                },
+            )
+        ],
+        weights=weights,
+    )
+    uncommitted_payload = recommendation.to_dict()
+    uncommitted_payload.pop("score_contract_version")
+    uncommitted_payload.pop("recommendation_payload_sha256")
+    commitment = hashlib.sha256(
+        json.dumps(
+            uncommitted_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    payload = {**uncommitted_payload, "recommendation_payload_sha256": commitment}
+    destination = (
+        tmp_path
+        / "inquiries"
+        / "legacy"
+        / "recommendations"
+        / "rec-committed-v1.json"
+    )
+    destination.parent.mkdir(parents=True)
+    destination.write_text(json.dumps(payload), encoding="utf-8")
+    (tmp_path / "workspace.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "created_at": "2026-09-11T18:00:00Z",
+                "active_inquiry_id": "legacy",
+                "inquiry_ids": ["legacy"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    body = {
+        "sequence": 1,
+        "event_id": "evt-committed-v1",
+        "timestamp": recommendation.created_at,
+        "actor": "historical-runtime",
+        "command": "next-action.recommend",
+        "aggregate_type": "recommendation",
+        "aggregate_id": recommendation.recommendation_id,
+        "payload": payload,
+        "previous_hash": None,
+    }
+    event = {
+        **body,
+        "event_hash": hashlib.sha256(
+            json.dumps(
+                body,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest(),
+    }
+    ledger = destination.parents[1] / "ledger.jsonl"
+    ledger.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    restored = ResearchService(repository).list_recommendations("legacy")
+
+    assert restored[0].score_contract_version == 1
+    assert restored[0].candidates[0].expected_discrimination == 0.8
+
+    tampered = dict(payload)
+    tampered["rationale"] = "A retrospectively rewritten rationale."
+    tampered_without_commitment = dict(tampered)
+    tampered_without_commitment.pop("recommendation_payload_sha256")
+    tampered["recommendation_payload_sha256"] = hashlib.sha256(
+        json.dumps(
+            tampered_without_commitment,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    destination.write_text(json.dumps(tampered), encoding="utf-8")
+    try:
+        ResearchService(repository).list_recommendations("legacy")
+    except IntegrityError as exc:
+        assert "differs from its selection event" in str(exc)
+    else:
+        raise AssertionError("rewritten historical recommendation was accepted")
 
 
 def test_pending_review_authority_guard_distinguishes_negation_from_claim() -> None:

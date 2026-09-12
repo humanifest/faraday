@@ -159,8 +159,9 @@ every underlying byte; the bundle is not an authority or evidence boundary.
 
 Next-action selection is transparent and deterministic. Unsafe candidates and
 candidates with unmet prerequisites fail closed. Eligible candidates are ranked
-by expected discrimination and uncertainty reduction minus cost, burden, safety
-risk, and ambiguity risk. The candidates, weights, and ranking are all persisted.
+by expected discrimination and uncertainty reduction minus cost, duration,
+burden, safety risk, and ambiguity risk. The candidates, weights, and ranking
+are all persisted.
 
 ## Remaining adapter boundaries
 

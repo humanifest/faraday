@@ -8,7 +8,11 @@ from research_machine.design.causal import (
     COMMON_CAUSAL_ASSUMPTIONS,
 )
 from research_machine.design.scaffold import scaffold_design
-from research_machine.domain.models import CONTROL_FAMILIES, MEASUREMENT_TEMPORAL_ROLES
+from research_machine.domain.models import (
+    ClaimLevel,
+    CONTROL_FAMILIES,
+    MEASUREMENT_TEMPORAL_ROLES,
+)
 
 
 def _split_semicolon_answer(raw: str) -> list[str]:
@@ -385,6 +389,14 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             if brief["independent_review_decision"] == "approved_with_conditions":
                 conditions = ask("List every approval condition, separated by semicolons")
                 brief["independent_review_conditions"] = _split_semicolon_answer(conditions)
+    raw_ethical_constraints = ask(
+        "What ethical, safety, consent, community, environmental, dual-use, resource, animal-welfare, or other constraints apply? Separate exact constraints with semicolons [blank = unresolved]"
+    )
+    brief["ethical_constraints"] = _split_semicolon_answer(raw_ethical_constraints)
+    answer(
+        "ethical_safeguards_plan",
+        "How will those ethical or safety constraints be reviewed, monitored, and turned into stop conditions or qualified-review requirements?",
+    )
     answer("observable_prediction", "What observable result do you predict, including direction and time window?")
     answer("null_model", "What no-effect or competing explanation could account for the observations?")
     falsifiers = ask("What observations would weaken your hypothesis? Separate conditions with semicolons [blank = unresolved]")
@@ -728,4 +740,118 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             control_measurements.append(draft)
     if control_measurements:
         brief["control_measurements"] = control_measurements
+    answer(
+        "minimum_evidence",
+        "What minimum decision-relevant evidence would be enough to act?",
+    )
+    raw_change_criteria = ask(
+        "What observations would change the practical decision? Separate exact criteria with semicolons [blank = unresolved]"
+    )
+    brief["decision_change_criteria"] = _split_semicolon_answer(
+        raw_change_criteria
+    )
+    answer("decision_owner", "Who owns the practical decision?")
+    raw_ambiguities = ask(
+        "What important ambiguities or unresolved questions should remain open for review? Separate exact questions with semicolons [blank = unresolved]"
+    )
+    brief["ambiguity_questions"] = _split_semicolon_answer(raw_ambiguities)
+    raw_claim_boundaries = ask(
+        "What separate claim statements should be tracked before review? Separate exact claims with semicolons [blank = unresolved]"
+    )
+    claim_statements = _split_semicolon_answer(raw_claim_boundaries)
+    if claim_statements:
+        claim_boundaries = []
+        claim_levels = tuple(level.value for level in ClaimLevel)
+        for statement in claim_statements:
+            answer(
+                "_claim_level",
+                f"Which inference level applies to claim '{statement}'?",
+                choices=claim_levels,
+            )
+            answer(
+                "_claim_scope",
+                f"What exact scope bounds claim '{statement}'?",
+            )
+            if "_claim_level" in brief and "_claim_scope" in brief:
+                claim_boundaries.append(
+                    {
+                        "statement": statement,
+                        "level": brief.pop("_claim_level"),
+                        "scope": brief.pop("_claim_scope"),
+                    }
+                )
+            else:
+                brief.pop("_claim_level", None)
+                brief.pop("_claim_scope", None)
+        if claim_boundaries:
+            brief["claim_boundaries"] = claim_boundaries
+    answer(
+        "_enter_acceptance_scenarios",
+        "Would you like to add controlled acceptance scenarios for synthetic or controlled readiness targets?",
+        choices=("yes", "no"),
+    )
+    if brief.pop("_enter_acceptance_scenarios", "no") == "yes":
+        raw_scenarios = ask(
+            "List every controlled acceptance scenario ID, separated by semicolons [blank = unresolved]"
+        )
+        scenarios = []
+        for scenario_id in _split_semicolon_answer(raw_scenarios):
+            draft: dict[str, Any] = {"scenario_id": scenario_id}
+            for key, prompt in (
+                (
+                    "purpose",
+                    f"What machine-readiness behavior should scenario '{scenario_id}' test?",
+                ),
+                (
+                    "expected_observation",
+                    f"What bounded observation is expected in scenario '{scenario_id}'?",
+                ),
+                (
+                    "failure_response",
+                    f"What should happen if scenario '{scenario_id}' fails or is inconclusive?",
+                ),
+                (
+                    "claim_ceiling",
+                    f"What claim ceiling remains after scenario '{scenario_id}', even if it behaves as expected?",
+                ),
+            ):
+                answer("_scenario_value", prompt)
+                draft[key] = brief.pop("_scenario_value", "")
+            raw_alternatives = ask(
+                f"What alternatives does scenario '{scenario_id}' distinguish? Separate exact alternatives with semicolons [blank = unresolved]"
+            )
+            draft["distinguishes_from"] = _split_semicolon_answer(raw_alternatives)
+            if (
+                all(
+                    draft[key]
+                    for key in (
+                        "scenario_id",
+                        "purpose",
+                        "expected_observation",
+                        "failure_response",
+                        "claim_ceiling",
+                    )
+                )
+                and draft["distinguishes_from"]
+            ):
+                scenarios.append(draft)
+        if scenarios:
+            brief["controlled_acceptance_scenarios"] = scenarios
+    raw_available = ask(
+        "What data sources are available or will be collected? Separate exact sources with semicolons [blank = unresolved]"
+    )
+    brief["available_data_sources"] = _split_semicolon_answer(raw_available)
+    raw_unavailable = ask(
+        "What important data are unavailable, unobservable, or out of scope? Separate exact items with semicolons [blank = none declared]"
+    )
+    brief["unavailable_data"] = _split_semicolon_answer(raw_unavailable)
+    answer("data_access_owner", "Who controls access to the needed data?")
+    raw_constraints = ask(
+        "What access, privacy, consent, licensing, or operational constraints apply to the data? Separate exact constraints with semicolons [blank = none declared]"
+    )
+    brief["data_access_constraints"] = _split_semicolon_answer(raw_constraints)
+    answer(
+        "data_provenance_plan",
+        "How will source bytes, collection context, custody, and access limitations be retained?",
+    )
     return {"brief": brief, "scaffold": scaffold_design(brief)}

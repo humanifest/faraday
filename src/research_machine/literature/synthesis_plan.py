@@ -81,7 +81,7 @@ def validate_synthesis_plan_boundary(plan: dict[str, Any]) -> None:
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("synthesis plan requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"limitation {index + 1}")
+        _bounded_plan_text(limitation, f"limitation {index + 1}")
     for field in _BOUNDED_PLAN_FIELDS:
         value = plan.get(field)
         if value is not None:

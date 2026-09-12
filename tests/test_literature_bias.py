@@ -135,10 +135,16 @@ def test_bias_assessment_boundary_replays_artifact_envelope(tmp_path):
             validate_bias_assessment_boundary(candidate, candidate["assessments"])
 
 
-def test_bias_assessment_boundary_rejects_retained_overclaiming_prose(tmp_path):
+@pytest.mark.parametrize("field", ["limitation", "rationale", "notes"])
+def test_bias_assessment_boundary_rejects_retained_overclaiming_prose(tmp_path, field):
     verification, digest = verification_file(tmp_path)
     result = create_bias_assessment(verification, digest, review(), tmp_path / "bias")
-    result["assessments"][0]["domains"][0]["rationale"] = "Validated selection risk"
+    if field == "limitation":
+        result["limitations"][0] = "Bias assessment confirmed study validity"
+    elif field == "rationale":
+        result["assessments"][0]["domains"][0]["rationale"] = "Validated selection risk"
+    else:
+        result["assessments"][0]["notes"] = "Confirmed the study is low risk"
 
     with pytest.raises(ValidationError, match="prohibited overclaiming language"):
         validate_bias_assessment_boundary(

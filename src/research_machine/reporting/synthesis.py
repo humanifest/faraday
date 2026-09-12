@@ -20,6 +20,7 @@ from research_machine.domain.models import (
     Hypothesis,
     Inquiry,
     Question,
+    QuestionStatus,
     ResearchRun,
     RigorAudit,
     RigorSeverity,
@@ -252,6 +253,14 @@ def build_synthesis(
     latest_status: dict[str, EvidenceStatusEvent] = {}
     for event in sorted(evidence_status_events, key=lambda item: (item.evidence_id, item.sequence)):
         latest_status[event.evidence_id] = event
+    open_questions = [
+        question for question in questions
+        if question.status is QuestionStatus.OPEN
+    ]
+    deferred_questions = [
+        question for question in questions
+        if question.status is QuestionStatus.DEFERRED
+    ]
     contributing_ids = {
         record.evidence_id for record in evidence
         if record.evidence_id not in latest_status
@@ -279,10 +288,20 @@ def build_synthesis(
             "; ".join(inquiry.decision_change_criteria)
             or "No change criteria recorded."
         ),
+        f"- Open questions still unresolved: {len(open_questions)}",
+        f"- Deferred questions retained as unresolved: {len(deferred_questions)}",
         "",
         "## Clarifying questions",
         "",
     ]
+    if open_questions or deferred_questions:
+        lines.extend(
+            [
+                "Open and deferred questions remain live ambiguity, not evidence, "
+                "answers, or authorization to choose a preferred explanation.",
+                "",
+            ]
+        )
     if questions:
         for question in questions:
             answer = f" — {question.answer}" if question.answer else ""
@@ -1465,6 +1484,7 @@ def _score_component_summary(score: ActionScore) -> str:
         "expected_discrimination",
         "uncertainty_reduction",
         "cost_penalty",
+        "duration_penalty",
         "burden_penalty",
         "safety_risk_penalty",
         "ambiguity_risk_penalty",

@@ -383,6 +383,7 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     "publication-authority",
     "reviewer-authenticated",
     "limitations-missing",
+    "limitations-overclaim",
     "deviation-status",
     "deviation-row-added",
     "deviation-row-padding",
@@ -410,9 +411,12 @@ def test_retrospective_deviation_forces_meta_analysis_review_status(tmp_path):
     "planned-sensitivity-padding",
     "sensitivity-missing",
     "sensitivity-result-drift",
+    "sensitivity-reason-overclaim",
     "sensitivity-estimate",
     "small-study-conclusion",
     "small-study-count",
+    "small-study-boundary-overclaim",
+    "unavailable-overclaim",
 ])
 def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
     plan, plan_sha, effects, effects_sha, verification, verification_sha, deviations, deviations_sha = artifacts(tmp_path)
@@ -440,6 +444,8 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["reviewer_identity_authenticated"] = True
     elif tamper == "limitations-missing":
         candidate["limitations"] = []
+    elif tamper == "limitations-overclaim":
+        candidate["limitations"][0] = "Confirmed the pooled estimate is valid"
     elif tamper == "deviation-status":
         candidate["deviation_status"] = "review_complete"
     elif tamper == "deviation-row-added":
@@ -488,6 +494,8 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["available_study_count"] = 99
     elif tamper == "unavailable-studies":
         candidate["unavailable_studies"] = []
+    elif tamper == "unavailable-overclaim":
+        candidate["unavailable_studies"][0]["reason"] = "Confirmed no compatible statistics exist"
     elif tamper == "pooled-estimate":
         candidate["pooled_estimate"] += 1.0
     elif tamper == "pooled-ci-drift":
@@ -516,12 +524,21 @@ def test_meta_analysis_boundary_replays_output_summaries(tmp_path, tamper):
         candidate["planned_sensitivity_results"].pop()
     elif tamper == "sensitivity-result-drift":
         candidate["planned_sensitivity_results"][0]["results"] = []
+    elif tamper == "sensitivity-reason-overclaim":
+        candidate["planned_sensitivity_results"][1] = {
+            "analysis": "exclude_high_or_unclear_bias",
+            "status": "not_estimable",
+            "reason": "Validated the sensitivity finding",
+            "remaining_study_count": 1,
+        }
     elif tamper == "sensitivity-estimate":
         candidate["planned_sensitivity_results"][2]["estimate"] += 1.0
     elif tamper == "small-study-conclusion":
         candidate["small_study_effects"]["publication_bias_conclusion"] = True
     elif tamper == "small-study-count":
         candidate["small_study_effects"]["study_count"] = 99
+    elif tamper == "small-study-boundary-overclaim":
+        candidate["small_study_effects"]["reason"] = "Confirmed no publication bias"
     with pytest.raises(ValidationError):
         validate_meta_analysis_boundary(
             candidate,

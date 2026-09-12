@@ -66,7 +66,11 @@ methods without changing its epistemic rules or canonical state.
   factor plan, design status, and retained hypothesis-discrimination targets,
   and protocol-level rigor and synthesis now expose frozen manipulated-factor
   interpretability plans while flagging legacy simultaneous interventions that
-  remain unresolved. Synthesis also reports selected candidates' eligibility
+  remain unresolved. Information-only actions may reduce uncertainty through
+  typed information targets, but they must keep `expected_discrimination` at
+  zero; recommendation creation and replay reject any infrastructure candidate
+  that claims hypothesis-discrimination utility without naming hypotheses and
+  exact discrimination targets. Synthesis also reports selected candidates' eligibility
   references and marks older sealed recommendations without them as
   `legacy_missing` rather than treating bare booleans as fully anchored. The
   weight vector must contain finite,
@@ -74,8 +78,11 @@ methods without changing its epistemic rules or canonical state.
   provenance does not depend on silent whitespace normalization, non-finite
   arithmetic, or lexicographic action identifiers. Ranked scores now retain the
   signed weighted contribution of expected discrimination, uncertainty
-  reduction, cost, burden, safety risk, and ambiguity risk, and deterministic
-  synthesis reports those components for selected actions. Authoritative
+  reduction, cost, duration, burden, safety risk, and ambiguity risk, and
+  deterministic synthesis reports those components for selected actions.
+  Legacy sealed recommendations without duration remain readable only when they
+  match the pre-duration payload shape; new recommendations replay duration as a
+  first-class penalty rather than burying time cost in generic cost. Authoritative
   recommendation reads now replay the selected action, lane selections, ranked
   utilities, and signed components from the stored candidates, lanes,
   dependencies, completed actions, weights, and hypothesis-discrimination
@@ -91,6 +98,10 @@ methods without changing its epistemic rules or canonical state.
   replay also rejects portfolio-only
   lane selection fields and dependent candidates, preventing a stored
   single-action recommendation from smuggling in unreplayed work-plan state.
+  Recommendation creation and replay now derive hypothesis alternatives only
+  after validating the cited hypothesis records' service-generated scientific
+  content seals, so drifted null or competing models fail before recommendation
+  scoring can use them.
   New recommendations also carry
   a service-generated payload commitment over the complete immutable
   recommendation, excluding only that commitment field, so canonical rewrites of
@@ -313,9 +324,10 @@ attested independence dimensions even if the pinned schema omits an array
 uniqueness constraint.
 Evidence admission revalidates the frozen protocol, current protected dataset
 bytes and custody, current run-output bytes, and applicable ethics status, then
-preserves a bounded admission receipt. Inquiry display, rigor audit, and
-synthesis replay eligible run outputs again so post-admission mutation cannot
-survive through a stale historical pass. Default replication exports redact
+preserves a bounded admission receipt. Authoritative evidence listing, inquiry
+display, rigor audit, and synthesis replay eligible run outputs again so
+post-admission mutation cannot survive through a stale historical pass. Default
+replication exports redact
 local roots and schema paths. These checks establish byte continuity and local
 contract consistency, not execution truth or scientific interpretation. The
 receipt hashes the complete immutable evidence payload outside the receipt
@@ -351,13 +363,14 @@ provider-neutral clients before the service repeats the canonical check.
 
 Canonical run-payload delivery: after run preparation completes, the service now
 hashes the full immutable run outside the hash field itself. Caller-supplied
-commitments are rejected. Inquiry display and evidence admission recompute the
-commitment for every run, so post-record changes to gates, protocol or dataset
-links, chronology, deviation disclosures, eligibility, outputs, metadata, or
-summary fail before influencing scientific state. This local commitment detects
-accidental or out-of-band mutation under the repository trust model; it is not a
-signature, external timestamp, or defense against an administrator rewriting
-both canonical state and its entire provenance history.
+commitments are rejected. Run listing, single-run fetches, inquiry display, and
+evidence admission recompute the commitment for every run, so post-record
+changes to gates, protocol or dataset links, chronology, deviation disclosures,
+eligibility, outputs, metadata, or summary fail before influencing scientific
+state. This local commitment detects accidental or out-of-band mutation under
+the repository trust model; it is not a signature, external timestamp, or
+defense against an administrator rewriting both canonical state and its entire
+provenance history.
 
 Claim-bound evidence delivery: a scientific evidence admission receipt now
 commits the referenced claim’s stable proposition—claim ID, statement, inference
@@ -394,7 +407,10 @@ the scientific correctness of the disposition.
 The event retains its local artifact root. Every authoritative read recomputes
 the complete integrity receipt from present bytes and rejects missing, moved,
 mutated, symlinked, padded, or receipt-inconsistent review material instead of
-trusting a historical `passed` flag.
+trusting a historical `passed` flag. Status-event writes and status-history
+listing also replay the underlying scientific evidence admission receipt before
+appending or validating the event chain, so a correction history cannot be added
+to or stay readable after the evidence payload it qualifies has drifted.
 
 Human-subject ethics review-event replay now applies the same canonical
 immutable-text boundary to review reasons, creators, retained artifact handles,
@@ -444,7 +460,10 @@ accepted disposition unless the retained claim has a review time and decision
 owner. Source-grounded accepted claims continue to require source references.
 Claim dependency, source, conflict, and falsifier handles must be canonical
 before writing or review, so whitespace padding cannot silently rewrite the
-claim spine or provenance trail.
+claim spine or provenance trail. Authoritative inquiry reads replay the same
+accepted-claim authority checks, so out-of-band edits to review owner, review
+time, or required source references fail before synthesis, audit, or display can
+treat the claim spine as usable.
 The published claim-command schema now preflights those same handle and accepted-
 claim authority requirements for provider-neutral clients while leaving
 referenced-claim existence, conflict/dependency overlap, and inferential
@@ -792,9 +811,77 @@ the same registered digest and a required protocol quality gate. This preserves
 the draft chain of custody for human review without treating the scaffold as
 approval, protocol freeze, hidden-assignment authentication, preprocessing
 adherence evidence, or reviewer authentication.
+Guided controlled-acceptance delivery: design briefs and the provider-free
+interview can now carry `controlled_acceptance_scenarios`, a
+discipline-agnostic set of synthetic or controlled readiness targets that state
+what future harnesses must distinguish before the machine should be treated as
+campaign-ready. Each scenario has a stable ID, purpose, expected observation,
+exact alternatives it distinguishes, failure response, and claim ceiling. The
+scaffold emits
+`controlled-acceptance-scenarios-draft.json`, includes it in the manifest, and
+`design initialize` replays the draft against the source brief before publishing
+the local experiment repository. Empty discriminator lists, duplicate scenario
+IDs, padded scenario text, and overclaiming language are rejected before review.
+The draft remains explicitly non-evidentiary: it records readiness targets such
+as planted-signal recovery, null returns, confound detection, tamper rejection,
+raw-input reproduction, or claim-boundary preservation without claiming any
+scenario has passed or supporting a scientific conclusion.
 Required title, question, decision, outcome, and unit-of-observation fields now
 receive blocking findings when surrounding whitespace would otherwise be
 preserved as inquiry, hypothesis, protocol, or collection draft text.
+Guided inquiry-boundary delivery: JSON briefs and the provider-free interview
+can now collect the minimum decision-relevant evidence, exact observations that
+would change the practical decision, and the decision owner. The scaffold emits
+those commitments in `inquiry-draft.json` and the collection plan; initialization
+uses them for the canonical inquiry instead of overwriting them with generic
+placeholders. Missing values remain visibly `[REVIEW REQUIRED]`, duplicate
+decision-change criteria are rejected, and padded supplied values block readiness
+before the practical decision boundary becomes review material.
+Guided ambiguity-question delivery: JSON briefs and the provider-free interview
+can now preserve explicit unresolved ambiguity questions. The scaffold emits
+`ambiguity-questions-draft.json` and repeats the questions in the collection
+plan, while `design initialize` and guided revision record supplied ambiguities
+as canonical open questions through the application service. Missing questions
+remain visible warnings, duplicate questions are rejected, padded supplied
+questions block review readiness, and the draft keeps them as unanswered review
+questions rather than evidence, protocol commitments, or preferred explanations.
+Deterministic synthesis now reports the counts of still-open and deferred
+questions and labels them as live ambiguity rather than evidence, answers, or
+authorization to choose a preferred explanation. Rigor audit now emits a warning
+for still-open or deferred canonical questions, preserving unresolved ambiguity
+as a visible quality signal without making unfinished inquiry structurally
+invalid. Canonical questions can now be deferred with an explicit rationale
+through the service and CLI; deferred questions remain unresolved in rigor and
+synthesis and cannot overwrite an answered question.
+Guided claim-boundary delivery: JSON briefs and the provider-free interview can
+now preserve typed claim-level boundary proposals. The scaffold emits
+`claim-boundaries-draft.json` and repeats the proposed ladder in the collection
+plan, while `design initialize` and guided revision record supplied boundaries
+as unresolved canonical claims through the application service. Missing
+boundaries remain visible warnings, duplicate boundary statements are rejected,
+padded statements or scopes block readiness, and the draft keeps
+measurement-validity, association, causal, mechanism, adaptation,
+attribution/intent, robustness, and other claims separate before review instead
+of allowing favorable results to launder a stronger
+interpretation.
+Guided data-availability delivery: JSON briefs and the provider-free interview
+can now preserve declared available data sources, unavailable or out-of-scope
+data, access owner, access constraints, and a source-provenance plan. The
+scaffold emits `data-availability-draft.json` and repeats the boundary in the
+collection plan. Missing source or provenance commitments remain visible
+warnings, as does a missing data access owner. Duplicated or
+available/unavailable-conflicting source entries are rejected, while padded
+supplied source, access, or provenance text blocks review readiness. The
+artifact is review-only: it does not verify access, custody, consent,
+authenticity, or evidentiary suitability.
+Guided ethical-safeguards delivery: JSON briefs and the provider-free interview
+can now preserve general ethical and safety constraints plus a safeguards plan.
+The scaffold emits `ethical-safeguards-draft.json`, carries the constraints into
+the protocol draft's safety constraints, and repeats the boundary in the
+collection plan. Missing constraints or safeguards remain visible warnings, and
+padded supplied values block review readiness. The artifact is review-only: it
+does not grant approval, authenticate reviewers, satisfy human-subject review,
+or prove substantive ethical adequacy.
 Guided review-list commitments, including exclusions, falsification conditions,
 and unsupported higher-level conclusions, now receive blocking findings when
 surrounding whitespace would otherwise be preserved in draft artifacts.
@@ -1052,10 +1139,16 @@ the reason interactively. Both create a new unreviewed, lineage-linked proposal
 through the canonical service. Its provenance retains the exact canonical reason,
 brief, scaffold audit, and inquiry-wide IDs of datasets, protocols, runs, and
 evidence registered before the revision; padded reasons are rejected rather than
-trimmed into a different provenance record. Earlier records and initial drafts
-are untouched. Cancellation before submission creates no revision. This is
-neither a frozen-protocol amendment nor proof of blinding; researcher exposure
-remains unknown. Review and evidence are not inherited.
+trimmed into a different provenance record. When the revised brief supplies a
+complete, unpadded inquiry decision boundary, guided revision updates the
+canonical inquiry decision through the application service; partial or
+noncanonical decision commitments remain review material in the scaffold audit.
+Earlier records and initial drafts are untouched. Cancellation before submission
+creates no revision. This is neither a frozen-protocol amendment nor proof of
+blinding; researcher exposure remains unknown. Review and evidence are not
+inherited. Controlled acceptance scenarios supplied with a revised brief are
+replayed into the revision result and hypothesis provenance as review-only,
+non-evidentiary material, and scaffold disagreement blocks the write.
 Protocol amendments now require structured timing (`before_collection`,
 `during_collection`, `after_collection`, `after_analysis`, or `unknown`) and
 evidence exposure (`not_seen`, `aggregate_seen`, `full_data_seen`, or `unknown`).
@@ -1371,7 +1464,12 @@ When a package includes locators, verification also recomputes the packaged
 protocol, dataset, and run frozen hash commitments from the unredacted bytes;
 redacted packages preserve but cannot independently replay locator-bearing
 commitments.
-Export self-verifies before atomic publication.
+Before creating either redacted or locator-included staging bytes, local export
+now replays the current authoritative inquiry state through the application
+service, including service-generated protocol, dataset, run, evidence, and
+review commitments. Export then self-verifies before atomic publication. This
+prevents the redaction boundary from laundering a locally drifted canonical
+record into a metadata-only package that can no longer reopen private locators.
 Version-1 packages remain verifiable.
 Export itself does not validate a replication
 result or publish material. `replication verify` checks included file integrity
@@ -1480,8 +1578,9 @@ constraints, retained context reference index, proposal-record replay digests,
 review payload version, reviewed suggestion digests, the ordered
 proposal-suggestion snapshot anchor, reviewed-suggestion evidence-reference
 coverage, exact coverage of the retained ordered proposal suggestion IDs,
-compatible routes, and advanced-suggestion summary without performing canonical
-writes or authenticating the reviewer. Review assessments and rationales now
+compatible routes, and advanced-suggestion summary, including each advanced
+suggestion's retained digest and non-authority flags, without performing
+canonical writes or authenticating the reviewer. Review assessments and rationales now
 also fail closed when they claim acceptance, approval, authorization, proof,
 confirmation, validation, evidence creation, canonical action, or authenticated
 reviewer identity, and the published review schema preflights the same
@@ -1495,14 +1594,20 @@ authorization. Legacy review records without a
 retained context index, proposal-record replay digest, or ordered suggestion-ID
 anchor remain visible with `legacy_missing` replay rather than being silently
 upgraded. The collaborator context, proposal, and review input contracts are now
-published as provider-neutral JSON Schemas with synthetic examples, so apps and
-plugins can preflight the frozen context shape, retained write boundary,
-required uncertainty, alternatives, disconfirmers, falsification conditions,
-review-only authority, including capitalization variants of prohibited
-authority claims, and manual route decisions before Faraday's service repeats
-the trusted-hash, grounding, and compatibility checks. The schemas are
-only exchange shape contracts; they do not validate scientific adequacy,
-authenticate reviewers, invoke a provider, or authorize any canonical write.
+published as provider-neutral JSON Schemas with synthetic examples. Generated
+proposal and review record contracts are published separately, including the
+pending-review authority boundary for proposal records and the retained
+suggestion digest plus non-authority flags required for every advanced triage
+entry. Apps and plugins can preflight the frozen context shape, retained write
+boundary, required uncertainty, alternatives, disconfirmers, falsification
+conditions, review-only authority, including capitalization variants of
+prohibited authority claims, pending-review records, manual route decisions, and
+digest-bound advanced triage. Generated review records also preflight
+disposition/route/manual-review consistency and route compatibility with each
+reviewed suggestion kind before Faraday's service repeats the trusted-hash,
+grounding, and compatibility checks. The schemas are only exchange shape
+contracts; they do not validate scientific adequacy, authenticate reviewers,
+invoke a provider, or authorize any canonical write.
 
 Literature-snapshot delivery: `research literature snapshot` creates a
 write-once, hash-bound record of a search query, screening criteria, and locally
@@ -1542,10 +1647,10 @@ authorize publication claims, or establish independent studies.
 Screening reviewer text, pinned source IDs, decision source IDs, reasons, and
 criterion references must be canonical without surrounding whitespace before
 coverage and duplicate checks, so whitespace padding cannot create a second
-apparent screening decision or criterion citation. Screening reasons also reject
-report-prohibited overclaiming language, so an include/exclude decision cannot
-claim that a source proved, confirmed, validated, or explained a scientific
-proposition.
+apparent screening decision or criterion citation. Screening reasons and
+retained limitations also reject report-prohibited overclaiming language, so an
+include/exclude decision or copied screening boundary cannot claim that a source
+proved, confirmed, validated, or explained a scientific proposition.
 Screening now also carries each source's exact retained-file SHA-256 from the
 pinned snapshot into the downstream decision record. Extraction preserves that
 source-byte anchor by source review; citation verification retains it on each
@@ -1581,9 +1686,10 @@ Extraction reviewer text, pinned screening source IDs, extraction source IDs,
 study IDs, claim IDs, evidence locations, uncertainty, and notes must be
 canonical without surrounding whitespace before coverage and duplicate checks,
 preventing whitespace-padded reports from becoming separate claims or study
-groupings. Source-review reasons plus reviewer-entered uncertainty and notes
-also reject report-prohibited overclaiming language, while source `claim_text`
-remains preserved as source content for later citation review.
+groupings. Retained extraction limitations, source-review reasons,
+reviewer-entered uncertainty, and notes also reject report-prohibited
+overclaiming language, while source `claim_text` remains preserved as source
+content for later citation review.
 `research literature verify-citations` adds a second, hash-bound review covering
 every extracted claim. The expected extraction hash must be canonical lowercase
 SHA-256 before it can pin the extraction bytes. The citation reviewer must
@@ -1610,10 +1716,10 @@ Citation verification requires canonical extraction reviewer, source, study,
 claim, evidence-location, citation-reviewer, checked-location, and rationale
 text before coverage and duplicate checks, so a second review cannot trim a
 different apparent assessment or rewrite the pinned extraction trail. Citation
-rationales also reject report-prohibited overclaiming language, so a
-source-support check cannot claim proof, confirmation, validation, or
-explanation beyond the bounded verdict. It also replays each extraction
-source-review envelope before creating the review
+rationales and retained citation-verification limitations also reject
+report-prohibited overclaiming language, so a source-support check cannot claim
+proof, confirmation, validation, or explanation beyond the bounded verdict. It
+also replays each extraction source-review envelope before creating the review
 artifact: duplicate source IDs, padded source-review reasons, malformed retained
 source-file hashes, overclaiming source-review reasons, overclaiming
 uncertainty or notes, and extracted/no-extractable status drift fail closed even
@@ -1638,11 +1744,12 @@ or citation-location text, malformed source-byte anchors, and altered
 extracted-claim digests cannot hide behind matching verdict counts.
 Bias-assessment boundary replay now also validates its own version, retained
 citation-verification SHA-256, canonical snapshot handle, reviewer handle,
-domain order, retained assessment list, derived overall-judgment counts, and
-recorded status before study reconciliation or evidence-map construction can
-trust it. A hash-consistent bias review can no longer rewrite its upstream
-citation anchor, reviewer identity, domain order, or study-level summary through
-envelope fields alone.
+domain order, retained limitations, retained assessment list, derived
+overall-judgment counts, and recorded status before study reconciliation or
+evidence-map construction can trust it. Retained bias limitations are bounded
+report prose, so a hash-consistent bias review can no longer rewrite its
+upstream citation anchor, reviewer identity, domain order, boundary limitations,
+or study-level summary through envelope fields alone.
 Every reviewed study must cover all seven documented bias domains, cite
 locations for each applicable judgment, and exactly identify all source reports
 grouped under that study. Overall judgments are computed conservatively from
@@ -1677,10 +1784,10 @@ prove cohort independence or authorize synthesis.
 Study-reconciliation artifacts carry explicit false scientific-evidence,
 conclusion-authorization, publication-authorization, and
 reviewer-identity-authentication boundaries with retained limitations;
-their retained identity notes and pairwise relationship rationales also reject
-report-prohibited overclaiming language, so cohort matching cannot be rewritten
-as proof, confirmation, validation, or explanation of independence. Evidence-map
-construction replays those boundaries before joining claims.
+retained limitations, identity notes, and pairwise relationship rationales also
+reject report-prohibited overclaiming language, so cohort matching cannot be
+rewritten as proof, confirmation, validation, or explanation of independence.
+Evidence-map construction replays those boundaries before joining claims.
 Bias assessment and study reconciliation require canonical prior reviewer,
 study/source, reviewer, registration, metadata, relationship-pair, rationale,
 and evidence-location text before coverage and duplicate checks, so
@@ -1690,16 +1797,16 @@ replay each retained study-identity record: source IDs, registration IDs,
 population, setting, recruitment period, sample size, identity notes, and every
 pairwise relationship with rationale and cited locations must remain canonical
 and complete before mapped claims can be joined. The same replay requires
-identity notes and pairwise rationales to remain free of overclaiming verbs, so
-an identity-review artifact remains a bounded reviewer assertion rather than
-evidence that cohorts are truly independent.
+retained limitations, identity notes, and pairwise rationales to remain free of
+overclaiming verbs, so an identity-review artifact remains a bounded reviewer
+assertion rather than evidence that cohorts are truly independent.
 Study-reconciliation boundary replay now also validates its own version,
 retained bias-assessment SHA-256, canonical snapshot handle, reviewer handle,
-retained study list, retained relationship list, derived relationship counts,
-and derived status before evidence-map construction can trust it. A
-hash-consistent identity review can no longer rewrite its upstream bias anchor,
-reviewer identity, study roster, or pairwise-resolution status through envelope
-fields alone.
+retained limitations, retained study list, retained relationship list, derived
+relationship counts, and derived status before evidence-map construction can
+trust it. A hash-consistent identity review can no longer rewrite its upstream
+bias anchor, reviewer identity, boundary limitations, study roster, or
+pairwise-resolution status through envelope fields alone.
 `research literature evidence-map` verifies every hash link from extraction
 through citation review, bias assessment, and reconciled study identities before
 joining claims. The expected study-reconciliation hash must be canonical
@@ -1723,7 +1830,10 @@ hash chain cannot hide rewritten boundary summaries. The evidence-map boundary
 now also replays the map artifact's versioned input-hash envelope, canonical
 snapshot handle, status, claim count, study count, ceiling counts, and false
 evidence, conclusion, publication, and reviewer-identity-authentication
-authority before downstream synthesis can rely on the retained map.
+authority before downstream synthesis can rely on the retained map. Retained
+evidence-map limitation prose also rejects report-prohibited overclaiming
+language, so a copied map cannot keep false authority flags while describing
+proof, confirmation, validation, or explanation in its own boundary text.
 `research literature plan-synthesis` freezes the research question, primary
 outcome, qualitative or quantitative mode, effect measure, contrast definition, statistical model,
 minimum independent-study count, eligibility, missing-statistics, heterogeneity,
@@ -1775,6 +1885,10 @@ minimum-study requirement status; deviation-derived review status; directional
 and interpretive-ceiling counts; embedded deviation-bound plan commitments; and
 bounded-conclusion wording must all remain canonical or derive from retained
 claims and deviation status rather than being trusted summary fields.
+Retained qualitative-synthesis limitations and bounded-conclusion prose now also
+reject report-prohibited overclaiming language, so a copied synthesis cannot
+keep its non-authority flags false while describing proof, confirmation,
+validation, or explanation in narrative fields.
 The quantitative branch begins with `research literature prepare-effects`. It
 requires canonical lowercase trusted hashes for the frozen quantitative plan and
 exact evidence-map lineage, then records exactly one effect measure, standard
@@ -1806,10 +1920,11 @@ derived effects.
 Effect preparation requires canonical frozen plan source IDs, extraction source
 IDs, mapped study/source/claim IDs, citation anchors, reviewer text, derivation
 scope, reasons, evidence locations, and derivation prose before coverage and
-duplicate checks. Effect reasons, derivation prose, and retained source-summary
-reasons now also reject report-prohibited overclaiming language, so availability
-notes and arithmetic descriptions cannot claim proof, confirmation, validation,
-or explanation. The prepared effect artifact must preserve the plan's
+duplicate checks. Retained effect-record limitations, effect reasons, derivation
+prose, and retained source-summary reasons now also reject report-prohibited
+overclaiming language, so availability notes, boundary disclosures, and
+arithmetic descriptions cannot claim proof, confirmation, validation, or
+explanation. The prepared effect artifact must preserve the plan's
 exact frozen contrast rather than a later reviewer-entered comparison. Effect
 verification also requires canonical effect reviewer, retained study IDs,
 source-summary study IDs, verification reviewer, checked locations, rationales,
@@ -1849,7 +1964,10 @@ Effect verification now also replays the effect-record non-authority boundary
 before accepting a reproducible effect artifact: scientific-evidence,
 conclusion, and publication authorization must all remain false; limitations must
 remain retained and canonical; and study, available-effect, unavailable-effect,
-and readiness-status counts must replay from the retained records. The
+and readiness-status counts must replay from the retained records. Effect
+verification retained limitations are also bounded report prose: they reject
+proof, confirmation, validation, or explanation claims just like verifier
+rationales. The
 verification artifact carries the same explicit false authority flags, an
 explicit false reviewer-identity-authentication boundary, and retained
 limitations, plus service-derived independent-review and mismatch summaries.
@@ -1929,6 +2047,11 @@ executable sensitivity identifiers, and exact result coverage; and the
 small-study diagnostic's explicit refusal to conclude publication bias. This
 keeps the pooled arithmetic inspectable without turning
 the result into evidence, a conclusion, or publication clearance.
+Retained meta-analysis limitations, unavailable-study reasons, not-estimable
+sensitivity reasons, and small-study diagnostic interpretation text now also
+reject report-prohibited overclaiming language, so a copied pooling artifact
+cannot preserve valid-looking arithmetic while narrating proof, confirmation,
+validation, or explanation in side-channel prose.
 It also replays retained numeric-result shape: trusted input hashes, plan and
 snapshot handles, finite pooled estimates and uncertainty, confidence-interval
 arithmetic, heterogeneity degrees of freedom, prediction-interval eligibility,
@@ -1948,18 +2071,18 @@ names an inspectable evidence location for the deviation review. Reviewer and
 departure text must be canonical without surrounding whitespace before the
 artifact is hashed, so Faraday rejects padded disclosures rather than silently
 rewriting them. Departure commitments, methods, reasons, impact assessments,
-and corrective actions must also be bounded report prose, so the artifact cannot
-claim proof, confirmation, validation, or explanation while disclosing a
-departure. Changes after results were seen—or with unknown timing—force
-heightened review. The artifact also retains a compact frozen-plan commitment
-snapshot, and rejects synthesis-type-incompatible stages such as qualitative
-effect preparation. It cannot amend the plan, retroactively preregister a choice,
-raise a claim ceiling, authorize conclusions or publication, or authenticate the
-researcher's account. Its non-authority flags, false
-reviewer-identity-authentication boundary, `cannot_raise` ceiling effect,
-`plan_amended: false`, retained limitations, timing counts, and status are
-replayed from the retained departure rows before downstream synthesis can trust
-the declaration.
+corrective actions, and retained deviation limitations must also be bounded
+report prose, so the artifact cannot claim proof, confirmation, validation, or
+explanation while disclosing a departure. Changes after results were seen—or
+with unknown timing—force heightened review. The artifact also retains a compact
+frozen-plan commitment snapshot, and rejects synthesis-type-incompatible stages
+such as qualitative effect preparation. It cannot amend the plan,
+retroactively preregister a choice, raise a claim ceiling, authorize conclusions
+or publication, or authenticate the researcher's account. Its non-authority
+flags, false reviewer-identity-authentication boundary, `cannot_raise` ceiling
+effect, `plan_amended: false`, retained limitations, timing counts, and status
+are replayed from the retained departure rows before downstream synthesis can
+trust the declaration.
 The artifact now also replays its own retained boundary before it is written:
 version and trusted plan hash, plan and snapshot handles, reviewer text, exact
 frozen-plan commitment fields, canonical included source IDs, timing counts,
@@ -2082,10 +2205,11 @@ identity, metadata, artifact declarations, and all generated verification
 receipts. Caller-supplied commitments are rejected. Inquiry display and run
 intake recompute the digest before applying role or evidence rules, preventing a
 changed classification or lineage from exploiting otherwise valid artifact
-hashes. As with run commitments, this is local mutation detection rather than a
-signature or external timestamp; metadata-only exports may redact operational
-paths and therefore preserve, but cannot independently replay, the unredacted
-canonical commitment.
+hashes. Authoritative dataset listing replays the same read boundary before
+returning records. As with run commitments, this is local mutation detection
+rather than a signature or external timestamp; metadata-only exports may redact
+operational paths and therefore preserve, but cannot independently replay, the
+unredacted canonical commitment.
 
 Instrument-adapter foundation: validated add-on manifests may now register
 bounded inspectors with stable IDs, supported media types, and explicit config
@@ -2109,7 +2233,8 @@ labeled `proposed_unverified`, and missing typed streams are labeled
 `not_provided` with an explicit limitation, so future event-timing workflows
 cannot treat absent metadata as timing readiness. Independent replay now also
 requires retained temporal limitations to remain nonempty, canonical, and
-unique, so a hash-consistent rewritten inspection record cannot drop the visible
+unique and rejects assessment-overclaiming temporal limitation prose, so a
+hash-consistent rewritten inspection record cannot drop or overstate the visible
 reason that absent or unverified stream metadata is not timing readiness.
 `measurement verify-source-inspection` requires
 an independently trusted record hash and exactly re-executes all three inputs.
@@ -2169,9 +2294,10 @@ missing-interval overlaps from the structured record, so tampered copied
 arithmetic, a tampered status label, or a copied findings list cannot hide
 timing infeasibility. Retained records whose
 structured contents imply a failure must also preserve the exact machine finding
-code that explains it. Retained stream, event, overlap, and finding entries must
-now match one exact status-dependent shape, preventing hidden annotations or
-omitted machine-checkable fields from flowing into canonical run replay. Replay
+code that explains it, and retained finding messages must remain free of
+assessment-overclaiming language. Retained stream, event, overlap, and finding
+entries must now match one exact status-dependent shape, preventing hidden
+annotations or omitted machine-checkable fields from flowing into canonical run replay. Replay
 also requires the exact non-evidentiary conclusion ceiling, so timing
 feasibility cannot be rewritten into gate clearance, dataset registration, or
 evidence authorization inside a trusted record. Failed
@@ -2212,7 +2338,8 @@ Replay now recomputes retained separation-window seconds and derives each
 check's status from the expected relation, observed relation, point delta,
 conservative gap, and registered window. Retained order-check and finding
 entries must match exact status-dependent shapes, and every replay-derived
-failure or warning must retain its exact visible finding code. Failed
+failure or warning must retain its exact visible finding code; retained finding
+messages must also remain free of assessment-overclaiming language. Failed
 `not_assessed` checks must retain a machine finding showing that the event was
 absent, not assessed upstream, or overlapped missing data; an unrelated error
 label cannot stand in for the missing order-classification reason. Unreviewed
@@ -2420,9 +2547,10 @@ Only approval or approval-with-conditions can clear the freeze gate, and all of
 these facts become part of the protocol commitment. The machine does not judge or
 substitute for qualified review; it prevents an absent review record from being
 silently treated as clearance. Guided scaffolding also rejects padded review
-receipts, decision fields, artifact handles, and conditions, and rejects
-malformed non-lowercase or non-hex review artifact digests before drafting those
-commitments. Human protocol freeze now additionally requires an
+receipts, decision fields, artifact handles, duplicate conditions, and padded
+conditions, and rejects malformed non-lowercase or non-hex review artifact
+digests before drafting those commitments. Human protocol freeze now
+additionally requires an
 artifact locator plus `--review-artifact-root`, verifies the review decision
 bytes against the frozen SHA-256, checks that the decision does not postdate
 freeze, and stores a service-generated integrity receipt. This remains local byte
@@ -2508,11 +2636,13 @@ duplicated, cyclic, or cross-role/cross-protocol ancestry fail before scientific
 use.
 Literature synthesis-plan freezing now requires canonical plan IDs, reviewer
 text, questions, outcomes, effect measures, contrast definitions, subgroup and
-sensitivity entries, policy prose, conclusion rules, deviation policies, and
-included screening source IDs before hashing the plan. The plan is also
-explicitly non-evidentiary and non-authorizing for conclusions or publication;
-deviation, qualitative synthesis, effect-preparation, and pooling commands replay
-those false boundaries and retained limitations before using the plan. A padded
+sensitivity entries, retained limitations, policy prose, conclusion rules,
+deviation policies, and included screening source IDs before hashing the plan.
+Retained limitations and prospective policy prose also reject report-prohibited
+overclaiming language. The plan is explicitly non-evidentiary and
+non-authorizing for conclusions or publication; deviation, qualitative
+synthesis, effect-preparation, and pooling commands replay those false
+boundaries and retained limitations before using the plan. A padded
 prospective analysis rule or source handle is rejected instead of being trimmed
 into a different frozen commitment.
 

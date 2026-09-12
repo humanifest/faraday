@@ -1184,6 +1184,7 @@ class ActionCandidate(Serializable):
     safety_risk: float
     ambiguity_risk: float
     rationale: str
+    duration: float = 0.0
     hypothesis_discrimination_targets: list[HypothesisDiscriminationTarget] = field(
         default_factory=list
     )
@@ -1221,6 +1222,7 @@ class SelectionWeights(Serializable):
     expected_discrimination: float = 1.0
     uncertainty_reduction: float = 0.5
     cost: float = 0.25
+    duration: float = 0.25
     burden: float = 0.35
     safety_risk: float = 0.75
     ambiguity_risk: float = 0.75
@@ -1267,6 +1269,7 @@ class ActionRecommendation(Serializable):
     selected_action_ids_by_lane: dict[str, str] = field(default_factory=dict)
     lanes: list[ActionLane] = field(default_factory=list)
     completed_action_ids: list[str] = field(default_factory=list)
+    score_contract_version: int = 1
     recommendation_payload_sha256: str = ""
 
     @classmethod
@@ -1282,6 +1285,7 @@ class ActionRecommendation(Serializable):
         copied["lanes"] = [
             ActionLane.from_dict(item) for item in copied.get("lanes", [])
         ]
+        copied.setdefault("score_contract_version", 1)
         copied.setdefault("recommendation_payload_sha256", "")
         return cls(**copied)
 

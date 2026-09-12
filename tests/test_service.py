@@ -10,6 +10,7 @@ from research_machine.application.commands import (
     AddClaim,
     AddQuestion,
     CreateInquiry,
+    DeferQuestion,
     ProposeHypothesis,
     RecordEvidence,
     RegisterDataset,
@@ -19,6 +20,8 @@ from research_machine.application.service import ResearchService
 from research_machine.application.claim_integrity import claim_scientific_sha256
 from research_machine.domain.errors import IntegrityError, ValidationError
 from research_machine.domain.models import (
+    ClaimDisposition,
+    ClaimEpistemicLayer,
     ClaimLevel,
     DatasetArtifact,
     DatasetRole,
@@ -81,6 +84,46 @@ def test_unreferenced_claims_and_hypotheses_reject_scientific_content_drift(
         ValidationError, match=f"hypothesis {hypothesis.hypothesis_id} scientific content"
     ):
         service.list_hypotheses()
+
+
+def test_authoritative_inquiry_read_rejects_accepted_claim_authority_drift(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry("Claim authority", "Can accepted claims drift?", "claim-authority")
+    )
+    service.add_claim(
+        AddClaim(
+            statement="The source record documents the fixture observation.",
+            level=ClaimLevel.OTHER,
+            epistemic_layer=ClaimEpistemicLayer.DOCUMENTED_FACT,
+            disposition=ClaimDisposition.ACCEPTED,
+            confidence=0.8,
+            source_refs=["fixture:source-record"],
+            last_reviewed="2026-09-01T12:00:00Z",
+            decision_owner="review-owner",
+        )
+    )
+    service.show_inquiry()
+
+    claims_path = tmp_path / "inquiries" / "claim-authority" / "claims.json"
+    claims_bytes = claims_path.read_bytes()
+    claims = json.loads(claims_bytes)
+    claims[0]["decision_owner"] = ""
+    claims_path.write_text(json.dumps(claims), encoding="utf-8")
+    with pytest.raises(ValidationError, match="accepted claims require decision_owner"):
+        service.show_inquiry()
+
+    claims = json.loads(claims_bytes)
+    claims[0]["source_refs"] = []
+    claims_path.write_text(json.dumps(claims), encoding="utf-8")
+    with pytest.raises(
+        ValidationError,
+        match="accepted documented facts and source claims require source_refs",
+    ):
+        service.show_inquiry()
 
 
 def test_claim_hierarchy_rejects_higher_inference_parent_dependencies(
@@ -265,6 +308,105 @@ def test_complete_inquiry_loop_preserves_rejected_hypotheses(tmp_path: Path) -> 
         "events": 11,
         "head_hash": service.verify_ledger()["head_hash"],
     }
+
+
+def test_synthesis_surfaces_open_questions_as_live_ambiguity(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Ambiguity synthesis",
+            initial_statement="Can the design distinguish models?",
+            inquiry_id="ambiguity-synthesis",
+            decision_to_support="Choose whether to proceed.",
+            minimum_evidence="A reviewed result answers the decision boundary.",
+            decision_change_criteria=[
+                "Stop if the registered falsifier appears."
+            ],
+            decision_owner="review-owner",
+        )
+    )
+    answered = service.add_question(
+        AddQuestion("Which outcome is primary?")
+    )
+    service.answer_question(answered.question_id, "Primary score.")
+    service.add_question(
+        AddQuestion("Could measurement drift explain the apparent effect?")
+    )
+
+    synthesis = service.build_synthesis()["content"]
+
+    assert "- Open questions still unresolved: 1" in synthesis
+    assert "- Deferred questions retained as unresolved: 0" in synthesis
+    assert (
+        "Open and deferred questions remain live ambiguity, not evidence, "
+        "answers, or authorization to choose a preferred explanation."
+    ) in synthesis
+    assert "[open] Could measurement drift explain the apparent effect?" in synthesis
+    assert "[answered] Which outcome is primary? — Primary score." in synthesis
+    assert service.verify_ledger()["valid"]
+
+
+def test_question_deferral_preserves_unresolved_ambiguity(
+    tmp_path: Path,
+) -> None:
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry(
+            title="Deferred ambiguity",
+            initial_statement="Can the design discriminate causes?",
+            inquiry_id="deferred-ambiguity",
+            decision_to_support="Decide whether the design is ready to freeze.",
+            minimum_evidence="Every blocking ambiguity has a recorded disposition.",
+            decision_change_criteria=["Do not freeze if measurement drift remains live."],
+            decision_owner="review-owner",
+        )
+    )
+    question = service.add_question(
+        AddQuestion("Could measurement drift explain the apparent effect?")
+    )
+
+    deferred = service.defer_question(
+        question.question_id,
+        DeferQuestion("Handled in the next protocol revision before freeze."),
+    )
+
+    assert deferred.status.value == "deferred"
+    assert deferred.answer == "Handled in the next protocol revision before freeze."
+    audit = service.audit_rigor()
+    finding = next(
+        item for item in audit.findings
+        if item.code == "INQUIRY_OPEN_QUESTIONS_UNRESOLVED"
+    )
+    assert "open or deferred clarifying question" in finding.message
+    assert question.question_id in finding.remediation
+    assert audit.structurally_valid is True
+
+    synthesis = service.build_synthesis()["content"]
+    assert "- Open questions still unresolved: 0" in synthesis
+    assert "- Deferred questions retained as unresolved: 1" in synthesis
+    assert (
+        "[deferred] Could measurement drift explain the apparent effect? — "
+        "Handled in the next protocol revision before freeze."
+    ) in synthesis
+    assert "INQUIRY_OPEN_QUESTIONS_UNRESOLVED (1)" in synthesis
+    assert service.verify_ledger()["valid"]
+
+    with pytest.raises(ValidationError, match="already deferred"):
+        service.defer_question(
+            question.question_id,
+            DeferQuestion("Do not rewrite the retained rationale."),
+        )
+    answered = service.add_question(AddQuestion("Which endpoint is primary?"))
+    service.answer_question(answered.question_id, "Primary score.")
+    with pytest.raises(ValidationError, match="answered question cannot be deferred"):
+        service.defer_question(
+            answered.question_id,
+            DeferQuestion("Do not hide a retained answer by deferring it later."),
+        )
 
 
 def test_hypothesis_retirement_requires_bounded_limitations_and_resurrection(

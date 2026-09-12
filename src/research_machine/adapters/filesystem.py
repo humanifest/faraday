@@ -752,6 +752,46 @@ class FileSystemRepository:
             "current_selection_authority": False,
         }
 
+    def verify_historical_recommendation_integrity(
+        self,
+        inquiry_id: str,
+        recommendation: ActionRecommendation,
+        *,
+        events: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Bind a versioned historical score record to its exact ledger event."""
+
+        if recommendation.score_contract_version != 1:
+            raise IntegrityError(
+                f"recommendation {recommendation.recommendation_id} is not historical"
+            )
+        verified_events = (
+            events if events is not None else self._verified_ledger_events(inquiry_id)
+        )
+        payload = self._recommendation_selection_payload(
+            verified_events, recommendation.recommendation_id
+        )
+        if payload.get("score_contract_version", 1) != 1:
+            raise IntegrityError(
+                f"historical recommendation {recommendation.recommendation_id} "
+                "has a nonhistorical score contract event"
+            )
+        path = (
+            self._inquiry_dir(inquiry_id)
+            / "recommendations"
+            / f"{recommendation.recommendation_id}.json"
+        )
+        if self._read_json(path) != payload:
+            raise IntegrityError(
+                f"historical recommendation {recommendation.recommendation_id} "
+                "differs from its selection event"
+            )
+        return {
+            "status": "historical_recommendation_score_contract_v1",
+            "recommendation_id": recommendation.recommendation_id,
+            "current_selection_authority": False,
+        }
+
     def has_legacy_recommendation_event(
         self, inquiry_id: str, recommendation_id: str
     ) -> bool:

@@ -141,6 +141,7 @@ def test_effect_verification_preserves_canonical_study_handles(tmp_path):
     "padded-claim-location",
     "padded-rationale",
     "overclaim-rationale",
+    "overclaim-limitation",
     "availability-bool",
     "mismatch-drift",
     "status-drift",
@@ -183,6 +184,8 @@ def test_effect_verification_boundary_replays_retained_assessments(tmp_path, tam
         candidate["assessments"][0]["rationale"] = " Checked source and arithmetic "
     elif tamper == "overclaim-rationale":
         candidate["assessments"][0]["rationale"] = "Validated source and arithmetic"
+    elif tamper == "overclaim-limitation":
+        candidate["limitations"][0] = "Effect verification confirmed the calculation"
     elif tamper == "availability-bool":
         candidate["assessments"][1]["source_values_match"] = False
     elif tamper == "mismatch-drift":

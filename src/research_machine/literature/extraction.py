@@ -66,7 +66,10 @@ def validate_extraction_boundary(
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("extraction record requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"extraction limitation {index + 1}")
+        _bounded_extraction_text(
+            limitation,
+            f"extraction limitation {index + 1}",
+        )
     if (
         extracted_record_count is not None
         and extraction.get("record_count") != extracted_record_count

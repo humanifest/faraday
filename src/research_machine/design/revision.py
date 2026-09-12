@@ -4,10 +4,97 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from research_machine.application.commands import ProposeHypothesis
+from research_machine.application.commands import (
+    AddClaim,
+    AddQuestion,
+    ProposeHypothesis,
+    SetInquiryDecision,
+)
 from research_machine.application.service import ResearchService
-from research_machine.design.scaffold import scaffold_design
+from research_machine.design.scaffold import (
+    inquiry_decision_commitments,
+    scaffold_design,
+)
 from research_machine.domain.errors import ValidationError
+from research_machine.domain.models import ClaimLevel
+
+
+_CONTROLLED_ACCEPTANCE_ARTIFACT = "controlled-acceptance-scenarios-draft.json"
+
+
+def _complete_canonical_decision_commitments(
+    brief: dict[str, Any]
+) -> dict[str, Any] | None:
+    criteria = brief.get("decision_change_criteria", [])
+    minimum_evidence = brief.get("minimum_evidence", "")
+    decision_owner = brief.get("decision_owner", "")
+    decision = brief.get("decision", "")
+    if not (
+        isinstance(decision, str)
+        and isinstance(minimum_evidence, str)
+        and isinstance(decision_owner, str)
+        and isinstance(criteria, list)
+        and criteria
+    ):
+        return None
+    if not minimum_evidence.strip() or not decision_owner.strip():
+        return None
+    texts = [decision, minimum_evidence, decision_owner]
+    for criterion in criteria:
+        if not isinstance(criterion, str) or not criterion.strip():
+            return None
+        texts.append(criterion)
+    if any(text != text.strip() for text in texts):
+        return None
+    criteria_keys = [criterion.casefold() for criterion in criteria]
+    if len(set(criteria_keys)) != len(criteria_keys):
+        return None
+    return inquiry_decision_commitments(brief)
+
+
+def _controlled_acceptance_revision_summary(
+    scaffold: dict[str, Any], brief: dict[str, Any]
+) -> dict[str, Any]:
+    artifacts = scaffold.get("artifacts")
+    if not isinstance(artifacts, dict):
+        raise ValidationError("guided revision scaffold artifacts are missing")
+    draft = artifacts.get(_CONTROLLED_ACCEPTANCE_ARTIFACT)
+    if not isinstance(draft, dict):
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios draft is missing"
+        )
+    brief_scenarios = brief.get("controlled_acceptance_scenarios", [])
+    if not isinstance(brief_scenarios, list):
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios must be a list"
+        )
+    expected_status = "review_required" if brief_scenarios else "unresolved"
+    if draft.get("status") != expected_status:
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios status does not "
+            "match the revised brief"
+        )
+    if draft.get("scenarios") != brief_scenarios:
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios draft does not "
+            "match the revised brief"
+        )
+    if draft.get("scenario_count") != len(brief_scenarios):
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios count does not "
+            "match the revised brief"
+        )
+    if draft.get("scientific_evidence_eligible") is not False:
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios must remain "
+            "non-evidentiary"
+        )
+    return {
+        "status": "review_required" if brief_scenarios else "absent",
+        "scenario_count": len(brief_scenarios),
+        "artifact": f"scaffold.artifacts.{_CONTROLLED_ACCEPTANCE_ARTIFACT}",
+        "scientific_evidence_eligible": False,
+    }
 
 
 def revise_design(
@@ -19,6 +106,7 @@ def revise_design(
     if reason != reason.strip():
         raise ValidationError("revision reason must be canonical without surrounding whitespace")
     scaffold = scaffold_design(brief)
+    controlled_acceptance = _controlled_acceptance_revision_summary(scaffold, brief)
     proposal = scaffold["artifacts"]["hypothesis-proposal.json"]
     state = service.show_inquiry(inquiry_id)
     # Inquiry-wide, deliberately not just parent-linked: other outcomes in the
@@ -43,6 +131,7 @@ def revise_design(
         "reason": reason, "brief": brief,
         "scaffold": scaffold,
         "chronology": chronology,
+        "controlled_acceptance_scenarios": controlled_acceptance,
     }, sort_keys=True, ensure_ascii=False, allow_nan=False)
     hypothesis = service.propose_hypothesis(ProposeHypothesis(
         statement=proposal["statement"], generated_by="guided_design_revision",
@@ -57,8 +146,36 @@ def revise_design(
         expected_effect_direction=proposal["expected_effect_direction"],
         falsification_conditions=proposal["falsification_conditions"],
     ), state["inquiry"]["inquiry_id"])
+    decision_commitments = _complete_canonical_decision_commitments(brief)
+    if decision_commitments is not None:
+        service.set_inquiry_decision(
+            SetInquiryDecision(
+                decision_to_support=decision_commitments["decision_to_support"],
+                minimum_evidence=decision_commitments["minimum_evidence"],
+                decision_change_criteria=decision_commitments[
+                    "decision_change_criteria"
+                ],
+                decision_owner=decision_commitments["decision_owner"],
+            ),
+            state["inquiry"]["inquiry_id"],
+        )
+    for question in brief.get("ambiguity_questions", []):
+        service.add_question(
+            AddQuestion("[Guided revision ambiguity] " + question),
+            state["inquiry"]["inquiry_id"],
+        )
+    for claim in brief.get("claim_boundaries", []):
+        service.add_claim(
+            AddClaim(
+                statement=claim["statement"],
+                level=ClaimLevel(claim["level"]),
+                scope=claim["scope"],
+            ),
+            state["inquiry"]["inquiry_id"],
+        )
     return {
         "hypothesis": hypothesis.to_dict(), "scaffold": scaffold,
         "chronology": chronology,
+        "controlled_acceptance_scenarios": controlled_acceptance,
         "notice": "New unreviewed proposal. Earlier hypotheses, protocols, and evidence are unchanged; no approval or evidence was inherited.",
     }

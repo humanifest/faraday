@@ -295,6 +295,18 @@ def _canonical_text_list(value: Any, field: str) -> list[str]:
     return list(value)
 
 
+def _bounded_assessment_text_list(value: Any, field: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ValidationError(f"instrument inspection {field} must be an array")
+    bounded = [
+        _bounded_assessment_text(item, f"{field}[{index}]")
+        for index, item in enumerate(value)
+    ]
+    if len(set(bounded)) != len(bounded):
+        raise ValidationError(f"instrument inspection {field} must be unique")
+    return bounded
+
+
 def _stable_identifier(value: Any, field: str) -> str:
     text = _text(value, field)
     if not _IDENTIFIER.fullmatch(text):
@@ -974,7 +986,7 @@ def _validate_retained_finding(value: Any, label: str) -> tuple[str, str]:
     if severity not in {"warning", "error"}:
         raise ValidationError("instrument inspection finding severity is unsupported")
     code = _text(value["code"], f"{label}.code")
-    _text(value["message"], f"{label}.message")
+    _bounded_assessment_text(value["message"], f"{label}.message")
     if has_stream:
         _stable_identifier(value["stream_id"], f"{label}.stream_id")
     if has_event:
@@ -2048,7 +2060,7 @@ def verify_instrument_inspection_record(
         or temporal["stream_count"] < 0
     ):
         raise ValidationError("instrument inspection temporal_metadata.stream_count must be a non-negative integer")
-    temporal_limitations = _string_list(
+    temporal_limitations = _bounded_assessment_text_list(
         temporal["limitations"], "temporal_metadata.limitations"
     )
     if not temporal_limitations:

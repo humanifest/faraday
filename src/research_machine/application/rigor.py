@@ -28,6 +28,8 @@ from research_machine.domain.models import (
     Inquiry,
     ProtocolKind,
     ProtocolStatus,
+    Question,
+    QuestionStatus,
     QualityGateStatus,
     ResearchRun,
     RigorAudit,
@@ -323,6 +325,7 @@ def audit_research_state(
     protocols: list[ExperimentProtocol],
     runs: list[ResearchRun],
     cross_lane_lessons: list[CrossLaneLesson] | None = None,
+    questions: list[Question] | None = None,
 ) -> RigorAudit:
     findings: list[RigorFinding] = []
 
@@ -378,6 +381,29 @@ def audit_research_state(
             "The inquiry names a decision but not the person responsible for it.",
             entity_type="inquiry",
             entity_id=inquiry.inquiry_id,
+        )
+    open_questions = [
+        question
+        for question in (questions or [])
+        if question.status in {QuestionStatus.OPEN, QuestionStatus.DEFERRED}
+    ]
+    if open_questions:
+        question_ids = ", ".join(question.question_id for question in open_questions)
+        add(
+            "INQUIRY_OPEN_QUESTIONS_UNRESOLVED",
+            RigorSeverity.WARNING,
+            (
+                f"The inquiry still has {len(open_questions)} unresolved "
+                "open or deferred clarifying question(s); these remain live ambiguity rather than "
+                "evidence, answers, or authorization to prefer an explanation."
+            ),
+            entity_type="inquiry",
+            entity_id=inquiry.inquiry_id,
+            remediation=(
+                "Resolve, defer with an explicit rationale, or preserve these "
+                "questions before relying on a preferred explanation: "
+                + question_ids
+            ),
         )
 
     for lesson in cross_lane_lessons or []:
