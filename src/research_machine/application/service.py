@@ -2313,6 +2313,7 @@ class ResearchService:
         include_locators: bool = False,
     ) -> dict[str, Any]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
         return export_replication_package(
             self.repository.find_protocol(resolved, protocol_id),
             self.repository.list_datasets(resolved),

@@ -456,6 +456,73 @@ def _add_packaged_decoy_output(runs: list[dict], sha256: str = "f" * 64) -> None
     })
 
 
+def test_replication_package_export_replays_current_run_commitments(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement", observable_prediction="Prediction", null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test", title="Test", analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id], primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL, methodology="Method", quality_requirements=["gate"],
+        controls=["control"], expected_outputs=["output"], success_conditions=["success"],
+        environment_requirements=["environment"], sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"], safety_constraints=["safe"], analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    dataset = service.register_dataset(RegisterDataset(
+        name="Synthetic observations",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+    ))
+    output = tmp_path / "result.json"
+    output.write_text('{"result":"passed"}\n', encoding="utf-8")
+    output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+    started_at, completed_at = _after_registration_times(
+        frozen.registration_timestamp
+    )
+    run = service.record_run(RecordRun(
+        protocol_id=frozen.protocol_id,
+        started_at=started_at,
+        completed_at=completed_at,
+        analysis_code_hash="a" * 64,
+        environment_hash="e" * 64,
+        dataset_ids=[dataset.dataset_id],
+        output_artifacts=[DatasetArtifact(
+            "result.json", output_hash, output.stat().st_size, "application/json"
+        )],
+        artifact_root=str(tmp_path),
+        quality_gates=[QualityGateResult(
+            "gate", QualityGateStatus.PASSED, "Synthetic package fixture passed.",
+            details={"evidence_sha256": output_hash},
+        )],
+        summary="Synthetic package fixture.",
+        metadata={
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared", "deviations": [],
+            },
+        },
+    ))
+    run_file = next((tmp_path / "workspace").rglob(f"{run.run_id}.json"))
+    tampered = json.loads(run_file.read_text(encoding="utf-8"))
+    tampered["summary"] = "Tampered before replication export."
+    run_file.write_text(json.dumps(tampered), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="payload no longer matches"):
+        service.export_replication_package(
+            frozen.protocol_id, str(tmp_path / "drifted-package")
+        )
+
+
 def test_nested_locator_redaction_does_not_mutate_source():
     from research_machine.replication.package import _redact_artifact_locators
     source = {

@@ -1057,7 +1057,12 @@ conformance-record check when the artifact bytes are present. Packages exported 
 replay the packaged protocol, dataset, and run frozen hash commitments from the
 unredacted bytes; redacted packages preserve the original commitments but cannot
 independently replay locator-bearing hashes. The exporter runs this verifier
-against its staging directory before atomically publishing a package.
+against its staging directory before atomically publishing a package. Before
+staging either redacted or locator-included bytes, the local service also replays
+the current authoritative inquiry state, including service-generated protocol,
+dataset, run, evidence, and review commitments, so a redacted package cannot be
+created from locally drifted canonical records merely because the eventual
+package verifier lacks private artifact locators.
 
 ## Evidence corrections and retractions
 

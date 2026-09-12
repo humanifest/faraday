@@ -1402,7 +1402,12 @@ When a package includes locators, verification also recomputes the packaged
 protocol, dataset, and run frozen hash commitments from the unredacted bytes;
 redacted packages preserve but cannot independently replay locator-bearing
 commitments.
-Export self-verifies before atomic publication.
+Before creating either redacted or locator-included staging bytes, local export
+now replays the current authoritative inquiry state through the application
+service, including service-generated protocol, dataset, run, evidence, and
+review commitments. Export then self-verifies before atomic publication. This
+prevents the redaction boundary from laundering a locally drifted canonical
+record into a metadata-only package that can no longer reopen private locators.
 Version-1 packages remain verifiable.
 Export itself does not validate a replication
 result or publish material. `replication verify` checks included file integrity
