@@ -2225,9 +2225,10 @@ missing-interval overlaps from the structured record, so tampered copied
 arithmetic, a tampered status label, or a copied findings list cannot hide
 timing infeasibility. Retained records whose
 structured contents imply a failure must also preserve the exact machine finding
-code that explains it. Retained stream, event, overlap, and finding entries must
-now match one exact status-dependent shape, preventing hidden annotations or
-omitted machine-checkable fields from flowing into canonical run replay. Replay
+code that explains it, and retained finding messages must remain free of
+assessment-overclaiming language. Retained stream, event, overlap, and finding
+entries must now match one exact status-dependent shape, preventing hidden
+annotations or omitted machine-checkable fields from flowing into canonical run replay. Replay
 also requires the exact non-evidentiary conclusion ceiling, so timing
 feasibility cannot be rewritten into gate clearance, dataset registration, or
 evidence authorization inside a trusted record. Failed
@@ -2268,7 +2269,8 @@ Replay now recomputes retained separation-window seconds and derives each
 check's status from the expected relation, observed relation, point delta,
 conservative gap, and registered window. Retained order-check and finding
 entries must match exact status-dependent shapes, and every replay-derived
-failure or warning must retain its exact visible finding code. Failed
+failure or warning must retain its exact visible finding code; retained finding
+messages must also remain free of assessment-overclaiming language. Failed
 `not_assessed` checks must retain a machine finding showing that the event was
 absent, not assessed upstream, or overlapped missing data; an unrelated error
 label cannot stand in for the missing order-classification reason. Unreviewed

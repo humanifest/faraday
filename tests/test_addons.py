@@ -1657,6 +1657,16 @@ def test_stream_timing_verifier_replays_hidden_failure_conditions(
             "has unknown fields",
         ),
         (
+            lambda record: record["findings"].append(
+                {
+                    "severity": "warning",
+                    "code": "HIDDEN",
+                    "message": "Validated synchronized timing.",
+                }
+            ),
+            "stream_timing findings\\[0\\].message uses assessment-prohibited",
+        ),
+        (
             lambda record: record.update({
                 "conclusion_ceiling": "This timing record clears protocol gates."
             }),
@@ -2085,6 +2095,16 @@ def test_temporal_order_verifier_replays_retained_order_status(
                 }
             ),
             "has unknown fields",
+        ),
+        (
+            lambda record: record["findings"].append(
+                {
+                    "severity": "warning",
+                    "code": "HIDDEN",
+                    "message": "Confirmed causal event order.",
+                }
+            ),
+            "temporal_order findings\\[0\\].message uses assessment-prohibited",
         ),
         (
             lambda record: record.update({

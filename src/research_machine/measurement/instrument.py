@@ -986,7 +986,7 @@ def _validate_retained_finding(value: Any, label: str) -> tuple[str, str]:
     if severity not in {"warning", "error"}:
         raise ValidationError("instrument inspection finding severity is unsupported")
     code = _text(value["code"], f"{label}.code")
-    _text(value["message"], f"{label}.message")
+    _bounded_assessment_text(value["message"], f"{label}.message")
     if has_stream:
         _stable_identifier(value["stream_id"], f"{label}.stream_id")
     if has_event:

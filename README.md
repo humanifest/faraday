@@ -1879,9 +1879,10 @@ event-before-stream-start failures from each retained event's `stream_start_time
 and missing-interval overlaps from the structured record rather than trusting
 copied arithmetic, copied findings, or a status label. Any retained record whose
 structured contents imply a failure must also preserve the exact machine finding
-code that explains it. It also rejects status-incompatible, missing, or hidden
-extra fields in retained stream, event, overlap, and finding entries, so
-canonical run replay receives one exact machine-readable timing shape. The
+code that explains it, and retained finding messages cannot claim proof,
+confirmation, validation, or explanation. It also rejects status-incompatible,
+missing, or hidden extra fields in retained stream, event, overlap, and finding
+entries, so canonical run replay receives one exact machine-readable timing shape. The
 retained non-evidentiary conclusion ceiling must also match exactly, preventing
 a trusted timing record from upgrading feasibility into gate clearance,
 registration, or evidence authorization.
@@ -1930,12 +1931,13 @@ independent verifier also recomputes retained separation-window seconds and
 derives each check's pass, warning, or failure status from the recorded expected
 relation, observed relation, point delta, conservative gap, and registered
 window. Any replay-derived failure or warning must retain its exact visible
-finding code. Failed `not_assessed` checks must retain a machine finding showing
-that the event was absent, not assessed upstream, or overlapped missing data; an
-unrelated error label cannot stand in for the missing order-classification
-reason. Faraday also rejects missing or hidden extra fields in retained
-order-check and finding entries rather than allowing unreviewed annotations to
-ride along with a trusted assessment. The retained non-evidentiary conclusion
+finding code, and retained finding messages cannot claim proof, confirmation,
+validation, or explanation. Failed `not_assessed` checks must retain a machine
+finding showing that the event was absent, not assessed upstream, or overlapped
+missing data; an unrelated error label cannot stand in for the missing
+order-classification reason. Faraday also rejects missing or hidden extra fields
+in retained order-check and finding entries rather than allowing unreviewed
+annotations to ride along with a trusted assessment. The retained non-evidentiary conclusion
 ceiling must match exactly, so a trusted temporal-order record cannot rewrite
 classification into causality, mechanism, or evidence authorization.
 Failed temporal-order assessments may only be retained as failed gates, keeping
