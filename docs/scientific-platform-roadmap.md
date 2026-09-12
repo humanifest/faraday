@@ -1884,6 +1884,11 @@ executable sensitivity identifiers, and exact result coverage; and the
 small-study diagnostic's explicit refusal to conclude publication bias. This
 keeps the pooled arithmetic inspectable without turning
 the result into evidence, a conclusion, or publication clearance.
+Retained meta-analysis limitations, unavailable-study reasons, not-estimable
+sensitivity reasons, and small-study diagnostic interpretation text now also
+reject report-prohibited overclaiming language, so a copied pooling artifact
+cannot preserve valid-looking arithmetic while narrating proof, confirmation,
+validation, or explanation in side-channel prose.
 It also replays retained numeric-result shape: trusted input hashes, plan and
 snapshot handles, finite pooled estimates and uncertainty, confidence-interval
 arithmetic, heterogeneity degrees of freedom, prediction-interval eligibility,

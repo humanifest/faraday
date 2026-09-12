@@ -6,6 +6,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 from statistics import NormalDist
 import tempfile
 from typing import Any
@@ -34,6 +35,10 @@ _DEVIATION_STATUSES = {
     "prospective_deviations_recorded",
     "retrospective_or_uncertain_deviation_review_required",
 }
+_META_ANALYSIS_PROSE_OVERCLAIM = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 
 
 _T_CRITICAL_975 = {
@@ -77,6 +82,17 @@ def _canonical_text(value: Any, field: str) -> str:
     if value != value.strip():
         raise ValidationError(f"{field} must be canonical without surrounding whitespace")
     return value
+
+
+def _bounded_meta_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _META_ANALYSIS_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses meta-analysis prohibited overclaiming language; "
+            "describe availability, sensitivity, or diagnostics without claiming "
+            "proof, confirmation, validation, or explanation"
+        )
+    return text
 
 
 def _source_anchor(value: object, field: str) -> str:
@@ -214,7 +230,7 @@ def validate_meta_analysis_boundary(
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("meta-analysis requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"meta-analysis limitation {index + 1}")
+        _bounded_meta_text(limitation, f"meta-analysis limitation {index + 1}")
 
     deviation_status = meta_analysis.get("deviation_status")
     if deviation_status not in _DEVIATION_STATUSES:
@@ -355,7 +371,7 @@ def validate_meta_analysis_boundary(
         if study_id in unavailable_seen:
             raise ValidationError("meta-analysis unavailable_studies requires unique study IDs")
         unavailable_seen.add(study_id)
-        _canonical_text(item.get("reason"), "meta-analysis unavailable reason")
+        _bounded_meta_text(item.get("reason"), "meta-analysis unavailable reason")
     if unavailable_seen != unavailable_ids:
         raise ValidationError("meta-analysis unavailable_studies do not replay from provenance")
 
@@ -684,7 +700,7 @@ def validate_meta_analysis_boundary(
                     f"meta-analysis sensitivity {name} standard_error_normal_approximation",
                 )
         else:
-            _canonical_text(
+            _bounded_meta_text(
                 item.get("reason"),
                 f"meta-analysis sensitivity {name} reason",
             )
@@ -784,15 +800,17 @@ def validate_meta_analysis_boundary(
             expected_small_study_effects["critical_value_95"],
             "small-study critical_value_95",
         )
-        _canonical_text(
+        boundary = _bounded_meta_text(
             small_study_effects.get("interpretation_boundary"),
             "meta-analysis small-study interpretation boundary",
         )
+        if boundary != expected_small_study_effects["interpretation_boundary"]:
+            raise ValidationError("small-study diagnostic interpretation boundary does not replay")
     else:
         required_not_estimable = {"status", "reason", "study_count", "publication_bias_conclusion"}
         if set(small_study_effects) != required_not_estimable:
             raise ValidationError("not-estimable small-study diagnostic fields do not match the documented contract")
-        _canonical_text(small_study_effects.get("reason"), "small-study not-estimable reason")
+        _bounded_meta_text(small_study_effects.get("reason"), "small-study not-estimable reason")
         if small_study_effects.get("study_count") != len(available_ids):
             raise ValidationError("small-study diagnostic count does not replay from available studies")
         if (expected_small_study_effects["status"] != "not_estimable"
@@ -963,7 +981,10 @@ def execute_meta_analysis(
         if status == "unavailable":
             if verification["source_values_match"] is not None or verification["calculation_matches"] is not None:
                 raise ValidationError("unavailable effects require not-applicable verification checks")
-            unavailable.append({"study_id": study_id, "reason": item.get("reason")})
+            unavailable.append({
+                "study_id": study_id,
+                "reason": _bounded_meta_text(item.get("reason"), "meta-analysis unavailable reason"),
+            })
             continue
         if verification["source_values_match"] is not True or verification["calculation_matches"] is not True:
             raise ValidationError("available effects require clean source and calculation verification")

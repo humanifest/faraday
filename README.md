@@ -1417,6 +1417,12 @@ prediction interval, leave-one-study-out estimates, executable planned
 sensitivities, and small-study-effect diagnostics from those retained numeric
 inputs, so a polished downstream summary cannot silently rewrite the arithmetic
 while preserving tidy-looking intervals.
+Meta-analysis retained prose is bounded at the same replay boundary:
+limitations, unavailable-study reasons, not-estimable sensitivity reasons, and
+small-study diagnostic interpretation text must remain canonical and free of
+report-prohibited overclaiming language, so pooled outputs cannot claim proof,
+confirmation, validation, or explanation through side-channel wording while the
+numeric artifact remains non-authoritative.
 Effect records and effect-verification artifacts also carry explicit
 `scientific_evidence_eligible`, `conclusion_authorized`, and
 `publication_authorized` false boundaries plus retained limitations. Verification
@@ -1434,6 +1440,10 @@ disclosures, retained source-summary digests, the frozen sensitivity-analysis
 list, known executable sensitivity identifiers and exact result coverage,
 and small-study diagnostic non-conclusion status
 must all replay from the artifact's retained provenance.
+Retained meta-analysis limitations, unavailable-study reasons, not-estimable
+sensitivity reasons, and small-study diagnostic interpretation text also reject
+report-prohibited overclaiming language, keeping pooled arithmetic from being
+recast as proof, confirmation, validation, or explanation in narrative fields.
 It also replays retained numeric-result shape: trusted input hashes, plan and
 snapshot handles, finite pooled estimates and uncertainty, confidence-interval
 arithmetic, heterogeneity degrees of freedom, prediction-interval eligibility,
