@@ -1101,7 +1101,9 @@ noncanonical decision commitments remain review material in the scaffold audit.
 Earlier records and initial drafts are untouched. Cancellation before submission
 creates no revision. This is neither a frozen-protocol amendment nor proof of
 blinding; researcher exposure remains unknown. Review and evidence are not
-inherited.
+inherited. Controlled acceptance scenarios supplied with a revised brief are
+replayed into the revision result and hypothesis provenance as review-only,
+non-evidentiary material, and scaffold disagreement blocks the write.
 Protocol amendments now require structured timing (`before_collection`,
 `during_collection`, `after_collection`, `after_analysis`, or `unknown`) and
 evidence exposure (`not_seen`, `aggregate_seen`, `full_data_seen`, or `unknown`).

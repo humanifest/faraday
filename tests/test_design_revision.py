@@ -4,10 +4,39 @@ import json
 import pytest
 
 from research_machine.application.commands import CreateInquiry, ProposeHypothesis
+from research_machine.design import revision as revision_module
 from research_machine.design.revision import revise_design
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
 from test_service import make_service
+
+
+def _controlled_scenario(**overrides):
+    scenario = {
+        "scenario_id": "planted-signal-recovery",
+        "purpose": (
+            "Check whether the controlled harness recovers a planted "
+            "association without upgrading the claim."
+        ),
+        "expected_observation": (
+            "The planted association is reported as scoped support against "
+            "the null fixture."
+        ),
+        "distinguishes_from": [
+            "independent null fixture",
+            "movement-confounded fixture",
+        ],
+        "failure_response": (
+            "Keep the campaign below readiness and inspect measurement, "
+            "timing, and analysis commitments."
+        ),
+        "claim_ceiling": (
+            "Association readiness only; mechanism, adaptation, attribution, "
+            "and intent remain unsupported."
+        ),
+    }
+    scenario.update(overrides)
+    return scenario
 
 
 def test_revision_cli_preserves_original_and_retains_audited_brief(tmp_path, capsys):
@@ -48,6 +77,95 @@ def test_revision_cli_preserves_original_and_retains_audited_brief(tmp_path, cap
     assert provenance["chronology"] == result["chronology"]
     assert result["chronology"]["observation_exposure"] == "unknown"
     assert all(p.read_bytes() == content for p, content in before.items())
+    assert service.verify_ledger()["valid"]
+
+
+def test_revision_replays_controlled_acceptance_scenarios(tmp_path):
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry(title="Fixture", initial_statement="Question"))
+    parent = service.propose_hypothesis(ProposeHypothesis(statement="Fixture"))
+    brief = {
+        "title": "Revised fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "outcome": "Score",
+        "unit_of_observation": "unit",
+        "controlled_acceptance_scenarios": [_controlled_scenario()],
+    }
+
+    result = revise_design(
+        service,
+        brief,
+        hypothesis_id=parent.hypothesis_id,
+        reason="Retain controlled readiness scenarios",
+    )
+
+    summary = result["controlled_acceptance_scenarios"]
+    assert summary == {
+        "status": "review_required",
+        "scenario_count": 1,
+        "artifact": (
+            "scaffold.artifacts.controlled-acceptance-scenarios-draft.json"
+        ),
+        "scientific_evidence_eligible": False,
+    }
+    provenance = json.loads(result["hypothesis"]["source_context"][0])
+    assert provenance["controlled_acceptance_scenarios"] == summary
+    draft = result["scaffold"]["artifacts"][
+        "controlled-acceptance-scenarios-draft.json"
+    ]
+    assert draft["status"] == "review_required"
+    assert draft["scenarios"] == brief["controlled_acceptance_scenarios"]
+    assert draft["scenario_count"] == 1
+    assert draft["scientific_evidence_eligible"] is False
+    assert service.verify_ledger()["valid"]
+
+
+def test_revision_rejects_divergent_controlled_acceptance_draft_before_writing(
+    tmp_path, monkeypatch
+):
+    service = make_service(tmp_path)
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry(title="Fixture", initial_statement="Question"))
+    parent = service.propose_hypothesis(ProposeHypothesis(statement="Fixture"))
+    brief = {
+        "title": "Revised fixture",
+        "question": "Question",
+        "decision": "Decision",
+        "outcome": "Score",
+        "unit_of_observation": "unit",
+        "controlled_acceptance_scenarios": [_controlled_scenario()],
+    }
+    original_scaffold = revision_module.scaffold_design
+
+    def divergent_scaffold(revised_brief):
+        scaffold = original_scaffold(revised_brief)
+        draft = dict(
+            scaffold["artifacts"]["controlled-acceptance-scenarios-draft.json"]
+        )
+        draft["scenarios"] = [
+            _controlled_scenario(scenario_id="different-scenario")
+        ]
+        scaffold["artifacts"]["controlled-acceptance-scenarios-draft.json"] = draft
+        return scaffold
+
+    monkeypatch.setattr(
+        revision_module, "scaffold_design", divergent_scaffold
+    )
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+    with pytest.raises(
+        ValidationError, match="controlled acceptance scenarios draft"
+    ):
+        revision_module.revise_design(
+            service,
+            brief,
+            hypothesis_id=parent.hypothesis_id,
+            reason="Reject divergent controlled readiness scenarios",
+        )
+
+    assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
     assert service.verify_ledger()["valid"]
 
 

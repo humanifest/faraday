@@ -19,6 +19,9 @@ from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import ClaimLevel
 
 
+_CONTROLLED_ACCEPTANCE_ARTIFACT = "controlled-acceptance-scenarios-draft.json"
+
+
 def _complete_canonical_decision_commitments(
     brief: dict[str, Any]
 ) -> dict[str, Any] | None:
@@ -49,6 +52,51 @@ def _complete_canonical_decision_commitments(
     return inquiry_decision_commitments(brief)
 
 
+def _controlled_acceptance_revision_summary(
+    scaffold: dict[str, Any], brief: dict[str, Any]
+) -> dict[str, Any]:
+    artifacts = scaffold.get("artifacts")
+    if not isinstance(artifacts, dict):
+        raise ValidationError("guided revision scaffold artifacts are missing")
+    draft = artifacts.get(_CONTROLLED_ACCEPTANCE_ARTIFACT)
+    if not isinstance(draft, dict):
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios draft is missing"
+        )
+    brief_scenarios = brief.get("controlled_acceptance_scenarios", [])
+    if not isinstance(brief_scenarios, list):
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios must be a list"
+        )
+    expected_status = "review_required" if brief_scenarios else "unresolved"
+    if draft.get("status") != expected_status:
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios status does not "
+            "match the revised brief"
+        )
+    if draft.get("scenarios") != brief_scenarios:
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios draft does not "
+            "match the revised brief"
+        )
+    if draft.get("scenario_count") != len(brief_scenarios):
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios count does not "
+            "match the revised brief"
+        )
+    if draft.get("scientific_evidence_eligible") is not False:
+        raise ValidationError(
+            "guided revision controlled acceptance scenarios must remain "
+            "non-evidentiary"
+        )
+    return {
+        "status": "review_required" if brief_scenarios else "absent",
+        "scenario_count": len(brief_scenarios),
+        "artifact": f"scaffold.artifacts.{_CONTROLLED_ACCEPTANCE_ARTIFACT}",
+        "scientific_evidence_eligible": False,
+    }
+
+
 def revise_design(
     service: ResearchService, brief: dict[str, Any], *, hypothesis_id: str,
     reason: str, inquiry_id: str | None = None,
@@ -58,6 +106,7 @@ def revise_design(
     if reason != reason.strip():
         raise ValidationError("revision reason must be canonical without surrounding whitespace")
     scaffold = scaffold_design(brief)
+    controlled_acceptance = _controlled_acceptance_revision_summary(scaffold, brief)
     proposal = scaffold["artifacts"]["hypothesis-proposal.json"]
     state = service.show_inquiry(inquiry_id)
     # Inquiry-wide, deliberately not just parent-linked: other outcomes in the
@@ -82,6 +131,7 @@ def revise_design(
         "reason": reason, "brief": brief,
         "scaffold": scaffold,
         "chronology": chronology,
+        "controlled_acceptance_scenarios": controlled_acceptance,
     }, sort_keys=True, ensure_ascii=False, allow_nan=False)
     hypothesis = service.propose_hypothesis(ProposeHypothesis(
         statement=proposal["statement"], generated_by="guided_design_revision",
@@ -126,5 +176,6 @@ def revise_design(
     return {
         "hypothesis": hypothesis.to_dict(), "scaffold": scaffold,
         "chronology": chronology,
+        "controlled_acceptance_scenarios": controlled_acceptance,
         "notice": "New unreviewed proposal. Earlier hypotheses, protocols, and evidence are unchanged; no approval or evidence was inherited.",
     }

@@ -490,6 +490,10 @@ the canonical inquiry decision is updated through the application service;
 partial or noncanonical decision commitments remain review material in the
 scaffold audit. It does not amend frozen protocols, inherit approval or evidence,
 retire the original, or overwrite the initial drafts.
+Controlled acceptance scenarios in a revised brief are replayed into the
+revision result and hypothesis provenance with their scenario count and
+non-evidentiary status; a divergent scaffold is rejected before the revision is
+written.
 
 For local custody-file checks, use `./research measurement validate --receipt-file
 custody.json --artifact-root /path/to/artifacts`. This verifies listed raw sources
