@@ -1120,6 +1120,58 @@ def build_synthesis(
                             f"artifact `{result.get('evidence_sha256', 'unavailable')}` "
                             f"at `{result.get('evidence_location', 'unavailable')}`."
                         )
+    bounded_search_protocols = [
+        protocol for protocol in protocols
+        if protocol.bounded_negative_search_contracts
+    ]
+    if bounded_search_protocols:
+        lines.extend(["", "### Bounded negative searches", ""])
+        for protocol in bounded_search_protocols:
+            contracts_by_id = {
+                contract.contract_id: contract
+                for contract in protocol.bounded_negative_search_contracts
+            }
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}` froze: "
+                + "; ".join(
+                    f"`{contract.contract_id}` with {len(contract.queries)} exact "
+                    f"queries across {len(contract.interfaces)} interfaces and "
+                    f"{len(contract.screened_candidates)} screened candidates on "
+                    f"`{contract.search_date}`"
+                    for contract in protocol.bounded_negative_search_contracts
+                )
+                + ". A no-match record means only that no candidate was classified "
+                "as an in-scope target within those frozen bounds; it is not a "
+                "theorem, mathematical impossibility, or universal absence claim."
+            )
+            for run in sorted(
+                (item for item in runs if item.protocol_id == protocol.protocol_id),
+                key=lambda item: item.run_id,
+            ):
+                for gate in run.quality_gates:
+                    results = gate.details.get("bounded_negative_search_results")
+                    if not isinstance(results, dict):
+                        continue
+                    for contract_id, result in sorted(results.items()):
+                        if not isinstance(result, dict):
+                            continue
+                        contract = contracts_by_id.get(contract_id)
+                        target_count = (
+                            sum(
+                                item.screening_decision == "in_scope_target"
+                                for item in contract.screened_candidates
+                            )
+                            if contract is not None
+                            else "unavailable"
+                        )
+                        lines.append(
+                            f"  - Run `{run.run_id}` / `{contract_id}`: gate "
+                            f"`{gate.gate_id}` {gate.status.value}; "
+                            f"{result.get('assessment_status', 'unclassified')}; "
+                            f"frozen in-scope targets {target_count}; artifact "
+                            f"`{result.get('evidence_sha256', 'unavailable')}` at "
+                            f"`{result.get('evidence_location', 'unavailable')}`."
+                        )
     validity_protocols = [
         protocol for protocol in protocols if protocol.measurement_validity_checks
     ]

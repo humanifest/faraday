@@ -62,6 +62,9 @@ from research_machine.domain.models import (
     AnalysisContract,
     AnalysisImplementationBundleContract,
     AnalysisImplementationMember,
+    BoundedNegativeSearchContract,
+    BoundedSearchInterface,
+    BoundedSearchQuery,
     AnalysisFamilyMember,
     AnalysisStepContract,
     CalibrationCriterion,
@@ -85,6 +88,7 @@ from research_machine.domain.models import (
     QualityGateResult,
     QualityGateStatus,
     ReconstructionFamilyStabilityContract,
+    ScreenedSearchCandidate,
     RejectionType,
     RuntimePreflightRequirement,
     SelectionWeights,
@@ -147,6 +151,7 @@ _PROTOCOL_FIELDS = {
     "duality_reconstruction_contracts",
     "reconstruction_family_stability_contracts",
     "analysis_implementation_bundle_contracts",
+    "bounded_negative_search_contracts",
     "measurement_validity_checks",
     "expected_outputs",
     "success_conditions",
@@ -1383,6 +1388,9 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
     analysis_implementation_bundle_values = spec.get(
         "analysis_implementation_bundle_contracts", []
     )
+    bounded_negative_search_values = spec.get(
+        "bounded_negative_search_contracts", []
+    )
     if named_component_values is None:
         named_component_values = []
     if mathematical_predicate_values is None:
@@ -1393,6 +1401,8 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         reconstruction_family_stability_values = []
     if analysis_implementation_bundle_values is None:
         analysis_implementation_bundle_values = []
+    if bounded_negative_search_values is None:
+        bounded_negative_search_values = []
     validity_values = spec.get("measurement_validity_checks", [])
     control_values = spec.get("control_definitions", [])
     calibration_values = spec.get("calibration_acceptance_criteria", [])
@@ -1795,6 +1805,84 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         raise ValueError(
             "analysis implementation bundle member contains unknown fields or is not an object"
         )
+    bounded_negative_search_fields = {
+        "contract_id",
+        "search_question",
+        "scope_inclusions",
+        "scope_exclusions",
+        "search_date",
+        "interfaces",
+        "queries",
+        "stop_rule",
+        "maximum_queries_to_execute",
+        "maximum_candidates_to_screen",
+        "screened_candidates",
+        "conclusion_ceiling",
+        "higher_level_conclusions_unsupported",
+        "adverse_omission_control_id",
+        "evaluation_gate_id",
+    }
+    interface_fields = {
+        "interface_id", "database_name", "interface_name", "interface_version"
+    }
+    query_fields = {"query_id", "interface_id", "exact_query"}
+    candidate_fields = {
+        "candidate_id",
+        "source_id",
+        "query_ids",
+        "screening_decision",
+        "retained_source_sha256",
+        "exclusion_reason",
+    }
+    if not isinstance(bounded_negative_search_values, list) or any(
+        not isinstance(item, dict) for item in bounded_negative_search_values
+    ):
+        raise ValueError(
+            "bounded_negative_search_contracts must be an array of objects"
+        )
+    if any(
+        set(item) - bounded_negative_search_fields
+        for item in bounded_negative_search_values
+    ):
+        raise ValueError("bounded negative search contract contains unknown fields")
+    try:
+        bounded_negative_search_contracts = [
+            BoundedNegativeSearchContract(
+                **{
+                    **item,
+                    "interfaces": [
+                        BoundedSearchInterface(**interface)
+                        for interface in item.get("interfaces", [])
+                        if isinstance(interface, dict)
+                        and not (set(interface) - interface_fields)
+                    ],
+                    "queries": [
+                        BoundedSearchQuery(**query)
+                        for query in item.get("queries", [])
+                        if isinstance(query, dict)
+                        and not (set(query) - query_fields)
+                    ],
+                    "screened_candidates": [
+                        ScreenedSearchCandidate(**candidate)
+                        for candidate in item.get("screened_candidates", [])
+                        if isinstance(candidate, dict)
+                        and not (set(candidate) - candidate_fields)
+                    ],
+                }
+            )
+            for item in bounded_negative_search_values
+        ]
+    except TypeError as exc:
+        raise ValueError(f"invalid bounded negative search contract: {exc}") from exc
+    for contract, item in zip(
+        bounded_negative_search_contracts, bounded_negative_search_values
+    ):
+        for nested_field in ("interfaces", "queries", "screened_candidates"):
+            if len(getattr(contract, nested_field)) != len(item.get(nested_field, [])):
+                raise ValueError(
+                    f"bounded negative search {nested_field} contains unknown "
+                    "fields or a non-object"
+                )
     try:
         return CreateProtocol(
             experiment_id=spec["experiment_id"],
@@ -1817,6 +1905,9 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             ),
             analysis_implementation_bundle_contracts=(
                 analysis_implementation_bundle_contracts
+            ),
+            bounded_negative_search_contracts=(
+                bounded_negative_search_contracts
             ),
             measurement_validity_checks=validity_checks,
             expected_outputs=lists["expected_outputs"],

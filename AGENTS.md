@@ -129,6 +129,15 @@ canonical write path.
   possible, but continue redacting operational artifact locators. Treat hashes
   as byte identity and a closure receipt as bounded executor metadata, never as
   proof of semantic correctness or complete dynamic execution.
+- A source, literature, registry, or catalog search used to report no match
+  should freeze a `bounded_negative_search_contracts` entry. Bind the exact
+  question and inclusion/exclusion scope, calendar date, database/interface
+  identity and version, exact queries, stop rule and numeric bounds, every
+  screened candidate with query lineage, retained-source hashes, exclusion
+  reasons, and an adverse omission/truncation control. Passed run intake and
+  replication replay require exact record equality plus artifact-selected JSON.
+  The ceiling is only absence within those frozen retrieval bounds; never
+  promote it to universal absence, mathematical impossibility, or theorem/proof.
 - Never hardcode or infer the primary outcome's dataset column. Require every
   executable primary, secondary, and control measurement column to be explicit,
   case-insensitively unique, and distinct from identity, assignment, and

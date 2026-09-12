@@ -555,6 +555,58 @@ class AnalysisImplementationBundleContract(Serializable):
 
 
 @dataclass(frozen=True)
+class BoundedSearchInterface(Serializable):
+    """One exact database/interface boundary used for a bounded search."""
+
+    interface_id: str
+    database_name: str
+    interface_name: str
+    interface_version: str
+
+
+@dataclass(frozen=True)
+class BoundedSearchQuery(Serializable):
+    """One exact query submitted to one frozen search interface."""
+
+    query_id: str
+    interface_id: str
+    exact_query: str
+
+
+@dataclass(frozen=True)
+class ScreenedSearchCandidate(Serializable):
+    """One retained screening decision in a bounded search record."""
+
+    candidate_id: str
+    source_id: str
+    query_ids: list[str]
+    screening_decision: str
+    retained_source_sha256: str = ""
+    exclusion_reason: str = ""
+
+
+@dataclass(frozen=True)
+class BoundedNegativeSearchContract(Serializable):
+    """Frozen bounds and screened record for a non-exhaustive source search."""
+
+    contract_id: str
+    search_question: str
+    scope_inclusions: list[str]
+    scope_exclusions: list[str]
+    search_date: str
+    interfaces: list[BoundedSearchInterface]
+    queries: list[BoundedSearchQuery]
+    stop_rule: str
+    maximum_queries_to_execute: int
+    maximum_candidates_to_screen: int
+    screened_candidates: list[ScreenedSearchCandidate]
+    conclusion_ceiling: str
+    higher_level_conclusions_unsupported: list[str]
+    adverse_omission_control_id: str
+    evaluation_gate_id: str
+
+
+@dataclass(frozen=True)
 class ControlWitnessContract(Serializable):
     """Prospective shape for one artifact-selected scalar control comparison."""
 
@@ -767,6 +819,9 @@ class ExperimentProtocol(Serializable):
     analysis_implementation_bundle_contracts: list[
         AnalysisImplementationBundleContract
     ] = field(default_factory=list)
+    bounded_negative_search_contracts: list[
+        BoundedNegativeSearchContract
+    ] = field(default_factory=list)
     measurement_validity_checks: list[MeasurementValidityCheck] = field(
         default_factory=list
     )
@@ -872,6 +927,8 @@ class ExperimentProtocol(Serializable):
             payload.pop("reconstruction_family_stability_contracts", None)
         if not self.analysis_implementation_bundle_contracts:
             payload.pop("analysis_implementation_bundle_contracts", None)
+        if not self.bounded_negative_search_contracts:
+            payload.pop("bounded_negative_search_contracts", None)
         return payload
 
     @classmethod
@@ -932,6 +989,34 @@ class ExperimentProtocol(Serializable):
             for item in copied.get(
                 "analysis_implementation_bundle_contracts", []
             )
+        ]
+        copied["bounded_negative_search_contracts"] = [
+            item
+            if isinstance(item, BoundedNegativeSearchContract)
+            else BoundedNegativeSearchContract(
+                **{
+                    **item,
+                    "interfaces": [
+                        interface
+                        if isinstance(interface, BoundedSearchInterface)
+                        else BoundedSearchInterface(**interface)
+                        for interface in item.get("interfaces", [])
+                    ],
+                    "queries": [
+                        query
+                        if isinstance(query, BoundedSearchQuery)
+                        else BoundedSearchQuery(**query)
+                        for query in item.get("queries", [])
+                    ],
+                    "screened_candidates": [
+                        candidate
+                        if isinstance(candidate, ScreenedSearchCandidate)
+                        else ScreenedSearchCandidate(**candidate)
+                        for candidate in item.get("screened_candidates", [])
+                    ],
+                }
+            )
+            for item in copied.get("bounded_negative_search_contracts", [])
         ]
         if copied.get("canary_target_plan") is not None and not isinstance(
             copied["canary_target_plan"], CanaryTargetPlan

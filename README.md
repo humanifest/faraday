@@ -2253,6 +2253,15 @@ declared-versus-observed member equality. Hashes establish byte identity, not
 semantic correctness or unbounded runtime completeness. See
 [analysis implementation bundles](docs/analysis-implementation-bundle-contract.md).
 
+When a literature, registry, source, or catalog search will support a statement
+that no match was found, freeze a `bounded_negative_search_contracts` entry. It
+binds the exact question and scope, date, database/interface identities, exact
+queries, stop bounds, candidate screening records, retained-source hashes,
+exclusion reasons, and an omission/truncation adverse control. The fixed ceiling
+permits only a bounded retrieval statement; it forbids upgrading a search miss
+to universal absence, mathematical impossibility, or a theorem. See
+[bounded negative searches](docs/bounded-negative-search-contract.md).
+
 This command accepts no source notebook and no arbitrary code. It starts the
 requested kernel, runs one built-in marker cell, verifies the kernel working
 directory, shuts the kernel down, and writes a non-overwriting report. Its

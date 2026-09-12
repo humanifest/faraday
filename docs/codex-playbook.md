@@ -139,6 +139,14 @@ limitations, external dependencies, an observed-closure receipt format, and an
 omitted-helper adverse control. A submitter-defined scalar digest is not proof
 that the declared member list is complete.
 
+When a search miss will inform a scientific or mathematical decision, also
+freeze `bounded_negative_search_contracts`. See
+`bounded-negative-search-contract.md`. Bind the exact question, scope, search
+date, database/interfaces, queries, stop rule and numeric bounds, screened
+candidate lineage, retained-source hashes, exclusion reasons, and an adverse
+omission/truncation control. Report only absence within those frozen retrieval
+bounds; never turn a search miss into a theorem or impossibility claim.
+
 An exploratory protocol may be frozen against `pending_review` hypotheses.
 Confirmatory and replication protocols require every tested hypothesis to be
 active after human review.

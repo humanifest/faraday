@@ -38,6 +38,7 @@ from research_machine.application.policies import (
     validate_duality_reconstruction_gate_metadata,
     validate_reconstruction_family_stability_gate_metadata,
     validate_analysis_implementation_bundle_gate_metadata,
+    validate_bounded_negative_search_gate_metadata,
     validate_mathematical_predicate_gate_metadata,
     validate_named_component_gate_metadata,
     validate_quality_gates,
@@ -71,6 +72,7 @@ _MEASUREMENT_CUSTODY_SCOPE = (
 )
 
 _STRUCTURED_RESULT_DETAIL_KEYS = {
+    "bounded_negative_search_results",
     "canary_target_assessment",
     "causal_assumption_results",
     "duality_reconstruction_results",
@@ -3116,6 +3118,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         context=f"package run {run.run_id}",
                     )
                     validate_analysis_implementation_bundle_gate_metadata(
+                        protocol=protocol,
+                        gate=gate,
+                        output_hashes=output_hashes,
+                        context=f"package run {run.run_id}",
+                    )
+                    validate_bounded_negative_search_gate_metadata(
                         protocol=protocol,
                         gate=gate,
                         output_hashes=output_hashes,

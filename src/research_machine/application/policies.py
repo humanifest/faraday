@@ -16,6 +16,9 @@ from research_machine.domain.models import (
     AnalysisContract,
     AnalysisImplementationBundleContract,
     AnalysisImplementationMember,
+    BoundedNegativeSearchContract,
+    BoundedSearchInterface,
+    BoundedSearchQuery,
     AnalysisFamilyMember,
     AnalysisStepContract,
     CalibrationCriterion,
@@ -47,6 +50,7 @@ from research_machine.domain.models import (
     ReconstructionFamilyStabilityContract,
     ResearchRun,
     RejectionType,
+    ScreenedSearchCandidate,
     RuntimePreflightRequirement,
     SelectionWeights,
     ValidationTag,
@@ -2336,6 +2340,8 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         validate_reconstruction_family_stability_contracts(protocol)
     if protocol.analysis_implementation_bundle_contracts:
         validate_analysis_implementation_bundle_contracts(protocol)
+    if protocol.bounded_negative_search_contracts:
+        validate_bounded_negative_search_contracts(protocol)
     custody_requirement_ids = []
     for gate_id in protocol.measurement_custody_requirements:
         canonical_gate_id = require_text(
@@ -4378,6 +4384,419 @@ def validate_analysis_implementation_bundle_gate_metadata(
             require_sha256(
                 result["selected_value_sha256"],
                 f"{prefix}.selected_value_sha256",
+            )
+
+
+_BOUNDED_SEARCH_SCREENING_DECISIONS = {
+    "in_scope_target",
+    "retained_context",
+    "excluded",
+}
+_BOUNDED_SEARCH_CONCLUSION_CEILING = "bounded_retrieval_record_only"
+_BOUNDED_SEARCH_REQUIRED_UNSUPPORTED = {
+    "universal_absence",
+    "mathematical_impossibility",
+    "theorem_or_proof",
+    "absence_outside_frozen_interfaces_queries_date_and_stop_rule",
+}
+
+
+def validate_bounded_negative_search_contracts(
+    protocol: ExperimentProtocol,
+) -> None:
+    """Validate an exact search record without promoting absence to proof."""
+
+    contracts = protocol.bounded_negative_search_contracts
+    if any(not isinstance(item, BoundedNegativeSearchContract) for item in contracts):
+        raise ValidationError(
+            "bounded_negative_search_contracts must contain "
+            "BoundedNegativeSearchContract values"
+        )
+    controls = {item.control_id: item for item in protocol.control_definitions}
+    contract_ids: set[str] = set()
+    for index, contract in enumerate(contracts):
+        prefix = f"bounded_negative_search_contracts[{index}]"
+        for field_name in (
+            "contract_id",
+            "search_question",
+            "stop_rule",
+            "conclusion_ceiling",
+            "adverse_omission_control_id",
+            "evaluation_gate_id",
+        ):
+            require_canonical_text(
+                getattr(contract, field_name), f"{prefix}.{field_name}"
+            )
+        if contract.contract_id in contract_ids:
+            raise ValidationError("bounded negative search contract IDs must be unique")
+        contract_ids.add(contract.contract_id)
+        inclusions = require_unique_canonical_text_list(
+            contract.scope_inclusions, f"{prefix}.scope_inclusions"
+        )
+        if not inclusions:
+            raise ValidationError(
+                "bounded negative search requires at least one scope inclusion"
+            )
+        require_unique_canonical_text_list(
+            contract.scope_exclusions, f"{prefix}.scope_exclusions"
+        )
+        try:
+            parsed_date = datetime.strptime(contract.search_date, "%Y-%m-%d").date()
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(
+                f"{prefix}.search_date must be an exact YYYY-MM-DD date"
+            ) from exc
+        if parsed_date.isoformat() != contract.search_date:
+            raise ValidationError(
+                f"{prefix}.search_date must be an exact YYYY-MM-DD date"
+            )
+        if not contract.interfaces or any(
+            not isinstance(item, BoundedSearchInterface)
+            for item in contract.interfaces
+        ):
+            raise ValidationError(
+                "bounded negative search requires typed database/interface records"
+            )
+        interface_ids: set[str] = set()
+        for interface_index, interface in enumerate(contract.interfaces):
+            interface_prefix = f"{prefix}.interfaces[{interface_index}]"
+            for field_name in (
+                "interface_id", "database_name", "interface_name", "interface_version"
+            ):
+                require_canonical_text(
+                    getattr(interface, field_name), f"{interface_prefix}.{field_name}"
+                )
+            if interface.interface_id in interface_ids:
+                raise ValidationError(
+                    "bounded negative search interface IDs must be unique"
+                )
+            interface_ids.add(interface.interface_id)
+        if not contract.queries or any(
+            not isinstance(item, BoundedSearchQuery) for item in contract.queries
+        ):
+            raise ValidationError("bounded negative search requires exact query records")
+        query_ids: set[str] = set()
+        queried_interfaces: set[str] = set()
+        for query_index, query in enumerate(contract.queries):
+            query_prefix = f"{prefix}.queries[{query_index}]"
+            for field_name in ("query_id", "interface_id", "exact_query"):
+                require_canonical_text(
+                    getattr(query, field_name), f"{query_prefix}.{field_name}"
+                )
+            if query.query_id in query_ids:
+                raise ValidationError("bounded negative search query IDs must be unique")
+            if query.interface_id not in interface_ids:
+                raise ValidationError(
+                    "bounded negative search query references an unknown interface"
+                )
+            query_ids.add(query.query_id)
+            queried_interfaces.add(query.interface_id)
+        if queried_interfaces != interface_ids:
+            raise ValidationError(
+                "bounded negative search must execute at least one exact query "
+                "against every declared interface"
+            )
+        for field_name, value in (
+            ("maximum_queries_to_execute", contract.maximum_queries_to_execute),
+            ("maximum_candidates_to_screen", contract.maximum_candidates_to_screen),
+        ):
+            if type(value) is bool or not isinstance(value, int) or value < 1:
+                raise ValidationError(f"{prefix}.{field_name} must be a positive integer")
+        if len(contract.queries) > contract.maximum_queries_to_execute:
+            raise ValidationError(
+                "bounded negative search exact queries exceed the frozen stop bound"
+            )
+        if len(contract.screened_candidates) > contract.maximum_candidates_to_screen:
+            raise ValidationError(
+                "bounded negative search candidate records exceed the frozen stop bound"
+            )
+        if any(
+            not isinstance(item, ScreenedSearchCandidate)
+            for item in contract.screened_candidates
+        ):
+            raise ValidationError(
+                "bounded negative search candidates must be ScreenedSearchCandidate values"
+            )
+        candidate_ids: set[str] = set()
+        source_ids: set[str] = set()
+        for candidate_index, candidate in enumerate(contract.screened_candidates):
+            candidate_prefix = f"{prefix}.screened_candidates[{candidate_index}]"
+            for field_name in ("candidate_id", "source_id", "screening_decision"):
+                require_canonical_text(
+                    getattr(candidate, field_name), f"{candidate_prefix}.{field_name}"
+                )
+            if candidate.candidate_id in candidate_ids:
+                raise ValidationError(
+                    "bounded negative search candidate IDs must be unique"
+                )
+            if candidate.source_id in source_ids:
+                raise ValidationError(
+                    "bounded negative search source IDs must be unique; combine query lineage"
+                )
+            candidate_ids.add(candidate.candidate_id)
+            source_ids.add(candidate.source_id)
+            candidate_query_ids = require_unique_canonical_text_list(
+                candidate.query_ids, f"{candidate_prefix}.query_ids"
+            )
+            if not candidate_query_ids or not set(candidate_query_ids) <= query_ids:
+                raise ValidationError(
+                    "bounded negative search candidate query_ids must be nonempty "
+                    "and reference frozen queries"
+                )
+            if candidate.screening_decision not in _BOUNDED_SEARCH_SCREENING_DECISIONS:
+                raise ValidationError(
+                    f"{candidate_prefix}.screening_decision is unsupported"
+                )
+            if candidate.screening_decision == "excluded":
+                require_canonical_text(
+                    candidate.exclusion_reason, f"{candidate_prefix}.exclusion_reason"
+                )
+                if candidate.retained_source_sha256:
+                    raise ValidationError(
+                        "excluded bounded-search candidates cannot declare a retained-source hash"
+                    )
+            else:
+                require_sha256(
+                    candidate.retained_source_sha256,
+                    f"{candidate_prefix}.retained_source_sha256",
+                )
+                if candidate.exclusion_reason:
+                    raise ValidationError(
+                        "retained bounded-search candidates cannot declare an exclusion reason"
+                    )
+        if contract.conclusion_ceiling != _BOUNDED_SEARCH_CONCLUSION_CEILING:
+            raise ValidationError(
+                "bounded negative search conclusion_ceiling must remain "
+                "bounded_retrieval_record_only"
+            )
+        unsupported = require_unique_canonical_text_list(
+            contract.higher_level_conclusions_unsupported,
+            f"{prefix}.higher_level_conclusions_unsupported",
+        )
+        missing_ceilings = sorted(
+            _BOUNDED_SEARCH_REQUIRED_UNSUPPORTED - set(unsupported)
+        )
+        if missing_ceilings:
+            raise ValidationError(
+                "bounded negative search must explicitly reject higher conclusions: "
+                + ", ".join(missing_ceilings)
+            )
+        control = controls.get(contract.adverse_omission_control_id)
+        if control is None:
+            raise ValidationError(
+                "bounded negative search must bind an exact adverse omission control_id"
+            )
+        if control.family != "adversarial":
+            raise ValidationError(
+                "bounded negative search omission control must be adversarial"
+            )
+        if control.evaluation_gate_id != contract.evaluation_gate_id:
+            raise ValidationError(
+                "bounded negative search and omission control must share an evaluation gate"
+            )
+        if contract.evaluation_gate_id not in set(protocol.quality_requirements):
+            raise ValidationError(
+                "bounded negative search evaluation gate must be a required protocol quality gate"
+            )
+
+
+def validate_bounded_negative_search_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    gate: QualityGateResult,
+    output_hashes: set[str],
+    context: str = "",
+) -> None:
+    """Replay a bounded search record and its omission/truncation control."""
+
+    contracts = [
+        item
+        for item in protocol.bounded_negative_search_contracts
+        if item.evaluation_gate_id == gate.gate_id
+    ]
+    if not contracts or gate.status is QualityGateStatus.SKIPPED:
+        return
+    label = f"{context} " if context else ""
+    results = gate.details.get("bounded_negative_search_results")
+    expected_ids = {item.contract_id for item in contracts}
+    if not isinstance(results, dict) or set(results) != expected_ids:
+        raise ValidationError(
+            f"{label}performed bounded negative search gate {gate.gate_id} "
+            "requires exact results for: " + ", ".join(sorted(expected_ids))
+        )
+    expected_status = {
+        QualityGateStatus.PASSED: "consistent_with_bounded_search_contract",
+        QualityGateStatus.WARNING: "inconclusive",
+        QualityGateStatus.FAILED: "contradicted_bounded_search_contract",
+    }.get(gate.status)
+    if expected_status is None:
+        raise ValidationError(
+            f"{label}bounded negative search gate {gate.gate_id} has an unsupported status"
+        )
+    frozen_fields = (
+        "search_question",
+        "scope_inclusions",
+        "scope_exclusions",
+        "search_date",
+        "interfaces",
+        "queries",
+        "stop_rule",
+        "maximum_queries_to_execute",
+        "maximum_candidates_to_screen",
+        "screened_candidates",
+        "conclusion_ceiling",
+        "higher_level_conclusions_unsupported",
+    )
+    required_fields = {
+        *frozen_fields,
+        "observed_query_ids",
+        "observed_interface_ids",
+        "observed_screened_candidate_ids",
+        "observed_retained_source_sha256s",
+        "observed_exclusion_reasons",
+        "observed_stop_rule_satisfied",
+        "observed_search_record_complete",
+        "assessment_status",
+        "observed_witness",
+        "interpretation",
+        "evidence_sha256",
+        "evidence_location",
+    }
+    derived_fields = {"selected_value_sha256"}
+    control_results = gate.details.get("control_results")
+    for contract in contracts:
+        result = results[contract.contract_id]
+        prefix = (
+            f"{label}gate {gate.gate_id} bounded_negative_search_results "
+            f"{contract.contract_id}"
+        )
+        if (
+            not isinstance(result, dict)
+            or not required_fields <= set(result)
+            or set(result) - required_fields - derived_fields
+        ):
+            raise ValidationError(
+                f"{label}bounded negative search result for {contract.contract_id} "
+                "must contain exactly the documented fields"
+            )
+        frozen_expected = contract.to_dict()
+        for omitted in (
+            "contract_id", "adverse_omission_control_id", "evaluation_gate_id"
+        ):
+            frozen_expected.pop(omitted)
+        for field_name in frozen_fields:
+            if result[field_name] != frozen_expected[field_name]:
+                raise ValidationError(
+                    f"{label}bounded negative search {field_name} does not match "
+                    "the frozen contract"
+                )
+        expected_query_ids = [item.query_id for item in contract.queries]
+        expected_interface_ids = [item.interface_id for item in contract.interfaces]
+        expected_candidate_ids = [
+            item.candidate_id for item in contract.screened_candidates
+        ]
+        if require_unique_canonical_text_list(
+            result["observed_query_ids"], f"{prefix}.observed_query_ids"
+        ) != expected_query_ids:
+            raise ValidationError(
+                f"{label}bounded negative search observed queries do not match the frozen record"
+            )
+        if require_unique_canonical_text_list(
+            result["observed_interface_ids"], f"{prefix}.observed_interface_ids"
+        ) != expected_interface_ids:
+            raise ValidationError(
+                f"{label}bounded negative search observed interfaces do not match the frozen record"
+            )
+        if require_unique_canonical_text_list(
+            result["observed_screened_candidate_ids"],
+            f"{prefix}.observed_screened_candidate_ids",
+        ) != expected_candidate_ids:
+            raise ValidationError(
+                f"{label}bounded negative search observed candidate set does not match the frozen record"
+            )
+        expected_hashes = {
+            item.candidate_id: item.retained_source_sha256
+            for item in contract.screened_candidates
+            if item.screening_decision != "excluded"
+        }
+        if result["observed_retained_source_sha256s"] != expected_hashes:
+            raise ValidationError(
+                f"{label}bounded negative search retained-source hashes do not match the frozen record"
+            )
+        expected_reasons = {
+            item.candidate_id: item.exclusion_reason
+            for item in contract.screened_candidates
+            if item.screening_decision == "excluded"
+        }
+        if result["observed_exclusion_reasons"] != expected_reasons:
+            raise ValidationError(
+                f"{label}bounded negative search exclusion reasons do not match the frozen record"
+            )
+        for field_name in (
+            "observed_stop_rule_satisfied", "observed_search_record_complete"
+        ):
+            if type(result[field_name]) is not bool:
+                raise ValidationError(f"{prefix}.{field_name} must be a boolean")
+            if gate.status is QualityGateStatus.PASSED and not result[field_name]:
+                raise ValidationError(
+                    f"{label}passed bounded negative search gate requires {field_name}"
+                )
+        for field_name in (
+            "assessment_status", "observed_witness", "interpretation", "evidence_location"
+        ):
+            require_canonical_text(result[field_name], f"{prefix}.{field_name}")
+        if result["assessment_status"] != expected_status:
+            raise ValidationError(
+                f"{label}{gate.status.value} bounded negative search gate "
+                f"requires {expected_status}"
+            )
+        digest = require_sha256(result["evidence_sha256"], f"{prefix}.evidence_sha256")
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"{label}bounded negative search evidence must reference a run output artifact"
+            )
+        linked_control = (
+            control_results.get(contract.adverse_omission_control_id)
+            if isinstance(control_results, dict)
+            else None
+        )
+        control_fields = {
+            "observed_behavior", "interpretation", "matches_expected",
+            "evidence_sha256", "evidence_location",
+        }
+        if (
+            not isinstance(linked_control, dict)
+            or not control_fields <= set(linked_control)
+            or set(linked_control) - control_fields - {"selected_value_sha256"}
+        ):
+            raise ValidationError(
+                f"{label}bounded negative search result requires its exact linked "
+                "adverse omission/truncation control evaluation"
+            )
+        if type(linked_control["matches_expected"]) is not bool:
+            raise ValidationError(
+                f"{label}bounded negative search linked control matches_expected "
+                "must be a boolean"
+            )
+        control_digest = require_sha256(
+            linked_control["evidence_sha256"],
+            f"{prefix}.linked_control.evidence_sha256",
+        )
+        if control_digest not in output_hashes:
+            raise ValidationError(
+                f"{label}bounded negative search linked control evidence must "
+                "reference a run output artifact"
+            )
+        if gate.status is QualityGateStatus.PASSED and not linked_control[
+            "matches_expected"
+        ]:
+            raise ValidationError(
+                f"{label}passed bounded negative search gate requires its adverse "
+                "omission/truncation control to match expectation"
+            )
+        if result.get("selected_value_sha256") is not None:
+            require_sha256(
+                result["selected_value_sha256"], f"{prefix}.selected_value_sha256"
             )
 
 

@@ -1909,6 +1909,51 @@ def audit_research_state(
                             "new protocol version."
                         ),
                     )
+        if protocol is not None and protocol.bounded_negative_search_contracts:
+            gates_by_id = {item.gate_id: item for item in run.quality_gates}
+            for contract in protocol.bounded_negative_search_contracts:
+                gate = gates_by_id.get(contract.evaluation_gate_id)
+                results = (
+                    gate.details.get("bounded_negative_search_results", {})
+                    if gate is not None
+                    else {}
+                )
+                result = (
+                    results.get(contract.contract_id)
+                    if isinstance(results, dict)
+                    else None
+                )
+                if not isinstance(result, dict):
+                    continue
+                status = result.get("assessment_status")
+                if status == "inconclusive":
+                    add(
+                        "BOUNDED_NEGATIVE_SEARCH_INCONCLUSIVE",
+                        RigorSeverity.WARNING,
+                        f"Bounded negative search contract {contract.contract_id} "
+                        "was inconclusive.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the record and inspect the frozen queries, "
+                            "interfaces, stop rule, screening decisions, retained "
+                            "source hashes, exclusions, and omission control."
+                        ),
+                    )
+                elif status == "contradicted_bounded_search_contract":
+                    add(
+                        "BOUNDED_NEGATIVE_SEARCH_CONTRADICTED",
+                        RigorSeverity.ERROR,
+                        f"Bounded negative search contract {contract.contract_id} "
+                        "was contradicted.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the adverse search result. Do not infer "
+                            "absence; changed scope, queries, interfaces, dates, "
+                            "screening, or stop rules require a new protocol version."
+                        ),
+                    )
         if (
             protocol is not None
             and protocol.sample_size_plan

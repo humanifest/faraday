@@ -57,6 +57,7 @@ from research_machine.application.policies import (
     validate_duality_reconstruction_gate_metadata,
     validate_reconstruction_family_stability_gate_metadata,
     validate_analysis_implementation_bundle_gate_metadata,
+    validate_bounded_negative_search_gate_metadata,
     validate_historical_cross_lane_lesson_structure,
     validate_dataset_artifacts,
     validate_evidence_annotations,
@@ -499,6 +500,7 @@ def _resolve_json_artifact_location(
 
 
 _STRUCTURED_RESULT_DETAIL_KEYS = {
+    "bounded_negative_search_results",
     "canary_target_assessment",
     "causal_assumption_results",
     "duality_reconstruction_results",
@@ -4512,6 +4514,109 @@ class ResearchService:
                         "does not match the verified JSON value"
                     )
                 result["selected_value_sha256"] = selected_value_sha256
+        bounded_negative_search_gates = {
+            contract.evaluation_gate_id
+            for contract in protocol.bounded_negative_search_contracts
+        }
+        for gate_id in bounded_negative_search_gates:
+            gate = gates_by_id.get(gate_id)
+            if gate is None or gate.status is QualityGateStatus.SKIPPED:
+                continue
+            validate_bounded_negative_search_gate_metadata(
+                protocol=protocol,
+                gate=gate,
+                output_hashes=output_hashes,
+            )
+            results = gate.details["bounded_negative_search_results"]
+            for contract in protocol.bounded_negative_search_contracts:
+                if contract.evaluation_gate_id != gate_id:
+                    continue
+                result = results[contract.contract_id]
+                digest = result["evidence_sha256"]
+                location = result["evidence_location"]
+                location_verified, structured_evidence = (
+                    _resolve_json_artifact_location(
+                        outputs,
+                        command.artifact_root,
+                        digest,
+                        location,
+                        (
+                            "bounded negative search "
+                            f"{contract.contract_id} evidence_location"
+                        ),
+                    )
+                )
+                if (
+                    not location_verified
+                    and verified_gate_result is not None
+                    and digest == verified_gate_output_sha256
+                ):
+                    if not location.startswith("/"):
+                        raise ValidationError(
+                            "bounded negative search evidence in the verified "
+                            "analysis output requires an absolute JSON Pointer "
+                            "evidence_location"
+                        )
+                    structured_evidence = _resolve_json_pointer(
+                        verified_gate_result,
+                        location,
+                        (
+                            "bounded negative search "
+                            f"{contract.contract_id} evidence_location"
+                        ),
+                    )
+                    location_verified = True
+                if not location_verified or not isinstance(structured_evidence, dict):
+                    raise ValidationError(
+                        "bounded negative search result requires retained, "
+                        "artifact-bound JSON object evidence"
+                    )
+                evidence_fields = {
+                    "search_question",
+                    "scope_inclusions",
+                    "scope_exclusions",
+                    "search_date",
+                    "interfaces",
+                    "queries",
+                    "stop_rule",
+                    "maximum_queries_to_execute",
+                    "maximum_candidates_to_screen",
+                    "screened_candidates",
+                    "conclusion_ceiling",
+                    "higher_level_conclusions_unsupported",
+                    "observed_query_ids",
+                    "observed_interface_ids",
+                    "observed_screened_candidate_ids",
+                    "observed_retained_source_sha256s",
+                    "observed_exclusion_reasons",
+                    "observed_stop_rule_satisfied",
+                    "observed_search_record_complete",
+                    "assessment_status",
+                    "observed_witness",
+                    "interpretation",
+                }
+                expected_evidence = {
+                    field_name: result[field_name] for field_name in evidence_fields
+                }
+                if structured_evidence != expected_evidence:
+                    raise ValidationError(
+                        "bounded negative search result does not match its "
+                        "retained typed JSON evidence"
+                    )
+                selected_value_sha256 = _result_selection_sha256(structured_evidence)
+                supplied = result.get("selected_value_sha256")
+                if supplied is not None and require_sha256(
+                    supplied,
+                    (
+                        "bounded negative search "
+                        f"{contract.contract_id} selected_value_sha256"
+                    ),
+                ) != selected_value_sha256:
+                    raise ValidationError(
+                        "bounded negative search selected_value_sha256 does not "
+                        "match the verified JSON value"
+                    )
+                result["selected_value_sha256"] = selected_value_sha256
         contract = protocol.analysis_contract
         if contract is not None and contract.missingness_assessment_gate_id:
             gate = gates_by_id.get(contract.missingness_assessment_gate_id)
@@ -5201,6 +5306,11 @@ class ResearchService:
             analysis_implementation_bundle_contracts_by_gate.setdefault(
                 contract.evaluation_gate_id, []
             ).append(contract)
+        bounded_negative_search_contracts_by_gate: dict[str, list[Any]] = {}
+        for contract in protocol.bounded_negative_search_contracts:
+            bounded_negative_search_contracts_by_gate.setdefault(
+                contract.evaluation_gate_id, []
+            ).append(contract)
         missingness_gate_id = (
             protocol.analysis_contract.missingness_assessment_gate_id
             if protocol.analysis_contract is not None
@@ -5235,6 +5345,10 @@ class ResearchService:
             "analysis_implementation_bundle_plan": [
                 contract.to_dict()
                 for contract in protocol.analysis_implementation_bundle_contracts
+            ],
+            "bounded_negative_search_plan": [
+                contract.to_dict()
+                for contract in protocol.bounded_negative_search_contracts
             ],
             "canary_target_plan": (
                 canary_plan.to_dict() if canary_plan is not None else None
@@ -5539,6 +5653,47 @@ class ResearchService:
                                     gate_id
                                 ]
                             }} if gate_id in analysis_implementation_bundle_contracts_by_gate else {}),
+                            **({"bounded_negative_search_results": {
+                                contract.contract_id: {
+                                    "search_question": contract.search_question,
+                                    "scope_inclusions": list(contract.scope_inclusions),
+                                    "scope_exclusions": list(contract.scope_exclusions),
+                                    "search_date": contract.search_date,
+                                    "interfaces": [
+                                        item.to_dict() for item in contract.interfaces
+                                    ],
+                                    "queries": [
+                                        item.to_dict() for item in contract.queries
+                                    ],
+                                    "stop_rule": contract.stop_rule,
+                                    "maximum_queries_to_execute": contract.maximum_queries_to_execute,
+                                    "maximum_candidates_to_screen": contract.maximum_candidates_to_screen,
+                                    "screened_candidates": [
+                                        item.to_dict()
+                                        for item in contract.screened_candidates
+                                    ],
+                                    "conclusion_ceiling": contract.conclusion_ceiling,
+                                    "higher_level_conclusions_unsupported": list(
+                                        contract.higher_level_conclusions_unsupported
+                                    ),
+                                    "observed_query_ids": [],
+                                    "observed_interface_ids": [],
+                                    "observed_screened_candidate_ids": [],
+                                    "observed_retained_source_sha256s": {},
+                                    "observed_exclusion_reasons": {},
+                                    "observed_stop_rule_satisfied": None,
+                                    "observed_search_record_complete": None,
+                                    "assessment_status": "<consistent_with_bounded_search_contract if passed; inconclusive if warning; contradicted_bounded_search_contract if failed>",
+                                    "observed_witness": "",
+                                    "interpretation": "",
+                                    "evidence_sha256": "<hash of a listed run output artifact>",
+                                    "evidence_location": "<exact JSON Pointer or location within that artifact>",
+                                    "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
+                                }
+                                for contract in bounded_negative_search_contracts_by_gate[
+                                    gate_id
+                                ]
+                            }} if gate_id in bounded_negative_search_contracts_by_gate else {}),
                         },
                     }
                     for gate_id in protocol.quality_requirements
@@ -7048,6 +7203,9 @@ class ResearchService:
             ),
             analysis_implementation_bundle_contracts=list(
                 command.analysis_implementation_bundle_contracts
+            ),
+            bounded_negative_search_contracts=list(
+                command.bounded_negative_search_contracts
             ),
             measurement_validity_checks=list(command.measurement_validity_checks),
             expected_outputs=require_text_list(

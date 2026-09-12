@@ -27,6 +27,7 @@ from research_machine.domain.models import (
     ProtocolKind,
     QualityGateResult,
     ReconstructionFamilyStabilityContract,
+    BoundedNegativeSearchContract,
     RejectionType,
     RuntimePreflightRequirement,
     SelectionWeights,
@@ -225,6 +226,9 @@ class CreateProtocol:
     ] = field(default_factory=list)
     analysis_implementation_bundle_contracts: list[
         AnalysisImplementationBundleContract
+    ] = field(default_factory=list)
+    bounded_negative_search_contracts: list[
+        BoundedNegativeSearchContract
     ] = field(default_factory=list)
     measurement_validity_checks: list[MeasurementValidityCheck] = field(default_factory=list)
     expected_outputs: list[str] = field(default_factory=list)
