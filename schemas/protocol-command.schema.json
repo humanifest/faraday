@@ -200,6 +200,103 @@
         "evaluation_gate_id": {"type": "string", "pattern": "\\S"}
       }
     },
+    "mathematicalPredicateContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_id",
+        "object_id",
+        "object_kind",
+        "domain",
+        "codomain",
+        "quotient",
+        "construction",
+        "predicate",
+        "predicate_definition",
+        "adversarial_control_id",
+        "evaluation_gate_id"
+      ],
+      "properties": {
+        "contract_id": {"$ref": "#/$defs/canonicalText"},
+        "object_id": {"$ref": "#/$defs/canonicalText"},
+        "object_kind": {
+          "enum": [
+            "bilinear_form",
+            "custom",
+            "linear_map",
+            "linear_operator",
+            "nonlinear_map",
+            "nonlinear_operator",
+            "quadratic_form",
+            "quotient_map",
+            "residual",
+            "state_space",
+            "tensor"
+          ]
+        },
+        "domain": {"$ref": "#/$defs/canonicalText"},
+        "codomain": {"$ref": "#/$defs/canonicalText"},
+        "quotient": {"$ref": "#/$defs/canonicalText"},
+        "construction": {"$ref": "#/$defs/canonicalText"},
+        "predicate": {
+          "enum": [
+            "bijective",
+            "closed",
+            "conserved",
+            "custom",
+            "equivalent",
+            "injective",
+            "invertible",
+            "nonnegative",
+            "nullity",
+            "positive_definite",
+            "positive_semidefinite",
+            "rank",
+            "surjective",
+            "tangent"
+          ]
+        },
+        "predicate_definition": {"$ref": "#/$defs/canonicalText"},
+        "adversarial_control_id": {"$ref": "#/$defs/canonicalText"},
+        "evaluation_gate_id": {"$ref": "#/$defs/canonicalText"},
+        "derived_from_object_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "comparison_object_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "equivalence_conditions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["predicate"],
+            "properties": {"predicate": {"const": "equivalent"}}
+          },
+          "then": {
+            "required": ["comparison_object_ids", "equivalence_conditions"],
+            "properties": {
+              "comparison_object_ids": {"minItems": 1, "maxItems": 1},
+              "equivalence_conditions": {"minItems": 1}
+            }
+          },
+          "else": {
+            "properties": {
+              "comparison_object_ids": {"maxItems": 0},
+              "equivalence_conditions": {"maxItems": 0}
+            }
+          }
+        }
+      ]
+    },
     "canaryTargetPlan": {
       "type": "object",
       "additionalProperties": false,
@@ -379,6 +476,10 @@
     "named_component_contracts": {
       "type": "array",
       "items": {"$ref": "#/$defs/namedComponentContract"}
+    },
+    "mathematical_predicate_contracts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/mathematicalPredicateContract"}
     },
     "canary_target_plan": {
       "anyOf": [

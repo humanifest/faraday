@@ -18,6 +18,7 @@ from research_machine.domain.models import (
     DatasetRole,
     EvidenceDirection,
     MeasurementDefinition,
+    MathematicalPredicateContract,
     NamedComponentContract,
     MeasurementValidityCheck,
     ControlDefinition,
@@ -210,6 +211,9 @@ class CreateProtocol:
     control_definitions: list[ControlDefinition] = field(default_factory=list)
     measurement_definitions: list[MeasurementDefinition] = field(default_factory=list)
     named_component_contracts: list[NamedComponentContract] = field(default_factory=list)
+    mathematical_predicate_contracts: list[MathematicalPredicateContract] = field(
+        default_factory=list
+    )
     measurement_validity_checks: list[MeasurementValidityCheck] = field(default_factory=list)
     expected_outputs: list[str] = field(default_factory=list)
     success_conditions: list[str] = field(default_factory=list)

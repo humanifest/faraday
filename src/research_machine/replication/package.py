@@ -35,6 +35,7 @@ from research_machine.application.policies import (
     validate_control_witness_evidence,
     declares_legacy_pre_registration_result_exposure,
     typed_result_exposure_allows_evidence,
+    validate_mathematical_predicate_gate_metadata,
     validate_named_component_gate_metadata,
     validate_quality_gates,
 )
@@ -71,6 +72,8 @@ _STRUCTURED_RESULT_DETAIL_KEYS = {
     "causal_assumption_results",
     "instrument_inspection",
     "measurement_validity_results",
+    "mathematical_predicate_results",
+    "named_component_results",
     "missingness_assessment_result",
     "preprocessing_conformance",
     "stream_timing_assessment",
@@ -3084,6 +3087,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         verified_results_by_sha=verified_results_by_sha,
                     )
                     validate_named_component_gate_metadata(
+                        protocol=protocol,
+                        gate=gate,
+                        output_hashes=output_hashes,
+                        context=f"package run {run.run_id}",
+                    )
+                    validate_mathematical_predicate_gate_metadata(
                         protocol=protocol,
                         gate=gate,
                         output_hashes=output_hashes,

@@ -10,6 +10,12 @@ methods without changing its epistemic rules or canonical state.
   replication, synthesis, and provenance lifecycle.
 - Typed measurements, frozen protocols, execution-quality gates, chronology
   checks, artifact verification, and conservative claim ceilings.
+- Prospective mathematical-predicate contracts bind each tested property to an
+  exact object, domain, codomain, quotient, construction, and derivation
+  lineage. Equivalence claims require a named comparator and explicit
+  conditions; run intake and replication replay reject wrong-object
+  attribution while leaving mathematical truth to the pinned checker and
+  scientific review.
 - A validated add-on registry with a bundled general-science add-on and explicit
   loading of local experiment add-ons without publication.
 - Write-once execution receipts binding analysis specification, data,

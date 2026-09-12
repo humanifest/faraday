@@ -72,6 +72,7 @@ from research_machine.domain.models import (
     DatasetRole,
     EvidenceDirection,
     HypothesisWorkflowState,
+    MathematicalPredicateContract,
     MeasurementDefinition,
     NamedComponentContract,
     MeasurementValidityCheck,
@@ -138,6 +139,7 @@ _PROTOCOL_FIELDS = {
     "controls",
     "measurement_definitions",
     "named_component_contracts",
+    "mathematical_predicate_contracts",
     "measurement_validity_checks",
     "expected_outputs",
     "success_conditions",
@@ -1362,8 +1364,13 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
     }
     measurement_values = spec.get("measurement_definitions", [])
     named_component_values = spec.get("named_component_contracts", [])
+    mathematical_predicate_values = spec.get(
+        "mathematical_predicate_contracts", []
+    )
     if named_component_values is None:
         named_component_values = []
+    if mathematical_predicate_values is None:
+        mathematical_predicate_values = []
     validity_values = spec.get("measurement_validity_checks", [])
     control_values = spec.get("control_definitions", [])
     calibration_values = spec.get("calibration_acceptance_criteria", [])
@@ -1587,6 +1594,40 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         ]
     except TypeError as exc:
         raise ValueError(f"invalid named component contract: {exc}") from exc
+    mathematical_predicate_fields = {
+        "contract_id",
+        "object_id",
+        "object_kind",
+        "domain",
+        "codomain",
+        "quotient",
+        "construction",
+        "predicate",
+        "predicate_definition",
+        "adversarial_control_id",
+        "evaluation_gate_id",
+        "derived_from_object_ids",
+        "comparison_object_ids",
+        "equivalence_conditions",
+    }
+    if not isinstance(mathematical_predicate_values, list) or any(
+        not isinstance(item, dict) for item in mathematical_predicate_values
+    ):
+        raise ValueError(
+            "mathematical_predicate_contracts must be an array of objects"
+        )
+    if any(
+        set(item) - mathematical_predicate_fields
+        for item in mathematical_predicate_values
+    ):
+        raise ValueError("mathematical predicate contract contains unknown fields")
+    try:
+        mathematical_predicate_contracts = [
+            MathematicalPredicateContract(**item)
+            for item in mathematical_predicate_values
+        ]
+    except TypeError as exc:
+        raise ValueError(f"invalid mathematical predicate contract: {exc}") from exc
     try:
         return CreateProtocol(
             experiment_id=spec["experiment_id"],
@@ -1602,6 +1643,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             control_definitions=control_definitions,
             measurement_definitions=measurements,
             named_component_contracts=named_component_contracts,
+            mathematical_predicate_contracts=mathematical_predicate_contracts,
             measurement_validity_checks=validity_checks,
             expected_outputs=lists["expected_outputs"],
             success_conditions=lists["success_conditions"],

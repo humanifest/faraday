@@ -29,6 +29,7 @@ from research_machine.domain.models import (
     Hypothesis,
     HypothesisDiscriminationTarget,
     HypothesisWorkflowState,
+    MathematicalPredicateContract,
     MeasurementDefinition,
     NamedComponentContract,
     MeasurementValidityCheck,
@@ -2321,6 +2322,8 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             )
     if protocol.named_component_contracts:
         validate_named_component_contracts(protocol)
+    if protocol.mathematical_predicate_contracts:
+        validate_mathematical_predicate_contracts(protocol)
     custody_requirement_ids = []
     for gate_id in protocol.measurement_custody_requirements:
         canonical_gate_id = require_text(
@@ -2901,6 +2904,295 @@ def validate_named_component_gate_metadata(
         ]:
             raise ValidationError(
                 f"{label}failed named component gate requires its relabeling control to record the mismatch"
+            )
+
+
+_MATHEMATICAL_OBJECT_KINDS = {
+    "bilinear_form",
+    "custom",
+    "linear_map",
+    "linear_operator",
+    "nonlinear_map",
+    "nonlinear_operator",
+    "quadratic_form",
+    "quotient_map",
+    "residual",
+    "state_space",
+    "tensor",
+}
+_MATHEMATICAL_PREDICATES = {
+    "bijective",
+    "closed",
+    "conserved",
+    "custom",
+    "equivalent",
+    "injective",
+    "invertible",
+    "nonnegative",
+    "nullity",
+    "positive_definite",
+    "positive_semidefinite",
+    "rank",
+    "surjective",
+    "tangent",
+}
+_MAP_PREDICATES = {"bijective", "injective", "invertible", "surjective"}
+_MAP_OBJECT_KINDS = {
+    "linear_map",
+    "linear_operator",
+    "nonlinear_map",
+    "nonlinear_operator",
+    "quotient_map",
+}
+_POSITIVITY_PREDICATES = {
+    "nonnegative",
+    "positive_definite",
+    "positive_semidefinite",
+}
+_POSITIVITY_OBJECT_KINDS = {
+    "bilinear_form",
+    "linear_operator",
+    "quadratic_form",
+    "tensor",
+}
+_LINEAR_ALGEBRA_PREDICATES = {"nullity", "rank"}
+_LINEAR_ALGEBRA_OBJECT_KINDS = {
+    "bilinear_form",
+    "linear_map",
+    "linear_operator",
+    "quadratic_form",
+    "tensor",
+}
+
+
+def validate_mathematical_predicate_contracts(
+    protocol: ExperimentProtocol,
+) -> None:
+    """Bind predicates to exact typed objects and prospective equivalence rules."""
+
+    contracts = protocol.mathematical_predicate_contracts
+    if any(
+        not isinstance(item, MathematicalPredicateContract)
+        for item in contracts
+    ):
+        raise ValidationError(
+            "mathematical_predicate_contracts must contain "
+            "MathematicalPredicateContract values"
+        )
+    controls = {item.control_id: item for item in protocol.control_definitions}
+    contract_ids: set[str] = set()
+    for index, contract in enumerate(contracts):
+        prefix = f"mathematical_predicate_contracts[{index}]"
+        for field_name in (
+            "contract_id",
+            "object_id",
+            "object_kind",
+            "domain",
+            "codomain",
+            "quotient",
+            "construction",
+            "predicate",
+            "predicate_definition",
+            "adversarial_control_id",
+            "evaluation_gate_id",
+        ):
+            require_canonical_text(
+                getattr(contract, field_name), f"{prefix}.{field_name}"
+            )
+        if contract.contract_id in contract_ids:
+            raise ValidationError(
+                "mathematical predicate contract IDs must be unique"
+            )
+        contract_ids.add(contract.contract_id)
+        if contract.object_kind not in _MATHEMATICAL_OBJECT_KINDS:
+            raise ValidationError(
+                f"{prefix}.object_kind is unsupported"
+            )
+        if contract.predicate not in _MATHEMATICAL_PREDICATES:
+            raise ValidationError(f"{prefix}.predicate is unsupported")
+        derived_from = require_unique_canonical_text_list(
+            contract.derived_from_object_ids,
+            f"{prefix}.derived_from_object_ids",
+        )
+        comparison_objects = require_unique_canonical_text_list(
+            contract.comparison_object_ids,
+            f"{prefix}.comparison_object_ids",
+        )
+        equivalence_conditions = require_unique_canonical_text_list(
+            contract.equivalence_conditions,
+            f"{prefix}.equivalence_conditions",
+        )
+        if contract.object_id in derived_from:
+            raise ValidationError(
+                "mathematical predicate object cannot derive from itself"
+            )
+        if contract.object_id in comparison_objects:
+            raise ValidationError(
+                "mathematical predicate object cannot compare with itself"
+            )
+        if contract.predicate == "equivalent":
+            if len(comparison_objects) != 1 or not equivalence_conditions:
+                raise ValidationError(
+                    "equivalent predicate requires exactly one comparison object "
+                    "and at least one frozen equivalence condition"
+                )
+        elif comparison_objects or equivalence_conditions:
+            raise ValidationError(
+                "comparison objects and equivalence conditions are reserved for "
+                "the equivalent predicate"
+            )
+        if (
+            contract.predicate in _MAP_PREDICATES
+            and contract.object_kind not in _MAP_OBJECT_KINDS
+        ):
+            raise ValidationError(
+                f"{contract.predicate} requires a map or operator object"
+            )
+        if (
+            contract.predicate in _POSITIVITY_PREDICATES
+            and contract.object_kind not in _POSITIVITY_OBJECT_KINDS
+        ):
+            raise ValidationError(
+                f"{contract.predicate} requires a form, linear operator, or tensor"
+            )
+        if (
+            contract.predicate in _LINEAR_ALGEBRA_PREDICATES
+            and contract.object_kind not in _LINEAR_ALGEBRA_OBJECT_KINDS
+        ):
+            raise ValidationError(
+                f"{contract.predicate} requires a linear-algebra object"
+            )
+        control = controls.get(contract.adversarial_control_id)
+        if control is None:
+            raise ValidationError(
+                "mathematical predicate contract must bind an exact "
+                "adversarial control_id"
+            )
+        if control.family != "adversarial":
+            raise ValidationError(
+                "mathematical predicate contract control must be adversarial"
+            )
+        if control.evaluation_gate_id != contract.evaluation_gate_id:
+            raise ValidationError(
+                "mathematical predicate contract and adversarial control must "
+                "share an evaluation gate"
+            )
+        if contract.evaluation_gate_id not in set(protocol.quality_requirements):
+            raise ValidationError(
+                "mathematical predicate contract evaluation gate must be a "
+                "required protocol quality gate"
+            )
+
+
+def validate_mathematical_predicate_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    gate: QualityGateResult,
+    output_hashes: set[str],
+    context: str = "",
+) -> None:
+    """Replay exact predicate attribution without deciding mathematical truth."""
+
+    contracts = [
+        item
+        for item in protocol.mathematical_predicate_contracts
+        if item.evaluation_gate_id == gate.gate_id
+    ]
+    if not contracts or gate.status is QualityGateStatus.SKIPPED:
+        return
+    label = f"{context} " if context else ""
+    results = gate.details.get("mathematical_predicate_results")
+    expected_ids = {item.contract_id for item in contracts}
+    if not isinstance(results, dict) or set(results) != expected_ids:
+        raise ValidationError(
+            f"{label}performed mathematical predicate gate {gate.gate_id} "
+            "requires exact results for: " + ", ".join(sorted(expected_ids))
+        )
+    expected_status = {
+        QualityGateStatus.PASSED: "consistent_with_predicate",
+        QualityGateStatus.WARNING: "inconclusive",
+        QualityGateStatus.FAILED: "contradicted_predicate",
+    }.get(gate.status)
+    if expected_status is None:
+        raise ValidationError(
+            f"{label}mathematical predicate gate {gate.gate_id} has an "
+            "unsupported status"
+        )
+    frozen_fields = (
+        "object_id",
+        "object_kind",
+        "domain",
+        "codomain",
+        "quotient",
+        "construction",
+        "predicate",
+        "predicate_definition",
+        "derived_from_object_ids",
+        "comparison_object_ids",
+        "equivalence_conditions",
+    )
+    required_fields = {
+        *frozen_fields,
+        "assessment_status",
+        "observed_witness",
+        "interpretation",
+        "evidence_sha256",
+        "evidence_location",
+    }
+    derived_fields = {"selected_value_sha256"}
+    for contract in contracts:
+        result = results[contract.contract_id]
+        prefix = (
+            f"{label}gate {gate.gate_id} mathematical_predicate_results "
+            f"{contract.contract_id}"
+        )
+        if (
+            not isinstance(result, dict)
+            or not required_fields <= set(result)
+            or set(result) - required_fields - derived_fields
+        ):
+            raise ValidationError(
+                f"{label}mathematical predicate result for "
+                f"{contract.contract_id} must contain exactly the documented fields"
+            )
+        for field_name in frozen_fields:
+            actual = result[field_name]
+            expected = getattr(contract, field_name)
+            if isinstance(expected, list):
+                require_unique_canonical_text_list(
+                    actual, f"{prefix}.{field_name}"
+                )
+            else:
+                require_canonical_text(actual, f"{prefix}.{field_name}")
+            if actual != expected:
+                raise ValidationError(
+                    f"{label}mathematical predicate {field_name} does not match "
+                    "the frozen contract"
+                )
+        for field_name in (
+            "assessment_status",
+            "observed_witness",
+            "interpretation",
+            "evidence_location",
+        ):
+            require_canonical_text(result[field_name], f"{prefix}.{field_name}")
+        if result["assessment_status"] != expected_status:
+            raise ValidationError(
+                f"{label}{gate.status.value} mathematical predicate gate "
+                f"requires {expected_status}"
+            )
+        digest = require_sha256(
+            result["evidence_sha256"], f"{prefix}.evidence_sha256"
+        )
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"{label}mathematical predicate evidence must reference a run "
+                "output artifact"
+            )
+        if result.get("selected_value_sha256") is not None:
+            require_sha256(
+                result["selected_value_sha256"],
+                f"{prefix}.selected_value_sha256",
             )
 
 

@@ -68,6 +68,7 @@ from research_machine.application.policies import (
     validate_quality_gates,
     validate_notebook_freeze_input_bundle_requirement,
     validate_named_component_gate_metadata,
+    validate_mathematical_predicate_gate_metadata,
     validate_runtime_preflight_requirement,
     validate_selection_weights,
     validate_validation_tag_context,
@@ -499,6 +500,7 @@ _STRUCTURED_RESULT_DETAIL_KEYS = {
     "causal_assumption_results",
     "instrument_inspection",
     "measurement_validity_results",
+    "mathematical_predicate_results",
     "named_component_results",
     "missingness_assessment_result",
     "preprocessing_conformance",
@@ -4081,6 +4083,106 @@ class ResearchService:
                         "named component selected_value_sha256 does not match the verified JSON value"
                     )
                 result["selected_value_sha256"] = selected_value_sha256
+        mathematical_predicate_gates = {
+            contract.evaluation_gate_id
+            for contract in protocol.mathematical_predicate_contracts
+        }
+        for gate_id in mathematical_predicate_gates:
+            gate = gates_by_id.get(gate_id)
+            if gate is None or gate.status is QualityGateStatus.SKIPPED:
+                continue
+            validate_mathematical_predicate_gate_metadata(
+                protocol=protocol,
+                gate=gate,
+                output_hashes=output_hashes,
+            )
+            results = gate.details["mathematical_predicate_results"]
+            for contract in protocol.mathematical_predicate_contracts:
+                if contract.evaluation_gate_id != gate_id:
+                    continue
+                result = results[contract.contract_id]
+                digest = result["evidence_sha256"]
+                location = result["evidence_location"]
+                location_verified, structured_evidence = (
+                    _resolve_json_artifact_location(
+                        outputs,
+                        command.artifact_root,
+                        digest,
+                        location,
+                        (
+                            f"mathematical predicate {contract.contract_id} "
+                            "evidence_location"
+                        ),
+                    )
+                )
+                if (
+                    not location_verified
+                    and verified_gate_result is not None
+                    and digest == verified_gate_output_sha256
+                ):
+                    if not location.startswith("/"):
+                        raise ValidationError(
+                            "mathematical predicate evidence in the verified "
+                            "analysis output requires an absolute JSON Pointer "
+                            "evidence_location"
+                        )
+                    structured_evidence = _resolve_json_pointer(
+                        verified_gate_result,
+                        location,
+                        (
+                            f"mathematical predicate {contract.contract_id} "
+                            "evidence_location"
+                        ),
+                    )
+                    location_verified = True
+                if not location_verified or not isinstance(
+                    structured_evidence, dict
+                ):
+                    raise ValidationError(
+                        "mathematical predicate result requires retained, "
+                        "artifact-bound JSON object evidence"
+                    )
+                evidence_fields = {
+                    "object_id",
+                    "object_kind",
+                    "domain",
+                    "codomain",
+                    "quotient",
+                    "construction",
+                    "predicate",
+                    "predicate_definition",
+                    "derived_from_object_ids",
+                    "comparison_object_ids",
+                    "equivalence_conditions",
+                    "assessment_status",
+                    "observed_witness",
+                    "interpretation",
+                }
+                expected_evidence = {
+                    field_name: result[field_name]
+                    for field_name in evidence_fields
+                }
+                if structured_evidence != expected_evidence:
+                    raise ValidationError(
+                        "mathematical predicate result does not match its retained "
+                        "typed JSON evidence"
+                    )
+                selected_value_sha256 = _result_selection_sha256(
+                    structured_evidence
+                )
+                supplied = result.get("selected_value_sha256")
+                if supplied is not None and require_sha256(
+                    supplied,
+                    (
+                        f"mathematical predicate {contract.contract_id} "
+                        "selected_value_sha256"
+                    ),
+                ) != selected_value_sha256:
+                    raise ValidationError(
+                        "mathematical predicate selected_value_sha256 does not "
+                        "match the verified JSON value"
+                    )
+                result["selected_value_sha256"] = selected_value_sha256
         contract = protocol.analysis_contract
         if contract is not None and contract.missingness_assessment_gate_id:
             gate = gates_by_id.get(contract.missingness_assessment_gate_id)
@@ -4746,6 +4848,11 @@ class ResearchService:
             named_component_contracts_by_gate.setdefault(
                 contract.evaluation_gate_id, []
             ).append(contract)
+        mathematical_predicate_contracts_by_gate: dict[str, list[Any]] = {}
+        for contract in protocol.mathematical_predicate_contracts:
+            mathematical_predicate_contracts_by_gate.setdefault(
+                contract.evaluation_gate_id, []
+            ).append(contract)
         missingness_gate_id = (
             protocol.analysis_contract.missingness_assessment_gate_id
             if protocol.analysis_contract is not None
@@ -4764,6 +4871,10 @@ class ResearchService:
             "named_component_plan": [
                 contract.to_dict()
                 for contract in protocol.named_component_contracts
+            ],
+            "mathematical_predicate_plan": [
+                contract.to_dict()
+                for contract in protocol.mathematical_predicate_contracts
             ],
             "canary_target_plan": (
                 canary_plan.to_dict() if canary_plan is not None else None
@@ -4937,6 +5048,36 @@ class ResearchService:
                                 }
                                 for contract in named_component_contracts_by_gate[gate_id]
                             }} if gate_id in named_component_contracts_by_gate else {}),
+                            **({"mathematical_predicate_results": {
+                                contract.contract_id: {
+                                    "object_id": contract.object_id,
+                                    "object_kind": contract.object_kind,
+                                    "domain": contract.domain,
+                                    "codomain": contract.codomain,
+                                    "quotient": contract.quotient,
+                                    "construction": contract.construction,
+                                    "predicate": contract.predicate,
+                                    "predicate_definition": contract.predicate_definition,
+                                    "derived_from_object_ids": list(
+                                        contract.derived_from_object_ids
+                                    ),
+                                    "comparison_object_ids": list(
+                                        contract.comparison_object_ids
+                                    ),
+                                    "equivalence_conditions": list(
+                                        contract.equivalence_conditions
+                                    ),
+                                    "assessment_status": "<consistent_with_predicate if passed; inconclusive if warning; contradicted_predicate if failed>",
+                                    "observed_witness": "",
+                                    "interpretation": "",
+                                    "evidence_sha256": "<hash of a listed run output artifact>",
+                                    "evidence_location": "<exact JSON Pointer or location within that artifact>",
+                                    "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
+                                }
+                                for contract in mathematical_predicate_contracts_by_gate[
+                                    gate_id
+                                ]
+                            }} if gate_id in mathematical_predicate_contracts_by_gate else {}),
                         },
                     }
                     for gate_id in protocol.quality_requirements
@@ -6435,6 +6576,9 @@ class ResearchService:
             control_definitions=list(command.control_definitions),
             measurement_definitions=list(command.measurement_definitions),
             named_component_contracts=list(command.named_component_contracts),
+            mathematical_predicate_contracts=list(
+                command.mathematical_predicate_contracts
+            ),
             measurement_validity_checks=list(command.measurement_validity_checks),
             expected_outputs=require_text_list(
                 command.expected_outputs, "expected_outputs"

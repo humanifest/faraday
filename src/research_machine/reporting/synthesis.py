@@ -913,6 +913,54 @@ def build_synthesis(
                             f"`{result.get('evidence_sha256', 'unavailable')}` at "
                             f"`{result.get('evidence_location', 'unavailable')}`."
                         )
+    predicate_protocols = [
+        protocol
+        for protocol in protocols
+        if protocol.mathematical_predicate_contracts
+    ]
+    if predicate_protocols:
+        lines.extend(["", "### Mathematical predicate provenance", ""])
+        for protocol in predicate_protocols:
+            contracts_by_id = {
+                contract.contract_id: contract
+                for contract in protocol.mathematical_predicate_contracts
+            }
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}` froze: "
+                + "; ".join(
+                    f"`{contract.contract_id}` tests "
+                    f"`{contract.predicate}` on object "
+                    f"`{contract.object_id}`: "
+                    f"`{contract.domain}` -> `{contract.codomain}` "
+                    f"under quotient `{contract.quotient}`"
+                    for contract in protocol.mathematical_predicate_contracts
+                )
+                + ". Passing verifies attribution and retained evidence shape "
+                "only; it does not prove the predicate or the physical model."
+            )
+            for run in sorted(
+                (item for item in runs if item.protocol_id == protocol.protocol_id),
+                key=lambda item: item.run_id,
+            ):
+                for gate in run.quality_gates:
+                    results = gate.details.get("mathematical_predicate_results")
+                    if not isinstance(results, dict):
+                        continue
+                    for contract_id, result in sorted(results.items()):
+                        if not isinstance(result, dict):
+                            continue
+                        contract = contracts_by_id.get(contract_id)
+                        lines.append(
+                            f"  - Run `{run.run_id}` / `{contract_id}`"
+                            + (
+                                f" (object `{contract.object_id}`)"
+                                if contract is not None else ""
+                            )
+                            + f": gate `{gate.gate_id}` {gate.status.value}; "
+                            f"{result.get('assessment_status', 'unclassified')}; "
+                            f"artifact `{result.get('evidence_sha256', 'unavailable')}` "
+                            f"at `{result.get('evidence_location', 'unavailable')}`."
+                        )
     validity_protocols = [
         protocol for protocol in protocols if protocol.measurement_validity_checks
     ]

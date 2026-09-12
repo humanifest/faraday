@@ -1721,6 +1721,49 @@ def audit_research_state(
                             "Preserve the failure, replace positional slicing with explicit name lookup, and preregister a new protocol before retesting."
                         ),
                     )
+        if protocol is not None and protocol.mathematical_predicate_contracts:
+            gates_by_id = {item.gate_id: item for item in run.quality_gates}
+            for contract in protocol.mathematical_predicate_contracts:
+                gate = gates_by_id.get(contract.evaluation_gate_id)
+                results = (
+                    gate.details.get("mathematical_predicate_results", {})
+                    if gate is not None else {}
+                )
+                result = (
+                    results.get(contract.contract_id)
+                    if isinstance(results, dict) else None
+                )
+                if not isinstance(result, dict):
+                    continue
+                status = result.get("assessment_status")
+                if status == "inconclusive":
+                    add(
+                        "MATHEMATICAL_PREDICATE_INCONCLUSIVE",
+                        RigorSeverity.WARNING,
+                        f"Mathematical predicate contract {contract.contract_id} "
+                        f"for object {contract.object_id} was inconclusive.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the typed result and inspect its retained "
+                            "witness without transferring the predicate to a "
+                            "source, quotient, or comparator object."
+                        ),
+                    )
+                elif status == "contradicted_predicate":
+                    add(
+                        "MATHEMATICAL_PREDICATE_CONTRADICTED",
+                        RigorSeverity.WARNING,
+                        f"Mathematical predicate contract {contract.contract_id} "
+                        f"for object {contract.object_id} was contradicted.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the adverse result at the frozen object, "
+                            "domain, codomain, and quotient; any repair requires "
+                            "a new protocol version."
+                        ),
+                    )
         if (
             protocol is not None
             and protocol.sample_size_plan

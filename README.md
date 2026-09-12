@@ -2049,6 +2049,12 @@ gate evidence.
   name-to-index maps from retained JSON evidence, so positional slicing cannot
   masquerade as invariant component selection. See
   [named-component subset invariants](docs/measurement-contract.md#named-component-subset-invariants).
+- For mathematical and computational protocols, optionally freeze an exact
+  object, domain, codomain, quotient, construction, lineage, predicate, and
+  adversarial attribution control. Equivalence additionally requires one named
+  comparator and explicit conditions. Run intake and replication replay reject
+  moving a pullback, restriction, or quotient result onto its source operator.
+  See [mathematical predicate contracts](docs/mathematical-predicate-contract.md).
 - Record code-, environment-, input-, output-, and quality-gate-bound runs.
 - Seal every canonical run with a service-generated commitment over the complete
   immutable payload. Authoritative reads reject later edits to its protocol or

@@ -453,6 +453,26 @@ class NamedComponentContract(Serializable):
 
 
 @dataclass(frozen=True)
+class MathematicalPredicateContract(Serializable):
+    """Frozen type and lineage for one mathematical predicate."""
+
+    contract_id: str
+    object_id: str
+    object_kind: str
+    domain: str
+    codomain: str
+    quotient: str
+    construction: str
+    predicate: str
+    predicate_definition: str
+    adversarial_control_id: str
+    evaluation_gate_id: str
+    derived_from_object_ids: list[str] = field(default_factory=list)
+    comparison_object_ids: list[str] = field(default_factory=list)
+    equivalence_conditions: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class ControlWitnessContract(Serializable):
     """Prospective shape for one artifact-selected scalar control comparison."""
 
@@ -653,6 +673,9 @@ class ExperimentProtocol(Serializable):
     named_component_contracts: list[NamedComponentContract] = field(
         default_factory=list
     )
+    mathematical_predicate_contracts: list[MathematicalPredicateContract] = field(
+        default_factory=list
+    )
     measurement_validity_checks: list[MeasurementValidityCheck] = field(
         default_factory=list
     )
@@ -750,6 +773,8 @@ class ExperimentProtocol(Serializable):
         ):
             if getattr(self, field_name) is None:
                 payload.pop(field_name, None)
+        if not self.mathematical_predicate_contracts:
+            payload.pop("mathematical_predicate_contracts", None)
         return payload
 
     @classmethod
@@ -772,6 +797,12 @@ class ExperimentProtocol(Serializable):
             if isinstance(item, NamedComponentContract)
             else NamedComponentContract(**item)
             for item in copied.get("named_component_contracts", [])
+        ]
+        copied["mathematical_predicate_contracts"] = [
+            item
+            if isinstance(item, MathematicalPredicateContract)
+            else MathematicalPredicateContract(**item)
+            for item in copied.get("mathematical_predicate_contracts", [])
         ]
         if copied.get("canary_target_plan") is not None and not isinstance(
             copied["canary_target_plan"], CanaryTargetPlan

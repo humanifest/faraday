@@ -110,6 +110,13 @@ the list is nonempty, the freeze gate requires exactly one typed definition for
 the primary outcome, every secondary outcome, and every registered control. See
 `measurement-contract.md`.
 
+For mathematical or computational work, freeze
+`mathematical_predicate_contracts` before reporting rank, nullity,
+invertibility, positivity, conservation, tangency, or equivalence. See
+`mathematical-predicate-contract.md`. The contract keeps results attached to
+the exact source, restriction, quotient, pullback, or comparator object on
+which they were evaluated.
+
 An exploratory protocol may be frozen against `pending_review` hypotheses.
 Confirmatory and replication protocols require every tested hypothesis to be
 active after human review.
