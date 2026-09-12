@@ -1759,7 +1759,10 @@ hash chain cannot hide rewritten boundary summaries. The evidence-map boundary
 now also replays the map artifact's versioned input-hash envelope, canonical
 snapshot handle, status, claim count, study count, ceiling counts, and false
 evidence, conclusion, publication, and reviewer-identity-authentication
-authority before downstream synthesis can rely on the retained map.
+authority before downstream synthesis can rely on the retained map. Retained
+evidence-map limitation prose also rejects report-prohibited overclaiming
+language, so a copied map cannot keep false authority flags while describing
+proof, confirmation, validation, or explanation in its own boundary text.
 `research literature plan-synthesis` freezes the research question, primary
 outcome, qualitative or quantitative mode, effect measure, contrast definition, statistical model,
 minimum independent-study count, eligibility, missing-statistics, heterogeneity,

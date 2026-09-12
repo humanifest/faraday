@@ -197,6 +197,7 @@ def test_evidence_map_preserves_and_replays_retained_source_byte_anchor(tmp_path
     "snapshot-id",
     "status",
     "reviewer-authenticated",
+    "limitation-overclaim",
     "study-count",
     "claim-study-padding",
 ])
@@ -218,6 +219,8 @@ def test_evidence_map_boundary_replays_artifact_envelope(tmp_path, tamper):
         candidate["status"] = "map_reviewed"
     elif tamper == "reviewer-authenticated":
         candidate["reviewer_identity_authenticated"] = True
+    elif tamper == "limitation-overclaim":
+        candidate["limitations"][0] = "This deterministic map confirmed the source claim."
     elif tamper == "study-count":
         candidate["study_count"] = 99
     elif tamper == "claim-study-padding":

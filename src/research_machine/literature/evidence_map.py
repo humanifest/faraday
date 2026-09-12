@@ -68,6 +68,17 @@ def _bounded_citation_text(value: Any, field: str) -> str:
     return text
 
 
+def _bounded_evidence_map_text(value: Any, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _CITATION_PROSE_OVERCLAIM.search(text):
+        raise ValidationError(
+            f"{field} uses evidence-map prohibited overclaiming language; "
+            "describe the mapped review boundary without claiming proof, "
+            "confirmation, validation, or explanation"
+        )
+    return text
+
+
 def _ceiling(citation_verdict: str, bias_judgment: str, epistemic_layer: str) -> str:
     if bias_judgment in {"high", "unclear"}:
         return "insufficient_for_conclusion"
@@ -151,7 +162,10 @@ def validate_evidence_map_boundary(
     if not isinstance(limitations, list) or not limitations:
         raise ValidationError("evidence map requires retained boundary limitations")
     for index, limitation in enumerate(limitations):
-        _canonical_text(limitation, f"evidence map limitation {index + 1}")
+        _bounded_evidence_map_text(
+            limitation,
+            f"evidence map limitation {index + 1}",
+        )
 
     claim_count = evidence_map.get("claim_count")
     if isinstance(claim_count, bool) or claim_count != len(claims):

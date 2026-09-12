@@ -1407,6 +1407,9 @@ envelope, canonical snapshot handle, status, claim count, study count, and
 ceiling counts, while evidence, conclusion, publication, and reviewer-identity
 authentication authority must remain false, so a clean hash chain cannot hide
 rewritten boundary summaries or imply authenticated reviewer authority.
+Evidence-map retained limitations also reject report-prohibited overclaiming
+language, so a map cannot preserve false authority flags while narrating proof,
+confirmation, validation, or explanation in its own boundary prose.
 Qualitative synthesis also requires canonical
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims.
