@@ -82,6 +82,7 @@ from research_machine.domain.models import (
     ProtocolStatus,
     QualityGateResult,
     QualityGateStatus,
+    ReconstructionFamilyStabilityContract,
     RejectionType,
     RuntimePreflightRequirement,
     SelectionWeights,
@@ -142,6 +143,7 @@ _PROTOCOL_FIELDS = {
     "named_component_contracts",
     "mathematical_predicate_contracts",
     "duality_reconstruction_contracts",
+    "reconstruction_family_stability_contracts",
     "measurement_validity_checks",
     "expected_outputs",
     "success_conditions",
@@ -1372,12 +1374,17 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
     duality_reconstruction_values = spec.get(
         "duality_reconstruction_contracts", []
     )
+    reconstruction_family_stability_values = spec.get(
+        "reconstruction_family_stability_contracts", []
+    )
     if named_component_values is None:
         named_component_values = []
     if mathematical_predicate_values is None:
         mathematical_predicate_values = []
     if duality_reconstruction_values is None:
         duality_reconstruction_values = []
+    if reconstruction_family_stability_values is None:
+        reconstruction_family_stability_values = []
     validity_values = spec.get("measurement_validity_checks", [])
     control_values = spec.get("control_definitions", [])
     calibration_values = spec.get("calibration_acceptance_criteria", [])
@@ -1673,6 +1680,54 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         ]
     except TypeError as exc:
         raise ValueError(f"invalid duality reconstruction contract: {exc}") from exc
+    reconstruction_family_stability_fields = {
+        "contract_id",
+        "duality_reconstruction_contract_id",
+        "resolution_family_id",
+        "resolution_ids",
+        "primal_norm_id",
+        "dual_norm_id",
+        "norm_specification_sha256",
+        "stability_statistic",
+        "stability_comparator",
+        "stability_threshold",
+        "stability_specification_sha256",
+        "family_specification_sha256",
+        "test_family_span_id",
+        "test_family_specification_sha256",
+        "forward_cross_projection_id",
+        "reverse_cross_projection_id",
+        "cross_projection_specification_sha256",
+        "cross_projection_error_threshold",
+        "transfer_map_ids",
+        "transfer_specification_sha256",
+        "adverse_family_control_id",
+        "adverse_family_specification_sha256",
+        "evaluation_gate_id",
+    }
+    if not isinstance(reconstruction_family_stability_values, list) or any(
+        not isinstance(item, dict)
+        for item in reconstruction_family_stability_values
+    ):
+        raise ValueError(
+            "reconstruction_family_stability_contracts must be an array of objects"
+        )
+    if any(
+        set(item) - reconstruction_family_stability_fields
+        for item in reconstruction_family_stability_values
+    ):
+        raise ValueError(
+            "reconstruction family stability contract contains unknown fields"
+        )
+    try:
+        reconstruction_family_stability_contracts = [
+            ReconstructionFamilyStabilityContract(**item)
+            for item in reconstruction_family_stability_values
+        ]
+    except TypeError as exc:
+        raise ValueError(
+            f"invalid reconstruction family stability contract: {exc}"
+        ) from exc
     try:
         return CreateProtocol(
             experiment_id=spec["experiment_id"],
@@ -1690,6 +1745,9 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             named_component_contracts=named_component_contracts,
             mathematical_predicate_contracts=mathematical_predicate_contracts,
             duality_reconstruction_contracts=duality_reconstruction_contracts,
+            reconstruction_family_stability_contracts=(
+                reconstruction_family_stability_contracts
+            ),
             measurement_validity_checks=validity_checks,
             expected_outputs=lists["expected_outputs"],
             success_conditions=lists["success_conditions"],

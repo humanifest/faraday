@@ -372,6 +372,95 @@
         "transfer_specification_sha256": ["transfer_map_id"]
       }
     },
+    "reconstructionFamilyStabilityContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_id",
+        "duality_reconstruction_contract_id",
+        "resolution_family_id",
+        "resolution_ids",
+        "primal_norm_id",
+        "dual_norm_id",
+        "norm_specification_sha256",
+        "stability_statistic",
+        "stability_comparator",
+        "stability_threshold",
+        "stability_specification_sha256",
+        "family_specification_sha256",
+        "test_family_span_id",
+        "test_family_specification_sha256",
+        "forward_cross_projection_id",
+        "reverse_cross_projection_id",
+        "cross_projection_specification_sha256",
+        "cross_projection_error_threshold",
+        "transfer_map_ids",
+        "transfer_specification_sha256",
+        "adverse_family_control_id",
+        "adverse_family_specification_sha256",
+        "evaluation_gate_id"
+      ],
+      "properties": {
+        "contract_id": {"$ref": "#/$defs/canonicalText"},
+        "duality_reconstruction_contract_id": {"$ref": "#/$defs/canonicalText"},
+        "resolution_family_id": {"$ref": "#/$defs/canonicalText"},
+        "resolution_ids": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "primal_norm_id": {"$ref": "#/$defs/canonicalText"},
+        "dual_norm_id": {"$ref": "#/$defs/canonicalText"},
+        "norm_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "stability_statistic": {
+          "enum": ["inf_sup_constant", "inverse_operator_norm", "smallest_singular_value"]
+        },
+        "stability_comparator": {
+          "enum": ["greater_than_or_equal", "less_than_or_equal"]
+        },
+        "stability_threshold": {"type": "number", "minimum": 0},
+        "stability_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "family_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "test_family_span_id": {"$ref": "#/$defs/canonicalText"},
+        "test_family_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "forward_cross_projection_id": {"$ref": "#/$defs/canonicalText"},
+        "reverse_cross_projection_id": {"$ref": "#/$defs/canonicalText"},
+        "cross_projection_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "cross_projection_error_threshold": {"type": "number", "minimum": 0},
+        "transfer_map_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "transfer_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "adverse_family_control_id": {"$ref": "#/$defs/canonicalText"},
+        "adverse_family_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "evaluation_gate_id": {"$ref": "#/$defs/canonicalText"}
+      }
+    },
     "canaryTargetPlan": {
       "type": "object",
       "additionalProperties": false,
@@ -559,6 +648,10 @@
     "duality_reconstruction_contracts": {
       "type": "array",
       "items": {"$ref": "#/$defs/dualityReconstructionContract"}
+    },
+    "reconstruction_family_stability_contracts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/reconstructionFamilyStabilityContract"}
     },
     "canary_target_plan": {
       "anyOf": [

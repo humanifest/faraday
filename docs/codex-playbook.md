@@ -124,6 +124,13 @@ reconstruction, and transfer choices as explicit source-derived or engineering
 commitments, and preregister an adversarial control that detects circular use of
 the downstream tested object.
 
+When a reconstruction is compared across resolutions or used toward a
+continuum claim, also freeze `reconstruction_family_stability_contracts`. See
+`reconstruction-family-stability-contract.md`. Bind the resolution family,
+primal and dual norms, stability statistic and threshold, test span, two-way
+cross-projections, transfer maps, and a collapsing-stability adverse control.
+Finite invertibility at each resolution is not uniform stability.
+
 An exploratory protocol may be frozen against `pending_review` hypotheses.
 Confirmatory and replication protocols require every tested hypothesis to be
 active after human review.

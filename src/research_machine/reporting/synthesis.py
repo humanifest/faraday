@@ -1011,6 +1011,63 @@ def build_synthesis(
                             f"artifact `{result.get('evidence_sha256', 'unavailable')}` "
                             f"at `{result.get('evidence_location', 'unavailable')}`."
                         )
+    family_stability_protocols = [
+        protocol
+        for protocol in protocols
+        if protocol.reconstruction_family_stability_contracts
+    ]
+    if family_stability_protocols:
+        lines.extend(["", "### Reconstruction family stability", ""])
+        for protocol in family_stability_protocols:
+            contracts_by_id = {
+                contract.contract_id: contract
+                for contract in protocol.reconstruction_family_stability_contracts
+            }
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}` froze: "
+                + "; ".join(
+                    f"`{contract.contract_id}` tests "
+                    f"`{contract.stability_statistic}` "
+                    f"{contract.stability_comparator} "
+                    f"{contract.stability_threshold} across "
+                    f"{len(contract.resolution_ids)} resolutions with two-way "
+                    f"cross-projection error at most "
+                    f"{contract.cross_projection_error_threshold}"
+                    for contract in (
+                        protocol.reconstruction_family_stability_contracts
+                    )
+                )
+                + ". Passing applies only to the frozen finite family and norms; "
+                "it does not prove asymptotic convergence, a continuum limit, "
+                "or a downstream physical model."
+            )
+            for run in sorted(
+                (item for item in runs if item.protocol_id == protocol.protocol_id),
+                key=lambda item: item.run_id,
+            ):
+                for gate in run.quality_gates:
+                    results = gate.details.get(
+                        "reconstruction_family_stability_results"
+                    )
+                    if not isinstance(results, dict):
+                        continue
+                    for contract_id, result in sorted(results.items()):
+                        if not isinstance(result, dict):
+                            continue
+                        contract = contracts_by_id.get(contract_id)
+                        lines.append(
+                            f"  - Run `{run.run_id}` / `{contract_id}`"
+                            + (
+                                f" (family `{contract.resolution_family_id}`)"
+                                if contract is not None
+                                else ""
+                            )
+                            + f": gate `{gate.gate_id}` {gate.status.value}; "
+                            f"{result.get('assessment_status', 'unclassified')}; "
+                            f"stability {_text(str(result.get('observed_stability_values', {})))}; "
+                            f"artifact `{result.get('evidence_sha256', 'unavailable')}` "
+                            f"at `{result.get('evidence_location', 'unavailable')}`."
+                        )
     validity_protocols = [
         protocol for protocol in protocols if protocol.measurement_validity_checks
     ]

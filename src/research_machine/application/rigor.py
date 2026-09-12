@@ -1793,6 +1793,57 @@ def audit_research_state(
                             "do not infer a strong representative."
                         ),
                     )
+        if (
+            protocol is not None
+            and protocol.reconstruction_family_stability_contracts
+        ):
+            gates_by_id = {item.gate_id: item for item in run.quality_gates}
+            for contract in protocol.reconstruction_family_stability_contracts:
+                gate = gates_by_id.get(contract.evaluation_gate_id)
+                results = (
+                    gate.details.get(
+                        "reconstruction_family_stability_results", {}
+                    )
+                    if gate is not None
+                    else {}
+                )
+                result = (
+                    results.get(contract.contract_id)
+                    if isinstance(results, dict)
+                    else None
+                )
+                if not isinstance(result, dict):
+                    continue
+                status = result.get("assessment_status")
+                if status == "inconclusive":
+                    add(
+                        "RECONSTRUCTION_FAMILY_STABILITY_INCONCLUSIVE",
+                        RigorSeverity.WARNING,
+                        f"Reconstruction family stability contract "
+                        f"{contract.contract_id} was inconclusive.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the typed result and inspect the frozen "
+                            "resolution family, norms, stability values, "
+                            "cross-projections, and transfer maps."
+                        ),
+                    )
+                elif status == "contradicted_family_stability_contract":
+                    add(
+                        "RECONSTRUCTION_FAMILY_STABILITY_CONTRADICTED",
+                        RigorSeverity.ERROR,
+                        f"Reconstruction family stability contract "
+                        f"{contract.contract_id} was contradicted.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the adverse family result. Do not make a "
+                            "cross-resolution or continuum inference; any new "
+                            "norm, family, transfer, statistic, or threshold "
+                            "requires a new protocol version."
+                        ),
+                    )
                 elif status == "contradicted_reconstruction_contract":
                     add(
                         "DUALITY_RECONSTRUCTION_CONTRADICTED",

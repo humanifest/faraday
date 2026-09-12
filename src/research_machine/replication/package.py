@@ -36,6 +36,7 @@ from research_machine.application.policies import (
     declares_legacy_pre_registration_result_exposure,
     typed_result_exposure_allows_evidence,
     validate_duality_reconstruction_gate_metadata,
+    validate_reconstruction_family_stability_gate_metadata,
     validate_mathematical_predicate_gate_metadata,
     validate_named_component_gate_metadata,
     validate_quality_gates,
@@ -72,6 +73,7 @@ _STRUCTURED_RESULT_DETAIL_KEYS = {
     "canary_target_assessment",
     "causal_assumption_results",
     "duality_reconstruction_results",
+    "reconstruction_family_stability_results",
     "instrument_inspection",
     "measurement_validity_results",
     "mathematical_predicate_results",
@@ -3101,6 +3103,12 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         context=f"package run {run.run_id}",
                     )
                     validate_duality_reconstruction_gate_metadata(
+                        protocol=protocol,
+                        gate=gate,
+                        output_hashes=output_hashes,
+                        context=f"package run {run.run_id}",
+                    )
+                    validate_reconstruction_family_stability_gate_metadata(
                         protocol=protocol,
                         gate=gate,
                         output_hashes=output_hashes,

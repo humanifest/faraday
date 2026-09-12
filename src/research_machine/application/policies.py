@@ -40,6 +40,7 @@ from research_machine.domain.models import (
     ProtocolStatus,
     QualityGateResult,
     QualityGateStatus,
+    ReconstructionFamilyStabilityContract,
     ResearchRun,
     RejectionType,
     RuntimePreflightRequirement,
@@ -2327,6 +2328,8 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         validate_mathematical_predicate_contracts(protocol)
     if protocol.duality_reconstruction_contracts:
         validate_duality_reconstruction_contracts(protocol)
+    if protocol.reconstruction_family_stability_contracts:
+        validate_reconstruction_family_stability_contracts(protocol)
     custody_requirement_ids = []
     for gate_id in protocol.measurement_custody_requirements:
         canonical_gate_id = require_text(
@@ -3543,6 +3546,429 @@ def validate_duality_reconstruction_gate_metadata(
             raise ValidationError(
                 f"{label}passed duality reconstruction gate requires its "
                 "circularity control to match expectation"
+            )
+        if result.get("selected_value_sha256") is not None:
+            require_sha256(
+                result["selected_value_sha256"],
+                f"{prefix}.selected_value_sha256",
+            )
+
+
+_FAMILY_STABILITY_STATISTICS = {
+    "inf_sup_constant",
+    "inverse_operator_norm",
+    "smallest_singular_value",
+}
+_FAMILY_STABILITY_COMPARATORS = {
+    "greater_than_or_equal",
+    "less_than_or_equal",
+}
+
+
+def validate_reconstruction_family_stability_contracts(
+    protocol: ExperimentProtocol,
+) -> None:
+    """Bind continuum-facing reconstruction claims to a tested map family."""
+
+    contracts = protocol.reconstruction_family_stability_contracts
+    if any(
+        not isinstance(item, ReconstructionFamilyStabilityContract)
+        for item in contracts
+    ):
+        raise ValidationError(
+            "reconstruction_family_stability_contracts must contain "
+            "ReconstructionFamilyStabilityContract values"
+        )
+    reconstructions = {
+        item.contract_id: item
+        for item in protocol.duality_reconstruction_contracts
+    }
+    controls = {item.control_id: item for item in protocol.control_definitions}
+    contract_ids: set[str] = set()
+    for index, contract in enumerate(contracts):
+        prefix = f"reconstruction_family_stability_contracts[{index}]"
+        for field_name in (
+            "contract_id",
+            "duality_reconstruction_contract_id",
+            "resolution_family_id",
+            "primal_norm_id",
+            "dual_norm_id",
+            "stability_statistic",
+            "stability_comparator",
+            "test_family_span_id",
+            "forward_cross_projection_id",
+            "reverse_cross_projection_id",
+            "adverse_family_control_id",
+            "evaluation_gate_id",
+        ):
+            require_canonical_text(
+                getattr(contract, field_name), f"{prefix}.{field_name}"
+            )
+        if contract.contract_id in contract_ids:
+            raise ValidationError(
+                "reconstruction family stability contract IDs must be unique"
+            )
+        contract_ids.add(contract.contract_id)
+        reconstruction = reconstructions.get(
+            contract.duality_reconstruction_contract_id
+        )
+        if reconstruction is None:
+            raise ValidationError(
+                "reconstruction family stability contract must bind an exact "
+                "duality reconstruction contract ID"
+            )
+        if reconstruction.evaluation_gate_id != contract.evaluation_gate_id:
+            raise ValidationError(
+                "reconstruction family stability and duality reconstruction "
+                "contracts must share an evaluation gate"
+            )
+        resolutions = require_unique_canonical_text_list(
+            contract.resolution_ids, f"{prefix}.resolution_ids"
+        )
+        if len(resolutions) < 2:
+            raise ValidationError(
+                "reconstruction family stability contract requires at least "
+                "two resolution IDs"
+            )
+        if contract.primal_norm_id == contract.dual_norm_id:
+            raise ValidationError(
+                "reconstruction family stability contract must distinguish "
+                "primal and dual norm IDs"
+            )
+        if contract.stability_statistic not in _FAMILY_STABILITY_STATISTICS:
+            raise ValidationError(f"{prefix}.stability_statistic is unsupported")
+        if contract.stability_comparator not in _FAMILY_STABILITY_COMPARATORS:
+            raise ValidationError(f"{prefix}.stability_comparator is unsupported")
+        expected_comparator = (
+            "less_than_or_equal"
+            if contract.stability_statistic == "inverse_operator_norm"
+            else "greater_than_or_equal"
+        )
+        if contract.stability_comparator != expected_comparator:
+            raise ValidationError(
+                f"{prefix}.stability_comparator must be {expected_comparator} "
+                f"for {contract.stability_statistic}"
+            )
+        threshold = contract.stability_threshold
+        if type(threshold) is bool or not isinstance(threshold, (int, float)):
+            raise ValidationError(f"{prefix}.stability_threshold must be numeric")
+        if not math.isfinite(float(threshold)) or float(threshold) < 0:
+            raise ValidationError(
+                f"{prefix}.stability_threshold must be finite and nonnegative"
+            )
+        cross_threshold = contract.cross_projection_error_threshold
+        if type(cross_threshold) is bool or not isinstance(
+            cross_threshold, (int, float)
+        ):
+            raise ValidationError(
+                f"{prefix}.cross_projection_error_threshold must be numeric"
+            )
+        if not math.isfinite(float(cross_threshold)) or float(cross_threshold) < 0:
+            raise ValidationError(
+                f"{prefix}.cross_projection_error_threshold must be finite "
+                "and nonnegative"
+            )
+        if (
+            contract.forward_cross_projection_id
+            == contract.reverse_cross_projection_id
+        ):
+            raise ValidationError(
+                "reconstruction family stability contract requires distinct "
+                "forward and reverse cross-projection IDs"
+            )
+        transfers = require_unique_canonical_text_list(
+            contract.transfer_map_ids, f"{prefix}.transfer_map_ids"
+        )
+        if not transfers:
+            raise ValidationError(
+                "reconstruction family stability contract requires at least "
+                "one transfer map ID"
+            )
+        if len(transfers) < len(resolutions) - 1:
+            raise ValidationError(
+                "reconstruction family stability contract requires at least "
+                "one transfer map per adjacent resolution pair"
+            )
+        if (
+            reconstruction.transfer_map_id
+            and reconstruction.transfer_map_id not in transfers
+        ):
+            raise ValidationError(
+                "reconstruction family stability transfer maps must include "
+                "the linked duality reconstruction transfer map"
+            )
+        for field_name in (
+            "norm_specification_sha256",
+            "stability_specification_sha256",
+            "family_specification_sha256",
+            "test_family_specification_sha256",
+            "cross_projection_specification_sha256",
+            "transfer_specification_sha256",
+            "adverse_family_specification_sha256",
+        ):
+            require_sha256(getattr(contract, field_name), f"{prefix}.{field_name}")
+        control = controls.get(contract.adverse_family_control_id)
+        if control is None:
+            raise ValidationError(
+                "reconstruction family stability contract must bind an exact "
+                "adverse family control_id"
+            )
+        if control.family != "adversarial":
+            raise ValidationError(
+                "reconstruction family stability control must be adversarial"
+            )
+        if control.evaluation_gate_id != contract.evaluation_gate_id:
+            raise ValidationError(
+                "reconstruction family stability contract and adverse control "
+                "must share an evaluation gate"
+            )
+        if contract.evaluation_gate_id not in set(protocol.quality_requirements):
+            raise ValidationError(
+                "reconstruction family stability evaluation gate must be a "
+                "required protocol quality gate"
+            )
+
+
+def validate_reconstruction_family_stability_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    gate: QualityGateResult,
+    output_hashes: set[str],
+    context: str = "",
+) -> None:
+    """Replay family stability and two-way cross-projection observations."""
+
+    contracts = [
+        item
+        for item in protocol.reconstruction_family_stability_contracts
+        if item.evaluation_gate_id == gate.gate_id
+    ]
+    if not contracts or gate.status is QualityGateStatus.SKIPPED:
+        return
+    label = f"{context} " if context else ""
+    results = gate.details.get("reconstruction_family_stability_results")
+    expected_ids = {item.contract_id for item in contracts}
+    if not isinstance(results, dict) or set(results) != expected_ids:
+        raise ValidationError(
+            f"{label}performed reconstruction family stability gate "
+            f"{gate.gate_id} requires exact results for: "
+            + ", ".join(sorted(expected_ids))
+        )
+    expected_status = {
+        QualityGateStatus.PASSED: "consistent_with_family_stability_contract",
+        QualityGateStatus.WARNING: "inconclusive",
+        QualityGateStatus.FAILED: "contradicted_family_stability_contract",
+    }.get(gate.status)
+    if expected_status is None:
+        raise ValidationError(
+            f"{label}reconstruction family stability gate {gate.gate_id} has "
+            "an unsupported status"
+        )
+    frozen_fields = (
+        "duality_reconstruction_contract_id",
+        "resolution_family_id",
+        "resolution_ids",
+        "primal_norm_id",
+        "dual_norm_id",
+        "norm_specification_sha256",
+        "stability_statistic",
+        "stability_comparator",
+        "stability_threshold",
+        "stability_specification_sha256",
+        "family_specification_sha256",
+        "test_family_span_id",
+        "test_family_specification_sha256",
+        "forward_cross_projection_id",
+        "reverse_cross_projection_id",
+        "cross_projection_specification_sha256",
+        "cross_projection_error_threshold",
+        "transfer_map_ids",
+        "transfer_specification_sha256",
+        "adverse_family_specification_sha256",
+    )
+    required_fields = {
+        *frozen_fields,
+        "observed_resolution_ids",
+        "observed_stability_values",
+        "observed_forward_cross_projection_error",
+        "observed_reverse_cross_projection_error",
+        "assessment_status",
+        "observed_witness",
+        "interpretation",
+        "evidence_sha256",
+        "evidence_location",
+    }
+    derived_fields = {"selected_value_sha256"}
+    control_results = gate.details.get("control_results")
+    for contract in contracts:
+        result = results[contract.contract_id]
+        prefix = (
+            f"{label}gate {gate.gate_id} "
+            "reconstruction_family_stability_results "
+            f"{contract.contract_id}"
+        )
+        if (
+            not isinstance(result, dict)
+            or not required_fields <= set(result)
+            or set(result) - required_fields - derived_fields
+        ):
+            raise ValidationError(
+                f"{label}reconstruction family stability result for "
+                f"{contract.contract_id} must contain exactly the documented fields"
+            )
+        for field_name in frozen_fields:
+            actual = result[field_name]
+            expected = getattr(contract, field_name)
+            if isinstance(expected, list):
+                require_unique_canonical_text_list(actual, f"{prefix}.{field_name}")
+            elif isinstance(expected, str):
+                require_canonical_text(actual, f"{prefix}.{field_name}")
+            elif field_name in {
+                "stability_threshold",
+                "cross_projection_error_threshold",
+            } and (
+                type(actual) is bool
+                or not isinstance(actual, (int, float))
+                or not math.isfinite(float(actual))
+            ):
+                raise ValidationError(f"{prefix}.{field_name} must be finite numeric")
+            if actual != expected:
+                raise ValidationError(
+                    f"{label}reconstruction family stability {field_name} "
+                    "does not match the frozen contract"
+                )
+        observed_resolutions = require_unique_canonical_text_list(
+            result["observed_resolution_ids"],
+            f"{prefix}.observed_resolution_ids",
+        )
+        if observed_resolutions != contract.resolution_ids:
+            raise ValidationError(
+                f"{label}reconstruction family stability observed resolutions "
+                "do not match the frozen family"
+            )
+        values = result["observed_stability_values"]
+        if not isinstance(values, dict) or set(values) != set(
+            contract.resolution_ids
+        ):
+            raise ValidationError(
+                f"{label}reconstruction family stability requires one exact "
+                "stability value per frozen resolution"
+            )
+        numeric_values: list[float] = []
+        for resolution_id in contract.resolution_ids:
+            value = values[resolution_id]
+            if type(value) is bool or not isinstance(value, (int, float)):
+                raise ValidationError(
+                    f"{prefix}.observed_stability_values[{resolution_id}] must "
+                    "be numeric"
+                )
+            numeric = float(value)
+            if not math.isfinite(numeric) or numeric < 0:
+                raise ValidationError(
+                    f"{prefix}.observed_stability_values[{resolution_id}] must "
+                    "be finite and nonnegative"
+                )
+            numeric_values.append(numeric)
+        cross_errors: list[float] = []
+        for field_name in (
+            "observed_forward_cross_projection_error",
+            "observed_reverse_cross_projection_error",
+        ):
+            value = result[field_name]
+            if type(value) is bool or not isinstance(value, (int, float)):
+                raise ValidationError(f"{prefix}.{field_name} must be numeric")
+            numeric = float(value)
+            if not math.isfinite(numeric) or numeric < 0:
+                raise ValidationError(
+                    f"{prefix}.{field_name} must be finite and nonnegative"
+                )
+            cross_errors.append(numeric)
+        if gate.status is QualityGateStatus.PASSED:
+            if contract.stability_comparator == "greater_than_or_equal":
+                stable = all(
+                    value >= contract.stability_threshold
+                    for value in numeric_values
+                )
+            else:
+                stable = all(
+                    value <= contract.stability_threshold
+                    for value in numeric_values
+                )
+            if not stable:
+                raise ValidationError(
+                    f"{label}passed reconstruction family stability gate "
+                    "violates its frozen stability threshold"
+                )
+            if any(
+                value > contract.cross_projection_error_threshold
+                for value in cross_errors
+            ):
+                raise ValidationError(
+                    f"{label}passed reconstruction family stability gate "
+                    "violates its frozen cross-projection error threshold"
+                )
+        for field_name in (
+            "assessment_status",
+            "observed_witness",
+            "interpretation",
+            "evidence_location",
+        ):
+            require_canonical_text(result[field_name], f"{prefix}.{field_name}")
+        if result["assessment_status"] != expected_status:
+            raise ValidationError(
+                f"{label}{gate.status.value} reconstruction family stability "
+                f"gate requires {expected_status}"
+            )
+        digest = require_sha256(
+            result["evidence_sha256"], f"{prefix}.evidence_sha256"
+        )
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"{label}reconstruction family stability evidence must "
+                "reference a run output artifact"
+            )
+        linked_control = (
+            control_results.get(contract.adverse_family_control_id)
+            if isinstance(control_results, dict)
+            else None
+        )
+        control_fields = {
+            "observed_behavior",
+            "interpretation",
+            "matches_expected",
+            "evidence_sha256",
+            "evidence_location",
+        }
+        control_derived_fields = {"selected_value_sha256"}
+        if (
+            not isinstance(linked_control, dict)
+            or not control_fields <= set(linked_control)
+            or set(linked_control) - control_fields - control_derived_fields
+        ):
+            raise ValidationError(
+                f"{label}reconstruction family stability result requires its "
+                "exact linked adverse-family control evaluation"
+            )
+        if type(linked_control["matches_expected"]) is not bool:
+            raise ValidationError(
+                f"{label}reconstruction family stability linked control "
+                "matches_expected must be a boolean"
+            )
+        control_digest = require_sha256(
+            linked_control["evidence_sha256"],
+            f"{prefix}.linked_control.evidence_sha256",
+        )
+        if control_digest not in output_hashes:
+            raise ValidationError(
+                f"{label}reconstruction family stability linked control "
+                "evidence must reference a run output artifact"
+            )
+        if gate.status is QualityGateStatus.PASSED and not linked_control[
+            "matches_expected"
+        ]:
+            raise ValidationError(
+                f"{label}passed reconstruction family stability gate requires "
+                "its adverse-family control to match expectation"
             )
         if result.get("selected_value_sha256") is not None:
             require_sha256(

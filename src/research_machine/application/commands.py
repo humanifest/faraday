@@ -25,6 +25,7 @@ from research_machine.domain.models import (
     ControlDefinition,
     ProtocolKind,
     QualityGateResult,
+    ReconstructionFamilyStabilityContract,
     RejectionType,
     RuntimePreflightRequirement,
     SelectionWeights,
@@ -218,6 +219,9 @@ class CreateProtocol:
     duality_reconstruction_contracts: list[DualityReconstructionContract] = field(
         default_factory=list
     )
+    reconstruction_family_stability_contracts: list[
+        ReconstructionFamilyStabilityContract
+    ] = field(default_factory=list)
     measurement_validity_checks: list[MeasurementValidityCheck] = field(default_factory=list)
     expected_outputs: list[str] = field(default_factory=list)
     success_conditions: list[str] = field(default_factory=list)

@@ -2061,6 +2061,10 @@ gate evidence.
   Run intake and replication replay reject omitted required dependencies and a
   passed lift that depends on its downstream tested object. See
   [duality and reconstruction contracts](docs/duality-reconstruction-contract.md).
+  Cross-resolution or continuum-facing work can additionally freeze
+  [reconstruction family stability contracts](docs/reconstruction-family-stability-contract.md)
+  so per-resolution invertibility cannot substitute for a registered uniform
+  stability and two-way cross-projection check.
 - Record code-, environment-, input-, output-, and quality-gate-bound runs.
 - Seal every canonical run with a service-generated commitment over the complete
   immutable payload. Authoritative reads reject later edits to its protocol or

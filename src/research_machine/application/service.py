@@ -55,6 +55,7 @@ from research_machine.application.policies import (
     validate_control_witness_evidence,
     validate_cross_lane_lesson,
     validate_duality_reconstruction_gate_metadata,
+    validate_reconstruction_family_stability_gate_metadata,
     validate_historical_cross_lane_lesson_structure,
     validate_dataset_artifacts,
     validate_evidence_annotations,
@@ -500,6 +501,7 @@ _STRUCTURED_RESULT_DETAIL_KEYS = {
     "canary_target_assessment",
     "causal_assumption_results",
     "duality_reconstruction_results",
+    "reconstruction_family_stability_results",
     "instrument_inspection",
     "measurement_validity_results",
     "mathematical_predicate_results",
@@ -4290,6 +4292,119 @@ class ResearchService:
                         "match the verified JSON value"
                     )
                 result["selected_value_sha256"] = selected_value_sha256
+        reconstruction_family_stability_gates = {
+            contract.evaluation_gate_id
+            for contract in protocol.reconstruction_family_stability_contracts
+        }
+        for gate_id in reconstruction_family_stability_gates:
+            gate = gates_by_id.get(gate_id)
+            if gate is None or gate.status is QualityGateStatus.SKIPPED:
+                continue
+            validate_reconstruction_family_stability_gate_metadata(
+                protocol=protocol,
+                gate=gate,
+                output_hashes=output_hashes,
+            )
+            results = gate.details["reconstruction_family_stability_results"]
+            for contract in protocol.reconstruction_family_stability_contracts:
+                if contract.evaluation_gate_id != gate_id:
+                    continue
+                result = results[contract.contract_id]
+                digest = result["evidence_sha256"]
+                location = result["evidence_location"]
+                location_verified, structured_evidence = (
+                    _resolve_json_artifact_location(
+                        outputs,
+                        command.artifact_root,
+                        digest,
+                        location,
+                        (
+                            "reconstruction family stability "
+                            f"{contract.contract_id} evidence_location"
+                        ),
+                    )
+                )
+                if (
+                    not location_verified
+                    and verified_gate_result is not None
+                    and digest == verified_gate_output_sha256
+                ):
+                    if not location.startswith("/"):
+                        raise ValidationError(
+                            "reconstruction family stability evidence in the "
+                            "verified analysis output requires an absolute JSON "
+                            "Pointer evidence_location"
+                        )
+                    structured_evidence = _resolve_json_pointer(
+                        verified_gate_result,
+                        location,
+                        (
+                            "reconstruction family stability "
+                            f"{contract.contract_id} evidence_location"
+                        ),
+                    )
+                    location_verified = True
+                if not location_verified or not isinstance(
+                    structured_evidence, dict
+                ):
+                    raise ValidationError(
+                        "reconstruction family stability result requires "
+                        "retained, artifact-bound JSON object evidence"
+                    )
+                evidence_fields = {
+                    "duality_reconstruction_contract_id",
+                    "resolution_family_id",
+                    "resolution_ids",
+                    "primal_norm_id",
+                    "dual_norm_id",
+                    "norm_specification_sha256",
+                    "stability_statistic",
+                    "stability_comparator",
+                    "stability_threshold",
+                    "stability_specification_sha256",
+                    "family_specification_sha256",
+                    "test_family_span_id",
+                    "test_family_specification_sha256",
+                    "forward_cross_projection_id",
+                    "reverse_cross_projection_id",
+                    "cross_projection_specification_sha256",
+                    "cross_projection_error_threshold",
+                    "transfer_map_ids",
+                    "transfer_specification_sha256",
+                    "adverse_family_specification_sha256",
+                    "observed_resolution_ids",
+                    "observed_stability_values",
+                    "observed_forward_cross_projection_error",
+                    "observed_reverse_cross_projection_error",
+                    "assessment_status",
+                    "observed_witness",
+                    "interpretation",
+                }
+                expected_evidence = {
+                    field_name: result[field_name]
+                    for field_name in evidence_fields
+                }
+                if structured_evidence != expected_evidence:
+                    raise ValidationError(
+                        "reconstruction family stability result does not match "
+                        "its retained typed JSON evidence"
+                    )
+                selected_value_sha256 = _result_selection_sha256(
+                    structured_evidence
+                )
+                supplied = result.get("selected_value_sha256")
+                if supplied is not None and require_sha256(
+                    supplied,
+                    (
+                        "reconstruction family stability "
+                        f"{contract.contract_id} selected_value_sha256"
+                    ),
+                ) != selected_value_sha256:
+                    raise ValidationError(
+                        "reconstruction family stability selected_value_sha256 "
+                        "does not match the verified JSON value"
+                    )
+                result["selected_value_sha256"] = selected_value_sha256
         contract = protocol.analysis_contract
         if contract is not None and contract.missingness_assessment_gate_id:
             gate = gates_by_id.get(contract.missingness_assessment_gate_id)
@@ -4965,6 +5080,13 @@ class ResearchService:
             duality_reconstruction_contracts_by_gate.setdefault(
                 contract.evaluation_gate_id, []
             ).append(contract)
+        reconstruction_family_stability_contracts_by_gate: dict[
+            str, list[Any]
+        ] = {}
+        for contract in protocol.reconstruction_family_stability_contracts:
+            reconstruction_family_stability_contracts_by_gate.setdefault(
+                contract.evaluation_gate_id, []
+            ).append(contract)
         missingness_gate_id = (
             protocol.analysis_contract.missingness_assessment_gate_id
             if protocol.analysis_contract is not None
@@ -4991,6 +5113,10 @@ class ResearchService:
             "duality_reconstruction_plan": [
                 contract.to_dict()
                 for contract in protocol.duality_reconstruction_contracts
+            ],
+            "reconstruction_family_stability_plan": [
+                contract.to_dict()
+                for contract in protocol.reconstruction_family_stability_contracts
             ],
             "canary_target_plan": (
                 canary_plan.to_dict() if canary_plan is not None else None
@@ -5225,6 +5351,43 @@ class ResearchService:
                                     gate_id
                                 ]
                             }} if gate_id in duality_reconstruction_contracts_by_gate else {}),
+                            **({"reconstruction_family_stability_results": {
+                                contract.contract_id: {
+                                    "duality_reconstruction_contract_id": contract.duality_reconstruction_contract_id,
+                                    "resolution_family_id": contract.resolution_family_id,
+                                    "resolution_ids": list(contract.resolution_ids),
+                                    "primal_norm_id": contract.primal_norm_id,
+                                    "dual_norm_id": contract.dual_norm_id,
+                                    "norm_specification_sha256": contract.norm_specification_sha256,
+                                    "stability_statistic": contract.stability_statistic,
+                                    "stability_comparator": contract.stability_comparator,
+                                    "stability_threshold": contract.stability_threshold,
+                                    "stability_specification_sha256": contract.stability_specification_sha256,
+                                    "family_specification_sha256": contract.family_specification_sha256,
+                                    "test_family_span_id": contract.test_family_span_id,
+                                    "test_family_specification_sha256": contract.test_family_specification_sha256,
+                                    "forward_cross_projection_id": contract.forward_cross_projection_id,
+                                    "reverse_cross_projection_id": contract.reverse_cross_projection_id,
+                                    "cross_projection_specification_sha256": contract.cross_projection_specification_sha256,
+                                    "cross_projection_error_threshold": contract.cross_projection_error_threshold,
+                                    "transfer_map_ids": list(contract.transfer_map_ids),
+                                    "transfer_specification_sha256": contract.transfer_specification_sha256,
+                                    "adverse_family_specification_sha256": contract.adverse_family_specification_sha256,
+                                    "observed_resolution_ids": [],
+                                    "observed_stability_values": {},
+                                    "observed_forward_cross_projection_error": "<finite nonnegative number>",
+                                    "observed_reverse_cross_projection_error": "<finite nonnegative number>",
+                                    "assessment_status": "<consistent_with_family_stability_contract if passed; inconclusive if warning; contradicted_family_stability_contract if failed>",
+                                    "observed_witness": "",
+                                    "interpretation": "",
+                                    "evidence_sha256": "<hash of a listed run output artifact>",
+                                    "evidence_location": "<exact JSON Pointer or location within that artifact>",
+                                    "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
+                                }
+                                for contract in reconstruction_family_stability_contracts_by_gate[
+                                    gate_id
+                                ]
+                            }} if gate_id in reconstruction_family_stability_contracts_by_gate else {}),
                         },
                     }
                     for gate_id in protocol.quality_requirements
@@ -6728,6 +6891,9 @@ class ResearchService:
             ),
             duality_reconstruction_contracts=list(
                 command.duality_reconstruction_contracts
+            ),
+            reconstruction_family_stability_contracts=list(
+                command.reconstruction_family_stability_contracts
             ),
             measurement_validity_checks=list(command.measurement_validity_checks),
             expected_outputs=require_text_list(

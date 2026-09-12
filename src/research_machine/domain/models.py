@@ -497,6 +497,35 @@ class DualityReconstructionContract(Serializable):
 
 
 @dataclass(frozen=True)
+class ReconstructionFamilyStabilityContract(Serializable):
+    """Frozen uniform-stability and cross-projection test for a map family."""
+
+    contract_id: str
+    duality_reconstruction_contract_id: str
+    resolution_family_id: str
+    resolution_ids: list[str]
+    primal_norm_id: str
+    dual_norm_id: str
+    norm_specification_sha256: str
+    stability_statistic: str
+    stability_comparator: str
+    stability_threshold: float
+    stability_specification_sha256: str
+    family_specification_sha256: str
+    test_family_span_id: str
+    test_family_specification_sha256: str
+    forward_cross_projection_id: str
+    reverse_cross_projection_id: str
+    cross_projection_specification_sha256: str
+    cross_projection_error_threshold: float
+    transfer_map_ids: list[str]
+    transfer_specification_sha256: str
+    adverse_family_control_id: str
+    adverse_family_specification_sha256: str
+    evaluation_gate_id: str
+
+
+@dataclass(frozen=True)
 class ControlWitnessContract(Serializable):
     """Prospective shape for one artifact-selected scalar control comparison."""
 
@@ -703,6 +732,9 @@ class ExperimentProtocol(Serializable):
     duality_reconstruction_contracts: list[DualityReconstructionContract] = field(
         default_factory=list
     )
+    reconstruction_family_stability_contracts: list[
+        ReconstructionFamilyStabilityContract
+    ] = field(default_factory=list)
     measurement_validity_checks: list[MeasurementValidityCheck] = field(
         default_factory=list
     )
@@ -804,6 +836,8 @@ class ExperimentProtocol(Serializable):
             payload.pop("mathematical_predicate_contracts", None)
         if not self.duality_reconstruction_contracts:
             payload.pop("duality_reconstruction_contracts", None)
+        if not self.reconstruction_family_stability_contracts:
+            payload.pop("reconstruction_family_stability_contracts", None)
         return payload
 
     @classmethod
@@ -838,6 +872,14 @@ class ExperimentProtocol(Serializable):
             if isinstance(item, DualityReconstructionContract)
             else DualityReconstructionContract(**item)
             for item in copied.get("duality_reconstruction_contracts", [])
+        ]
+        copied["reconstruction_family_stability_contracts"] = [
+            item
+            if isinstance(item, ReconstructionFamilyStabilityContract)
+            else ReconstructionFamilyStabilityContract(**item)
+            for item in copied.get(
+                "reconstruction_family_stability_contracts", []
+            )
         ]
         if copied.get("canary_target_plan") is not None and not isinstance(
             copied["canary_target_plan"], CanaryTargetPlan
