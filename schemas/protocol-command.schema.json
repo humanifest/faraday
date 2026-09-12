@@ -297,6 +297,81 @@
         }
       ]
     },
+    "dualityReconstructionContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_id",
+        "predicate_contract_id",
+        "primal_space_id",
+        "dual_space_id",
+        "pairing_id",
+        "pairing_definition",
+        "reconstruction_map_id",
+        "reconstruction_definition",
+        "reconstruction_specification_sha256",
+        "basis_specification_sha256",
+        "quadrature_specification_sha256",
+        "source_status",
+        "source_refs",
+        "forbidden_dependency_object_ids",
+        "circularity_control_id",
+        "evaluation_gate_id"
+      ],
+      "properties": {
+        "contract_id": {"$ref": "#/$defs/canonicalText"},
+        "predicate_contract_id": {"$ref": "#/$defs/canonicalText"},
+        "primal_space_id": {"$ref": "#/$defs/canonicalText"},
+        "dual_space_id": {"$ref": "#/$defs/canonicalText"},
+        "pairing_id": {"$ref": "#/$defs/canonicalText"},
+        "pairing_definition": {"$ref": "#/$defs/canonicalText"},
+        "reconstruction_map_id": {"$ref": "#/$defs/canonicalText"},
+        "reconstruction_definition": {"$ref": "#/$defs/canonicalText"},
+        "reconstruction_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "basis_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "quadrature_specification_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_status": {
+          "enum": ["source_derived", "engineering_assumption", "mixed"]
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "forbidden_dependency_object_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalText"}
+        },
+        "circularity_control_id": {"$ref": "#/$defs/canonicalText"},
+        "evaluation_gate_id": {"$ref": "#/$defs/canonicalText"},
+        "transfer_map_id": {
+          "anyOf": [
+            {"const": ""},
+            {"$ref": "#/$defs/canonicalText"}
+          ]
+        },
+        "transfer_specification_sha256": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{64})?$"
+        }
+      },
+      "dependentRequired": {
+        "transfer_map_id": ["transfer_specification_sha256"],
+        "transfer_specification_sha256": ["transfer_map_id"]
+      }
+    },
     "canaryTargetPlan": {
       "type": "object",
       "additionalProperties": false,
@@ -480,6 +555,10 @@
     "mathematical_predicate_contracts": {
       "type": "array",
       "items": {"$ref": "#/$defs/mathematicalPredicateContract"}
+    },
+    "duality_reconstruction_contracts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/dualityReconstructionContract"}
     },
     "canary_target_plan": {
       "anyOf": [

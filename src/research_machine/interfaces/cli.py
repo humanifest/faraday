@@ -70,6 +70,7 @@ from research_machine.domain.models import (
     ClaimLevel,
     DatasetArtifact,
     DatasetRole,
+    DualityReconstructionContract,
     EvidenceDirection,
     HypothesisWorkflowState,
     MathematicalPredicateContract,
@@ -140,6 +141,7 @@ _PROTOCOL_FIELDS = {
     "measurement_definitions",
     "named_component_contracts",
     "mathematical_predicate_contracts",
+    "duality_reconstruction_contracts",
     "measurement_validity_checks",
     "expected_outputs",
     "success_conditions",
@@ -1367,10 +1369,15 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
     mathematical_predicate_values = spec.get(
         "mathematical_predicate_contracts", []
     )
+    duality_reconstruction_values = spec.get(
+        "duality_reconstruction_contracts", []
+    )
     if named_component_values is None:
         named_component_values = []
     if mathematical_predicate_values is None:
         mathematical_predicate_values = []
+    if duality_reconstruction_values is None:
+        duality_reconstruction_values = []
     validity_values = spec.get("measurement_validity_checks", [])
     control_values = spec.get("control_definitions", [])
     calibration_values = spec.get("calibration_acceptance_criteria", [])
@@ -1628,6 +1635,44 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         ]
     except TypeError as exc:
         raise ValueError(f"invalid mathematical predicate contract: {exc}") from exc
+    duality_reconstruction_fields = {
+        "contract_id",
+        "predicate_contract_id",
+        "primal_space_id",
+        "dual_space_id",
+        "pairing_id",
+        "pairing_definition",
+        "reconstruction_map_id",
+        "reconstruction_definition",
+        "reconstruction_specification_sha256",
+        "basis_specification_sha256",
+        "quadrature_specification_sha256",
+        "source_status",
+        "source_refs",
+        "forbidden_dependency_object_ids",
+        "circularity_control_id",
+        "evaluation_gate_id",
+        "transfer_map_id",
+        "transfer_specification_sha256",
+    }
+    if not isinstance(duality_reconstruction_values, list) or any(
+        not isinstance(item, dict) for item in duality_reconstruction_values
+    ):
+        raise ValueError(
+            "duality_reconstruction_contracts must be an array of objects"
+        )
+    if any(
+        set(item) - duality_reconstruction_fields
+        for item in duality_reconstruction_values
+    ):
+        raise ValueError("duality reconstruction contract contains unknown fields")
+    try:
+        duality_reconstruction_contracts = [
+            DualityReconstructionContract(**item)
+            for item in duality_reconstruction_values
+        ]
+    except TypeError as exc:
+        raise ValueError(f"invalid duality reconstruction contract: {exc}") from exc
     try:
         return CreateProtocol(
             experiment_id=spec["experiment_id"],
@@ -1644,6 +1689,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             measurement_definitions=measurements,
             named_component_contracts=named_component_contracts,
             mathematical_predicate_contracts=mathematical_predicate_contracts,
+            duality_reconstruction_contracts=duality_reconstruction_contracts,
             measurement_validity_checks=validity_checks,
             expected_outputs=lists["expected_outputs"],
             success_conditions=lists["success_conditions"],

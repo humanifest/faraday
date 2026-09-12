@@ -117,6 +117,13 @@ invertibility, positivity, conservation, tangency, or equivalence. See
 the exact source, restriction, quotient, pullback, or comparator object on
 which they were evaluated.
 
+When that object is obtained by identifying a dual or weak residual with a
+primal or strong representative, also freeze `duality_reconstruction_contracts`.
+See `duality-reconstruction-contract.md`. Treat the pairing, basis, quadrature,
+reconstruction, and transfer choices as explicit source-derived or engineering
+commitments, and preregister an adversarial control that detects circular use of
+the downstream tested object.
+
 An exploratory protocol may be frozen against `pending_review` hypotheses.
 Confirmatory and replication protocols require every tested hypothesis to be
 active after human review.

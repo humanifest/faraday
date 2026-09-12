@@ -2055,6 +2055,12 @@ gate evidence.
   comparator and explicit conditions. Run intake and replication replay reject
   moving a pullback, restriction, or quotient result onto its source operator.
   See [mathematical predicate contracts](docs/mathematical-predicate-contract.md).
+- When a predicate consumes a reconstructed representative of a dual or weak
+  residual, optionally freeze the primal and dual spaces, pairing, reconstruction,
+  basis, quadrature, source status, dependency closure, and circularity control.
+  Run intake and replication replay reject omitted required dependencies and a
+  passed lift that depends on its downstream tested object. See
+  [duality and reconstruction contracts](docs/duality-reconstruction-contract.md).
 - Record code-, environment-, input-, output-, and quality-gate-bound runs.
 - Seal every canonical run with a service-generated commitment over the complete
   immutable payload. Authoritative reads reject later edits to its protocol or

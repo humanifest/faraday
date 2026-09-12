@@ -2542,6 +2542,19 @@ Prioritize add-ons according to real experiments rather than taxonomy alone:
 Each new add-on must exercise the shared contracts and contribute at least one
 failure fixture that protects the core from an invalid inference.
 
+Duality/reconstruction delivery: formal and computational protocols can now
+freeze the distinct primal and dual spaces, pairing, reconstruction map, basis,
+quadrature, optional transfer, source status, and forbidden dependency objects
+behind a mathematical predicate. Performed gates must enumerate the observed
+dependency closure and retain exact JSON evidence. A passed gate is rejected if
+it omits its required spaces or maps, depends on a forbidden downstream tested
+object, or lacks a successful linked circularity control. Replication-package
+verification replays the same boundary, while synthesis and rigor reports retain
+the result without treating a passed provenance check as proof, stability, a
+canonical pairing, or physical validation. An exact-rational weighted Riesz-map
+fixture verifies coordinate covariance under a nonorthogonal basis change and
+shows why directly identifying dual and primal coordinates is not invariant.
+
 ## Phase 5 — durable multi-user operation
 
 Add transactional storage, locking, authenticated executor identities, signed

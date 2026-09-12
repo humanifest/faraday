@@ -21,6 +21,7 @@ from research_machine.domain.models import (
     ClaimLevel,
     DatasetManifest,
     DatasetArtifact,
+    DualityReconstructionContract,
     ControlDefinition,
     ControlWitnessContract,
     CONTROL_FAMILIES,
@@ -2324,6 +2325,8 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
         validate_named_component_contracts(protocol)
     if protocol.mathematical_predicate_contracts:
         validate_mathematical_predicate_contracts(protocol)
+    if protocol.duality_reconstruction_contracts:
+        validate_duality_reconstruction_contracts(protocol)
     custody_requirement_ids = []
     for gate_id in protocol.measurement_custody_requirements:
         canonical_gate_id = require_text(
@@ -3188,6 +3191,358 @@ def validate_mathematical_predicate_gate_metadata(
             raise ValidationError(
                 f"{label}mathematical predicate evidence must reference a run "
                 "output artifact"
+            )
+        if result.get("selected_value_sha256") is not None:
+            require_sha256(
+                result["selected_value_sha256"],
+                f"{prefix}.selected_value_sha256",
+            )
+
+
+_DUALITY_RECONSTRUCTION_SOURCE_STATUSES = {
+    "engineering_assumption",
+    "mixed",
+    "source_derived",
+}
+
+
+def validate_duality_reconstruction_contracts(
+    protocol: ExperimentProtocol,
+) -> None:
+    """Bind a duality pairing and reconstruction without blessing the choice."""
+
+    contracts = protocol.duality_reconstruction_contracts
+    if any(
+        not isinstance(item, DualityReconstructionContract)
+        for item in contracts
+    ):
+        raise ValidationError(
+            "duality_reconstruction_contracts must contain "
+            "DualityReconstructionContract values"
+        )
+    predicate_contracts = {
+        item.contract_id: item
+        for item in protocol.mathematical_predicate_contracts
+    }
+    controls = {item.control_id: item for item in protocol.control_definitions}
+    contract_ids: set[str] = set()
+    for index, contract in enumerate(contracts):
+        prefix = f"duality_reconstruction_contracts[{index}]"
+        for field_name in (
+            "contract_id",
+            "predicate_contract_id",
+            "primal_space_id",
+            "dual_space_id",
+            "pairing_id",
+            "pairing_definition",
+            "reconstruction_map_id",
+            "reconstruction_definition",
+            "source_status",
+            "circularity_control_id",
+            "evaluation_gate_id",
+        ):
+            require_canonical_text(
+                getattr(contract, field_name), f"{prefix}.{field_name}"
+            )
+        if contract.contract_id in contract_ids:
+            raise ValidationError(
+                "duality reconstruction contract IDs must be unique"
+            )
+        contract_ids.add(contract.contract_id)
+        if contract.primal_space_id == contract.dual_space_id:
+            raise ValidationError(
+                "duality reconstruction contract must distinguish primal and "
+                "dual space IDs"
+            )
+        predicate_contract = predicate_contracts.get(
+            contract.predicate_contract_id
+        )
+        if predicate_contract is None:
+            raise ValidationError(
+                "duality reconstruction contract must bind an exact "
+                "mathematical predicate contract ID"
+            )
+        if predicate_contract.evaluation_gate_id != contract.evaluation_gate_id:
+            raise ValidationError(
+                "duality reconstruction and mathematical predicate contracts "
+                "must share an evaluation gate"
+            )
+        for field_name in (
+            "reconstruction_specification_sha256",
+            "basis_specification_sha256",
+            "quadrature_specification_sha256",
+        ):
+            require_sha256(getattr(contract, field_name), f"{prefix}.{field_name}")
+        if bool(contract.transfer_map_id) != bool(
+            contract.transfer_specification_sha256
+        ):
+            raise ValidationError(
+                "duality reconstruction transfer map ID and specification "
+                "SHA-256 must be supplied together"
+            )
+        if contract.transfer_map_id:
+            require_canonical_text(
+                contract.transfer_map_id, f"{prefix}.transfer_map_id"
+            )
+            require_sha256(
+                contract.transfer_specification_sha256,
+                f"{prefix}.transfer_specification_sha256",
+            )
+        if contract.source_status not in _DUALITY_RECONSTRUCTION_SOURCE_STATUSES:
+            raise ValidationError(
+                f"{prefix}.source_status is unsupported"
+            )
+        source_refs = require_unique_canonical_text_list(
+            contract.source_refs, f"{prefix}.source_refs"
+        )
+        forbidden = require_unique_canonical_text_list(
+            contract.forbidden_dependency_object_ids,
+            f"{prefix}.forbidden_dependency_object_ids",
+        )
+        if not source_refs:
+            raise ValidationError(
+                "duality reconstruction contract requires at least one source "
+                "or engineering reference"
+            )
+        if not forbidden:
+            raise ValidationError(
+                "duality reconstruction contract requires at least one "
+                "forbidden dependency object"
+            )
+        if predicate_contract.object_id not in forbidden:
+            raise ValidationError(
+                "duality reconstruction forbidden dependencies must include "
+                "the linked predicate object"
+            )
+        required_dependencies = {
+            contract.primal_space_id,
+            contract.dual_space_id,
+            contract.pairing_id,
+            contract.reconstruction_map_id,
+        }
+        if contract.transfer_map_id:
+            required_dependencies.add(contract.transfer_map_id)
+        impossible = sorted(required_dependencies & set(forbidden))
+        if impossible:
+            raise ValidationError(
+                "duality reconstruction required dependencies cannot also be "
+                "forbidden dependency objects: " + ", ".join(impossible)
+            )
+        control = controls.get(contract.circularity_control_id)
+        if control is None:
+            raise ValidationError(
+                "duality reconstruction contract must bind an exact "
+                "circularity control_id"
+            )
+        if control.family != "adversarial":
+            raise ValidationError(
+                "duality reconstruction circularity control must be adversarial"
+            )
+        if control.evaluation_gate_id != contract.evaluation_gate_id:
+            raise ValidationError(
+                "duality reconstruction contract and circularity control must "
+                "share an evaluation gate"
+            )
+        if contract.evaluation_gate_id not in set(protocol.quality_requirements):
+            raise ValidationError(
+                "duality reconstruction evaluation gate must be a required "
+                "protocol quality gate"
+            )
+
+
+def validate_duality_reconstruction_gate_metadata(
+    *,
+    protocol: ExperimentProtocol,
+    gate: QualityGateResult,
+    output_hashes: set[str],
+    context: str = "",
+) -> None:
+    """Replay a reconstruction dependency boundary from retained metadata."""
+
+    contracts = [
+        item
+        for item in protocol.duality_reconstruction_contracts
+        if item.evaluation_gate_id == gate.gate_id
+    ]
+    if not contracts or gate.status is QualityGateStatus.SKIPPED:
+        return
+    label = f"{context} " if context else ""
+    results = gate.details.get("duality_reconstruction_results")
+    expected_ids = {item.contract_id for item in contracts}
+    if not isinstance(results, dict) or set(results) != expected_ids:
+        raise ValidationError(
+            f"{label}performed duality reconstruction gate {gate.gate_id} "
+            "requires exact results for: " + ", ".join(sorted(expected_ids))
+        )
+    expected_status = {
+        QualityGateStatus.PASSED: "consistent_with_reconstruction_contract",
+        QualityGateStatus.WARNING: "inconclusive",
+        QualityGateStatus.FAILED: "contradicted_reconstruction_contract",
+    }.get(gate.status)
+    if expected_status is None:
+        raise ValidationError(
+            f"{label}duality reconstruction gate {gate.gate_id} has an "
+            "unsupported status"
+        )
+    frozen_fields = (
+        "predicate_contract_id",
+        "primal_space_id",
+        "dual_space_id",
+        "pairing_id",
+        "pairing_definition",
+        "reconstruction_map_id",
+        "reconstruction_definition",
+        "reconstruction_specification_sha256",
+        "basis_specification_sha256",
+        "quadrature_specification_sha256",
+        "source_status",
+        "source_refs",
+        "forbidden_dependency_object_ids",
+        "transfer_map_id",
+        "transfer_specification_sha256",
+    )
+    required_fields = {
+        *frozen_fields,
+        "observed_reconstruction_dependency_object_ids",
+        "assessment_status",
+        "observed_witness",
+        "interpretation",
+        "evidence_sha256",
+        "evidence_location",
+    }
+    derived_fields = {"selected_value_sha256"}
+    control_results = gate.details.get("control_results")
+    for contract in contracts:
+        result = results[contract.contract_id]
+        prefix = (
+            f"{label}gate {gate.gate_id} duality_reconstruction_results "
+            f"{contract.contract_id}"
+        )
+        if (
+            not isinstance(result, dict)
+            or not required_fields <= set(result)
+            or set(result) - required_fields - derived_fields
+        ):
+            raise ValidationError(
+                f"{label}duality reconstruction result for "
+                f"{contract.contract_id} must contain exactly the documented fields"
+            )
+        for field_name in frozen_fields:
+            actual = result[field_name]
+            expected = getattr(contract, field_name)
+            if isinstance(expected, list):
+                require_unique_canonical_text_list(
+                    actual, f"{prefix}.{field_name}"
+                )
+            elif expected:
+                require_canonical_text(actual, f"{prefix}.{field_name}")
+            elif actual != "":
+                raise ValidationError(
+                    f"{label}duality reconstruction {field_name} does not match "
+                    "the frozen contract"
+                )
+            if actual != expected:
+                raise ValidationError(
+                    f"{label}duality reconstruction {field_name} does not match "
+                    "the frozen contract"
+                )
+        dependencies = require_unique_canonical_text_list(
+            result["observed_reconstruction_dependency_object_ids"],
+            f"{prefix}.observed_reconstruction_dependency_object_ids",
+        )
+        required_dependencies = {
+            contract.primal_space_id,
+            contract.dual_space_id,
+            contract.pairing_id,
+            contract.reconstruction_map_id,
+        }
+        if contract.transfer_map_id:
+            required_dependencies.add(contract.transfer_map_id)
+        missing_dependencies = sorted(required_dependencies - set(dependencies))
+        if missing_dependencies:
+            raise ValidationError(
+                f"{label}duality reconstruction result omits required "
+                "dependency objects: " + ", ".join(missing_dependencies)
+            )
+        forbidden = sorted(
+            set(dependencies) & set(contract.forbidden_dependency_object_ids)
+        )
+        if gate.status is QualityGateStatus.PASSED and forbidden:
+            raise ValidationError(
+                f"{label}passed duality reconstruction gate depends on forbidden "
+                "objects: " + ", ".join(forbidden)
+            )
+        for field_name in (
+            "assessment_status",
+            "observed_witness",
+            "interpretation",
+            "evidence_location",
+        ):
+            require_canonical_text(result[field_name], f"{prefix}.{field_name}")
+        if result["assessment_status"] != expected_status:
+            raise ValidationError(
+                f"{label}{gate.status.value} duality reconstruction gate "
+                f"requires {expected_status}"
+            )
+        digest = require_sha256(
+            result["evidence_sha256"], f"{prefix}.evidence_sha256"
+        )
+        if digest not in output_hashes:
+            raise ValidationError(
+                f"{label}duality reconstruction evidence must reference a run "
+                "output artifact"
+            )
+        linked_control = (
+            control_results.get(contract.circularity_control_id)
+            if isinstance(control_results, dict)
+            else None
+        )
+        control_fields = {
+            "observed_behavior",
+            "interpretation",
+            "matches_expected",
+            "evidence_sha256",
+            "evidence_location",
+        }
+        control_derived_fields = {"selected_value_sha256"}
+        if (
+            not isinstance(linked_control, dict)
+            or not control_fields <= set(linked_control)
+            or set(linked_control) - control_fields - control_derived_fields
+        ):
+            raise ValidationError(
+                f"{label}duality reconstruction result requires its exact "
+                "linked circularity control evaluation"
+            )
+        for field_name in (
+            "observed_behavior",
+            "interpretation",
+            "evidence_location",
+        ):
+            require_canonical_text(
+                linked_control[field_name],
+                f"{prefix}.linked_control.{field_name}",
+            )
+        if type(linked_control["matches_expected"]) is not bool:
+            raise ValidationError(
+                f"{label}duality reconstruction linked control "
+                "matches_expected must be a boolean"
+            )
+        control_digest = require_sha256(
+            linked_control["evidence_sha256"],
+            f"{prefix}.linked_control.evidence_sha256",
+        )
+        if control_digest not in output_hashes:
+            raise ValidationError(
+                f"{label}duality reconstruction linked control evidence must "
+                "reference a run output artifact"
+            )
+        if gate.status is QualityGateStatus.PASSED and not linked_control[
+            "matches_expected"
+        ]:
+            raise ValidationError(
+                f"{label}passed duality reconstruction gate requires its "
+                "circularity control to match expectation"
             )
         if result.get("selected_value_sha256") is not None:
             require_sha256(

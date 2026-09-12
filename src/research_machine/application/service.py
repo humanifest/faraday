@@ -54,6 +54,7 @@ from research_machine.application.policies import (
     validate_action_lanes,
     validate_control_witness_evidence,
     validate_cross_lane_lesson,
+    validate_duality_reconstruction_gate_metadata,
     validate_historical_cross_lane_lesson_structure,
     validate_dataset_artifacts,
     validate_evidence_annotations,
@@ -498,6 +499,7 @@ def _resolve_json_artifact_location(
 _STRUCTURED_RESULT_DETAIL_KEYS = {
     "canary_target_assessment",
     "causal_assumption_results",
+    "duality_reconstruction_results",
     "instrument_inspection",
     "measurement_validity_results",
     "mathematical_predicate_results",
@@ -4183,6 +4185,111 @@ class ResearchService:
                         "match the verified JSON value"
                     )
                 result["selected_value_sha256"] = selected_value_sha256
+        duality_reconstruction_gates = {
+            contract.evaluation_gate_id
+            for contract in protocol.duality_reconstruction_contracts
+        }
+        for gate_id in duality_reconstruction_gates:
+            gate = gates_by_id.get(gate_id)
+            if gate is None or gate.status is QualityGateStatus.SKIPPED:
+                continue
+            validate_duality_reconstruction_gate_metadata(
+                protocol=protocol,
+                gate=gate,
+                output_hashes=output_hashes,
+            )
+            results = gate.details["duality_reconstruction_results"]
+            for contract in protocol.duality_reconstruction_contracts:
+                if contract.evaluation_gate_id != gate_id:
+                    continue
+                result = results[contract.contract_id]
+                digest = result["evidence_sha256"]
+                location = result["evidence_location"]
+                location_verified, structured_evidence = (
+                    _resolve_json_artifact_location(
+                        outputs,
+                        command.artifact_root,
+                        digest,
+                        location,
+                        (
+                            f"duality reconstruction {contract.contract_id} "
+                            "evidence_location"
+                        ),
+                    )
+                )
+                if (
+                    not location_verified
+                    and verified_gate_result is not None
+                    and digest == verified_gate_output_sha256
+                ):
+                    if not location.startswith("/"):
+                        raise ValidationError(
+                            "duality reconstruction evidence in the verified "
+                            "analysis output requires an absolute JSON Pointer "
+                            "evidence_location"
+                        )
+                    structured_evidence = _resolve_json_pointer(
+                        verified_gate_result,
+                        location,
+                        (
+                            f"duality reconstruction {contract.contract_id} "
+                            "evidence_location"
+                        ),
+                    )
+                    location_verified = True
+                if not location_verified or not isinstance(
+                    structured_evidence, dict
+                ):
+                    raise ValidationError(
+                        "duality reconstruction result requires retained, "
+                        "artifact-bound JSON object evidence"
+                    )
+                evidence_fields = {
+                    "predicate_contract_id",
+                    "primal_space_id",
+                    "dual_space_id",
+                    "pairing_id",
+                    "pairing_definition",
+                    "reconstruction_map_id",
+                    "reconstruction_definition",
+                    "reconstruction_specification_sha256",
+                    "basis_specification_sha256",
+                    "quadrature_specification_sha256",
+                    "source_status",
+                    "source_refs",
+                    "forbidden_dependency_object_ids",
+                    "transfer_map_id",
+                    "transfer_specification_sha256",
+                    "observed_reconstruction_dependency_object_ids",
+                    "assessment_status",
+                    "observed_witness",
+                    "interpretation",
+                }
+                expected_evidence = {
+                    field_name: result[field_name]
+                    for field_name in evidence_fields
+                }
+                if structured_evidence != expected_evidence:
+                    raise ValidationError(
+                        "duality reconstruction result does not match its "
+                        "retained typed JSON evidence"
+                    )
+                selected_value_sha256 = _result_selection_sha256(
+                    structured_evidence
+                )
+                supplied = result.get("selected_value_sha256")
+                if supplied is not None and require_sha256(
+                    supplied,
+                    (
+                        f"duality reconstruction {contract.contract_id} "
+                        "selected_value_sha256"
+                    ),
+                ) != selected_value_sha256:
+                    raise ValidationError(
+                        "duality reconstruction selected_value_sha256 does not "
+                        "match the verified JSON value"
+                    )
+                result["selected_value_sha256"] = selected_value_sha256
         contract = protocol.analysis_contract
         if contract is not None and contract.missingness_assessment_gate_id:
             gate = gates_by_id.get(contract.missingness_assessment_gate_id)
@@ -4853,6 +4960,11 @@ class ResearchService:
             mathematical_predicate_contracts_by_gate.setdefault(
                 contract.evaluation_gate_id, []
             ).append(contract)
+        duality_reconstruction_contracts_by_gate: dict[str, list[Any]] = {}
+        for contract in protocol.duality_reconstruction_contracts:
+            duality_reconstruction_contracts_by_gate.setdefault(
+                contract.evaluation_gate_id, []
+            ).append(contract)
         missingness_gate_id = (
             protocol.analysis_contract.missingness_assessment_gate_id
             if protocol.analysis_contract is not None
@@ -4875,6 +4987,10 @@ class ResearchService:
             "mathematical_predicate_plan": [
                 contract.to_dict()
                 for contract in protocol.mathematical_predicate_contracts
+            ],
+            "duality_reconstruction_plan": [
+                contract.to_dict()
+                for contract in protocol.duality_reconstruction_contracts
             ],
             "canary_target_plan": (
                 canary_plan.to_dict() if canary_plan is not None else None
@@ -5078,6 +5194,37 @@ class ResearchService:
                                     gate_id
                                 ]
                             }} if gate_id in mathematical_predicate_contracts_by_gate else {}),
+                            **({"duality_reconstruction_results": {
+                                contract.contract_id: {
+                                    "predicate_contract_id": contract.predicate_contract_id,
+                                    "primal_space_id": contract.primal_space_id,
+                                    "dual_space_id": contract.dual_space_id,
+                                    "pairing_id": contract.pairing_id,
+                                    "pairing_definition": contract.pairing_definition,
+                                    "reconstruction_map_id": contract.reconstruction_map_id,
+                                    "reconstruction_definition": contract.reconstruction_definition,
+                                    "reconstruction_specification_sha256": contract.reconstruction_specification_sha256,
+                                    "basis_specification_sha256": contract.basis_specification_sha256,
+                                    "quadrature_specification_sha256": contract.quadrature_specification_sha256,
+                                    "source_status": contract.source_status,
+                                    "source_refs": list(contract.source_refs),
+                                    "forbidden_dependency_object_ids": list(
+                                        contract.forbidden_dependency_object_ids
+                                    ),
+                                    "transfer_map_id": contract.transfer_map_id,
+                                    "transfer_specification_sha256": contract.transfer_specification_sha256,
+                                    "observed_reconstruction_dependency_object_ids": [],
+                                    "assessment_status": "<consistent_with_reconstruction_contract if passed; inconclusive if warning; contradicted_reconstruction_contract if failed>",
+                                    "observed_witness": "",
+                                    "interpretation": "",
+                                    "evidence_sha256": "<hash of a listed run output artifact>",
+                                    "evidence_location": "<exact JSON Pointer or location within that artifact>",
+                                    "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
+                                }
+                                for contract in duality_reconstruction_contracts_by_gate[
+                                    gate_id
+                                ]
+                            }} if gate_id in duality_reconstruction_contracts_by_gate else {}),
                         },
                     }
                     for gate_id in protocol.quality_requirements
@@ -6578,6 +6725,9 @@ class ResearchService:
             named_component_contracts=list(command.named_component_contracts),
             mathematical_predicate_contracts=list(
                 command.mathematical_predicate_contracts
+            ),
+            duality_reconstruction_contracts=list(
+                command.duality_reconstruction_contracts
             ),
             measurement_validity_checks=list(command.measurement_validity_checks),
             expected_outputs=require_text_list(

@@ -1764,6 +1764,49 @@ def audit_research_state(
                             "a new protocol version."
                         ),
                     )
+        if protocol is not None and protocol.duality_reconstruction_contracts:
+            gates_by_id = {item.gate_id: item for item in run.quality_gates}
+            for contract in protocol.duality_reconstruction_contracts:
+                gate = gates_by_id.get(contract.evaluation_gate_id)
+                results = (
+                    gate.details.get("duality_reconstruction_results", {})
+                    if gate is not None else {}
+                )
+                result = (
+                    results.get(contract.contract_id)
+                    if isinstance(results, dict) else None
+                )
+                if not isinstance(result, dict):
+                    continue
+                status = result.get("assessment_status")
+                if status == "inconclusive":
+                    add(
+                        "DUALITY_RECONSTRUCTION_INCONCLUSIVE",
+                        RigorSeverity.WARNING,
+                        f"Duality reconstruction contract {contract.contract_id} "
+                        "was inconclusive.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the typed result and inspect the pairing, "
+                            "basis, quadrature, transfer, and dependency closure; "
+                            "do not infer a strong representative."
+                        ),
+                    )
+                elif status == "contradicted_reconstruction_contract":
+                    add(
+                        "DUALITY_RECONSTRUCTION_CONTRADICTED",
+                        RigorSeverity.ERROR,
+                        f"Duality reconstruction contract {contract.contract_id} "
+                        "was contradicted.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Preserve the adverse result. Any replacement of the "
+                            "pairing, reconstruction, basis, quadrature, transfer, "
+                            "or dependency boundary requires a new protocol version."
+                        ),
+                    )
         if (
             protocol is not None
             and protocol.sample_size_plan

@@ -961,6 +961,56 @@ def build_synthesis(
                             f"artifact `{result.get('evidence_sha256', 'unavailable')}` "
                             f"at `{result.get('evidence_location', 'unavailable')}`."
                         )
+    reconstruction_protocols = [
+        protocol
+        for protocol in protocols
+        if protocol.duality_reconstruction_contracts
+    ]
+    if reconstruction_protocols:
+        lines.extend(["", "### Duality and reconstruction provenance", ""])
+        for protocol in reconstruction_protocols:
+            contracts_by_id = {
+                contract.contract_id: contract
+                for contract in protocol.duality_reconstruction_contracts
+            }
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}` froze: "
+                + "; ".join(
+                    f"`{contract.contract_id}` maps `{contract.dual_space_id}` "
+                    f"to `{contract.primal_space_id}` using pairing "
+                    f"`{contract.pairing_id}` and reconstruction "
+                    f"`{contract.reconstruction_map_id}` "
+                    f"({contract.source_status})"
+                    for contract in protocol.duality_reconstruction_contracts
+                )
+                + ". Passing verifies the frozen reconstruction provenance and "
+                "dependency boundary only; it does not make the pairing canonical, "
+                "prove stability, or validate a downstream physical model."
+            )
+            for run in sorted(
+                (item for item in runs if item.protocol_id == protocol.protocol_id),
+                key=lambda item: item.run_id,
+            ):
+                for gate in run.quality_gates:
+                    results = gate.details.get("duality_reconstruction_results")
+                    if not isinstance(results, dict):
+                        continue
+                    for contract_id, result in sorted(results.items()):
+                        if not isinstance(result, dict):
+                            continue
+                        contract = contracts_by_id.get(contract_id)
+                        lines.append(
+                            f"  - Run `{run.run_id}` / `{contract_id}`"
+                            + (
+                                f" (pairing `{contract.pairing_id}`)"
+                                if contract is not None else ""
+                            )
+                            + f": gate `{gate.gate_id}` {gate.status.value}; "
+                            f"{result.get('assessment_status', 'unclassified')}; "
+                            f"dependencies {_text(str(result.get('observed_reconstruction_dependency_object_ids', [])))}; "
+                            f"artifact `{result.get('evidence_sha256', 'unavailable')}` "
+                            f"at `{result.get('evidence_location', 'unavailable')}`."
+                        )
     validity_protocols = [
         protocol for protocol in protocols if protocol.measurement_validity_checks
     ]

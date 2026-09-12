@@ -473,6 +473,30 @@ class MathematicalPredicateContract(Serializable):
 
 
 @dataclass(frozen=True)
+class DualityReconstructionContract(Serializable):
+    """Frozen pairing and weak-to-strong reconstruction for one predicate."""
+
+    contract_id: str
+    predicate_contract_id: str
+    primal_space_id: str
+    dual_space_id: str
+    pairing_id: str
+    pairing_definition: str
+    reconstruction_map_id: str
+    reconstruction_definition: str
+    reconstruction_specification_sha256: str
+    basis_specification_sha256: str
+    quadrature_specification_sha256: str
+    source_status: str
+    source_refs: list[str]
+    forbidden_dependency_object_ids: list[str]
+    circularity_control_id: str
+    evaluation_gate_id: str
+    transfer_map_id: str = ""
+    transfer_specification_sha256: str = ""
+
+
+@dataclass(frozen=True)
 class ControlWitnessContract(Serializable):
     """Prospective shape for one artifact-selected scalar control comparison."""
 
@@ -676,6 +700,9 @@ class ExperimentProtocol(Serializable):
     mathematical_predicate_contracts: list[MathematicalPredicateContract] = field(
         default_factory=list
     )
+    duality_reconstruction_contracts: list[DualityReconstructionContract] = field(
+        default_factory=list
+    )
     measurement_validity_checks: list[MeasurementValidityCheck] = field(
         default_factory=list
     )
@@ -775,6 +802,8 @@ class ExperimentProtocol(Serializable):
                 payload.pop(field_name, None)
         if not self.mathematical_predicate_contracts:
             payload.pop("mathematical_predicate_contracts", None)
+        if not self.duality_reconstruction_contracts:
+            payload.pop("duality_reconstruction_contracts", None)
         return payload
 
     @classmethod
@@ -803,6 +832,12 @@ class ExperimentProtocol(Serializable):
             if isinstance(item, MathematicalPredicateContract)
             else MathematicalPredicateContract(**item)
             for item in copied.get("mathematical_predicate_contracts", [])
+        ]
+        copied["duality_reconstruction_contracts"] = [
+            item
+            if isinstance(item, DualityReconstructionContract)
+            else DualityReconstructionContract(**item)
+            for item in copied.get("duality_reconstruction_contracts", [])
         ]
         if copied.get("canary_target_plan") is not None and not isinstance(
             copied["canary_target_plan"], CanaryTargetPlan
