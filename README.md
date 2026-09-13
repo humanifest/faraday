@@ -3056,7 +3056,9 @@ multiple independent limitations. Scope, uncertainty, summary, control
 disclosures, and unsupported-conclusion ceiling entries must be nonblank, and
 unsupported-conclusion ceilings use the same report-overclaim boundary as
 summaries, so phrases such as "proved", "confirmed", "explained", or
-"validated" cannot be smuggled into retained limitation prose. Control
+"validated", and legal/intent authority phrases such as "establishes legal
+responsibility" or "finds fraudulent intent", cannot be smuggled into retained
+limitation prose. Control
 disclosures cannot contain duplicates. Dataset-only exploratory evidence must
 supply a nonblank analysis identity; run-backed evidence derives that identity
 from the recorded run when `--analysis` is omitted.

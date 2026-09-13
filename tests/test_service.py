@@ -531,7 +531,15 @@ def test_hypothesis_proposal_rejects_noncanonical_lineage_and_contrast_handles(
 
 @pytest.mark.parametrize(
     "overclaim",
-    ["proved", "confirmed", "explained", "validates", "validated"],
+    [
+        "proved",
+        "confirmed",
+        "explained",
+        "validates",
+        "validated",
+        "establishes legal responsibility",
+        "finds fraudulent intent",
+    ],
 )
 def test_evidence_summary_rejects_report_overclaim_language(
     tmp_path: Path, overclaim: str
@@ -643,6 +651,24 @@ def test_evidence_unsupported_conclusion_ceiling_rejects_report_overclaim(
                 scope="Synthetic fixture only.",
                 higher_level_conclusions_unsupported=[
                     "The mechanism is not validated by this result."
+                ],
+                validation_tags=[ValidationTag.CALIBRATION],
+                exploratory=True,
+            )
+        )
+
+    with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
+        service.record_evidence(
+            RecordEvidence(
+                hypothesis_id=hypothesis.hypothesis_id,
+                direction=EvidenceDirection.INCONCLUSIVE,
+                summary="The exploratory result remains inconclusive.",
+                dataset_id="dataset-ceiling-overclaim",
+                analysis_id="analysis-ceiling-overclaim",
+                uncertainty="Synthetic fixture uncertainty remains large.",
+                scope="Synthetic fixture only.",
+                higher_level_conclusions_unsupported=[
+                    "The result determines legal liability."
                 ],
                 validation_tags=[ValidationTag.CALIBRATION],
                 exploratory=True,

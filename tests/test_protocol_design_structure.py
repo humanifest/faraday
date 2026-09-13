@@ -192,7 +192,7 @@ def test_conclusion_contract_unsupported_ceiling_rejects_report_overclaim() -> N
         conclusion_contract=replace(
             protocol.conclusion_contract,
             higher_level_conclusions_unsupported=[
-                "The protocol will not validate mechanism or intent."
+                "The protocol establishes legal liability."
             ],
         ),
     )

@@ -243,6 +243,24 @@ def test_runtime_promotion_manifest_schema_pins_read_only_checks():
                 {"summary": "This validates the mechanism."}
             ),
         ),
+        (
+            "evidence-command.schema.json",
+            lambda command: command.update(
+                {"summary": "This establishes legal responsibility."}
+            ),
+        ),
+        (
+            "run-record.schema.json",
+            lambda command: command.update(
+                {"summary": "This run finds fraudulent intent."}
+            ),
+        ),
+        (
+            "run-record.schema.json",
+            lambda command: command["quality_gates"][0].update(
+                {"summary": "This gate determines legal liability."}
+            ),
+        ),
     ],
 )
 def test_report_command_schemas_reject_overclaiming_summaries(schema_name, mutation):
@@ -725,7 +743,7 @@ def test_evidence_command_schema_rejects_overclaiming_unsupported_conclusion():
         "uncertainty": "Synthetic fixture uncertainty remains unresolved.",
         "scope": "Synthetic schema fixture only.",
         "higher_level_conclusions_unsupported": [
-            "The mechanism is not validated by this result."
+            "The result determines legal liability."
         ],
         "validation_tags": ["source_assessment"],
         "exploratory": True,
@@ -856,7 +874,7 @@ def test_protocol_command_schema_rejects_overclaiming_conclusion_ceiling():
     protocol = _multi_step_protocol().to_dict()
     command = {key: value for key, value in protocol.items() if key in _PROTOCOL_FIELDS}
     command["conclusion_contract"]["higher_level_conclusions_unsupported"] = [
-        "The protocol will not validate mechanism or intent."
+        "The protocol establishes legal liability."
     ]
     schema = json.loads((SCHEMAS / "protocol-command.schema.json").read_text())
     with pytest.raises(jsonschema.ValidationError):
