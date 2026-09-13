@@ -2,11 +2,14 @@
 from copy import deepcopy
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
+import stat
 
 import pytest
 
+import research_machine.literature.composability as composability_module
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
 from research_machine.literature.composability import (
@@ -453,6 +456,36 @@ def test_unsafe_source_locator_is_rejected(tmp_path, locator):
         )
 
 
+@pytest.mark.parametrize(
+    "locator",
+    [
+        "primary-\nlocal.txt",
+        "primary-local.txt\n",
+        "primary-\x00local.txt",
+        "primary-\x1flocal.txt",
+        "primary-\x7flocal.txt",
+    ],
+)
+def test_locator_control_characters_are_rejected_by_schema_and_runtime(
+    tmp_path, locator
+):
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = json.loads(
+        (ROOT / "schemas" / "source-composability.schema.json").read_text()
+    )
+    spec = _spec()
+    spec["source_references"][0]["locator"] = locator
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(spec, schema)
+
+    spec_path, digest = _write_spec(tmp_path, spec)
+    sources = _copy_sources(tmp_path)
+    with pytest.raises(ValidationError, match="NUL, newline, or control"):
+        create_source_composability_evaluation(
+            spec_path, digest, sources, tmp_path / "evaluation"
+        )
+
+
 def test_intermediate_symlink_in_source_locator_is_rejected(tmp_path):
     spec = _spec()
     spec["source_references"][0]["locator"] = "nested/primary-local.txt"
@@ -476,6 +509,50 @@ def test_source_root_itself_must_not_be_a_symlink(tmp_path):
     with pytest.raises(ValidationError, match="root must be a non-symlink directory"):
         create_source_composability_evaluation(
             spec_path, digest, linked, tmp_path / "evaluation"
+        )
+
+
+def test_no_follow_support_is_mandatory(tmp_path, monkeypatch):
+    spec_path, digest = _write_spec(tmp_path, _spec())
+    sources = _copy_sources(tmp_path)
+    monkeypatch.delattr(composability_module.os, "O_NOFOLLOW")
+    with pytest.raises(ValidationError, match="requires operating-system O_NOFOLLOW"):
+        create_source_composability_evaluation(
+            spec_path, digest, sources, tmp_path / "evaluation"
+        )
+
+
+def test_in_place_source_mutation_with_restored_mtime_is_rejected(
+    tmp_path, monkeypatch
+):
+    spec_path, digest = _write_spec(tmp_path, _spec())
+    sources = _copy_sources(tmp_path)
+    target = sources / "primary-assembled.txt"
+    original_bytes = target.read_bytes()
+    original_metadata = target.stat()
+    original_fstat = composability_module.os.fstat
+    regular_fstat_calls = 0
+
+    def mutate_before_closed_fstat(descriptor):
+        nonlocal regular_fstat_calls
+        observed = original_fstat(descriptor)
+        if stat.S_ISREG(observed.st_mode):
+            regular_fstat_calls += 1
+            if regular_fstat_calls == 2:
+                target.write_bytes(b"X" * len(original_bytes))
+                os.utime(
+                    target,
+                    ns=(original_metadata.st_atime_ns, original_metadata.st_mtime_ns),
+                )
+                observed = original_fstat(descriptor)
+                assert observed.st_mtime_ns == original_metadata.st_mtime_ns
+                assert observed.st_ctime_ns != original_metadata.st_ctime_ns
+        return observed
+
+    monkeypatch.setattr(composability_module.os, "fstat", mutate_before_closed_fstat)
+    with pytest.raises(ValidationError, match="changed while hashing"):
+        create_source_composability_evaluation(
+            spec_path, digest, sources, tmp_path / "evaluation"
         )
 
 
@@ -551,20 +628,54 @@ def test_write_failure_leaves_fail_closed_output_reservation(tmp_path, monkeypat
     spec_path, digest = _write_spec(tmp_path, _spec())
     sources = _copy_sources(tmp_path)
     output = tmp_path / "evaluation"
-    original_open = Path.open
 
-    def failing_open(path, mode="r", *args, **kwargs):
-        if path.name == "source-composability-evaluation.json" and mode == "xb":
-            raise OSError("injected write failure")
-        return original_open(path, mode, *args, **kwargs)
+    def failing_write(_descriptor, _encoded):
+        raise OSError("injected write failure")
 
-    monkeypatch.setattr(Path, "open", failing_open)
+    monkeypatch.setattr(composability_module, "_write_output_file", failing_write)
     with pytest.raises(ValidationError, match="fail-closed reservation"):
         create_source_composability_evaluation(
             spec_path, digest, sources, output
         )
     assert output.is_dir()
-    assert list(output.iterdir()) == []
+    partial = output / "source-composability-evaluation.json"
+    assert partial.is_file()
+    assert partial.stat().st_size == 0
+
+
+def test_reserved_directory_substitution_cannot_redirect_publication(
+    tmp_path, monkeypatch
+):
+    spec_path, digest = _write_spec(tmp_path, _spec())
+    sources = _copy_sources(tmp_path)
+    output = tmp_path / "evaluation"
+    moved_reservation = tmp_path / "moved-reservation"
+    attacker_directory = tmp_path / "attacker-directory"
+    attacker_directory.mkdir()
+    original_open = composability_module.os.open
+    injected = False
+
+    def substituting_open(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal injected
+        if path == "source-composability-evaluation.json" and not injected:
+            output.rename(moved_reservation)
+            output.symlink_to(attacker_directory, target_is_directory=True)
+            injected = True
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(composability_module.os, "open", substituting_open)
+    with pytest.raises(ValidationError, match="no longer names the reserved"):
+        create_source_composability_evaluation(
+            spec_path, digest, sources, output
+        )
+    assert injected is True
+    assert output.is_symlink()
+    assert not (
+        attacker_directory / "source-composability-evaluation.json"
+    ).exists()
+    assert (
+        moved_reservation / "source-composability-evaluation.json"
+    ).is_file()
 
 
 def test_boolean_contract_version_is_rejected_by_schema_and_runtime(tmp_path):

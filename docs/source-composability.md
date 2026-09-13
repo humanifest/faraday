@@ -70,15 +70,25 @@ Pin the exact specification bytes before evaluation:
 
 The source root is a separately trusted local directory. Each locator must name
 a relative regular file beneath it; absolute paths, path traversal, symlinks,
-missing files, and directories are rejected. Creation opens and hashes every
-source. The retained receipt includes its declared and observed SHA-256,
-observed byte size, and `matched` status.
+missing files, directories, NUL, newline, and other control characters are
+rejected. `O_NOFOLLOW` and directory-descriptor support are mandatory; Faraday
+fails closed on a platform that cannot provide them. Creation opens every path
+relative to a held source-root descriptor, hashes each source, and compares
+device, inode, size, modification time, and change time before and after the
+read. The retained receipt includes its declared and observed SHA-256, observed
+byte size, and `matched` status.
 
 The command writes a new directory containing
 `source-composability-evaluation.json` and refuses to replace an existing
-directory. Reservation is atomic; a concurrently created empty destination is
-not replaced, and a write failure leaves the reserved directory in place to
-fail closed. The output embeds the normalized contract, its canonical digest,
+directory. Reservation and publication are descriptor-relative: Faraday holds
+the parent descriptor, creates and opens the reserved directory relative to it,
+creates the child with exclusive no-follow flags relative to the reserved
+descriptor, flushes and syncs the bytes, and then verifies that the parent entry
+still names the same non-symlink directory inode. A concurrently created empty
+destination is not replaced. Rename-and-substitute attacks cannot redirect the
+JSON and cause reported success; an entry substitution or write failure fails
+closed and may leave the reserved or partially written artifact for diagnosis.
+The output embeds the normalized contract, its canonical digest,
 the original specification-byte digest, complete status counts, every exact
 node, every unclosed arrow, and the deterministic first unclosed arrow. A graph
 with an exact node and an unclosed arrow is reported as
@@ -111,3 +121,10 @@ authenticate the assessor, prove search exhaustiveness, semantically validate
 carrier/domain transitions, or show that separately supported ingredients
 compose. Those judgments require source review and, where applicable,
 mathematical proof or empirical tests outside this evaluator.
+
+The filesystem threat model covers hostile path components below the trusted
+source root and rename/symlink substitution of the output entry during the
+command. It relies on the local kernel's descriptor, no-follow, exclusive-create,
+metadata, and synchronization semantics. It does not claim to prevent an actor
+with filesystem write access from altering an artifact after the command has
+returned; replay and trusted hashes detect such later changes.

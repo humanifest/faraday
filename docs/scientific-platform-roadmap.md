@@ -1649,18 +1649,22 @@ Source-composability public-development delivery: `research literature
 evaluate-composability` accepts a trusted hash for a prospective typed contract
 of exact target nodes and ordered directed compatibility arrows. A separately
 trusted source root is mandatory; safe relative locators must resolve to
-regular non-symlink files whose observed bytes match their declared hashes.
+regular non-symlink files whose observed bytes match their declared hashes;
+control characters are forbidden and no-follow support is mandatory.
 Every node and arrow retains signature, dimension, carrier, domain, a four-state
 source relationship, and canonical source references. The graph must be weakly
 connected and acyclic, `target_node_ids` must be topological, and every member's
 signature and dimension must equal the target. Derived output preserves all
 exactly supported nodes, identifies the first unclosed arrow by declared arrow
 order, and replays after re-hashing the source artifacts. Atomic output-directory
-reservation never replaces a preexisting destination. This evaluator remains
-exposed development: it does not interpret source semantics, validate internal
-source/search schemas or carrier/domain transitions, establish search
-exhaustiveness or mathematical composability, or grant scientific, evidence,
-replication, candidate-advancement, conclusion, or runtime-promotion authority.
+reservation and child creation are descriptor-relative, sync the written bytes,
+verify the parent entry still names the reserved inode, and never replace a
+preexisting destination or report success after entry substitution. This
+evaluator remains exposed development: it does not interpret source semantics,
+validate internal source/search schemas or carrier/domain transitions,
+establish search exhaustiveness or mathematical composability, or grant
+scientific, evidence, replication, candidate-advancement, conclusion, or
+runtime-promotion authority.
 
 Snapshots now group byte-identical retained files by SHA-256 without deleting
 source records or resolving conflicting metadata. Unique-content counts are not

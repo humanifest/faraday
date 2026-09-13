@@ -145,6 +145,13 @@ def _source_kind(value: Any, field: str) -> SourceComposabilitySourceKind:
 
 
 def _safe_relative_locator(value: Any, field: str) -> str:
+    if isinstance(value, str) and any(
+        ord(character) < 32 or ord(character) == 127 for character in value
+    ):
+        raise ValidationError(
+            f"source composability {field} must not contain NUL, newline, or "
+            "control characters"
+        )
     locator = _canonical_text(value, field)
     if "\\" in locator:
         raise ValidationError(
@@ -462,7 +469,19 @@ def _canonical_digest(value: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _required_open_flag(name: str) -> int:
+    value = getattr(os, name, None)
+    if not isinstance(value, int):
+        raise ValidationError(
+            f"source composability requires operating-system {name} support "
+            "to enforce no-follow descriptor custody"
+        )
+    return value
+
+
 def _open_trusted_source_root(source_artifact_root: Path) -> int:
+    no_follow = _required_open_flag("O_NOFOLLOW")
+    directory = _required_open_flag("O_DIRECTORY")
     candidate = source_artifact_root.expanduser()
     try:
         metadata = candidate.lstat()
@@ -474,11 +493,7 @@ def _open_trusted_source_root(source_artifact_root: Path) -> int:
         raise ValidationError(
             "source composability source artifact root must be a non-symlink directory"
         )
-    flags = os.O_RDONLY
-    if hasattr(os, "O_DIRECTORY"):
-        flags |= os.O_DIRECTORY
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
+    flags = os.O_RDONLY | directory | no_follow
     if hasattr(os, "O_CLOEXEC"):
         flags |= os.O_CLOEXEC
     try:
@@ -499,16 +514,12 @@ def _observe_source_file(
     root_descriptor: int, source: SourceComposabilitySourceReference
 ) -> dict[str, Any]:
     relative = PurePosixPath(source.locator)
-    directory_flags = os.O_RDONLY
-    if hasattr(os, "O_DIRECTORY"):
-        directory_flags |= os.O_DIRECTORY
-    if hasattr(os, "O_NOFOLLOW"):
-        directory_flags |= os.O_NOFOLLOW
+    no_follow = _required_open_flag("O_NOFOLLOW")
+    directory = _required_open_flag("O_DIRECTORY")
+    directory_flags = os.O_RDONLY | directory | no_follow
     if hasattr(os, "O_CLOEXEC"):
         directory_flags |= os.O_CLOEXEC
-    file_flags = os.O_RDONLY
-    if hasattr(os, "O_NOFOLLOW"):
-        file_flags |= os.O_NOFOLLOW
+    file_flags = os.O_RDONLY | no_follow
     if hasattr(os, "O_CLOEXEC"):
         file_flags |= os.O_CLOEXEC
     opened_directories: list[int] = []
@@ -551,6 +562,7 @@ def _observe_source_file(
         or opened.st_ino != closed.st_ino
         or opened.st_size != closed.st_size
         or opened.st_mtime_ns != closed.st_mtime_ns
+        or opened.st_ctime_ns != closed.st_ctime_ns
     ):
         raise ValidationError(
             f"source composability artifact changed while hashing: {source.locator}"
@@ -675,23 +687,94 @@ def validate_source_composability_boundary(
         )
 
 
+def _write_output_file(descriptor: int, encoded: bytes) -> None:
+    """Write and sync bytes while the caller retains descriptor ownership."""
+    with os.fdopen(descriptor, "wb", closefd=False) as handle:
+        handle.write(encoded)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _parent_entry_matches_reservation(
+    parent_descriptor: int, entry_name: str, reserved_metadata: os.stat_result
+) -> bool:
+    try:
+        observed = os.stat(
+            entry_name, dir_fd=parent_descriptor, follow_symlinks=False
+        )
+    except OSError:
+        return False
+    return (
+        stat.S_ISDIR(observed.st_mode)
+        and not stat.S_ISLNK(observed.st_mode)
+        and observed.st_dev == reserved_metadata.st_dev
+        and observed.st_ino == reserved_metadata.st_ino
+    )
+
+
 def _reserve_and_write_output(root: Path, encoded: bytes) -> None:
+    no_follow = _required_open_flag("O_NOFOLLOW")
+    directory = _required_open_flag("O_DIRECTORY")
+    close_on_exec = getattr(os, "O_CLOEXEC", 0)
     root.parent.mkdir(parents=True, exist_ok=True)
+    parent_descriptor: int | None = None
+    reserved_descriptor: int | None = None
+    output_descriptor: int | None = None
     try:
-        root.mkdir()
-    except FileExistsError as exc:
-        raise ValidationError("source composability output already exists") from exc
-    except OSError as exc:
-        raise ValidationError(
-            "source composability output could not be reserved"
-        ) from exc
-    try:
-        with (root / "source-composability-evaluation.json").open("xb") as handle:
-            handle.write(encoded)
+        parent_descriptor = os.open(
+            root.parent,
+            os.O_RDONLY | directory | no_follow | close_on_exec,
+        )
+        try:
+            os.mkdir(root.name, dir_fd=parent_descriptor)
+        except FileExistsError as exc:
+            raise ValidationError(
+                "source composability output already exists"
+            ) from exc
+        reserved_descriptor = os.open(
+            root.name,
+            os.O_RDONLY | directory | no_follow | close_on_exec,
+            dir_fd=parent_descriptor,
+        )
+        reserved_metadata = os.fstat(reserved_descriptor)
+        if not stat.S_ISDIR(reserved_metadata.st_mode):
+            raise ValidationError(
+                "source composability reserved output is not a directory"
+            )
+        os.fsync(parent_descriptor)
+
+        output_descriptor = os.open(
+            "source-composability-evaluation.json",
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow | close_on_exec,
+            0o644,
+            dir_fd=reserved_descriptor,
+        )
+        _write_output_file(output_descriptor, encoded)
+        os.close(output_descriptor)
+        output_descriptor = None
+        os.fsync(reserved_descriptor)
+        os.fsync(parent_descriptor)
+
+        if not _parent_entry_matches_reservation(
+            parent_descriptor, root.name, reserved_metadata
+        ):
+            raise ValidationError(
+                "source composability output parent entry no longer names the "
+                "reserved non-symlink directory"
+            )
+    except ValidationError:
+        raise
     except OSError as exc:
         raise ValidationError(
             "source composability output write failed after fail-closed reservation"
         ) from exc
+    finally:
+        if output_descriptor is not None:
+            os.close(output_descriptor)
+        if reserved_descriptor is not None:
+            os.close(reserved_descriptor)
+        if parent_descriptor is not None:
+            os.close(parent_descriptor)
 
 
 def create_source_composability_evaluation(
