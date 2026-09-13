@@ -134,6 +134,11 @@ materialization receipt, and family CSV from current local bytes. Without that
 receipt, execution keeps the dependency status visibly declared-only. Either
 path proves local byte identity, not chronology, executor independence,
 scientific-gate success, or validity of the underlying tests.
+Replication-package verification preserves that ceiling in exported metadata:
+the packaged `workflow_materialization_verification` must remain
+non-evidentiary and non-interpretive, match exactly one packaged family artifact,
+retain source receipt and p-value-selector hashes, and keep the explicit
+local-byte-chain limitation notice.
 
 `analysis run-draft` and canonical run intake accept these frozen workflow-step
 receipts through the same verified handoff boundary used for primary estimates.

@@ -74,6 +74,15 @@ _MEASUREMENT_CUSTODY_SCOPE = (
     "raw-source, transformation implementation, derived-output, and "
     "supporting-evidence bytes under the supplied local artifact root"
 )
+_WORKFLOW_MATERIALIZATION_SCOPE = (
+    "Holm-family materialization from pinned source execution receipts and "
+    "registered p-value selectors"
+)
+_WORKFLOW_MATERIALIZATION_NOTICE = (
+    "Verifies local source receipt/result bytes and registered p-value selectors; "
+    "it does not authenticate chronology, executors, scientific gates, or source "
+    "data truth."
+)
 
 _STRUCTURED_RESULT_DETAIL_KEYS = {
     "bounded_negative_search_results",
@@ -843,6 +852,234 @@ def _validate_packaged_protected_dataset_verification(
     elif condition_receipt is not None:
         raise ValidationError(
             f"package dataset {dataset_id} contains unexpected ethics condition verification"
+        )
+
+
+def _validate_packaged_workflow_materialization_verification(
+    *,
+    protocol: ExperimentProtocol,
+    dataset: DatasetManifest,
+    locator_policy: str,
+) -> None:
+    metadata = dataset.metadata
+    dataset_id = dataset.dataset_id
+    if "workflow_materialization" in metadata:
+        raise ValidationError(
+            f"package dataset {dataset_id} retains raw workflow_materialization input"
+        )
+    receipt = metadata.get("workflow_materialization_verification")
+    if receipt is None:
+        return
+    if not isinstance(receipt, dict):
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow_materialization_verification must be an object"
+        )
+    if set(receipt) != {
+        "verification_version",
+        "verified_at",
+        "verified_by",
+        "status",
+        "protocol_id",
+        "protocol_hash",
+        "family_step_id",
+        "family_id",
+        "dependency_manifest",
+        "materialization",
+        "output",
+        "verified_sources",
+        "scope",
+        "scientific_evidence_eligible",
+        "scientific_interpretation_verified",
+        "notice",
+    }:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization verification fields do not match the contract"
+        )
+    if receipt.get("verification_version") != 1:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization verification version is unsupported"
+        )
+    _validate_package_timestamp(
+        receipt.get("verified_at"),
+        f"package dataset {dataset_id} workflow materialization verification time",
+    )
+    require_canonical_text(
+        receipt.get("verified_by"),
+        f"package dataset {dataset_id} workflow materialization verifier",
+    )
+    if receipt.get("status") != "workflow_materialization_verified":
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization status changed"
+        )
+    if (
+        receipt.get("protocol_id") != protocol.protocol_id
+        or receipt.get("protocol_hash") != protocol.protocol_hash
+    ):
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization verification does not match the protocol"
+        )
+    require_canonical_text(
+        receipt.get("family_step_id"),
+        f"package dataset {dataset_id} workflow materialization family_step_id",
+    )
+    require_canonical_text(
+        receipt.get("family_id"),
+        f"package dataset {dataset_id} workflow materialization family_id",
+    )
+    if receipt.get("scope") != _WORKFLOW_MATERIALIZATION_SCOPE:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization scope changed"
+        )
+    if receipt.get("scientific_evidence_eligible") is not False:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization must remain non-evidentiary"
+        )
+    if receipt.get("scientific_interpretation_verified") is not False:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization must remain non-interpretive"
+        )
+    if receipt.get("notice") != _WORKFLOW_MATERIALIZATION_NOTICE:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization notice changed"
+        )
+
+    dependency_manifest = receipt.get("dependency_manifest")
+    if not isinstance(dependency_manifest, dict) or set(dependency_manifest) != {
+        "artifact_root",
+        "locator",
+        "sha256",
+    }:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization dependency_manifest fields changed"
+        )
+    _validate_packaged_root(
+        dependency_manifest.get("artifact_root"),
+        f"package dataset {dataset_id} workflow materialization dependency_manifest artifact_root",
+        locator_policy,
+    )
+    _validate_packaged_root(
+        dependency_manifest.get("locator"),
+        f"package dataset {dataset_id} workflow materialization dependency_manifest locator",
+        locator_policy,
+    )
+    require_sha256(
+        dependency_manifest.get("sha256"),
+        f"package dataset {dataset_id} workflow materialization dependency_manifest sha256",
+    )
+
+    materialization = receipt.get("materialization")
+    if not isinstance(materialization, dict) or set(materialization) != {
+        "artifact_root",
+        "receipt_sha256",
+    }:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization fields changed"
+        )
+    _validate_packaged_root(
+        materialization.get("artifact_root"),
+        f"package dataset {dataset_id} workflow materialization artifact_root",
+        locator_policy,
+    )
+    require_sha256(
+        materialization.get("receipt_sha256"),
+        f"package dataset {dataset_id} workflow materialization receipt_sha256",
+    )
+
+    output = receipt.get("output")
+    if not isinstance(output, dict) or set(output) != {
+        "locator",
+        "sha256",
+        "size_bytes",
+        "row_count",
+    }:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization output fields changed"
+        )
+    output_locator = _validate_packaged_root(
+        output.get("locator"),
+        f"package dataset {dataset_id} workflow materialization output locator",
+        locator_policy,
+    )
+    output_sha256 = require_sha256(
+        output.get("sha256"),
+        f"package dataset {dataset_id} workflow materialization output sha256",
+    )
+    output_size = output.get("size_bytes")
+    if isinstance(output_size, bool) or not isinstance(output_size, int) or output_size < 0:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization output size is invalid"
+        )
+    row_count = output.get("row_count")
+    if isinstance(row_count, bool) or not isinstance(row_count, int) or row_count < 1:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization row_count is invalid"
+        )
+    matching_artifacts = [
+        artifact for artifact in dataset.artifacts if artifact.sha256 == output_sha256
+    ]
+    if len(matching_artifacts) != 1:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization output must match exactly one packaged artifact"
+        )
+    artifact = matching_artifacts[0]
+    if output_locator != artifact.locator:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization output locator no longer matches the packaged artifact"
+        )
+    if artifact.size_bytes is not None and artifact.size_bytes != output_size:
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization output size no longer matches the packaged artifact"
+        )
+
+    sources = receipt.get("verified_sources")
+    if (
+        not isinstance(sources, list)
+        or len(sources) != row_count
+        or not all(isinstance(item, dict) for item in sources)
+    ):
+        raise ValidationError(
+            f"package dataset {dataset_id} workflow materialization verified_sources changed"
+        )
+    source_step_ids: set[str] = set()
+    for index, source in enumerate(sources):
+        if set(source) != {
+            "source_step_id",
+            "receipt_sha256",
+            "result_sha256",
+            "p_value_path",
+            "p_value_sha256",
+        }:
+            raise ValidationError(
+                f"package dataset {dataset_id} workflow materialization source fields changed"
+            )
+        source_step_id = require_canonical_text(
+            source.get("source_step_id"),
+            f"package dataset {dataset_id} workflow materialization source {index} source_step_id",
+        )
+        if source_step_id in source_step_ids:
+            raise ValidationError(
+                f"package dataset {dataset_id} workflow materialization repeats a source step"
+            )
+        source_step_ids.add(source_step_id)
+        require_sha256(
+            source.get("receipt_sha256"),
+            f"package dataset {dataset_id} workflow materialization source {index} receipt_sha256",
+        )
+        require_sha256(
+            source.get("result_sha256"),
+            f"package dataset {dataset_id} workflow materialization source {index} result_sha256",
+        )
+        p_value_path = require_canonical_text(
+            source.get("p_value_path"),
+            f"package dataset {dataset_id} workflow materialization source {index} p_value_path",
+        )
+        if not p_value_path.startswith("/"):
+            raise ValidationError(
+                f"package dataset {dataset_id} workflow materialization p_value_path must be an absolute JSON Pointer"
+            )
+        require_sha256(
+            source.get("p_value_sha256"),
+            f"package dataset {dataset_id} workflow materialization source {index} p_value_sha256",
         )
 
 
@@ -2939,6 +3176,11 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                     dataset=dataset,
                     locator_policy=manifest["artifact_locator_policy"],
                     ethics_events_by_id=ethics_events_by_id,
+                )
+                _validate_packaged_workflow_materialization_verification(
+                    protocol=protocol,
+                    dataset=dataset,
+                    locator_policy=manifest["artifact_locator_policy"],
                 )
                 if manifest.get("artifact_locator_policy") == "included":
                     validate_dataset_payload_commitment(dataset)

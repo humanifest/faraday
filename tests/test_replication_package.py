@@ -446,6 +446,66 @@ def _refresh_packaged_file(package: Path, name: str) -> str:
     return hashlib.sha256(manifest_path.read_bytes()).hexdigest()
 
 
+def _packaged_workflow_materialization_verification(
+    *,
+    protocol_id: str,
+    protocol_hash: str,
+    output_artifact: dict,
+) -> dict:
+    return {
+        "verification_version": 1,
+        "verified_at": "2026-09-06T12:00:00Z",
+        "verified_by": "test",
+        "status": "workflow_materialization_verified",
+        "protocol_id": protocol_id,
+        "protocol_hash": protocol_hash,
+        "family_step_id": "holm-family",
+        "family_id": "confirmatory-family",
+        "dependency_manifest": {
+            "artifact_root": "[redacted: obtain from authorized source]",
+            "locator": "[redacted: obtain from authorized source]",
+            "sha256": "1" * 64,
+        },
+        "materialization": {
+            "artifact_root": "[redacted: obtain from authorized source]",
+            "receipt_sha256": "2" * 64,
+        },
+        "output": {
+            "locator": output_artifact["locator"],
+            "sha256": output_artifact["sha256"],
+            "size_bytes": 17,
+            "row_count": 2,
+        },
+        "verified_sources": [
+            {
+                "source_step_id": "test-a",
+                "receipt_sha256": "3" * 64,
+                "result_sha256": "4" * 64,
+                "p_value_path": "/p_value",
+                "p_value_sha256": "5" * 64,
+            },
+            {
+                "source_step_id": "test-b",
+                "receipt_sha256": "6" * 64,
+                "result_sha256": "7" * 64,
+                "p_value_path": "/p_value",
+                "p_value_sha256": "8" * 64,
+            },
+        ],
+        "scope": (
+            "Holm-family materialization from pinned source execution receipts "
+            "and registered p-value selectors"
+        ),
+        "scientific_evidence_eligible": False,
+        "scientific_interpretation_verified": False,
+        "notice": (
+            "Verifies local source receipt/result bytes and registered p-value selectors; "
+            "it does not authenticate chronology, executors, scientific gates, or "
+            "source data truth."
+        ),
+    }
+
+
 def _add_packaged_decoy_output(runs: list[dict], sha256: str = "f" * 64) -> None:
     runs[0]["output_artifacts"].append({
         "locator": "[redacted: obtain from authorized source]",
@@ -1221,6 +1281,108 @@ def test_replication_package_replays_portable_protected_dataset_verification(
 
     with pytest.raises(ValidationError, match=message):
         verify_replication_package(package, commitment)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("valid", ""),
+        ("evidence_overclaim", "non-evidentiary"),
+        ("interpretive_overclaim", "non-interpretive"),
+        ("notice_overclaim", "notice changed"),
+        ("output_digest_mismatch", "exactly one packaged artifact"),
+        ("raw_input_retained", "raw workflow_materialization input"),
+        ("relative_p_value_path", "absolute JSON Pointer"),
+    ],
+)
+def test_replication_package_replays_workflow_materialization_verification(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path / "workspace"), actor="test")
+    service.init_workspace()
+    service.create_inquiry(CreateInquiry("Test", "Question", "test"))
+    hypothesis = service.propose_hypothesis(ProposeHypothesis(
+        statement="Statement",
+        observable_prediction="Prediction",
+        null_model="Null",
+        falsification_conditions=["Failure"],
+    ))
+    service.activate_hypothesis(hypothesis.hypothesis_id)
+    protocol = service.create_protocol(CreateProtocol(
+        experiment_id="test",
+        title="Test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis.hypothesis_id],
+        primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL,
+        methodology="Method",
+        quality_requirements=["gate"],
+        controls=["control"],
+        expected_outputs=["output"],
+        success_conditions=["success"],
+        environment_requirements=["environment"],
+        sample_size_or_stopping_rule="one",
+        failure_conditions=["failure"],
+        safety_constraints=["safe"],
+        analysis_code_hash="a" * 64,
+    ))
+    frozen = service.freeze_protocol(protocol.protocol_id)
+    service.register_dataset(RegisterDataset(
+        name="Synthetic materialized Holm family",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("holm-family.csv", "d" * 64)],
+        protocol_id=frozen.protocol_id,
+        synthetic=True,
+        quality_attestations=["Synthetic package fixture."],
+        metadata={
+            "source_authority": {
+                "source_type": "synthetic_fixture",
+                "source_name": "Synthetic workflow-materialization fixture",
+            }
+        },
+    ))
+    exported = service.export_replication_package(
+        frozen.protocol_id,
+        str(tmp_path / "package"),
+    )
+    package = tmp_path / "package"
+    datasets_path = package / "datasets.json"
+    datasets = json.loads(datasets_path.read_text())
+    dataset = datasets[0]
+    dataset.setdefault("metadata", {})[
+        "workflow_materialization_verification"
+    ] = _packaged_workflow_materialization_verification(
+        protocol_id=frozen.protocol_id,
+        protocol_hash=frozen.protocol_hash,
+        output_artifact=dataset["artifacts"][0],
+    )
+    receipt = dataset["metadata"]["workflow_materialization_verification"]
+    if mutation == "evidence_overclaim":
+        receipt["scientific_evidence_eligible"] = True
+    elif mutation == "interpretive_overclaim":
+        receipt["scientific_interpretation_verified"] = True
+    elif mutation == "notice_overclaim":
+        receipt["notice"] = "This verifies the scientific result."
+    elif mutation == "output_digest_mismatch":
+        receipt["output"]["sha256"] = "e" * 64
+    elif mutation == "raw_input_retained":
+        dataset["metadata"]["workflow_materialization"] = {
+            "dependency_manifest": {},
+            "materialization": {},
+        }
+    elif mutation == "relative_p_value_path":
+        receipt["verified_sources"][0]["p_value_path"] = "p_value"
+    datasets_path.write_text(json.dumps(datasets, indent=2, sort_keys=True) + "\n")
+    commitment = _refresh_packaged_file(package, "datasets.json")
+
+    if mutation == "valid":
+        verified = verify_replication_package(package, commitment)
+        assert verified["package_manifest_sha256"] == commitment
+    else:
+        with pytest.raises(ValidationError, match=message):
+            verify_replication_package(package, commitment)
 
 
 def test_redacted_replication_package_allows_multiple_artifacts(

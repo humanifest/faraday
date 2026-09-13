@@ -768,7 +768,12 @@ materialization receipt, and family CSV before recording its dependency status
 as source-receipts replayed. Datasets without that retained verification remain
 explicitly declared-only. Independent chronology anchoring, executor
 authentication, and scientific-gate adjudication remain separate enforcement
-layers.
+layers. Replication-package verification now replays the exported
+`workflow_materialization_verification` contract as bounded package metadata:
+it must stay non-evidentiary and non-interpretive, match one packaged dataset
+artifact, retain source receipt and p-value-selector hashes, and preserve the
+local-byte-chain limitation notice rather than becoming a scientific-success
+claim.
 Canonical run drafting and intake now understand confirmatory-test and
 multiplicity receipts. Intake revalidates the frozen step and local bytes, then
 requires exact agreement among the handoff, submitted protocol, sole dataset,

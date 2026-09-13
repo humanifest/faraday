@@ -121,7 +121,12 @@ p-values, materialization receipt, and registered family CSV before accepting th
 input. Otherwise it remains explicit that dependencies are declared but not
 execution-verified. The paired materialization and execution receipts establish
 a local byte chain; they do not authenticate chronology, executors, scientific
-gates, or the truth of source observations.
+gates, or the truth of source observations. Replication-package verification
+retains that same boundary across redacted exports: packaged workflow
+materialization metadata must keep its exact non-evidence, non-interpretive
+scope, match one packaged dataset artifact, preserve the source receipt and
+p-value-selector hashes, and continue carrying the explicit local-byte-chain
+limitations.
 
 Executable measurement definitions now freeze canonical measurement IDs,
 registered targets, observable semantics, parameter bindings, temporal roles,
