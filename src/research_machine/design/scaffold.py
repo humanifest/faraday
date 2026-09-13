@@ -907,7 +907,7 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "CLAIM_BOUNDARIES_UNRESOLVED",
             "warning",
             "The guided design has no explicit claim-level boundary proposals.",
-            "Separate observation, measurement-validity, association, causal-direction, mechanism, adaptation, attribution/intent, robustness, and other claims before review.",
+            "Separate observation, measurement-validity, association, causal-direction, mechanism, adaptation, attribution/intent, legal characterization, robustness, and other claims before review.",
         )
     if any(
         item["statement"] != item["statement"].strip()

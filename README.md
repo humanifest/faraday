@@ -641,7 +641,7 @@ Missing boundaries remain warnings; duplicate boundary statements are rejected;
 and padded
 statements or scopes block readiness before review artifacts can blur
 measurement-validity, association, causal, mechanism, adaptation, attribution,
-intent, robustness, or other claims. Guided briefs can also preserve
+intent, legal characterization, robustness, or other claims. Guided briefs can also preserve
 available data sources, unavailable or out-of-scope data, data access owner,
 access constraints, and a source-provenance plan in
 `data-availability-draft.json` and the collection plan. Missing source,

@@ -15,7 +15,8 @@ canonical write path.
    available data, ethical constraints, and what observation would change the
    user's mind.
 5. Separate observation from statistical association, causality, mechanism,
-   adaptation, attribution, and intent by creating claim-level nodes.
+   adaptation, attribution, intent, and legal characterization by creating
+   claim-level nodes.
 
 ## Hypotheses
 

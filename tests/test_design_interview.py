@@ -61,11 +61,13 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
             "Stop if the registered falsifier appears; continue if validity is consistent",
             "greenhouse-owner",
             "Is baseline imbalance still plausible?; Can sensor drift explain the result?",
-            "The height measurement is usable; Blue light is associated with height",
+            "The height measurement is usable; Blue light is associated with height; Any legal characterization remains separate",
             "measurement_validity",
             "Registered ruler measurement only",
             "statistical_association",
             "This greenhouse dataset and contrast only",
+            "legal_characterization",
+            "Only after independent legal and evidentiary review",
             "no",
             "greenhouse height CSV; masking log",
             "no baseline tray photograph",
@@ -123,6 +125,11 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
             "statement": "Blue light is associated with height",
             "level": "statistical_association",
             "scope": "This greenhouse dataset and contrast only",
+        },
+        {
+            "statement": "Any legal characterization remains separate",
+            "level": "legal_characterization",
+            "scope": "Only after independent legal and evidentiary review",
         },
     ]
     assert result["brief"]["available_data_sources"] == [

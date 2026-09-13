@@ -1014,6 +1014,11 @@ def test_scaffold_preserves_claim_level_boundaries():
                 "level": "statistical_association",
                 "scope": "This dataset and contrast only.",
             },
+            {
+                "statement": "The result has a legal characterization.",
+                "level": "legal_characterization",
+                "scope": "Only after independent legal and evidentiary review.",
+            },
         ],
     }
 
@@ -1023,6 +1028,9 @@ def test_scaffold_preserves_claim_level_boundaries():
     assert draft["claims"] == brief["claim_boundaries"]
     assert "do not accept" in draft["notice"]
     assert "Claim-level boundaries: measurement_validity" in result[
+        "artifacts"
+    ]["collection-plan.md"]
+    assert "legal_characterization: The result has a legal characterization." in result[
         "artifacts"
     ]["collection-plan.md"]
     codes = {item["code"] for item in result["findings"]}

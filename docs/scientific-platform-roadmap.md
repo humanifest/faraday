@@ -551,10 +551,11 @@ reviewed scientific judgment.
 Known scientific claim levels now also enforce an inferential dependency
 direction: a claim may depend on lower or same-level parents, but a
 measurement-validity, association, causal-direction, robustness, mechanism,
-adaptation, or attribution/intent claim cannot depend on a higher-inference
-parent. Canonical claim creation and inquiry reads fail closed on inverted
-dependencies, and rigor flags legacy or externally modified inversions so a
-stronger conclusion cannot become hidden support for a lower-level assertion.
+adaptation, attribution/intent, or legal-characterization claim cannot depend on
+a higher-inference parent. Canonical claim creation and inquiry reads fail
+closed on inverted dependencies, and rigor flags legacy or externally modified
+inversions so a stronger conclusion cannot become hidden support for a
+lower-level assertion.
 
 Causal-identification audit delivery: provider-free `design identify` accepts a
 typed DAG, exposure, outcome, assignment type, observed/unobserved declarations,
@@ -954,8 +955,8 @@ as unresolved canonical claims through the application service. Missing
 boundaries remain visible warnings, duplicate boundary statements are rejected,
 padded statements or scopes block readiness, and the draft keeps
 measurement-validity, association, causal, mechanism, adaptation,
-attribution/intent, robustness, and other claims separate before review instead
-of allowing favorable results to launder a stronger
+attribution/intent, legal-characterization, robustness, and other claims
+separate before review instead of allowing favorable results to launder a stronger
 interpretation.
 Guided data-availability delivery: JSON briefs and the provider-free interview
 can now preserve declared available data sources, unavailable or out-of-scope
