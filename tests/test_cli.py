@@ -285,6 +285,160 @@ def test_json_cli_records_cross_lane_lesson(tmp_path: Path, capsys) -> None:
     assert lesson["first_permitted_future_versions"] == ["machine-v2"]
 
 
+def test_json_cli_records_and_replays_verified_local_cross_lane_lesson(
+    tmp_path: Path, capsys
+) -> None:
+    workspace = tmp_path / "workspace"
+    global_args = ["--workspace", str(workspace), "--json"]
+    assert main([*global_args, "workspace", "init"]) == 0
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "inquiry",
+                "create",
+                "--id",
+                "local-custody",
+                "--title",
+                "Local custody",
+                "--statement",
+                "Can a locally verified failure safely inform later machine work?",
+            ]
+        )
+        == 0
+    )
+    result_from(capsys)
+    artifact_root = tmp_path / "artifacts"
+    artifact = artifact_root / "results" / "failed-control.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(b'{"status":"failed","control":"fixture"}\n')
+    artifact_sha256 = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    spec = tmp_path / "verified-local-lesson.json"
+    spec.write_text(
+        json.dumps(
+            {
+                "origin_lane_id": "science",
+                "target_lane_ids": ["machine"],
+                "origin_artifact_locator": "results/failed-control.json",
+                "origin_artifact_sha256": artifact_sha256,
+                "origin_integrity_status": "verified_local",
+                "origin_artifact_root": str(artifact_root),
+                "observation": "A local control omitted its evaluation time.",
+                "failure_class": "interface_ambiguity",
+                "strongest_alternative_explanation": (
+                    "The implementation may be defective."
+                ),
+                "challenged_invariant": "Every target is reproducibly defined.",
+                "first_permitted_future_versions": ["machine-v2"],
+                "prohibited_retroactive_targets": ["machine-v1"],
+                "proposed_repair": "Require a typed evaluation time.",
+                "repair_falsifier": "An omitted-time fixture is accepted.",
+                "conclusion_ceiling": "Process lesson only.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                *global_args,
+                "cross-lane-lesson",
+                "record",
+                "--spec-file",
+                str(spec),
+            ]
+        )
+        == 0
+    )
+    recorded = result_from(capsys)
+    assert recorded["origin_artifact_root"] == str(artifact_root.resolve())
+    assert recorded["origin_artifact_integrity"]["status"] == "passed"
+    assert recorded["origin_artifact_integrity"]["all_artifacts_match"] is True
+    assert len(recorded["lesson_payload_sha256"]) == 64
+
+    assert main([*global_args, "cross-lane-lesson", "list"]) == 0
+    replayed = result_from(capsys)[0]
+    assert replayed["origin_artifact_integrity"] == recorded[
+        "origin_artifact_integrity"
+    ]
+    assert replayed["lesson_payload_sha256"] == recorded["lesson_payload_sha256"]
+
+    artifact.write_bytes(b'{"status":"passed","control":"fixture"}\n')
+    assert main([*global_args, "cross-lane-lesson", "list"]) == 2
+    error = json.loads(capsys.readouterr().err)
+    assert "current origin artifact bytes" in error["error"]["message"]
+
+
+def test_json_cli_rejects_verified_local_cross_lane_lesson_with_missing_root(
+    tmp_path: Path, capsys
+) -> None:
+    workspace = tmp_path / "workspace"
+    global_args = ["--workspace", str(workspace), "--json"]
+    assert main([*global_args, "workspace", "init"]) == 0
+    result_from(capsys)
+    assert (
+        main(
+            [
+                *global_args,
+                "inquiry",
+                "create",
+                "--id",
+                "missing-root",
+                "--title",
+                "Missing root",
+                "--statement",
+                "Can unresolvable local custody be rejected?",
+            ]
+        )
+        == 0
+    )
+    result_from(capsys)
+    spec = tmp_path / "missing-root-lesson.json"
+    spec.write_text(
+        json.dumps(
+            {
+                "origin_lane_id": "science",
+                "target_lane_ids": ["machine"],
+                "origin_artifact_locator": "results/missing.json",
+                "origin_artifact_sha256": "a" * 64,
+                "origin_integrity_status": "verified_local",
+                "origin_artifact_root": str(tmp_path / "missing-artifacts"),
+                "observation": "A local control could not be resolved.",
+                "failure_class": "infrastructure_failure",
+                "strongest_alternative_explanation": (
+                    "The artifact root may have been declared incorrectly."
+                ),
+                "challenged_invariant": "Every local origin remains available.",
+                "first_permitted_future_versions": ["machine-v2"],
+                "prohibited_retroactive_targets": ["machine-v1"],
+                "proposed_repair": "Require a resolvable artifact root.",
+                "repair_falsifier": "A missing artifact root is accepted.",
+                "conclusion_ceiling": "Process lesson only.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                *global_args,
+                "cross-lane-lesson",
+                "record",
+                "--spec-file",
+                str(spec),
+            ]
+        )
+        == 2
+    )
+    error = json.loads(capsys.readouterr().err)
+    assert "requires current origin artifact bytes to match" in error["error"]["message"]
+    assert main([*global_args, "cross-lane-lesson", "list"]) == 0
+    assert result_from(capsys) == []
+
+
 def test_json_cli_accepts_structured_hypothesis_proposals(
     tmp_path: Path, capsys
 ) -> None:

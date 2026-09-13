@@ -249,6 +249,7 @@ _CROSS_LANE_LESSON_SPEC_FIELDS = {
     "origin_artifact_locator",
     "origin_artifact_sha256",
     "origin_integrity_status",
+    "origin_artifact_root",
     "observation",
     "failure_class",
     "strongest_alternative_explanation",
