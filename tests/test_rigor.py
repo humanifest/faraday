@@ -1521,6 +1521,123 @@ def test_audit_flags_missing_protected_dataset_measurement_custody() -> None:
     assert "measurement custody: service-verified" in verified_synthesis
 
 
+def test_audit_flags_missing_protected_dataset_source_authority() -> None:
+    from test_ethics_gate import _human_protocol
+
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        status=ProtocolStatus.FROZEN,
+        protocol_hash="c" * 64,
+    )
+    dataset = DatasetManifest(
+        dataset_id="source-route-missing-observations",
+        name="Source-route missing observations",
+        role=DatasetRole.CONFIRMATORY,
+        created_at="2026-09-02T12:00:00Z",
+        artifacts=[DatasetArtifact("observations.csv", "a" * 64)],
+        protocol_id=protocol.protocol_id,
+        synthetic=False,
+        metadata={
+            "dataset_artifact_verification": {
+                "artifact_integrity": {
+                    "status": "passed",
+                    "all_artifacts_match": True,
+                }
+            }
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Dataset source route audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[dataset],
+        protocols=[protocol],
+        runs=[],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "PROTECTED_DATASET_SOURCE_AUTHORITY_NOT_RECORDED"
+    )
+    assert finding.severity is RigorSeverity.WARNING
+    assert finding.entity_id == dataset.dataset_id
+    assert "plugin access, connector access, or dataset role" in finding.remediation
+
+    sourced_dataset = replace(
+        dataset,
+        metadata={
+            **dataset.metadata,
+            "source_authority": {
+                "source_type": "scientific_connector",
+                "source_name": "Registry connector fixture",
+                "source_record_id": "registry-record-1",
+                "retrieved_or_collected_at": "2026-09-02T11:00:00Z",
+                "limitations": ["Connector retrieval fixture only."],
+            },
+        },
+    )
+    sourced_audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[sourced_dataset],
+        protocols=[protocol],
+        runs=[],
+    )
+    assert "PROTECTED_DATASET_SOURCE_AUTHORITY_NOT_RECORDED" not in {
+        item.code for item in sourced_audit.findings
+    }
+
+
+def test_audit_flags_invalid_dataset_source_authority() -> None:
+    dataset = DatasetManifest(
+        dataset_id="invalid-source-route",
+        name="Invalid source route",
+        role=DatasetRole.EXPLORATORY,
+        created_at="2026-09-02T12:00:00Z",
+        artifacts=[DatasetArtifact("observations.csv", "a" * 64)],
+        synthetic=False,
+        metadata={
+            "source_authority": {
+                "source_type": "scientific_connector",
+                "source_name": "Registry connector fixture",
+                "source_truth_verified": True,
+            },
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Dataset source route audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[dataset],
+        protocols=[],
+        runs=[],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "DATASET_SOURCE_AUTHORITY_INVALID"
+    )
+    assert finding.severity is RigorSeverity.ERROR
+    assert finding.entity_id == dataset.dataset_id
+    assert "source_truth_verified must be false" in finding.remediation
+
+
 def test_audit_flags_missing_human_subject_dataset_ethics_checks() -> None:
     from test_ethics_gate import _human_protocol
 

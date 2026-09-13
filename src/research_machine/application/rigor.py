@@ -14,6 +14,9 @@ from research_machine.application.claim_integrity import claim_level_rank
 from research_machine.application.audit_prerequisite import (
     verify_action_audit_prerequisite,
 )
+from research_machine.application.dataset_source_authority import (
+    validate_dataset_source_authority,
+)
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.domain.models import (
     AnalysisMode,
@@ -753,8 +756,44 @@ def audit_research_state(
     dataset_by_id = {item.dataset_id: item for item in datasets}
     protected_dataset_roles = {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
     for dataset in datasets:
+        if "source_authority" in dataset.metadata:
+            try:
+                validate_dataset_source_authority(
+                    dataset.metadata["source_authority"],
+                    synthetic=dataset.synthetic,
+                )
+            except ResearchMachineError as exc:
+                add(
+                    "DATASET_SOURCE_AUTHORITY_INVALID",
+                    RigorSeverity.ERROR,
+                    "Dataset source-authority metadata no longer satisfies the bounded source-route contract.",
+                    entity_type="dataset",
+                    entity_id=dataset.dataset_id,
+                    remediation=(
+                        "Do not use this dataset for scientific interpretation until "
+                        "the canonical service can replay its source route without "
+                        f"upgrading authority: {exc}"
+                    ),
+                )
         if dataset.role not in protected_dataset_roles:
             continue
+        if (
+            not dataset.synthetic
+            and "source_authority" not in dataset.metadata
+        ):
+            add(
+                "PROTECTED_DATASET_SOURCE_AUTHORITY_NOT_RECORDED",
+                RigorSeverity.WARNING,
+                "Protected non-synthetic dataset lacks typed source-route authority metadata.",
+                entity_type="dataset",
+                entity_id=dataset.dataset_id,
+                remediation=(
+                    "Record the bounded source route for future protected datasets "
+                    "through canonical dataset registration; artifact hashes, plugin "
+                    "access, connector access, or dataset role do not establish source "
+                    "truth, custody, consent, or evidence eligibility."
+                ),
+            )
         if not dataset.protocol_id:
             add(
                 "PROTECTED_DATASET_PROTOCOL_MISSING",

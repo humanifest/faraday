@@ -2336,10 +2336,13 @@ gate evidence.
   such as a registered experiment, acquisition add-on, scientific connector,
   manual import, external attestation, or synthetic fixture, and the service
   rejects attempts to treat that route as verified truth, custody, or evidence
-  eligibility. Run intake replays the same source-authority boundary for every
-  selected dataset and protected lineage ancestor before a dataset can be used,
-  and evidence admission replays the cited dataset or every run dataset before
-  accepting or replaying dataset-backed evidence.
+  eligibility. The rigor audit flags malformed source-authority metadata as an
+  error and warns when a non-synthetic protected dataset lacks a typed source
+  route, so connector or experiment provenance gaps remain visible even when
+  other byte-level checks pass. Run intake replays the same source-authority
+  boundary for every selected dataset and protected lineage ancestor before a
+  dataset can be used, and evidence admission replays the cited dataset or every
+  run dataset before accepting or replaying dataset-backed evidence.
   Empty inventories explicitly say that draft data-source mentions, plugin
   access, and design briefs are not registered datasets. The published schema at
   `schemas/dataset-inventory.schema.json` lets provider-neutral clients

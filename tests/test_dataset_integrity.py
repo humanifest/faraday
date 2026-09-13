@@ -221,6 +221,13 @@ def test_synthesis_reports_registered_dataset_inventory_without_overclaiming() -
         synthetic=False,
         metadata={
             "dataset_payload_sha256": "e" * 64,
+            "source_authority": {
+                "source_type": "registered_experiment",
+                "source_name": "Inventory fixture experiment",
+                "source_record_id": "inventory-fixture-1",
+                "retrieved_or_collected_at": "2026-09-10T00:00:00Z",
+                "limitations": ["Synthetic software fixture only."],
+            },
             "dataset_artifact_verification": {
                 "dataset_artifact_root": "/tmp/private-observations",
                 "artifact_integrity": {
@@ -1100,6 +1107,15 @@ def test_real_protected_dataset_requires_current_registered_bytes(tmp_path: Path
         role=DatasetRole.CONFIRMATORY,
         protocol_id=protocol.protocol_id,
         artifacts=[_artifact(observations)],
+        metadata={
+            "source_authority": {
+                "source_type": "registered_experiment",
+                "source_name": "Protected observations fixture",
+                "source_record_id": "protected-observations-1",
+                "retrieved_or_collected_at": "2026-09-02T12:00:00Z",
+                "limitations": ["Synthetic software fixture only."],
+            }
+        },
     )
 
     with pytest.raises(ValidationError, match="require artifact_root"):

@@ -2849,7 +2849,11 @@ excludes draft data-source mentions, plugin access, and design briefs from the
 set of datasets Faraday has actually registered. Connector, add-on,
 experiment, import, or attestation source routes remain provenance labels only:
 they do not verify source truth, consent, custody, calibration, measurement
-validity, or evidence eligibility. This makes routine "what data do we have?"
+validity, or evidence eligibility. Rigor audit now reports malformed
+source-authority metadata as an error and warns when a non-synthetic protected
+dataset lacks a typed source route, keeping connector or experiment provenance
+gaps visible instead of letting byte-level checks imply source authority. This
+makes routine "what data do we have?"
 questions answerable from canonical state without promoting manifest
 declarations into proof of current access, source truth, consent truth,
 measurement validity, or analysis adequacy.
