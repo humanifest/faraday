@@ -769,6 +769,13 @@ review drafts, so later exact protocol commitments do not inherit a handle that
 was only apparently valid after trimming. The provider-free interview preserves
 free-text, semicolon-list boundary padding, and `name=value` binding padding for
 this audit instead of silently normalizing it away.
+Frozen measurement definitions may also carry an `alias_proxy_commitment` for
+blinded labels, redacted targets, or proxy measurements. The commitment binds the
+concealment scope, public label, private mapping SHA-256, bounded construct
+rationale, limitations, reveal conditions, and optional hidden proxy construct
+into the protocol hash. This supports secrecy and blinding without letting the
+real target or proxy meaning drift after freeze; it remains provenance and
+custody evidence, not proof that the proxy measures the hidden construct.
 Confirmatory work must also define at least one structured prospective validity
 check with its evidence type, validity claim, assessment procedure, acceptance
 criterion, failure response, and dedicated quality gate. These checks are

@@ -418,6 +418,20 @@ class DatasetManifest(Serializable):
 
 
 @dataclass(frozen=True)
+class AliasProxyCommitment(Serializable):
+    """Prospective commitment for a public alias or proxy measurement label."""
+
+    commitment_id: str
+    concealment_scope: str
+    public_label: str
+    private_mapping_sha256: str
+    construct_validity_rationale: str
+    limitations: list[str]
+    reveal_conditions: str
+    proxy_construct: str = ""
+
+
+@dataclass(frozen=True)
 class MeasurementDefinition(Serializable):
     measurement_id: str
     role: MeasurementRole
@@ -438,11 +452,21 @@ class MeasurementDefinition(Serializable):
     valid_min: float | None = None
     valid_max: float | None = None
     missing_value_codes: list[str] = field(default_factory=list)
+    alias_proxy_commitment: AliasProxyCommitment | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = super().to_dict()
+        if self.alias_proxy_commitment is None:
+            payload.pop("alias_proxy_commitment", None)
+        return payload
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "MeasurementDefinition":
         copied = dict(value)
         copied["role"] = MeasurementRole(copied["role"])
+        commitment = copied.get("alias_proxy_commitment")
+        if commitment is not None and not isinstance(commitment, AliasProxyCommitment):
+            copied["alias_proxy_commitment"] = AliasProxyCommitment(**commitment)
         return cls(**copied)
 
 

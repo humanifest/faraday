@@ -10,6 +10,7 @@ from research_machine.application.commands import CreateProtocol
 from research_machine.application.service import _protocol_commitment
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
+    AliasProxyCommitment,
     AnalysisContract, AnalysisFamilyMember, AnalysisStepContract, ConclusionContract,
     CalibrationCriterion, CanaryTargetPlan, ExperimentProtocol, MeasurementDefinition, MeasurementRole,
     MeasurementValidityCheck, EvidenceDirection, ClaimLevel,
@@ -37,6 +38,26 @@ def _analysis_measurements(primary: str, control: str) -> list[MeasurementDefini
         definition("primary-measurement", MeasurementRole.PRIMARY, primary, "all eligible rows", "outcome"),
         definition("control-measurement", MeasurementRole.CONTROL, control, "registered control rows"),
     ]
+
+
+def _alias_proxy_commitment(**overrides) -> AliasProxyCommitment:
+    values = {
+        "commitment_id": "masked-primary-map",
+        "concealment_scope": "registered_target_alias",
+        "public_label": "Registered outcome",
+        "private_mapping_sha256": "a" * 64,
+        "construct_validity_rationale": (
+            "The public label is masked before analysis while the sealed mapping "
+            "is retained for later review."
+        ),
+        "limitations": [
+            "The concealed mapping is only a byte commitment; proxy adequacy needs later review."
+        ],
+        "reveal_conditions": "Reveal under the frozen review and safety plan.",
+        "proxy_construct": "",
+    }
+    values.update(overrides)
+    return AliasProxyCommitment(**values)
 
 
 def _multi_step_protocol() -> ExperimentProtocol:
@@ -690,6 +711,94 @@ def test_measurement_contract_rejects_noncanonical_parameter_bindings(
     protocol = _human_protocol(human_subjects=False)
     measurements = _analysis_measurements(protocol.primary_outcome, protocol.controls[0])
     measurements[0] = replace(measurements[0], parameter_values=parameter_values)
+    with pytest.raises(ValidationError, match=message):
+        validate_protocol_freeze(replace(protocol, measurement_definitions=measurements))
+
+
+def test_measurement_alias_proxy_commitment_is_frozen_and_serialized() -> None:
+    protocol = _human_protocol(human_subjects=False)
+    measurements = _analysis_measurements(protocol.primary_outcome, protocol.controls[0])
+    commitment = _alias_proxy_commitment(public_label=measurements[0].registered_target)
+    committed = replace(measurements[0], alias_proxy_commitment=commitment)
+    frozen = replace(protocol, measurement_definitions=[committed, *measurements[1:]])
+    validate_protocol_freeze(frozen)
+
+    reloaded = ExperimentProtocol.from_dict(frozen.to_dict())
+
+    assert (
+        reloaded.measurement_definitions[0].alias_proxy_commitment == commitment
+    )
+    uncommitted = replace(protocol, measurement_definitions=measurements)
+    validate_protocol_freeze(uncommitted)
+    assert _protocol_commitment(frozen) != _protocol_commitment(uncommitted)
+
+
+def test_measurement_alias_proxy_commitment_allows_bounded_proxy_measurement() -> None:
+    protocol = _human_protocol(human_subjects=False)
+    measurements = _analysis_measurements(protocol.primary_outcome, protocol.controls[0])
+    proxy = replace(
+        measurements[0],
+        observable="Public proxy signal",
+        alias_proxy_commitment=_alias_proxy_commitment(
+            concealment_scope="proxy_measurement",
+            public_label="Public proxy signal",
+            proxy_construct="Concealed construct identified by the private mapping hash.",
+        ),
+    )
+
+    frozen = replace(protocol, measurement_definitions=[proxy, *measurements[1:]])
+    validate_protocol_freeze(frozen)
+
+    assert frozen.measurement_definitions[0].observable == "Public proxy signal"
+
+
+@pytest.mark.parametrize(
+    ("commitment", "message"),
+    [
+        (
+            _alias_proxy_commitment(private_mapping_sha256="g" * 64),
+            "private_mapping_sha256",
+        ),
+        (
+            _alias_proxy_commitment(public_label="Different public label"),
+            "public_label must match",
+        ),
+        (
+            _alias_proxy_commitment(concealment_scope="unknown_scope"),
+            "concealment_scope is unsupported",
+        ),
+        (
+            _alias_proxy_commitment(
+                concealment_scope="proxy_measurement",
+                public_label="Numeric synthetic outcome",
+            ),
+            "proxy_construct must identify",
+        ),
+        (
+            _alias_proxy_commitment(proxy_construct="Concealed construct"),
+            "proxy_construct is reserved",
+        ),
+        (
+            _alias_proxy_commitment(
+                construct_validity_rationale="This validates the hidden construct."
+            ),
+            "report-prohibited overclaiming language",
+        ),
+        (
+            _alias_proxy_commitment(limitations=[]),
+            "limitations must contain at least one item",
+        ),
+    ],
+)
+def test_measurement_alias_proxy_commitment_rejects_unbounded_concealment(
+    commitment, message
+) -> None:
+    protocol = _human_protocol(human_subjects=False)
+    measurements = _analysis_measurements(protocol.primary_outcome, protocol.controls[0])
+    measurements[0] = replace(
+        measurements[0], alias_proxy_commitment=commitment
+    )
+
     with pytest.raises(ValidationError, match=message):
         validate_protocol_freeze(replace(protocol, measurement_definitions=measurements))
 

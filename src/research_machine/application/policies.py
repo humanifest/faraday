@@ -44,6 +44,7 @@ from research_machine.domain.models import (
     HypothesisDiscriminationTarget,
     HypothesisWorkflowState,
     MathematicalPredicateContract,
+    AliasProxyCommitment,
     MeasurementDefinition,
     NamedComponentContract,
     MeasurementValidityCheck,
@@ -2475,6 +2476,104 @@ _CONTROL_WITNESS_COMPARATORS = {
     "gt",
     "gte",
 }
+
+_ALIAS_PROXY_SCOPES = {
+    "registered_target_alias",
+    "observable_alias",
+    "input_condition_alias",
+    "data_column_alias",
+    "value_domain_alias",
+    "proxy_measurement",
+}
+
+
+def _validate_alias_proxy_commitment(
+    *,
+    definition: MeasurementDefinition,
+    prefix: str,
+) -> None:
+    commitment = definition.alias_proxy_commitment
+    if commitment is None:
+        return
+    if not isinstance(commitment, AliasProxyCommitment):
+        raise ValidationError(
+            f"{prefix}.alias_proxy_commitment must be an AliasProxyCommitment"
+        )
+    commitment_prefix = f"{prefix}.alias_proxy_commitment"
+    commitment_id = require_canonical_text(
+        commitment.commitment_id, f"{commitment_prefix}.commitment_id"
+    )
+    if not commitment_id:
+        raise ValidationError(f"{commitment_prefix}.commitment_id must be non-empty")
+    scope = require_canonical_text(
+        commitment.concealment_scope, f"{commitment_prefix}.concealment_scope"
+    )
+    if scope not in _ALIAS_PROXY_SCOPES:
+        raise ValidationError(
+            f"{commitment_prefix}.concealment_scope is unsupported"
+        )
+    public_label = require_canonical_text(
+        commitment.public_label, f"{commitment_prefix}.public_label"
+    )
+    require_sha256(
+        commitment.private_mapping_sha256,
+        f"{commitment_prefix}.private_mapping_sha256",
+    )
+    rationale = require_canonical_bounded_report_text(
+        commitment.construct_validity_rationale,
+        f"{commitment_prefix}.construct_validity_rationale",
+    )
+    if not rationale:
+        raise ValidationError(
+            f"{commitment_prefix}.construct_validity_rationale must be non-empty"
+        )
+    require_nonempty_unique_bounded_report_text_list(
+        commitment.limitations,
+        f"{commitment_prefix}.limitations",
+    )
+    reveal_conditions = require_canonical_bounded_report_text(
+        commitment.reveal_conditions, f"{commitment_prefix}.reveal_conditions"
+    )
+    if not reveal_conditions:
+        raise ValidationError(
+            f"{commitment_prefix}.reveal_conditions must be non-empty"
+        )
+    proxy_construct = commitment.proxy_construct
+    if not isinstance(proxy_construct, str):
+        raise ValidationError(f"{commitment_prefix}.proxy_construct must be text")
+    if proxy_construct:
+        proxy_construct = require_canonical_bounded_report_text(
+            proxy_construct,
+            f"{commitment_prefix}.proxy_construct",
+        )
+    expected_labels = {
+        "registered_target_alias": {definition.registered_target},
+        "observable_alias": {definition.observable},
+        "input_condition_alias": {definition.input_condition},
+        "data_column_alias": {definition.data_column},
+        "value_domain_alias": set(definition.admissible_values),
+        "proxy_measurement": {definition.observable},
+    }[scope]
+    if not public_label or public_label not in expected_labels:
+        raise ValidationError(
+            f"{commitment_prefix}.public_label must match the frozen measurement field for its concealment_scope"
+        )
+    if scope == "data_column_alias" and not definition.data_column:
+        raise ValidationError(
+            f"{commitment_prefix}.data_column_alias requires an executable data_column"
+        )
+    if scope == "value_domain_alias" and not definition.admissible_values:
+        raise ValidationError(
+            f"{commitment_prefix}.value_domain_alias requires an admissible value domain"
+        )
+    if scope == "proxy_measurement" and not proxy_construct:
+        raise ValidationError(
+            f"{commitment_prefix}.proxy_construct must identify the hidden construct for proxy_measurement"
+        )
+    if scope != "proxy_measurement" and proxy_construct:
+        raise ValidationError(
+            f"{commitment_prefix}.proxy_construct is reserved for proxy_measurement"
+        )
 
 
 def _validate_control_witness_value(value: Any, field_name: str) -> int | float:
@@ -5476,6 +5575,7 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
         for name, value in definition.parameter_values.items():
             require_canonical_text(name, f"{prefix}.parameter_values key")
             require_canonical_text(value, f"{prefix}.parameter_values[{name!r}]")
+        _validate_alias_proxy_commitment(definition=definition, prefix=prefix)
         if (
             definition.temporal_role
             and definition.temporal_role not in MEASUREMENT_TEMPORAL_ROLES

@@ -1045,6 +1045,16 @@ columns, admissible observed values, and missing-value codes before draft
 artifacts are treated as review-ready. The provider-free interview no longer
 pre-trims those free-text, semicolon-list boundary, and parameter-binding
 commitments before this audit.
+Alias/proxy measurement commitment delivery: frozen measurement definitions can
+now carry a prospective `alias_proxy_commitment` for blinded labels, redacted
+targets, or proxy measurements. Canonical freeze validates the concealment
+scope, requires the public label to match the corresponding frozen measurement
+field, binds a private mapping SHA-256, preserves bounded construct rationale,
+limitations, reveal conditions, and the hidden proxy construct when applicable,
+and rejects unsupported scopes or overclaiming rationale. The published protocol
+schema exposes the same shape for provider-neutral clients. This allows a study
+to protect the real target while preventing post-freeze remapping; it does not
+prove proxy validity or authenticate the private mapping source.
 Prospective measurement-validity delivery: confirmatory guided designs now
 require at least one structured validity check with a stable ID, evidence type,
 specific validity claim, assessment procedure, acceptance criterion, failure

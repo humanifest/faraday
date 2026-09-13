@@ -56,6 +56,7 @@ from research_machine.measurement.custody import (
 )
 from research_machine.literature.snapshot import create_snapshot
 from research_machine.domain.models import (
+    AliasProxyCommitment,
     ControlDefinition,
     ActionCandidate,
     ActionLane,
@@ -1622,6 +1623,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
         "valid_min",
         "valid_max",
         "missing_value_codes",
+        "alias_proxy_commitment",
     }
     measurements: list[MeasurementDefinition] = []
     for value in measurement_values:
@@ -1632,6 +1634,17 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             raise ValueError(
                 "unknown measurement definition fields: " + ", ".join(unknown)
             )
+        commitment_value = value.get("alias_proxy_commitment")
+        if commitment_value is not None and not isinstance(commitment_value, dict):
+            raise ValueError("alias_proxy_commitment must be an object")
+        try:
+            alias_proxy_commitment = (
+                AliasProxyCommitment(**commitment_value)
+                if commitment_value is not None
+                else None
+            )
+        except TypeError as exc:
+            raise ValueError(f"invalid alias_proxy_commitment: {exc}") from exc
         try:
             role = MeasurementRole(value["role"])
             measurements.append(
@@ -1655,6 +1668,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
                     valid_min=value.get("valid_min"),
                     valid_max=value.get("valid_max"),
                     missing_value_codes=value.get("missing_value_codes", []),
+                    alias_proxy_commitment=alias_proxy_commitment,
                 )
             )
         except KeyError as exc:

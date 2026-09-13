@@ -842,6 +842,52 @@ def test_empirical_protocol_command_matches_published_schema():
     jsonschema.validate(command, schema)
 
 
+def test_protocol_schema_accepts_and_constrains_alias_proxy_commitments():
+    from test_protocol_design_structure import _multi_step_protocol
+    from research_machine.interfaces.cli import _PROTOCOL_FIELDS, _protocol_command
+
+    protocol = _multi_step_protocol().to_dict()
+    command = {key: value for key, value in protocol.items() if key in _PROTOCOL_FIELDS}
+    command["measurement_definitions"][0]["alias_proxy_commitment"] = {
+        "commitment_id": "masked-primary-map",
+        "concealment_scope": "registered_target_alias",
+        "public_label": command["measurement_definitions"][0]["registered_target"],
+        "private_mapping_sha256": "a" * 64,
+        "construct_validity_rationale": (
+            "The public label is masked before analysis while the sealed mapping "
+            "is retained for later review."
+        ),
+        "limitations": [
+            "The concealed mapping is only a byte commitment; proxy adequacy needs later review."
+        ],
+        "reveal_conditions": "Reveal under the frozen review and safety plan.",
+        "proxy_construct": "",
+    }
+    schema = json.loads((SCHEMAS / "protocol-command.schema.json").read_text())
+    jsonschema.validate(command, schema)
+    parsed = _protocol_command(command)
+    assert (
+        parsed.measurement_definitions[0]
+        .alias_proxy_commitment
+        .commitment_id
+        == "masked-primary-map"
+    )
+
+    malformed = deepcopy(command)
+    malformed["measurement_definitions"][0]["alias_proxy_commitment"].pop(
+        "limitations"
+    )
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(malformed, schema)
+
+    malformed_digest = deepcopy(command)
+    malformed_digest["measurement_definitions"][0]["alias_proxy_commitment"][
+        "private_mapping_sha256"
+    ] = "not-a-digest"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(malformed_digest, schema)
+
+
 def test_protocol_command_schema_accepts_apparatus_only_control_family():
     from dataclasses import replace
     from test_ethics_gate import _human_protocol
