@@ -1004,7 +1004,11 @@ Digest anchors must be duplicate-free; included locators must be duplicate-free,
 while redacted locators must use the explicit package redaction placeholder.
 This prevents a package from anchoring scientific checks to ambiguous, padded,
 or duplicated dataset or output hashes while keeping the manifest hashes self-
-consistent. Structured
+consistent. Packaged dataset source-authority metadata is replayed with the
+same bounded source-route contract used by canonical reads, so a refreshed
+package manifest cannot turn connector, add-on, experiment, import,
+attestation, or fixture provenance into source truth, custody, or evidence
+eligibility. Structured
 protocol-deviation disclosure metadata is also checked: legacy silence remains
 ineligible, explicit no-deviation declarations must retain their interpretation
 boundary, declared departures must preserve exact typed fields, and every

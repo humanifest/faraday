@@ -483,6 +483,12 @@ def test_replication_package_export_replays_current_run_commitments(
         protocol_id=frozen.protocol_id,
         synthetic=True,
         quality_attestations=["Synthetic package fixture."],
+        metadata={
+            "source_authority": {
+                "source_type": "synthetic_fixture",
+                "source_name": "Synthetic replication-package fixture",
+            }
+        },
     ))
     output = tmp_path / "result.json"
     output.write_text('{"result":"passed"}\n', encoding="utf-8")
@@ -591,6 +597,7 @@ def test_replication_verify_rejects_noncanonical_manifest_file_hash(
     "dataset_unredacted_locator", "dataset_duplicate_digest",
     "dataset_padded_locator", "dataset_bad_hash", "dataset_negative_size",
     "dataset_bad_metadata", "dataset_padded_media_type",
+    "dataset_source_authority_overclaim",
     "protocol_id_padded_everywhere", "manifest_dataset_id_padded",
     "dataset_id_padded_everywhere", "run_id_padded_everywhere",
     "run_dataset_id_padded",
@@ -623,6 +630,12 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
         protocol_id=frozen.protocol_id,
         synthetic=True,
         quality_attestations=["Synthetic package fixture."],
+        metadata={
+            "source_authority": {
+                "source_type": "synthetic_fixture",
+                "source_name": "Synthetic replication-package fixture",
+            }
+        },
     ))
     output = tmp_path / "result.json"
     output.write_text('{"result":"passed"}\n', encoding="utf-8")
@@ -919,6 +932,22 @@ def test_metadata_only_replication_package_requires_frozen_protocol(tmp_path: Pa
             artifact["metadata"] = []
         elif mutation == "dataset_padded_media_type":
             artifact["media_type"] = f" {artifact['media_type']} "
+        datasets_path.write_text(json.dumps(datasets, indent=2, sort_keys=True) + "\n")
+        manifest_path = package / "package-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["files"]["datasets.json"] = hashlib.sha256(datasets_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+        commitment = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    elif mutation == "dataset_source_authority_overclaim":
+        datasets_path = package / "datasets.json"
+        datasets = json.loads(datasets_path.read_text())
+        datasets[0].setdefault("metadata", {})["source_authority"] = {
+            "source_type": "scientific_connector",
+            "source_name": "Registry connector",
+            "source_truth_verified": False,
+            "custody_verified_by_source_authority": False,
+            "evidence_eligibility_conferred": True,
+        }
         datasets_path.write_text(json.dumps(datasets, indent=2, sort_keys=True) + "\n")
         manifest_path = package / "package-manifest.json"
         manifest = json.loads(manifest_path.read_text())

@@ -1458,7 +1458,11 @@ must be nonnegative where applicable. Digest anchors must be duplicate-free;
 included locators must be duplicate-free, while redacted locators must use the
 explicit package redaction placeholder. This prevents package-local rewrites
 from creating ambiguous dataset or output hash anchors while keeping the
-manifest internally consistent. The verifier now also replays the portable
+manifest internally consistent. Packaged dataset source-authority metadata is
+replayed under the same bounded source-route contract used by canonical reads,
+so package-local edits cannot upgrade connector, add-on, experiment, import,
+attestation, or fixture provenance into source truth, custody, or evidence
+eligibility. The verifier now also replays the portable
 semantics of protected dataset verification receipts: non-synthetic protected
 datasets must retain a service-generated observation-byte receipt bound to the
 packaged protocol and declared artifact digests; measurement-custody receipts

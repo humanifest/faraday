@@ -49,6 +49,9 @@ from research_machine.application.dataset_integrity import (
     validate_dataset_payload_commitment,
     validate_protected_dataset_lineage_closure,
 )
+from research_machine.application.dataset_source_authority import (
+    validate_dataset_source_authority,
+)
 from research_machine.application.run_integrity import validate_run_payload_commitment
 from research_machine.addons.result_contract import validate_analysis_result_contract
 
@@ -2905,6 +2908,16 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         dataset.protocol_id,
                         f"package dataset {dataset_id} protocol_id",
                     )
+                if "source_authority" in dataset.metadata:
+                    try:
+                        validate_dataset_source_authority(
+                            dataset.metadata["source_authority"],
+                            synthetic=dataset.synthetic,
+                        )
+                    except ValidationError as exc:
+                        raise ValidationError(
+                            f"package dataset {dataset_id} source_authority is invalid: {exc}"
+                        ) from exc
                 require_unique_canonical_text_list(
                     dataset.source_dataset_ids,
                     f"package dataset {dataset_id} source_dataset_ids",
