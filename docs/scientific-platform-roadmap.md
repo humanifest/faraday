@@ -2219,7 +2219,12 @@ hashes. Authoritative dataset listing replays the same read boundary before
 returning records. As with run commitments, this is local mutation detection
 rather than a signature or external timestamp; metadata-only exports may redact
 operational paths and therefore preserve, but cannot independently replay, the
-unredacted canonical commitment.
+unredacted canonical commitment. The structured `dataset inventory` payload now
+has a published schema at `schemas/dataset-inventory.schema.json`, so
+provider-neutral clients can validate dataset role, synthetic status, payload
+commitment, observation access, custody, ethics state, rigor findings, readiness,
+and operational-root redaction without treating the inventory as evidence of
+source truth, consent truth, measurement validity, or analysis adequacy.
 
 Instrument-adapter foundation: validated add-on manifests may now register
 bounded inspectors with stable IDs, supported media types, and explicit config

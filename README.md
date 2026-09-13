@@ -2225,10 +2225,11 @@ gate evidence.
   protocol binding, lineage sources, payload sealing, observation-byte
   access/readiness, custody, ethics-check state, and dataset-scoped rigor
   blockers. Empty inventories explicitly say that draft data-source mentions,
-  plugin access, and design briefs are not registered datasets. The structured
-  CLI payload redacts operational roots and keeps the inventory as provenance
-  visibility, not proof of source truth, consent truth, measurement validity, or
-  analysis adequacy.
+  plugin access, and design briefs are not registered datasets. The published
+  schema at `schemas/dataset-inventory.schema.json` lets provider-neutral
+  clients validate the structured CLI payload. The payload redacts operational
+  roots and keeps the inventory as provenance visibility, not proof of source
+  truth, consent truth, measurement validity, or analysis adequacy.
 - Draft, amend, and hash-freeze observational, experimental, computational,
   formal, literature, and synthesis protocols.
 - Bind each frozen protocol to the complete scientific content of every tested
