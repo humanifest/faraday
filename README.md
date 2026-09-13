@@ -2613,18 +2613,23 @@ future versions, prohibited retroactive targets, proposed repair, falsifier,
 and conclusion ceiling. Lane IDs, artifact locators, integrity status,
 failure class, future-version handles, and prohibited-target handles must be
 canonical without surrounding whitespace before the lesson can become process
-state. Observation, alternative-explanation, challenged-invariant, repair,
-repair-falsifier, and conclusion-ceiling prose must also be canonical and
-bounded for reporting; a process lesson can describe a failure and possible
-repair, but it cannot claim proof, confirmation, validation, or explanation of
-a scientific proposition. The future and prohibited version sets must be disjoint. A lesson is
+state. If a lesson declares `origin_integrity_status: verified_local`, it must
+also supply `origin_artifact_root`; Faraday verifies the origin artifact bytes
+against `origin_artifact_sha256`, retains the service-generated integrity
+receipt and resolved local root, and replays that receipt on authoritative
+lesson reads. Declared and externally verified origins remain visibly lower-
+authority attestations and cannot carry local verification fields. Observation,
+alternative-explanation, challenged-invariant, repair, repair-falsifier, and
+conclusion-ceiling prose must also be canonical and bounded for reporting; a
+process lesson can describe a failure and possible repair, but it cannot claim
+proof, confirmation, validation, or explanation of a scientific proposition. The future and prohibited version sets must be disjoint. A lesson is
 process state only: recording one does not create evidence, change an old
 verdict, or raise a synthesis conclusion ceiling. New lessons also retain a
 service-generated `lesson_payload_sha256` over the complete immutable lesson
 outside that field itself. Authoritative lesson reads replay the commitment
 before list, inquiry display, or synthesis can use the lesson, so an edited
-future-version target, repair, failure class, observation, or conclusion ceiling
-fails closed. Legacy records without payload commitments still replay the same
+future-version target, repair, failure class, observation, origin byte receipt,
+or conclusion ceiling fails closed. Legacy records without payload commitments still replay the same
 bounded process-prose contract rather than being silently trusted. Deterministic synthesis reports each lesson's lane transfer,
 failure class, origin artifact digest, retained conclusion ceiling, and payload
 commitment status. Historical lessons without this field remain readable as

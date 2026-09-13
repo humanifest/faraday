@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -118,6 +119,58 @@ def test_legacy_cross_lane_lesson_reads_replay_bounded_process_prose(
         service.build_synthesis()
 
 
+def test_verified_local_cross_lane_lesson_replays_origin_bytes(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    artifact_root = tmp_path / "artifacts"
+    artifact = artifact_root / "results" / "exposed-run.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(b'{"status":"failed","gate":"fixture"}\n')
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+
+    lesson = service.record_cross_lane_lesson(
+        valid_command(
+            origin_artifact_sha256=digest,
+            origin_integrity_status="verified_local",
+            origin_artifact_root=str(artifact_root),
+        )
+    )
+
+    assert lesson.origin_artifact_root == str(artifact_root.resolve())
+    assert lesson.origin_artifact_integrity["status"] == "passed"
+    assert lesson.origin_artifact_integrity["all_artifacts_match"] is True
+    assert service.list_cross_lane_lessons() == [lesson]
+    assert (
+        "origin artifact `" + digest + "` (verified_local)"
+        in service.build_synthesis()["content"]
+    )
+
+    artifact.write_bytes(b'{"status":"passed","gate":"fixture"}\n')
+    with pytest.raises(ValidationError, match="current origin artifact bytes"):
+        service.list_cross_lane_lessons()
+    with pytest.raises(ValidationError, match="current origin artifact bytes"):
+        service.show_inquiry()
+    with pytest.raises(ValidationError, match="current origin artifact bytes"):
+        service.build_synthesis()
+
+
+def test_cross_lane_lesson_rejects_unearned_local_verification(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+
+    with pytest.raises(ValidationError, match="require origin_artifact_root"):
+        service.record_cross_lane_lesson(
+            valid_command(origin_integrity_status="verified_local")
+        )
+
+    with pytest.raises(ValidationError, match="only accepted for verified_local"):
+        service.record_cross_lane_lesson(
+            valid_command(origin_artifact_root=str(tmp_path))
+        )
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
@@ -151,6 +204,10 @@ def test_legacy_cross_lane_lesson_reads_replay_bounded_process_prose(
         (
             {"origin_integrity_status": " declared "},
             "origin_integrity_status must be canonical",
+        ),
+        (
+            {"origin_integrity_status": "locally_attested"},
+            "origin_integrity_status must be declared, verified_elsewhere, or verified_local",
         ),
         ({"failure_class": " interface_ambiguity "}, "failure_class must be canonical"),
         (

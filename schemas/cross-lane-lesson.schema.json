@@ -33,7 +33,11 @@
       "pattern": "^[0-9a-f]{64}$"
     },
     "origin_integrity_status": {
-      "enum": ["declared", "verified_elsewhere"]
+      "enum": ["declared", "verified_elsewhere", "verified_local"]
+    },
+    "origin_artifact_root": {
+      "type": "string",
+      "minLength": 1
     },
     "observation": {"type": "string", "minLength": 1},
     "failure_class": {
@@ -63,5 +67,23 @@
     "repair_falsifier": {"type": "string", "minLength": 1},
     "conclusion_ceiling": {"type": "string", "minLength": 1}
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "origin_integrity_status": {"const": "verified_local"}
+        },
+        "required": ["origin_integrity_status"]
+      },
+      "then": {
+        "required": ["origin_artifact_root"]
+      },
+      "else": {
+        "not": {
+          "required": ["origin_artifact_root"]
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

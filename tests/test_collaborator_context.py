@@ -19,6 +19,7 @@ from research_machine.application.commands import (
     AddQuestion,
     CreateInquiry,
     CreateProtocol,
+    RecordCrossLaneLesson,
     RecordEvidence,
     RecordEvidenceStatusEvent,
     RegisterDataset,
@@ -418,6 +419,56 @@ def test_collaborator_context_redacts_operational_review_roots(
     assert service.show_inquiry()["evidence_status_events"][0][
         "review_artifact_root"
     ] == str(review_root.resolve())
+
+
+def test_collaborator_context_redacts_cross_lane_origin_artifact_root(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    service.create_inquiry(
+        CreateInquiry("Process lesson", "Can a process lesson stay bounded?", "lesson")
+    )
+    artifact_root = tmp_path / "lesson-origin"
+    artifact = artifact_root / "results" / "run.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text('{"status":"failed"}\n', encoding="utf-8")
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    lesson = service.record_cross_lane_lesson(
+        RecordCrossLaneLesson(
+            origin_lane_id="science",
+            target_lane_ids=["machine"],
+            origin_artifact_locator="results/run.json",
+            origin_artifact_sha256=digest,
+            origin_integrity_status="verified_local",
+            observation="A fixture failure exposed a missing gate.",
+            failure_class="machine_failure",
+            strongest_alternative_explanation="The fixture data may be incomplete.",
+            challenged_invariant="Every exposed failure has a retained origin.",
+            first_permitted_future_versions=["machine-v2"],
+            prohibited_retroactive_targets=["machine-v1"],
+            proposed_repair="Require a retained local origin receipt.",
+            repair_falsifier="A local-origin lesson can be recorded without bytes.",
+            conclusion_ceiling="Process lesson only.",
+            origin_artifact_root=str(artifact_root),
+        )
+    )
+
+    context = service.collaborator_context(
+        purpose="Review the process lesson."
+    )
+
+    assert context["cross_lane_lessons"][0]["lesson_id"] == lesson.lesson_id
+    assert context["cross_lane_lessons"][0]["origin_artifact_root"] == (
+        "[redacted: retained in canonical store]"
+    )
+    assert context["cross_lane_lessons"][0]["origin_artifact_integrity"][
+        "status"
+    ] == "passed"
+    assert str(artifact_root) not in json.dumps(context)
+    assert service.show_inquiry()["cross_lane_lessons"][0][
+        "origin_artifact_root"
+    ] == str(artifact_root.resolve())
 
 
 @pytest.mark.parametrize(

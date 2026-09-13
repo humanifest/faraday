@@ -671,6 +671,43 @@ def test_next_action_schema_rejects_service_derived_workflow_states(schema_name)
         jsonschema.validate(command, schema)
 
 
+def test_cross_lane_lesson_schema_requires_local_root_only_for_local_verification():
+    schema = json.loads((SCHEMAS / "cross-lane-lesson.schema.json").read_text())
+    command = {
+        "origin_lane_id": "science",
+        "target_lane_ids": ["machine"],
+        "origin_artifact_locator": "results/run.json",
+        "origin_artifact_sha256": "a" * 64,
+        "origin_integrity_status": "declared",
+        "observation": "A control omitted its evaluation time.",
+        "failure_class": "interface_ambiguity",
+        "strongest_alternative_explanation": "The implementation may be defective.",
+        "challenged_invariant": "Every target is reproducibly defined.",
+        "first_permitted_future_versions": ["machine-v2"],
+        "prohibited_retroactive_targets": ["machine-v1"],
+        "proposed_repair": "Require a typed evaluation time.",
+        "repair_falsifier": "An omitted-time fixture is accepted.",
+        "conclusion_ceiling": "Process lesson only.",
+    }
+
+    jsonschema.validate(command, schema)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({**command, "origin_artifact_root": "/tmp/artifacts"}, schema)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(
+            {**command, "origin_integrity_status": "verified_local"},
+            schema,
+        )
+    jsonschema.validate(
+        {
+            **command,
+            "origin_integrity_status": "verified_local",
+            "origin_artifact_root": "/tmp/artifacts",
+        },
+        schema,
+    )
+
+
 def test_next_action_schema_rejects_single_action_dependencies():
     schema = json.loads((SCHEMAS / "next-action.schema.json").read_text())
     command = {

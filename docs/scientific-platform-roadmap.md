@@ -115,7 +115,11 @@ methods without changing its epistemic rules or canonical state.
 - Cross-lane process lessons preserve observed failures without rewriting prior
   conclusions. Lane IDs, artifact locators, integrity status, failure class,
   future-version handles, and prohibited-target handles must be canonical before
-  the lesson can influence later work. Observation, alternative-explanation,
+  the lesson can influence later work. A `verified_local` origin must also name
+  a local artifact root; the service verifies the origin artifact bytes, retains
+  the integrity receipt, and replays the current bytes on authoritative reads.
+  Declared or externally verified origins remain lower-authority attestations
+  and cannot carry local verification receipts. Observation, alternative-explanation,
   challenged-invariant, repair, repair-falsifier, and conclusion-ceiling prose
   must also remain canonical and bounded, so a process lesson cannot claim
   proof, confirmation, validation, or explanation of a scientific proposition.
