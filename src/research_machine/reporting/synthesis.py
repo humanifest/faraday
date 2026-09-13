@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
+from research_machine.application.dataset_inventory import build_dataset_inventory
 from research_machine.application.policies import (
     declares_legacy_pre_registration_result_exposure,
     typed_result_exposure_allows_evidence,
@@ -164,117 +165,66 @@ def _protected_dataset_verification_summary(
     return "; ".join(parts)
 
 
-def _dataset_payload_commitment_summary(dataset: DatasetManifest) -> str:
-    payload = dataset.metadata.get("dataset_payload_sha256")
-    if isinstance(payload, str) and payload.strip():
-        return f"payload sealed `{payload}`"
-    return "payload seal missing or legacy"
-
-
-def _dataset_observation_access_summary(dataset: DatasetManifest) -> str:
-    if dataset.synthetic:
-        return "synthetic fixture; no real observation access claimed"
-    if dataset.role in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}:
-        if _artifact_integrity_passed(
-            dataset.metadata.get("dataset_artifact_verification")
-        ):
-            return "registered observation bytes service-verified under retained local custody"
-        return (
-            "protected observations lack service-verified current bytes; declared "
-            "hashes alone do not prove usable access"
+def _dataset_inventory_lines(inventory: dict[str, object]) -> list[str]:
+    if inventory.get("registered_dataset_count") == 0:
+        notice = str(inventory.get("empty_inventory_notice", ""))
+        return [f"- {notice}"]
+    role_counts = inventory.get("role_counts", {})
+    if isinstance(role_counts, dict):
+        count_summary = ", ".join(
+            f"{role}: {count}" for role, count in sorted(role_counts.items())
         )
-    return (
-        "registered manifest with declared artifact hashes; not a protected "
-        "evidence dataset or proof of current local access"
-    )
-
-
-def _dataset_custody_summary(
-    dataset: DatasetManifest, protocol: ExperimentProtocol | None
-) -> str:
-    custody = dataset.metadata.get("measurement_custody_verification")
-    if _artifact_integrity_passed(custody):
-        return "measurement custody service-verified"
-    if protocol is not None and protocol.measurement_custody_requirements:
-        return "measurement custody required by protocol but not service-verified"
-    if dataset.metadata.get("measurement_custody") is not None:
-        return "measurement custody described but not service-verified"
-    return "no measurement-custody verification recorded"
-
-
-def _dataset_ethics_summary(
-    dataset: DatasetManifest, protocol: ExperimentProtocol | None
-) -> str:
-    if protocol is None:
-        return "ethics protocol context unavailable"
-    if not protocol.human_subjects:
-        return "not bound to a human-subject protocol"
-    status_check = dataset.metadata.get("ethics_review_status_check")
-    status = (
-        "active ethics status service-check"
-        if isinstance(status_check, dict)
-        and status_check.get("status") == "active"
-        and status_check.get("protocol_hash") == protocol.protocol_hash
-        else "missing active ethics status service-check"
-    )
-    if protocol.independent_review_decision != "approved_with_conditions":
-        return status
-    condition_check = dataset.metadata.get("ethics_condition_verification")
-    condition = (
-        "conditions service-verified"
-        if _artifact_integrity_passed(condition_check)
-        and isinstance(condition_check, dict)
-        and condition_check.get("protocol_hash") == protocol.protocol_hash
-        else "conditions not service-verified"
-    )
-    return f"{status}; {condition}"
-
-
-def _dataset_inventory_lines(
-    datasets: list[DatasetManifest],
-    protocols_by_id: dict[str, ExperimentProtocol],
-) -> list[str]:
-    if not datasets:
-        return [
-            "- No datasets are registered in canonical workspace state. Draft "
-            "data-source mentions, external plugin access, and design briefs "
-            "are not counted as datasets until they are registered through the service."
-        ]
-    counts = Counter(dataset.role.value for dataset in datasets)
-    count_summary = ", ".join(
-        f"{role}: {count}" for role, count in sorted(counts.items())
-    )
-    synthetic_count = sum(1 for dataset in datasets if dataset.synthetic)
+    else:
+        count_summary = "unavailable"
     lines = [
-        f"- Role counts: {count_summary}; synthetic: {synthetic_count}; "
-        f"non-synthetic: {len(datasets) - synthetic_count}.",
-        "- Inventory meaning: this is a manifest/provenance inventory, not a "
-        "claim that source truth, consent truth, measurement validity, or "
-        "analysis adequacy has been established.",
+        f"- Role counts: {count_summary}; synthetic: "
+        f"{inventory.get('synthetic_count', 0)}; non-synthetic: "
+        f"{inventory.get('non_synthetic_count', 0)}.",
+        f"- Inventory meaning: {inventory.get('interpretation_limit', '')}",
     ]
-    for dataset in sorted(datasets, key=lambda item: item.dataset_id):
-        protocol = protocols_by_id.get(dataset.protocol_id or "")
-        artifact_media = sorted(
-            {
-                artifact.media_type.strip() or "unknown media type"
-                for artifact in dataset.artifacts
-            }
+    for dataset in inventory.get("datasets", []):
+        if not isinstance(dataset, dict):
+            continue
+        sources = dataset.get("source_dataset_ids", [])
+        source_text = (
+            ", ".join(f"`{source_id}`" for source_id in sources)
+            if isinstance(sources, list) and sources
+            else "none"
         )
-        sources = (
-            ", ".join(f"`{source_id}`" for source_id in dataset.source_dataset_ids)
-            or "none"
+        media_types = dataset.get("media_types", [])
+        media_text = _list_text(
+            [str(item) for item in media_types] if isinstance(media_types, list) else []
         )
+        payload = dataset.get("payload_commitment", {})
+        observation = dataset.get("observation_access", {})
+        custody = dataset.get("measurement_custody", {})
+        ethics = dataset.get("ethics", {})
+        readiness = dataset.get("readiness", {})
         protocol_label = (
-            f"`{dataset.protocol_id}`" if dataset.protocol_id else "unbound"
+            f"`{dataset['protocol_id']}`" if dataset.get("protocol_id") else "unbound"
         )
+        blockers = []
+        if isinstance(readiness, dict) and isinstance(
+            readiness.get("blocking_finding_codes"), list
+        ):
+            blockers = [str(item) for item in readiness["blocking_finding_codes"]]
         lines.append(
-            f"- Dataset `{dataset.dataset_id}` [{dataset.role.value}; "
-            f"{'synthetic' if dataset.synthetic else 'non-synthetic'}; protocol {protocol_label}]: "
-            f"{len(dataset.artifacts)} artifact(s), media {_list_text(artifact_media)}, "
-            f"sources {sources}; {_dataset_payload_commitment_summary(dataset)}; "
-            f"access/readiness: {_dataset_observation_access_summary(dataset)}; "
-            f"{_dataset_custody_summary(dataset, protocol)}; "
-            f"{_dataset_ethics_summary(dataset, protocol)}."
+            f"- Dataset `{dataset.get('dataset_id')}` [{dataset.get('role')}; "
+            f"{'synthetic' if dataset.get('synthetic') else 'non-synthetic'}; "
+            f"protocol {protocol_label}]: {dataset.get('artifact_count', 0)} "
+            f"artifact(s), media {media_text}, sources {source_text}; "
+            f"{payload.get('summary') if isinstance(payload, dict) else 'payload status unavailable'}; "
+            "access/readiness: "
+            f"{observation.get('summary') if isinstance(observation, dict) else 'unavailable'}; "
+            f"{custody.get('summary') if isinstance(custody, dict) else 'custody status unavailable'}; "
+            f"{ethics.get('summary') if isinstance(ethics, dict) else 'ethics status unavailable'}; "
+            "rigor readiness: "
+            f"{readiness.get('summary') if isinstance(readiness, dict) else 'unavailable'}"
+            + (
+                f" Blocking findings: {', '.join(blockers)}."
+                if blockers
+                else "."
+            )
         )
     return lines
 
@@ -560,6 +510,9 @@ def build_synthesis(
     invalid_runs = [run for run in runs if run.run_id not in valid_run_ids]
     datasets_by_id = {dataset.dataset_id: dataset for dataset in datasets}
     protocols_by_id = {protocol.protocol_id: protocol for protocol in protocols}
+    dataset_inventory = build_dataset_inventory(
+        datasets, protocols, rigor_audit.findings
+    )
     lines.extend(
         [
             "",
@@ -574,7 +527,7 @@ def build_synthesis(
         ]
     )
     lines.extend(["", "### Registered dataset inventory", ""])
-    lines.extend(_dataset_inventory_lines(datasets, protocols_by_id))
+    lines.extend(_dataset_inventory_lines(dataset_inventory))
     protected_datasets = [
         dataset for dataset in datasets
         if dataset.role in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}

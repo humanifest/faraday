@@ -12,6 +12,7 @@ from research_machine.application.dataset_integrity import (
     validate_protected_dataset_lineage_closure,
     verify_dataset_artifacts,
 )
+from research_machine.application.dataset_inventory import build_dataset_inventory
 from research_machine.application.rigor import audit_research_state
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
@@ -26,6 +27,7 @@ from research_machine.domain.models import (
     QualityGateResult,
     QualityGateStatus,
 )
+from research_machine.interfaces.cli import main
 from research_machine.reporting.synthesis import build_synthesis
 from test_ethics_gate import _human_protocol
 from test_execution import prepared_service
@@ -144,6 +146,18 @@ def test_audit_and_synthesis_expose_protected_lineage_mismatch() -> None:
     assert "### Protected dataset lineage" in synthesis
     assert "cross-boundary source `source-dataset`" in synthesis
     assert "protocol-closure provenance, not proof" in synthesis
+    assert "Blocking findings: PROTECTED_DATASET_LINEAGE_PROTOCOL_MISMATCH" in synthesis
+
+    inventory = build_dataset_inventory([source, derived], [protocol], audit.findings)
+    derived_row = next(
+        row for row in inventory["datasets"]
+        if row["dataset_id"] == derived.dataset_id
+    )
+    assert derived_row["readiness"]["status"] == "protected_use_blocked_by_rigor"
+    assert derived_row["readiness"]["blocking_finding_codes"] == [
+        "PROTECTED_DATASET_LINEAGE_PROTOCOL_MISMATCH"
+    ]
+    assert derived_row["rigor_findings"][0]["severity"] == "error"
 
 
 def test_synthesis_reports_registered_dataset_inventory_without_overclaiming() -> None:
@@ -246,8 +260,9 @@ def test_synthesis_reports_registered_dataset_inventory_without_overclaiming() -
         "protocol `protocol-v1`]"
     ) in synthesis
     assert "registered observation bytes service-verified under retained local custody" in synthesis
+    assert "No dataset-scoped rigor blockers were detected by the current audit" in synthesis
     assert (
-        "not a claim that source truth, consent truth, measurement validity, "
+        "not proof of source truth, consent truth, measurement validity, "
         "or analysis adequacy"
     ) in synthesis
     assert "/tmp/private-observations" not in synthesis
@@ -289,6 +304,60 @@ def test_synthesis_dataset_inventory_explicitly_excludes_unregistered_sources() 
     assert "No datasets are registered in canonical workspace state" in synthesis
     assert "external plugin access" in synthesis
     assert "design briefs are not counted as datasets" in synthesis
+
+
+def test_cli_reports_structured_dataset_inventory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace = tmp_path / "workspace"
+    common = ["--workspace", str(workspace), "--json"]
+    assert main([*common, "workspace", "init"]) == 0
+    capsys.readouterr()
+    assert main([
+        *common,
+        "inquiry",
+        "create",
+        "--id",
+        "inventory",
+        "--title",
+        "Inventory",
+        "--statement",
+        "What datasets are registered?",
+    ]) == 0
+    capsys.readouterr()
+
+    observations = tmp_path / "observations.csv"
+    observations.write_text("unit,outcome\nu1,1\n", encoding="utf-8")
+    assert main([
+        *common,
+        "dataset",
+        "register",
+        "--id",
+        "cli-dataset",
+        "--name",
+        "CLI dataset",
+        "--role",
+        "exploratory",
+        "--file",
+        str(observations),
+        "--synthetic",
+        "--inquiry",
+        "inventory",
+    ]) == 0
+    capsys.readouterr()
+
+    assert main([*common, "dataset", "inventory", "--inquiry", "inventory"]) == 0
+    result = json.loads(capsys.readouterr().out)["result"]
+
+    assert result["registered_dataset_count"] == 1
+    assert result["role_counts"] == {"exploratory": 1}
+    row = result["datasets"][0]
+    assert row["dataset_id"] == "cli-dataset"
+    assert row["observation_access"]["status"] == "synthetic_fixture"
+    assert row["readiness"]["status"] == "not_protected_evidence_dataset"
+    assert row["rigor_findings"] == []
+    assert row["operational_roots_redacted"] is True
+    assert str(tmp_path) not in json.dumps(result)
 
 
 @pytest.mark.parametrize(
@@ -508,6 +577,19 @@ def test_real_protected_dataset_requires_current_registered_bytes(tmp_path: Path
     assert receipt["protocol_hash"] == protocol.protocol_hash
     service.show_inquiry()
     service._validate_run_datasets(protocol, [dataset])
+    inventory = service.dataset_inventory()
+    assert inventory["registered_dataset_count"] == 1
+    row = inventory["datasets"][0]
+    assert row["dataset_id"] == dataset.dataset_id
+    assert row["observation_access"]["status"] == (
+        "protected_observation_bytes_service_verified"
+    )
+    assert row["readiness"]["status"] == "protected_no_dataset_rigor_blockers_detected"
+    assert row["readiness"]["blocking_finding_codes"] == []
+    assert row["rigor_findings"] == []
+    assert row["payload_commitment"]["sealed"] is True
+    assert row["operational_roots_redacted"] is True
+    assert str(tmp_path.resolve()) not in json.dumps(inventory)
 
     dataset_path = (
         tmp_path

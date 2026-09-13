@@ -1,5 +1,5 @@
 {
-  "context_version": 2,
+  "context_version": 1,
   "purpose": "Stress-test the design.",
   "inquiry": {
     "inquiry_id": "inq-1",
@@ -19,16 +19,6 @@
   "evidence": [],
   "evidence_status_events": [],
   "datasets": [],
-  "dataset_inventory": {
-    "registered_dataset_count": 0,
-    "role_counts": {},
-    "synthetic_count": 0,
-    "non_synthetic_count": 0,
-    "datasets_with_rigor_errors": 0,
-    "empty_inventory_notice": "No datasets are registered in canonical workspace state. Draft data-source mentions, external plugin access, and design briefs are not counted as datasets until they are registered through the service.",
-    "interpretation_limit": "This is a manifest/provenance inventory, not proof of source truth, consent truth, measurement validity, or analysis adequacy.",
-    "datasets": []
-  },
   "protocols": [],
   "runs": [],
   "recommendations": [],

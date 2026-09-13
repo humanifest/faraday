@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/dataset-inventory.schema.json",
+  "title": "Dataset inventory report",
+  "type": "object",
+  "required": [
+    "registered_dataset_count",
+    "role_counts",
+    "synthetic_count",
+    "non_synthetic_count",
+    "datasets_with_rigor_errors",
+    "empty_inventory_notice",
+    "interpretation_limit",
+    "datasets"
+  ],
+  "properties": {
+    "registered_dataset_count": {"type": "integer", "minimum": 0},
+    "role_counts": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "calibration",
+          "exploratory",
+          "training",
+          "confirmatory",
+          "replication"
+        ]
+      },
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "synthetic_count": {"type": "integer", "minimum": 0},
+    "non_synthetic_count": {"type": "integer", "minimum": 0},
+    "datasets_with_rigor_errors": {"type": "integer", "minimum": 0},
+    "empty_inventory_notice": {"type": "string"},
+    "interpretation_limit": {"type": "string", "minLength": 1},
+    "datasets": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/dataset"}
+    }
+  },
+  "$defs": {
+    "dataset": {
+      "type": "object",
+      "required": [
+        "dataset_id",
+        "name",
+        "role",
+        "synthetic",
+        "protocol_id",
+        "protocol_present",
+        "artifact_count",
+        "media_types",
+        "source_dataset_ids",
+        "payload_commitment",
+        "observation_access",
+        "measurement_custody",
+        "ethics",
+        "rigor_findings",
+        "readiness",
+        "operational_roots_redacted"
+      ],
+      "properties": {
+        "dataset_id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "role": {
+          "enum": [
+            "calibration",
+            "exploratory",
+            "training",
+            "confirmatory",
+            "replication"
+          ]
+        },
+        "synthetic": {"type": "boolean"},
+        "protocol_id": {"type": ["string", "null"]},
+        "protocol_present": {"type": "boolean"},
+        "artifact_count": {"type": "integer", "minimum": 0},
+        "media_types": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "source_dataset_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "payload_commitment": {"$ref": "#/$defs/payload_commitment"},
+        "observation_access": {"$ref": "#/$defs/observation_access"},
+        "measurement_custody": {"$ref": "#/$defs/measurement_custody"},
+        "ethics": {"$ref": "#/$defs/ethics"},
+        "rigor_findings": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/rigor_finding"}
+        },
+        "readiness": {"$ref": "#/$defs/readiness"},
+        "operational_roots_redacted": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "payload_commitment": {
+      "type": "object",
+      "required": ["sealed", "sha256", "summary"],
+      "properties": {
+        "sealed": {"type": "boolean"},
+        "sha256": {
+          "anyOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        },
+        "summary": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "observation_access": {
+      "type": "object",
+      "required": ["status", "service_verified", "summary"],
+      "properties": {
+        "status": {
+          "enum": [
+            "synthetic_fixture",
+            "protected_observation_bytes_service_verified",
+            "protected_observation_bytes_missing_service_verification",
+            "declared_hashes_only"
+          ]
+        },
+        "service_verified": {"type": "boolean"},
+        "summary": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "measurement_custody": {
+      "type": "object",
+      "required": [
+        "status",
+        "required_by_protocol",
+        "service_verified",
+        "summary"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "service_verified",
+            "required_missing_service_verification",
+            "described_not_service_verified",
+            "not_recorded"
+          ]
+        },
+        "required_by_protocol": {"type": "boolean"},
+        "service_verified": {"type": "boolean"},
+        "summary": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "ethics": {
+      "type": "object",
+      "required": [
+        "status",
+        "human_subject_protocol",
+        "service_checked",
+        "conditions_service_verified",
+        "summary"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "protocol_missing",
+            "not_bound_to_protocol",
+            "not_human_subject_protocol",
+            "active_service_check",
+            "missing_active_service_check",
+            "active_service_check_with_conditions_verified",
+            "missing_required_ethics_service_verification"
+          ]
+        },
+        "human_subject_protocol": {"type": "boolean"},
+        "service_checked": {"type": "boolean"},
+        "conditions_service_verified": {"type": "boolean"},
+        "summary": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "rigor_finding": {
+      "type": "object",
+      "required": ["code", "severity", "message", "remediation"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["error", "warning", "info"]},
+        "message": {"type": "string", "minLength": 1},
+        "remediation": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "readiness": {
+      "type": "object",
+      "required": [
+        "status",
+        "blocking_finding_codes",
+        "warning_finding_codes",
+        "summary"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "not_protected_evidence_dataset",
+            "protected_use_blocked_by_rigor",
+            "protected_use_has_rigor_warnings",
+            "protected_no_dataset_rigor_blockers_detected"
+          ]
+        },
+        "blocking_finding_codes": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "warning_finding_codes": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "summary": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -4,6 +4,51 @@ The target is one discipline-agnostic, self-contained tool for designing,
 executing, auditing, and extending scientific investigations. Add-ons widen its
 methods without changing its epistemic rules or canonical state.
 
+## High-confidence campaign readiness
+
+Faraday should become usable for hard domain campaigns, including foundations
+physics work such as reconciling quantum mechanics and relativity and forensic
+physical-science work such as evaluating WTC 7 hypotheses, only when the shared
+machine can enforce the same scientific boundary in both settings. The target is
+not a single persuasive result. It is a repeatable campaign environment that can
+show exactly what was observed, derived, modeled, inferred, contradicted,
+replicated, or left unresolved.
+
+The next development track pursues seven readiness requirements:
+
+- Domain add-ons for the campaign's actual methods: formal mathematics,
+  symbolic derivation, dimensional/unit checks, numerical simulation,
+  experiment-data acquisition, structural/fire modeling, video/geometry/source
+  ingestion, and source-document handling where those methods are needed.
+- Trusted datasets and custody, with real source collections entering from
+  registered experiments, acquisition add-ons, or scientific connectors, then
+  becoming canonical only after Faraday records their source authority, role,
+  synthetic status, lineage, protocol binding, hashes, custody, ethics context,
+  and readiness blockers.
+- Validated methods whose assumptions, calibration checks, numerical stability,
+  sensitivity limits, implementation hashes, and claim ceilings are explicit;
+  successful execution remains separate from scientific adequacy.
+- Adversarial competing-model workflows that preserve nulls, mundane processes,
+  measurement error, confounding, sensitivity analyses, blind comparisons, and
+  disconfirming observations instead of optimizing for the favored explanation.
+- Independent review records for domain, method, ethics, and adversarial
+  critique, with reviewer identity and expertise treated as unauthenticated
+  unless a later trust layer proves them.
+- Replication campaigns with independent implementations, different executors,
+  different code hashes where relevant, portable packages, and visible failures
+  or non-reproductions.
+- Claim discipline that keeps observation, calculation, model consistency,
+  association, causality, mechanism, attribution, intent, and legal
+  characterization in separate claim nodes with bounded conclusion ceilings.
+
+Scientific connectors are allowed source and acquisition ports, not shortcuts
+around provenance. A connector may retrieve literature, public records, sensor
+exports, catalog metadata, experiment outputs, or other scientific sources, but
+its output stays a low-authority proposal until Faraday registers the material
+through the ordinary dataset, protocol, run, evidence, review, and ledger
+contracts. Connector access does not prove source truth, custody, consent,
+calibration, measurement validity, or evidence eligibility.
+
 ## Delivered foundation
 
 - A common inquiry, claim, hypothesis, dataset, protocol, run, evidence,
@@ -1532,7 +1577,18 @@ withdrawal, and retraction events are independently citable alongside the
 evidence records they qualify. The collaborator context redacts operational
 artifact roots and attestation-schema paths while retaining IDs, hashes, status
 history, and review-event handles, keeping provider-neutral review separate from
-local custody access. Freezing or later validating a collaborator context now
+local custody access. It also carries the structured dataset inventory used by
+the CLI and synthesis, so provider-neutral reviewers can see registered dataset
+counts, roles, synthetic/protected status, observation access, custody, ethics
+state, rigor findings, and readiness while the same boundary states that draft
+data-source mentions, plugin access, and design briefs are not registered
+datasets. Freezing replays the inventory against the visible dataset records,
+registered count, role totals, synthetic totals, rigor-error totals, and
+operational-root redaction flags before the context can be published. This
+inventory-bearing shape is collaborator `context_version: 2`; exact historical
+version-1 contexts remain valid only in their original inventory-free form, so
+Faraday does not fabricate retrospective readiness state. Freezing
+or later validating a collaborator context now
 fails closed if those operational roots or attestation-schema paths remain
 unredacted or use any marker other than Faraday's exact
 `[redacted: retained in canonical store]` value. The published context schema
@@ -2304,7 +2360,12 @@ hashes. Authoritative dataset listing replays the same read boundary before
 returning records. As with run commitments, this is local mutation detection
 rather than a signature or external timestamp; metadata-only exports may redact
 operational paths and therefore preserve, but cannot independently replay, the
-unredacted canonical commitment.
+unredacted canonical commitment. The structured `dataset inventory` payload now
+has a published schema at `schemas/dataset-inventory.schema.json`, so
+provider-neutral clients can validate dataset role, synthetic status, payload
+commitment, observation access, custody, ethics state, rigor findings, readiness,
+and operational-root redaction without treating the inventory as evidence of
+source truth, consent truth, measurement validity, or analysis adequacy.
 
 Instrument-adapter foundation: validated add-on manifests may now register
 bounded inspectors with stable IDs, supported media types, and explicit config
@@ -2729,16 +2790,18 @@ now recursively walks protected ancestors during inquiry display, execution
 binding, run intake, and evidence admission; resealed records with missing,
 duplicated, cyclic, or cross-role/cross-protocol ancestry fail before scientific
 use.
-Deterministic synthesis now also emits a general registered-dataset inventory,
-not only the protected-lineage section. It counts roles and synthetic status,
-lists each registered manifest's artifact/media shape, protocol binding,
+The canonical service and CLI now expose a structured registered-dataset
+inventory, and deterministic synthesis renders the same payload rather than
+maintaining a parallel prose interpretation. It counts roles and synthetic
+status, lists each registered manifest's artifact/media shape, protocol binding,
 lineage sources, payload seal, observation-byte access/readiness, custody state,
-and ethics context, while redacting retained local roots. An empty inventory
-explicitly excludes draft data-source mentions, plugin access, and design briefs
-from the set of datasets Faraday has actually registered. This makes routine
-"what data do we have?" questions answerable from canonical state without
-promoting manifest declarations into proof of current access, source truth,
-consent truth, measurement validity, or analysis adequacy.
+ethics context, and dataset-scoped rigor blockers, while redacting retained
+local roots. An empty inventory explicitly excludes draft data-source mentions,
+plugin access, and design briefs from the set of datasets Faraday has actually
+registered. This makes routine "what data do we have?" questions answerable
+from canonical state without promoting manifest declarations into proof of
+current access, source truth, consent truth, measurement validity, or analysis
+adequacy.
 Literature synthesis-plan freezing now requires canonical plan IDs, reviewer
 text, questions, outcomes, effect measures, contrast definitions, subgroup and
 sensitivity entries, retained limitations, policy prose, conclusion rules,

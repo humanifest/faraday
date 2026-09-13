@@ -553,6 +553,17 @@ operates the machine through a stable command interface. A later UI, HTTP API,
 or model provider can call the same application services without changing the
 domain model.
 
+The long-range adequacy target is demanding: Faraday should support hard
+scientific campaigns only after the machine can handle the needed domain
+add-ons, trusted dataset custody, validated methods, adversarial competing
+models, independent review, replication campaigns, and disciplined claim
+separation. For campaigns such as foundations physics or forensic structural
+analysis, data should enter from registered experiments, acquisition add-ons, or
+scientific connectors. Connector output remains low-authority source material
+until Faraday registers and audits it through the normal dataset, protocol, run,
+evidence, review, and ledger contracts; plugin or connector access is not itself
+evidence.
+
 The machine is deliberately not a claim-confirmation engine. It keeps competing
 explanations alive, separates levels of inference, records scoped evidence, and
 preserves rejected hypotheses with the conditions under which they should be
@@ -1179,7 +1190,19 @@ to claim causality, mechanism, or replication beyond recorded evidence and not
 to authorize collection, protocol freeze, data registration, evidence recording,
 or other canonical action. The constraints also warn that sensor, stream, clock,
 and control-window commitments are design provenance, not proof of custody,
-calibration, synchronization, or timing validity. The frozen write boundary must
+calibration, synchronization, or timing validity. The frozen context also carries
+the same structured dataset inventory used by `dataset inventory` and
+deterministic synthesis, so optional reviewers see registered dataset counts,
+roles, synthetic/protected status, observation access, custody, ethics state,
+rigor blockers, and readiness without treating draft data-source mentions or
+plugin access as datasets. Context freezing replays that inventory against the
+visible dataset records, counts, role totals, rigor-error totals, and redaction
+flags before publishing it. Current service-generated contexts use
+`context_version: 2`, whose dataset inventory is mandatory. Historical
+`context_version: 1` contexts retain their original inventory-free shape and
+remain replayable; they are never upgraded by synthesizing a retrospective
+inventory. A version-1 context that claims the new field, or a version-2 context
+that omits it, fails closed. The frozen write boundary must
 also be exact: read-only, provider-free, and explicit about the canonical
 commands and review gates required for real changes. Validation replays those constraints and the
 write boundary from the trusted context bytes, and proposal/review records retain
@@ -2187,6 +2210,8 @@ or LLM:
 ./research --json dataset register --manifest-file dataset.json \
   --artifact-root /path/to/registered-observations \
   --custody-artifact-root /path/to/custody-artifacts
+
+./research --json dataset inventory --inquiry INQUIRY_ID
 ```
 The template command derives required gate IDs, calibration IDs, units, scalar
 acceptance bounds, and ordered component-bound observation slots from the frozen
@@ -2258,13 +2283,16 @@ gate evidence.
   run intake reject later edits to role, synthetic status, protocol binding,
   lineage, observation unit, attestations, metadata, artifact declarations, or
   descriptive identity.
-- Synthesis now includes a registered dataset inventory that reports role
-  counts, synthetic/non-synthetic status, artifact media, protocol binding,
-  lineage sources, payload sealing, observation-byte access/readiness, custody,
-  and ethics-check state. Empty inventories explicitly say that draft data-source
-  mentions, plugin access, and design briefs are not registered datasets. The
-  inventory is provenance visibility, not proof of source truth, consent truth,
-  measurement validity, or analysis adequacy.
+- `dataset inventory` and synthesis now expose a registered dataset inventory
+  that reports role counts, synthetic/non-synthetic status, artifact media,
+  protocol binding, lineage sources, payload sealing, observation-byte
+  access/readiness, custody, ethics-check state, and dataset-scoped rigor
+  blockers. Empty inventories explicitly say that draft data-source mentions,
+  plugin access, and design briefs are not registered datasets. The published
+  schema at `schemas/dataset-inventory.schema.json` lets provider-neutral
+  clients validate the structured CLI payload. The payload redacts operational
+  roots and keeps the inventory as provenance visibility, not proof of source
+  truth, consent truth, measurement validity, or analysis adequacy.
 - Draft, amend, and hash-freeze observational, experimental, computational,
   formal, literature, and synthesis protocols.
 - Bind each frozen protocol to the complete scientific content of every tested

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -48,6 +49,23 @@ _CANONICAL_CHANGES_REQUIRE = [
     "research inquiry/question/claim/hypothesis/protocol/dataset/run/evidence commands",
     "applicable human review and protocol-freeze gates",
 ]
+_EMPTY_DATASET_INVENTORY = {
+    "registered_dataset_count": 0,
+    "role_counts": {},
+    "synthetic_count": 0,
+    "non_synthetic_count": 0,
+    "datasets_with_rigor_errors": 0,
+    "empty_inventory_notice": (
+        "No datasets are registered in canonical workspace state. Draft data-source "
+        "mentions, external plugin access, and design briefs are not counted as "
+        "datasets until they are registered through the service."
+    ),
+    "interpretation_limit": (
+        "This is a manifest/provenance inventory, not proof of source truth, "
+        "consent truth, measurement validity, or analysis adequacy."
+    ),
+    "datasets": [],
+}
 
 
 def _context(
@@ -57,8 +75,9 @@ def _context(
     scientific_constraints: list[str] | None = None,
 ) -> dict:
     context = {
-        "context_version": 1,
+        "context_version": 2,
         "purpose": purpose,
+        "dataset_inventory": copy.deepcopy(_EMPTY_DATASET_INVENTORY),
         "scientific_constraints": list(
             _SCIENTIFIC_CONSTRAINTS
             if scientific_constraints is None
@@ -135,6 +154,7 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
         )
     )
     context = service.collaborator_context(purpose="Help draft a design review.")
+    assert context["context_version"] == 2
     assert context["write_boundary"]["provider_required"] is False
     assert context["ethics_review_events"] == []
     assert context["write_boundary"]["context_is_read_only"] is True
@@ -142,6 +162,10 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
     assert context["claims"][0]["claim_id"] == claim.claim_id
     assert context["evidence"] == []
     assert context["datasets"] == []
+    assert context["dataset_inventory"]["registered_dataset_count"] == 0
+    assert "Draft data-source mentions" in context["dataset_inventory"][
+        "empty_inventory_notice"
+    ]
     assert context["protocols"] == []
     assert context["runs"] == []
     assert context["context_reference_index"] == [
@@ -153,6 +177,112 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
         {"ref": f"claim:{claim.claim_id}", "kind": "claim"},
     ]
     assert any("causality" in item for item in context["scientific_constraints"])
+
+
+def test_collaborator_context_includes_bounded_dataset_inventory(tmp_path) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    inquiry = service.create_inquiry(
+        CreateInquiry("Dataset review", "What data are available?", "dataset")
+    )
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="context-dataset",
+            name="Context dataset",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[
+                DatasetArtifact(
+                    "context.csv",
+                    hashlib.sha256(b"unit,outcome\nu1,1\n").hexdigest(),
+                    18,
+                    "text/csv",
+                )
+            ],
+            synthetic=True,
+            quality_attestations=["Synthetic collaborator-context fixture."],
+        ),
+        inquiry.inquiry_id,
+    )
+
+    context = service.collaborator_context(
+        inquiry.inquiry_id,
+        purpose="Review dataset availability.",
+    )
+
+    assert context["datasets"][0]["dataset_id"] == "context-dataset"
+    inventory = context["dataset_inventory"]
+    assert inventory["registered_dataset_count"] == 1
+    assert inventory["role_counts"] == {"exploratory": 1}
+    row = inventory["datasets"][0]
+    assert row["dataset_id"] == "context-dataset"
+    assert row["observation_access"]["status"] == "synthetic_fixture"
+    assert row["readiness"]["status"] == "not_protected_evidence_dataset"
+    assert row["operational_roots_redacted"] is True
+    assert str(tmp_path.resolve()) not in json.dumps(context)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda context: context["dataset_inventory"].update({"datasets": []}),
+            "dataset_inventory must exactly cover visible dataset records",
+        ),
+        (
+            lambda context: context["dataset_inventory"].update(
+                {"registered_dataset_count": 0}
+            ),
+            "registered_dataset_count disagrees",
+        ),
+        (
+            lambda context: context["dataset_inventory"]["datasets"][0].update(
+                {"operational_roots_redacted": False}
+            ),
+            "rows must redact operational roots",
+        ),
+        (
+            lambda context: context["dataset_inventory"].update(
+                {"role_counts": {"confirmatory": 1}}
+            ),
+            "role_counts disagree",
+        ),
+    ],
+)
+def test_context_snapshot_replays_dataset_inventory_consistency(
+    tmp_path: Path, mutation, message: str
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    inquiry = service.create_inquiry(
+        CreateInquiry("Dataset review", "What data are available?", "dataset")
+    )
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="context-dataset",
+            name="Context dataset",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[
+                DatasetArtifact(
+                    "context.csv",
+                    hashlib.sha256(b"unit,outcome\nu1,1\n").hexdigest(),
+                    18,
+                    "text/csv",
+                )
+            ],
+            synthetic=True,
+            quality_attestations=["Synthetic collaborator-context fixture."],
+        ),
+        inquiry.inquiry_id,
+    )
+    context = service.collaborator_context(
+        inquiry.inquiry_id,
+        purpose="Review dataset availability.",
+    )
+    mutation(context)
+
+    with pytest.raises(ValidationError, match=message):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
 
 
 def test_collaborator_context_exposes_acquisition_timing_as_non_authority(
@@ -747,6 +877,72 @@ def _proposal(context_sha256: str, *, evidence_refs: list[str] | None = None) ->
             }
         ],
     }
+
+
+def test_historical_version_1_context_replays_without_dataset_inventory(
+    tmp_path: Path,
+) -> None:
+    fixture = (
+        Path(__file__).parent
+        / "fixtures"
+        / "collaborator-context-v1.json"
+    )
+    context = json.loads(fixture.read_text(encoding="utf-8"))
+    assert context["context_version"] == 1
+    assert "dataset_inventory" not in context
+
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    proposal = _proposal(
+        snapshot["context_sha256"], evidence_refs=["inquiry:inq-1"]
+    )
+    proposal_file = tmp_path / "proposal.json"
+    proposal_file.write_text(json.dumps(proposal), encoding="utf-8")
+    result = validate_collaborator_proposal(
+        Path(snapshot["context_file"]),
+        snapshot["context_sha256"],
+        proposal_file,
+        tmp_path / "validated",
+    )
+
+    assert result["status"] == "pending_human_review"
+    assert result["canonical_writes_performed"] is False
+
+
+def test_context_versions_fail_closed_across_dataset_inventory_boundary(
+    tmp_path: Path,
+) -> None:
+    current = _context()
+    current.pop("dataset_inventory")
+    with pytest.raises(
+        ValidationError,
+        match="context_version 2 requires dataset_inventory",
+    ):
+        create_context_snapshot(current, tmp_path / "missing-current-inventory")
+
+    historical = json.loads(
+        (Path(__file__).parent / "fixtures" / "collaborator-context-v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    historical["dataset_inventory"] = copy.deepcopy(_EMPTY_DATASET_INVENTORY)
+    with pytest.raises(
+        ValidationError,
+        match="context_version 1 must not include dataset_inventory",
+    ):
+        create_context_snapshot(historical, tmp_path / "invented-legacy-inventory")
+
+
+@pytest.mark.parametrize("invalid_version", [True, 0, 3, "2"])
+def test_context_snapshot_rejects_unsupported_context_versions(
+    tmp_path: Path, invalid_version: object
+) -> None:
+    context = _context()
+    context["context_version"] = invalid_version
+    with pytest.raises(
+        ValidationError,
+        match="collaborator context_version must be 1 or 2",
+    ):
+        create_context_snapshot(context, tmp_path / "context")
 
 
 def _review(proposal_record_sha256: str) -> dict:

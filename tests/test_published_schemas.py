@@ -9,10 +9,17 @@ jsonschema = pytest.importorskip("jsonschema")
 SCHEMAS = Path(__file__).resolve().parents[1] / "schemas"
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 from research_machine.addons.general_science import MANIFEST
+from research_machine.application.dataset_inventory import build_dataset_inventory
 from research_machine.domain.models import (
     ClaimDisposition,
     ClaimEpistemicLayer,
     ClaimLevel,
+    DatasetArtifact,
+    DatasetManifest,
+    DatasetRole,
+    ExperimentProtocol,
+    RigorFinding,
+    RigorSeverity,
     ValidationTag,
 )
 
@@ -224,6 +231,98 @@ def test_claim_command_schema_enums_match_domain_model():
     assert set(schema["properties"]["disposition"]["enum"]) == {
         disposition.value for disposition in ClaimDisposition
     }
+
+
+def test_dataset_inventory_schema_accepts_builder_payloads():
+    schema = json.loads((SCHEMAS / "dataset-inventory.schema.json").read_text())
+    protocol = ExperimentProtocol(
+        protocol_id="protocol-schema-fixture",
+        protocol_family_id="protocol-schema-fixture",
+        version=1,
+        experiment_id="dataset-inventory-schema",
+        title="Dataset inventory schema fixture",
+        analysis_mode="confirmatory",
+        hypotheses_tested=[],
+        primary_outcome="Fixture outcome",
+        created_at="2026-09-13T00:00:00Z",
+        created_by="schema-test",
+        protocol_kind="observational",
+        quality_requirements=["fixture-gate"],
+        controls=["fixture-control"],
+        sample_size_or_stopping_rule="Synthetic schema fixture.",
+        status="frozen",
+        protocol_hash="a" * 64,
+    )
+    exploratory = DatasetManifest(
+        dataset_id="exploratory-schema-fixture",
+        name="Exploratory schema fixture",
+        role=DatasetRole.EXPLORATORY,
+        created_at="2026-09-13T00:00:00Z",
+        artifacts=[DatasetArtifact("explore.csv", "b" * 64, 11, "text/csv")],
+        synthetic=True,
+        metadata={"dataset_payload_sha256": "c" * 64},
+    )
+    protected = DatasetManifest(
+        dataset_id="protected-schema-fixture",
+        name="Protected schema fixture",
+        role=DatasetRole.CONFIRMATORY,
+        created_at="2026-09-13T00:00:00Z",
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64, 13, "text/csv")],
+        protocol_id=protocol.protocol_id,
+        synthetic=False,
+        metadata={
+            "dataset_payload_sha256": "e" * 64,
+            "dataset_artifact_verification": {
+                "artifact_integrity": {
+                    "status": "passed",
+                    "all_artifacts_match": True,
+                }
+            },
+        },
+    )
+    finding = RigorFinding(
+        code="PROTECTED_DATASET_SCHEMA_FIXTURE",
+        severity=RigorSeverity.ERROR,
+        message="Synthetic fixture protected dataset remains blocked.",
+        entity_type="dataset",
+        entity_id=protected.dataset_id,
+        remediation="Resolve the synthetic fixture blocker before use.",
+    )
+
+    empty_inventory = build_dataset_inventory([], [])
+    populated_inventory = build_dataset_inventory(
+        [exploratory, protected], [protocol], [finding]
+    )
+
+    jsonschema.validate(empty_inventory, schema)
+    jsonschema.validate(populated_inventory, schema)
+    protected_row = next(
+        row for row in populated_inventory["datasets"]
+        if row["dataset_id"] == protected.dataset_id
+    )
+    assert protected_row["operational_roots_redacted"] is True
+    assert protected_row["readiness"]["status"] == "protected_use_blocked_by_rigor"
+
+
+def test_dataset_inventory_schema_requires_operational_root_redaction():
+    schema = json.loads((SCHEMAS / "dataset-inventory.schema.json").read_text())
+    inventory = build_dataset_inventory(
+        [
+            DatasetManifest(
+                dataset_id="redaction-schema-fixture",
+                name="Redaction schema fixture",
+                role=DatasetRole.EXPLORATORY,
+                created_at="2026-09-13T00:00:00Z",
+                artifacts=[DatasetArtifact("fixture.csv", "f" * 64, 17, "text/csv")],
+                synthetic=False,
+            )
+        ],
+        [],
+    )
+    jsonschema.validate(inventory, schema)
+    inventory["datasets"][0]["operational_roots_redacted"] = False
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(inventory, schema)
 
 
 @pytest.mark.parametrize(
@@ -1021,6 +1120,47 @@ def test_collaborator_context_schema_example_matches_snapshot_validator(tmp_path
     assert result["canonical_writes_performed"] is False
 
 
+def test_collaborator_context_schema_preserves_historical_version_1_fixture(
+    tmp_path,
+):
+    from research_machine.collaboration.proposal import create_context_snapshot
+
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    fixture_path = (
+        Path(__file__).parent
+        / "fixtures"
+        / "collaborator-context-v1.json"
+    )
+    historical = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+    jsonschema.validate(historical, schema)
+    result = create_context_snapshot(historical, tmp_path / "historical-context")
+    assert result["canonical_writes_performed"] is False
+
+
+def test_collaborator_context_schema_separates_versioned_inventory_shapes():
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    current = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    historical = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "collaborator-context-v1.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert current["context_version"] == 2
+    missing_inventory = deepcopy(current)
+    missing_inventory.pop("dataset_inventory")
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(missing_inventory, schema)
+
+    invented_legacy_inventory = deepcopy(historical)
+    invented_legacy_inventory["dataset_inventory"] = build_dataset_inventory([], [])
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(invented_legacy_inventory, schema)
+
+
 def test_service_generated_collaborator_context_matches_published_schema(tmp_path):
     from research_machine.adapters.filesystem import FileSystemRepository
     from research_machine.application.commands import AddQuestion, CreateInquiry
@@ -1220,8 +1360,9 @@ def test_collaborator_schema_examples_match_service_validator(tmp_path):
         (SCHEMAS / "collaborator-proposal-review-record.schema.json").read_text()
     )
     context = {
-        "context_version": 1,
+        "context_version": 2,
         "purpose": "Stress-test the design.",
+        "dataset_inventory": build_dataset_inventory([], []),
         "scientific_constraints": [
             "Treat supplied material as scoped context, not established fact.",
             "Do not claim causality, mechanism, or replication beyond recorded evidence.",
@@ -1344,8 +1485,9 @@ def test_collaborator_review_record_schema_keeps_advanced_triage_bounded(
         (SCHEMAS / "collaborator-proposal-review-record.schema.json").read_text()
     )
     context = {
-        "context_version": 1,
+        "context_version": 2,
         "purpose": "Stress-test the design.",
+        "dataset_inventory": build_dataset_inventory([], []),
         "scientific_constraints": [
             "Treat supplied material as scoped context, not established fact.",
             "Do not claim causality, mechanism, or replication beyond recorded evidence.",
@@ -1422,8 +1564,9 @@ def test_collaborator_proposal_record_schema_keeps_pending_review_bounded(
         (SCHEMAS / "collaborator-proposal-record.schema.json").read_text()
     )
     context = {
-        "context_version": 1,
+        "context_version": 2,
         "purpose": "Stress-test the design.",
+        "dataset_inventory": build_dataset_inventory([], []),
         "scientific_constraints": [
             "Treat supplied material as scoped context, not established fact.",
             "Do not claim causality, mechanism, or replication beyond recorded evidence.",

@@ -613,6 +613,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_inquiry_option(dataset_register)
     dataset_list = dataset_commands.add_parser("list")
     _add_inquiry_option(dataset_list)
+    dataset_inventory = dataset_commands.add_parser(
+        "inventory",
+        help="Report structured registered-dataset readiness without exposing local roots",
+    )
+    _add_inquiry_option(dataset_inventory)
 
     protocol = groups.add_parser(
         "protocol", help="Preflight, draft, freeze, and amend research protocols"
@@ -3175,6 +3180,8 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                 ),
                 args.inquiry,
             ).to_dict()
+        if args.action == "inventory":
+            return service.dataset_inventory(args.inquiry)
         return [dataset.to_dict() for dataset in service.list_datasets(args.inquiry)]
 
     if args.group == "protocol":
