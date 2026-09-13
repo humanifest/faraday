@@ -49,6 +49,7 @@ def test_pinned_execution_output(tmp_path, mutation):
     [
         ("extra_authority", "contract fields"),
         ("unsupported_inference", "maximum_inference_level"),
+        ("overclaiming_method_ceiling", "report-prohibited overclaiming"),
         ("claim_ceiling_status", "claim_ceiling_status"),
         ("missing_scope", "missing_data_policy_scope"),
     ],
@@ -84,6 +85,8 @@ def test_pinned_execution_output_replays_result_authority_contract(
     elif mutation == "unsupported_inference":
         result["maximum_inference_level"] = "causal_proof"
         receipt["maximum_inference_level"] = "causal_proof"
+    elif mutation == "overclaiming_method_ceiling":
+        result["claim_ceiling"] = "This method confirmed the target mechanism."
     elif mutation == "claim_ceiling_status":
         result["claim_ceiling_status"] = "researcher_declaration_controls"
     elif mutation == "missing_scope":

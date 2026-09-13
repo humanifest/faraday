@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from research_machine.addons.models import INFERENCE_LEVELS
+from research_machine.application.policies import require_canonical_bounded_report_text
 from research_machine.domain.errors import ValidationError
 
 
@@ -53,7 +54,9 @@ def validate_analysis_result_contract(result: dict[str, Any]) -> None:
         not isinstance(item, str) for item in result["contrast_groups"]
     ):
         raise ValidationError("analysis result contrast_groups must be an array of text")
-    _require_text(result.get("claim_ceiling"), "analysis result claim_ceiling")
+    require_canonical_bounded_report_text(
+        result.get("claim_ceiling"), "analysis result claim_ceiling"
+    )
     _require_text(
         result.get("declared_claim_ceiling"),
         "analysis result declared_claim_ceiling",

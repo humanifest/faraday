@@ -217,9 +217,10 @@ calibration, measurement validity, or evidence eligibility.
   provider-neutral add-on contract without treating the random procedure as
   scientifically adequate. Pinned execution handoff verification now also
   replays the closed version-2 analysis-result envelope, rejecting unsupported
-  inference levels, authority-smuggling top-level fields, rewritten
-  method-enforced ceiling status, or altered non-authority missing-data scope
-  before downstream run, evidence, replication, or rigor paths can trust it.
+  inference levels, authority-smuggling top-level fields, overclaiming enforced
+  method ceilings, rewritten method-enforced ceiling status, or altered
+  non-authority missing-data scope before downstream run, evidence, replication,
+  or rigor paths can trust it.
   Replication packages additionally require retained execution handoff output
   digest, byte count, and constrained `analysis-result.json` or redacted
   locator to match a declared packaged run artifact, and the retained result

@@ -30,10 +30,11 @@ cannot claim proof, confirmation, validation, or explanation. An add-on cannot e
 execution registry with an omitted conclusion bound. Pinned execution handoff
 verification now also closes the result-contract envelope: `analysis-result.json`
 must retain the exact version-2 top-level fields, supported typed inference
-level, method-enforced ceiling status, non-authority missing-data scope, and
-receipt-matching randomness identity. Extra authority fields or rewritten
-contract language fail before the handoff can feed run drafting, evidence
-admission, replication verification, or rigor reporting.
+level, bounded method-enforced ceiling, method-enforced ceiling status,
+non-authority missing-data scope, and receipt-matching randomness identity.
+Extra authority fields, overclaiming enforced ceilings, or rewritten contract
+language fail before the handoff can feed run drafting, evidence admission,
+replication verification, or rigor reporting.
 Declared `required_spec_fields` are exact executable handles: empty tuples are
 allowed for methods with no required inputs, but any supplied field must be
 canonical without surrounding whitespace, duplicate-free, and part of Faraday's

@@ -2423,6 +2423,7 @@ def test_replication_package_verifies_sample_size_plan_check_metadata(
         ("missing_analysis_location", "does not resolve"),
         ("selected_value_mismatch", "selected_value_sha256 disagrees"),
         ("extra_handoff_authority", "result contract is invalid"),
+        ("handoff_overclaiming_method_ceiling", "result contract is invalid"),
         ("handoff_identity_mismatch", "authority identity disagrees"),
         ("handoff_result_body_mismatch", "execution_handoff body does not match"),
         ("handoff_output_missing_locator", "execution_handoff output is invalid"),
@@ -2567,6 +2568,10 @@ def test_replication_package_verifies_control_gate_metadata(
         runs[0]["metadata"]["execution_handoff"]["result"][
             "scientific_evidence_eligible"
         ] = True
+    elif mutation == "handoff_overclaiming_method_ceiling":
+        runs[0]["metadata"]["execution_handoff"]["result"][
+            "claim_ceiling"
+        ] = "This method confirmed the target mechanism."
     elif mutation == "handoff_identity_mismatch":
         runs[0]["metadata"]["execution_handoff"]["receipt"][
             "maximum_inference_level"

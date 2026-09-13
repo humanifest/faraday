@@ -1058,8 +1058,9 @@ value-domain digest, checks exact ordered coverage, and conserves the recorded
 input row count before trusting the redacted receipt metadata. The retained
 analysis-result body must also keep the closed version-2 execution envelope and
 receipt-matching authority identity: unsupported inference levels, extra
-authority fields, rewritten method-enforced ceiling status, altered
-non-authority missing-data scope, receipt/result identity drift, or disagreement
+authority fields, overclaiming enforced method ceilings, rewritten
+method-enforced ceiling status, altered non-authority missing-data scope,
+receipt/result identity drift, or disagreement
 between the retained result body and the declared packaged run output digest,
 byte count, and constrained `analysis-result.json` or redacted locator reject
 before any packaged gate can rely on that body.
