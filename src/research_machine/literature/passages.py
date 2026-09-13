@@ -15,6 +15,7 @@ from research_machine.literature.extraction import (
     validate_extraction_boundary,
 )
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.snapshot import _text
 
 
@@ -210,12 +211,7 @@ def create_passage_verification(
 ) -> dict[str, Any]:
     """Verify reviewer-supplied exact quotes against retained source bytes."""
     expected_sha256 = require_sha256(expected_sha256, "expected_extraction_sha256")
-    try:
-        content = extraction_path.read_bytes()
-        extraction = json.loads(content)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise ValidationError("could not read valid extraction JSON") from exc
-    digest = hashlib.sha256(content).hexdigest()
+    extraction, digest = load_json_object(extraction_path, "extraction")
     if digest != expected_sha256:
         raise ValidationError("passage verification extraction does not match the expected SHA-256")
     if (

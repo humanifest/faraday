@@ -14,6 +14,7 @@ from research_machine.domain.errors import ValidationError
 from research_machine.literature.evidence_map import validate_evidence_map_boundary
 from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.snapshot import _text
 from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
 from research_machine.literature.verification import _validate_passage_receipt
@@ -36,14 +37,7 @@ _EXTRACTION_RECORD_FIELDS = {
 
 
 def _load(path: Path, label: str) -> tuple[dict[str, Any], str]:
-    try:
-        content = path.read_bytes()
-        value = json.loads(content)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise ValidationError(f"could not read valid {label} JSON") from exc
-    if not isinstance(value, dict):
-        raise ValidationError(f"{label} must be a JSON object")
-    return value, hashlib.sha256(content).hexdigest()
+    return load_json_object(path, label)
 
 
 def _canonical_text(value: Any, field: str) -> str:

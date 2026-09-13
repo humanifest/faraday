@@ -205,6 +205,38 @@ def test_retrospective_deviation_is_embedded_and_forces_review(tmp_path):
     assert result["inputs"]["synthesis_deviations_sha256"] == deviations_sha
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (
+            '{"evidence_map_version": 1, "evidence_map_version": 1}\n',
+            "duplicate JSON object key",
+        ),
+        (
+            '{"evidence_map_version": NaN}\n',
+            "non-finite JSON number",
+        ),
+    ],
+)
+def test_synthesis_rejects_ambiguous_json_input_bytes(tmp_path, payload, message):
+    plan, plan_sha, extraction, evidence_map, _map_sha, deviations, deviations_sha = artifacts(tmp_path)
+    evidence_map.write_text(payload, encoding="utf-8")
+    tampered_map_sha = hashlib.sha256(evidence_map.read_bytes()).hexdigest()
+
+    with pytest.raises(ValidationError, match=message):
+        execute_qualitative_synthesis(
+            plan,
+            plan_sha,
+            extraction,
+            evidence_map,
+            tampered_map_sha,
+            deviations,
+            deviations_sha,
+            tmp_path / "synthesis",
+        )
+    assert not (tmp_path / "synthesis").exists()
+
+
 @pytest.mark.parametrize("tamper", [
     "version",
     "input-hash",

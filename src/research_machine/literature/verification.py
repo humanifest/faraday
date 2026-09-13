@@ -12,6 +12,7 @@ from typing import Any
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.passages import validate_passage_verification_boundary
 from research_machine.literature.snapshot import _text
 
@@ -258,12 +259,7 @@ def create_citation_verification(
 ) -> dict[str, Any]:
     """Record an independent, exhaustive review of extracted source claims."""
     expected_sha256 = require_sha256(expected_sha256, "expected_extraction_sha256")
-    try:
-        content = extraction_path.read_bytes()
-        extraction = json.loads(content)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise ValidationError("could not read valid extraction JSON") from exc
-    extraction_digest = hashlib.sha256(content).hexdigest()
+    extraction, extraction_digest = load_json_object(extraction_path, "extraction")
     if extraction_digest != expected_sha256:
         raise ValidationError("citation verification extraction does not match the expected SHA-256")
     if (not isinstance(extraction, dict) or extraction.get("extraction_version") != 1
@@ -329,12 +325,9 @@ def create_citation_verification(
             expected_passage_verification_sha256,
             "expected_passage_verification_sha256",
         )
-        try:
-            passage_content = passage_verification_path.read_bytes()
-            passage_verification = json.loads(passage_content)
-        except (OSError, UnicodeDecodeError, ValueError) as exc:
-            raise ValidationError("could not read valid passage verification JSON") from exc
-        passage_digest = hashlib.sha256(passage_content).hexdigest()
+        passage_verification, passage_digest = load_json_object(
+            passage_verification_path, "passage verification"
+        )
         if passage_digest != expected_passage_digest:
             raise ValidationError(
                 "citation verification passage record does not match the expected SHA-256"

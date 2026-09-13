@@ -16,6 +16,7 @@ from research_machine.literature.effects import (
     validate_retained_source_summaries,
 )
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.snapshot import _text
 from research_machine.literature.verification import _validate_passage_receipt
 
@@ -198,11 +199,7 @@ def validate_effect_verification_boundary(effect_verification: dict[str, Any]) -
 def create_effect_verification(effects_path: Path, expected_sha256: str,
                                review: dict[str, Any], output: Path) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_effects_sha256")
-    try:
-        content = effects_path.read_bytes(); effects = json.loads(content)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise ValidationError("could not read valid effect-record JSON") from exc
-    digest = hashlib.sha256(content).hexdigest()
+    effects, digest = load_json_object(effects_path, "effect-record")
     if digest != expected_sha256:
         raise ValidationError("effect verification does not match the expected SHA-256")
     if (not isinstance(effects, dict) or effects.get("effect_records_version") != 1

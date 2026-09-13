@@ -9,6 +9,7 @@ from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.snapshot import _text, validate_snapshot_boundary
 
 
@@ -120,13 +121,9 @@ def validate_screening_boundary(screening: dict[str, Any]) -> None:
 
 def create_screening(snapshot_path: Path, expected_sha256: str, review: dict[str, Any], output: Path) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_snapshot_sha256")
-    content = snapshot_path.read_bytes()
-    if hashlib.sha256(content).hexdigest() != expected_sha256:
+    snapshot, snapshot_digest = load_json_object(snapshot_path, "literature snapshot")
+    if snapshot_digest != expected_sha256:
         raise ValidationError("screening snapshot does not match the expected SHA-256")
-    try:
-        snapshot = json.loads(content)
-    except (ValueError, UnicodeDecodeError) as exc:
-        raise ValidationError("invalid literature snapshot JSON") from exc
     validate_snapshot_boundary(snapshot)
     sources = snapshot.get("sources")
     if not isinstance(sources, list) or not sources or any(not isinstance(item, dict) for item in sources):

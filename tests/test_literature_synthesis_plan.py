@@ -90,6 +90,24 @@ def test_synthesis_plan_cli_freezes_complete_commitments_and_is_write_once(tmp_p
         create_synthesis_plan(screening, digest, spec(), output)
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"screening_version": 2, "screening_version": 2}\n', "duplicate JSON object key"),
+        ('{"screening_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_synthesis_plan_rejects_ambiguous_screening_json_bytes(tmp_path, payload, message):
+    screening, _digest = screening_file(tmp_path)
+    screening.write_text(payload, encoding="utf-8")
+    tampered_digest = hashlib.sha256(screening.read_bytes()).hexdigest()
+    output = tmp_path / "plan"
+
+    with pytest.raises(ValidationError, match=message):
+        create_synthesis_plan(screening, tampered_digest, spec(), output)
+    assert not output.exists()
+
+
 def test_synthesis_plan_boundary_rejects_reviewer_authentication(tmp_path):
     screening, digest = screening_file(tmp_path)
     result = create_synthesis_plan(screening, digest, spec(), tmp_path / "plan")

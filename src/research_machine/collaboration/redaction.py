@@ -7,6 +7,7 @@ OPERATIONAL_CONTEXT_KEYS = {
     "attestation_schema_path",
     "custody_artifact_root",
     "ethics_artifact_root",
+    "origin_artifact_root",
     "review_artifact_root",
     "run_artifact_root",
     "run_attestation_schema_path",

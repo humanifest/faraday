@@ -55,6 +55,24 @@ def test_screening_preserves_canonical_source_and_criterion_references(tmp_path)
     validate_screening_boundary(result)
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"literature_snapshot_version": 1, "literature_snapshot_version": 1}\n', "duplicate JSON object key"),
+        ('{"literature_snapshot_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_screening_rejects_ambiguous_snapshot_json_bytes(tmp_path, payload, message):
+    snapshot, _digest, review = setup_snapshot(tmp_path)
+    snapshot.write_text(payload, encoding="utf-8")
+    tampered_digest = hashlib.sha256(snapshot.read_bytes()).hexdigest()
+    output = tmp_path / "screening"
+
+    with pytest.raises(ValidationError, match=message):
+        create_screening(snapshot, tampered_digest, review, output)
+    assert not output.exists()
+
+
 def test_screening_boundary_rejects_retained_overclaiming_reason(tmp_path):
     snapshot, digest, review = setup_snapshot(tmp_path)
     result = create_screening(snapshot, digest, review, tmp_path / "screening")

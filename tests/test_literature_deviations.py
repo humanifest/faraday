@@ -75,6 +75,24 @@ def test_explicit_no_deviations_declaration_is_recorded(tmp_path):
     assert result["deviations"] == []
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"synthesis_plan_version": 1, "synthesis_plan_version": 1}\n', "duplicate JSON object key"),
+        ('{"synthesis_plan_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_synthesis_deviations_reject_ambiguous_json_input_bytes(tmp_path, payload, message):
+    plan, _digest, _ = plan_file(tmp_path)
+    plan.write_text(payload, encoding="utf-8")
+    tampered_digest = hashlib.sha256(plan.read_bytes()).hexdigest()
+    output = tmp_path / "deviations"
+
+    with pytest.raises(ValidationError, match=message):
+        create_synthesis_deviations(plan, tampered_digest, disclosure(), output)
+    assert not output.exists()
+
+
 @pytest.mark.parametrize("tamper", [
     "version",
     "plan-hash",

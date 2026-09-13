@@ -6199,9 +6199,9 @@ def _normalize_cross_lane_lesson(
     integrity_status = require_canonical_text(
         origin_integrity_status, "origin_integrity_status"
     )
-    if integrity_status not in {"declared", "verified_elsewhere"}:
+    if integrity_status not in {"declared", "verified_elsewhere", "verified_local"}:
         raise ValidationError(
-            "origin_integrity_status must be declared or verified_elsewhere"
+            "origin_integrity_status must be declared, verified_elsewhere, or verified_local"
         )
     failure = require_canonical_text(failure_class, "failure_class")
     if failure not in {

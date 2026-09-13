@@ -359,3 +359,4 @@ class RecordCrossLaneLesson:
     proposed_repair: str
     repair_falsifier: str
     conclusion_ceiling: str
+    origin_artifact_root: str | None = None

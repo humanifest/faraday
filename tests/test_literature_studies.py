@@ -122,6 +122,24 @@ def test_reconciliation_preserves_canonical_study_source_and_registration_handle
 
 
 @pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"bias_assessment_version": 1, "bias_assessment_version": 1}\n', "duplicate JSON object key"),
+        ('{"bias_assessment_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_reconciliation_rejects_ambiguous_bias_json_bytes(tmp_path, payload, message):
+    bias, _digest = bias_file(tmp_path)
+    bias.write_text(payload, encoding="utf-8")
+    tampered_digest = hashlib.sha256(bias.read_bytes()).hexdigest()
+    output = tmp_path / "reconciliation"
+
+    with pytest.raises(ValidationError, match=message):
+        create_study_reconciliation(bias, tampered_digest, review(), output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
     "field",
     ["limitation", "identity_notes", "relationship_rationale"],
 )

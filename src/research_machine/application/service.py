@@ -6227,10 +6227,30 @@ class ResearchService:
             repair_falsifier=command.repair_falsifier,
             conclusion_ceiling=command.conclusion_ceiling,
         )
+        origin_artifact_root = ""
+        origin_artifact_integrity: dict[str, Any] = {}
+        if normalized["origin_integrity_status"] == "verified_local":
+            if command.origin_artifact_root is None:
+                raise ValidationError(
+                    "verified_local cross-lane lessons require origin_artifact_root"
+                )
+            origin_artifact_root, origin_artifact_integrity = (
+                self._verify_cross_lane_lesson_origin_artifact(
+                    origin_artifact_root=command.origin_artifact_root,
+                    origin_artifact_locator=str(normalized["origin_artifact_locator"]),
+                    origin_artifact_sha256=str(normalized["origin_artifact_sha256"]),
+                )
+            )
+        elif command.origin_artifact_root is not None:
+            raise ValidationError(
+                "origin_artifact_root is only accepted for verified_local cross-lane lessons"
+            )
         lesson = CrossLaneLesson(
             lesson_id=f"lesson-{self.token()}",
             created_at=self.clock(),
             created_by=self.actor,
+            origin_artifact_root=origin_artifact_root,
+            origin_artifact_integrity=origin_artifact_integrity,
             **normalized,
         )
         lesson = replace(
@@ -6300,36 +6320,80 @@ class ResearchService:
                     if commitment is not None
                     else CrossLaneTransferAuthorityStatus.LEGACY_PROSE_UNCOMMITTED
                 )
-                verified.append(
-                    replace(
-                        lesson,
-                        transfer_authority_status=status,
-                        current_transfer_authority=False,
-                        report_prose_findings=findings,
-                    )
-                )
-                continue
-            if commitment is None:
-                verified.append(
-                    replace(
-                        lesson,
-                        transfer_authority_status=(
-                            CrossLaneTransferAuthorityStatus.LEGACY_UNCOMMITTED
-                        ),
-                        current_transfer_authority=False,
-                    )
-                )
+                current_transfer_authority = False
             else:
-                verified.append(
-                    replace(
-                        lesson,
-                        transfer_authority_status=(
-                            CrossLaneTransferAuthorityStatus.CURRENT
-                        ),
-                        current_transfer_authority=True,
+                findings = []
+                status = (
+                    CrossLaneTransferAuthorityStatus.LEGACY_UNCOMMITTED
+                    if commitment is None
+                    else CrossLaneTransferAuthorityStatus.CURRENT
+                )
+                current_transfer_authority = commitment is not None
+            if lesson.origin_integrity_status == "verified_local":
+                if not lesson.origin_artifact_root:
+                    raise ValidationError(
+                        f"cross-lane lesson {lesson.lesson_id} verified_local "
+                        "origin lacks origin_artifact_root"
+                    )
+                if not isinstance(lesson.origin_artifact_integrity, dict):
+                    raise ValidationError(
+                        f"cross-lane lesson {lesson.lesson_id} origin_artifact_integrity must be an object"
+                    )
+                current_root, current_integrity = (
+                    self._verify_cross_lane_lesson_origin_artifact(
+                        origin_artifact_root=lesson.origin_artifact_root,
+                        origin_artifact_locator=lesson.origin_artifact_locator,
+                        origin_artifact_sha256=lesson.origin_artifact_sha256,
                     )
                 )
+                if current_root != lesson.origin_artifact_root:
+                    raise ValidationError(
+                        f"cross-lane lesson {lesson.lesson_id} origin artifact root changed"
+                    )
+                if current_integrity != lesson.origin_artifact_integrity:
+                    raise ValidationError(
+                        f"cross-lane lesson {lesson.lesson_id} current origin artifact bytes no longer match the retained verification receipt"
+                    )
+            elif lesson.origin_artifact_root or lesson.origin_artifact_integrity:
+                raise ValidationError(
+                    f"cross-lane lesson {lesson.lesson_id} local origin verification fields require verified_local integrity status"
+                )
+            verified.append(
+                replace(
+                    lesson,
+                    transfer_authority_status=status,
+                    current_transfer_authority=current_transfer_authority,
+                    report_prose_findings=findings,
+                )
+            )
         return verified
+
+    def _verify_cross_lane_lesson_origin_artifact(
+        self,
+        *,
+        origin_artifact_root: str,
+        origin_artifact_locator: str,
+        origin_artifact_sha256: str,
+    ) -> tuple[str, dict[str, Any]]:
+        root = require_canonical_text(origin_artifact_root, "origin_artifact_root")
+        locator = require_canonical_text(
+            origin_artifact_locator, "origin_artifact_locator"
+        )
+        digest = require_sha256(origin_artifact_sha256, "origin_artifact_sha256")
+        report = verify_run_artifacts(
+            [DatasetArtifact(locator=locator, sha256=digest)],
+            artifact_root=root,
+            actor=self.actor,
+            analysis_code_hash="0" * 64,
+            run_metadata={},
+            attestation_schema_path=None,
+            expected_attestation_schema_sha256=None,
+        )
+        if report.status != "passed" or report.all_artifacts_match is not True:
+            raise ValidationError(
+                "verified_local cross-lane lesson requires current origin artifact bytes to match origin_artifact_sha256"
+            )
+        return str(Path(root).expanduser().resolve()), report.to_dict()
 
     def list_recommendations(
         self, inquiry_id: str | None = None

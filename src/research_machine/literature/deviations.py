@@ -11,6 +11,7 @@ from typing import Any
 
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.snapshot import _text
 from research_machine.literature.synthesis_plan import validate_synthesis_plan_boundary
 
@@ -206,11 +207,7 @@ def create_synthesis_deviations(
     output: Path,
 ) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_plan_sha256")
-    try:
-        content = plan_path.read_bytes(); plan = json.loads(content)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise ValidationError("could not read valid synthesis-plan JSON") from exc
-    digest = hashlib.sha256(content).hexdigest()
+    plan, digest = load_json_object(plan_path, "synthesis-plan")
     if digest != expected_sha256:
         raise ValidationError("synthesis deviations plan does not match the expected SHA-256")
     if (not isinstance(plan, dict) or plan.get("synthesis_plan_version") != 1

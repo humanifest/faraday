@@ -1500,6 +1500,13 @@ and non-publication boundaries, retained limitations, `record_count`,
 and every mapped claim's compact extraction-payload digest against the supplied
 extraction bytes before trusting an evidence-map claim, so a rewritten
 extraction cannot be laundered by updating only the evidence-map input hash.
+The retained literature JSON bytes used from screening through extraction,
+passage verification, citation verification, bias assessment, study
+reconciliation, synthesis planning, evidence-map creation, effect preparation,
+effect verification, deviation recording, qualitative synthesis, and
+meta-analysis must also be unambiguous: duplicate object keys and non-finite JSON
+constants fail before the command trusts the parsed object, even when the
+supplied hash matches those bytes.
 Qualitative synthesis and quantitative effect preparation also replay the
 evidence map's non-evidence, non-conclusion, non-publication flags, retained
 limitations, claim count, and interpretive-ceiling counts before using it as an
@@ -2236,6 +2243,13 @@ gate evidence.
   run intake reject later edits to role, synthetic status, protocol binding,
   lineage, observation unit, attestations, metadata, artifact declarations, or
   descriptive identity.
+- Synthesis now includes a registered dataset inventory that reports role
+  counts, synthetic/non-synthetic status, artifact media, protocol binding,
+  lineage sources, payload sealing, observation-byte access/readiness, custody,
+  and ethics-check state. Empty inventories explicitly say that draft data-source
+  mentions, plugin access, and design briefs are not registered datasets. The
+  inventory is provenance visibility, not proof of source truth, consent truth,
+  measurement validity, or analysis adequacy.
 - Draft, amend, and hash-freeze observational, experimental, computational,
   formal, literature, and synthesis protocols.
 - Bind each frozen protocol to the complete scientific content of every tested
@@ -2741,11 +2755,16 @@ future versions, prohibited retroactive targets, proposed repair, falsifier,
 and conclusion ceiling. Lane IDs, artifact locators, integrity status,
 failure class, future-version handles, and prohibited-target handles must be
 canonical without surrounding whitespace before the lesson can become process
-state. Observation, alternative-explanation, challenged-invariant, repair,
-repair-falsifier, and conclusion-ceiling prose must also be canonical and
-bounded for reporting; a process lesson can describe a failure and possible
-repair, but it cannot claim proof, confirmation, validation, or explanation of
-a scientific proposition. The future and prohibited version sets must be disjoint. A lesson is
+state. If a lesson declares `origin_integrity_status: verified_local`, it must
+also supply `origin_artifact_root`; Faraday verifies the origin artifact bytes
+against `origin_artifact_sha256`, retains the service-generated integrity
+receipt and resolved local root, and replays that receipt on authoritative
+lesson reads. Declared and externally verified origins remain visibly lower-
+authority attestations and cannot carry local verification fields. Observation,
+alternative-explanation, challenged-invariant, repair, repair-falsifier, and
+conclusion-ceiling prose must also be canonical and bounded for reporting; a
+process lesson can describe a failure and possible repair, but it cannot claim
+proof, confirmation, validation, or explanation of a scientific proposition. The future and prohibited version sets must be disjoint. A lesson is
 process state only: recording one does not create evidence, change an old
 verdict, or raise a synthesis conclusion ceiling. New lessons also retain a
 service-generated `lesson_payload_sha256` over the complete immutable lesson
@@ -2753,14 +2772,16 @@ outside that field itself. Authoritative lesson reads replay the commitment
 before list, inquiry display, audit, or synthesis can use the lesson. The exact
 projection must also match exactly one hash-verified
 `cross-lane-lesson.record` event, so an edited future-version target, repair,
-failure class, observation, conclusion ceiling, or removed commitment fails
-closed before compatibility is considered. A ledger-bound historical lesson
-that passes current structure but fails only a later lexical report-prose rule
-remains readable without rewriting its words. It receives
-`current_transfer_authority=false`; uncommitted historical lessons receive the
-same non-authoritative treatment. This exception is read-only: new lesson writes
-still fail the current bounded-prose validator. Deterministic synthesis and rigor
-report each lesson's transfer-authority status in addition to its lane transfer,
+failure class, observation, origin byte receipt, conclusion ceiling, or removed
+commitment fails closed before compatibility is considered. A `verified_local`
+origin is re-hashed on authoritative reads and must match its retained receipt.
+A ledger-bound historical lesson that passes historical structure but fails
+only a later lexical report-prose rule remains readable without rewriting its
+words. It receives `current_transfer_authority=false`; uncommitted historical
+lessons receive the same non-authoritative treatment. This exception is
+read-only: new lesson writes still fail the current bounded-prose validator.
+Deterministic synthesis and rigor report each lesson's transfer-authority status
+in addition to its lane transfer,
 failure class, origin artifact digest, retained conclusion ceiling, and payload
 commitment status. The ledger binding preserves process history but does not
 authenticate chronology, scientific truth, or the author of the historical

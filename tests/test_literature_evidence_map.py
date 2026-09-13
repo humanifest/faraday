@@ -219,6 +219,23 @@ def test_evidence_map_preserves_passage_verification_receipt(tmp_path):
         validate_evidence_map_boundary(candidate, candidate["claims"])
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"extraction_version": 1, "extraction_version": 1}\n', "duplicate JSON object key"),
+        ('{"extraction_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_evidence_map_rejects_ambiguous_json_input_bytes(tmp_path, payload, message):
+    extraction, verification, bias, reconciliation, digest = chain(tmp_path)
+    extraction.write_text(payload, encoding="utf-8")
+    output = tmp_path / "map"
+
+    with pytest.raises(ValidationError, match=message):
+        create_evidence_map(extraction, verification, bias, reconciliation, digest, output)
+    assert not output.exists()
+
+
 @pytest.mark.parametrize("tamper", [
     "version",
     "input-hash",

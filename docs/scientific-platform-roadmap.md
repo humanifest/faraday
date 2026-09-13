@@ -132,7 +132,11 @@ methods without changing its epistemic rules or canonical state.
 - Cross-lane process lessons preserve observed failures without rewriting prior
   conclusions. Lane IDs, artifact locators, integrity status, failure class,
   future-version handles, and prohibited-target handles must be canonical before
-  the lesson can influence later work. Observation, alternative-explanation,
+  the lesson can influence later work. A `verified_local` origin must also name
+  a local artifact root; the service verifies the origin artifact bytes, retains
+  the integrity receipt, and replays the current bytes on authoritative reads.
+  Declared or externally verified origins remain lower-authority attestations
+  and cannot carry local verification receipts. Observation, alternative-explanation,
   challenged-invariant, repair, repair-falsifier, and conclusion-ceiling prose
   must also remain canonical and bounded, so a process lesson cannot claim
   proof, confirmation, validation, or explanation of a scientific proposition.
@@ -1910,11 +1914,18 @@ later reader from seeing only an unsupported ceiling label. It requires canonica
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims or
 publishing the qualitative artifact, so padded map artifacts cannot be silently
-rewritten into a synthesis. It also replays the evidence map's non-authority
-flags, including the explicit non-evidence, non-conclusion, and non-publication
-boundary, retained limitations, claim count, and interpretive-ceiling counts
-before using the map, so an internally rewritten map cannot authorize or
-sanitize later synthesis. It never treats claim counts as effect
+rewritten into a synthesis. The retained literature JSON bytes used from
+screening through extraction, passage verification, citation verification, bias
+assessment, study reconciliation, synthesis planning, evidence-map creation,
+effect preparation, effect verification, deviation recording, qualitative
+synthesis, and meta-analysis must also be unambiguous: duplicate object keys and
+non-finite JSON constants fail before the command trusts the parsed object, even
+when the supplied hash matches those bytes. It also replays the evidence map's
+non-authority flags, including the explicit non-evidence, non-conclusion, and
+non-publication boundary, retained
+limitations, claim count, and interpretive-ceiling counts before using the map,
+so an internally rewritten map cannot authorize or sanitize later synthesis. It
+never treats claim counts as effect
 sizes or authors a substantive conclusion; the artifact now carries explicit
 false scientific-evidence, conclusion-authorization, and
 publication-authorization flags plus a false reviewer-identity-authentication
@@ -2689,6 +2700,16 @@ now recursively walks protected ancestors during inquiry display, execution
 binding, run intake, and evidence admission; resealed records with missing,
 duplicated, cyclic, or cross-role/cross-protocol ancestry fail before scientific
 use.
+Deterministic synthesis now also emits a general registered-dataset inventory,
+not only the protected-lineage section. It counts roles and synthetic status,
+lists each registered manifest's artifact/media shape, protocol binding,
+lineage sources, payload seal, observation-byte access/readiness, custody state,
+and ethics context, while redacting retained local roots. An empty inventory
+explicitly excludes draft data-source mentions, plugin access, and design briefs
+from the set of datasets Faraday has actually registered. This makes routine
+"what data do we have?" questions answerable from canonical state without
+promoting manifest declarations into proof of current access, source truth,
+consent truth, measurement validity, or analysis adequacy.
 Literature synthesis-plan freezing now requires canonical plan IDs, reviewer
 text, questions, outcomes, effect measures, contrast definitions, subgroup and
 sensitivity entries, retained limitations, policy prose, conclusion rules,

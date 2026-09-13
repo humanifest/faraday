@@ -1455,6 +1455,8 @@ class CrossLaneLesson(Serializable):
     conclusion_ceiling: str
     created_at: str
     created_by: str
+    origin_artifact_root: str = ""
+    origin_artifact_integrity: dict[str, Any] = field(default_factory=dict)
     lesson_payload_sha256: str = ""
     # Derived by the application after exact ledger/projection verification.
     # These fields are deliberately excluded from the immutable lesson payload.
@@ -1482,6 +1484,8 @@ class CrossLaneLesson(Serializable):
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "CrossLaneLesson":
         copied = dict(value)
+        copied.setdefault("origin_artifact_root", "")
+        copied.setdefault("origin_artifact_integrity", {})
         copied.setdefault("lesson_payload_sha256", "")
         copied.setdefault(
             "transfer_authority_status",

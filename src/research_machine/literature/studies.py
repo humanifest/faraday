@@ -13,6 +13,7 @@ from typing import Any
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.bias import validate_bias_assessment_boundary
 from research_machine.literature.hashes import require_sha256
+from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.snapshot import _text
 
 
@@ -236,12 +237,7 @@ def create_study_reconciliation(
     output: Path,
 ) -> dict[str, Any]:
     expected_sha256 = require_sha256(expected_sha256, "expected_bias_assessment_sha256")
-    try:
-        content = bias_path.read_bytes()
-        bias = json.loads(content)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise ValidationError("could not read valid bias-assessment JSON") from exc
-    digest = hashlib.sha256(content).hexdigest()
+    bias, digest = load_json_object(bias_path, "bias-assessment")
     if digest != expected_sha256:
         raise ValidationError("study reconciliation bias assessment does not match the expected SHA-256")
     if (not isinstance(bias, dict) or bias.get("bias_assessment_version") != 1

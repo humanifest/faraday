@@ -155,6 +155,32 @@ def test_passage_verification_cli_checks_exact_retained_source_quote(
 
 
 @pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"extraction_version": 1, "extraction_version": 1}\n', "duplicate JSON object key"),
+        ('{"extraction_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_passage_verification_rejects_ambiguous_extraction_json_bytes(
+    tmp_path: Path, payload: str, message: str
+) -> None:
+    extraction, _digest, source_root = prepared_extraction(tmp_path)
+    extraction.write_text(payload, encoding="utf-8")
+    tampered_digest = hashlib.sha256(extraction.read_bytes()).hexdigest()
+    output = tmp_path / "passages"
+
+    with pytest.raises(ValidationError, match=message):
+        create_passage_verification(
+            extraction,
+            tampered_digest,
+            source_root,
+            passage_review(),
+            output,
+        )
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
     "failure",
     [
         "missing-source",

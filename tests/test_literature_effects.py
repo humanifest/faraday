@@ -185,6 +185,32 @@ def test_effect_records_preserve_passage_verification_receipts(tmp_path):
         validate_effect_records_boundary(candidate)
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"evidence_map_version": 1, "evidence_map_version": 1}\n', "duplicate JSON object key"),
+        ('{"evidence_map_version": NaN}\n', "non-finite JSON number"),
+    ],
+)
+def test_effect_records_reject_ambiguous_json_input_bytes(tmp_path, payload, message):
+    plan, plan_sha, extraction, evidence_map, _map_sha = artifacts(tmp_path)
+    evidence_map.write_text(payload, encoding="utf-8")
+    tampered_map_sha = hashlib.sha256(evidence_map.read_bytes()).hexdigest()
+    output = tmp_path / "effects"
+
+    with pytest.raises(ValidationError, match=message):
+        create_effect_records(
+            plan,
+            plan_sha,
+            extraction,
+            evidence_map,
+            tampered_map_sha,
+            review(),
+            output,
+        )
+    assert not output.exists()
+
+
 @pytest.mark.parametrize("tamper", [
     "version",
     "inputs-missing",
