@@ -331,6 +331,7 @@ class RecordRun:
 class RecommendNextAction:
     candidates: list[ActionCandidate]
     weights: SelectionWeights = field(default_factory=SelectionWeights)
+    audit_artifact_root: str | None = None
 
 
 @dataclass(frozen=True)
@@ -339,6 +340,7 @@ class RecommendActionPortfolio:
     candidates: list[ActionCandidate]
     completed_action_ids: list[str] = field(default_factory=list)
     weights: SelectionWeights = field(default_factory=SelectionWeights)
+    audit_artifact_root: str | None = None
 
 
 @dataclass(frozen=True)

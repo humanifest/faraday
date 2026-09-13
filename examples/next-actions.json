@@ -23,7 +23,38 @@
       "ambiguity_risk": 0.1,
       "prerequisite_evidence_refs": ["design-review:independent-proof-check"],
       "safety_review_refs": ["safety-review:noninterventional-replay"],
-      "rationale": "Tests whether the result depends on one checker implementation."
+      "rationale": "Tests whether the result depends on one checker implementation.",
+      "audit_prerequisite_contract": {
+        "contract_version": 1,
+        "action_class": "candidate_advancing",
+        "subjects": [
+          {
+            "subject_role": "implementation",
+            "subject_id": "<checker-implementation-id>",
+            "artifact_locator": "implementation/checker.py",
+            "artifact_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "required_audits": [
+          {
+            "audit_id": "<adversarial-audit-id>",
+            "artifact_role": "adversarial_implementation_audit",
+            "artifact_locator": "audits/checker-audit.json",
+            "artifact_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "audited_subject_role": "implementation",
+            "audited_subject_id": "<checker-implementation-id>",
+            "audited_subject_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "verdict": "favorable",
+            "scope": "Exact checker bytes and the declared bounded proof-checking role.",
+            "auditor_identity": "<auditor-identity-as-declared>",
+            "audited_at": "2026-09-12T12:00:00Z",
+            "limitations": ["Identity and independence remain unauthenticated by this artifact."]
+          }
+        ],
+        "evaluator_exposure_statement": "",
+        "limitations": ["A favorable audit permits workflow selection only."],
+        "conclusion_ceiling": "Workflow eligibility only; does not establish audit truth, auditor identity or independence, scientific validity, or evidence eligibility."
+      }
     }
   ]
 }

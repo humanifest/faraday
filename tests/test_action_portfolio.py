@@ -12,13 +12,73 @@ from research_machine.application.commands import (
     RecommendActionPortfolio,
 )
 from research_machine.application.service import ResearchService
+from research_machine.application.audit_prerequisite import (
+    AUDIT_PREREQUISITE_CONCLUSION_CEILING,
+)
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     ActionCandidate,
+    ActionAuditClass,
     ActionLane,
+    AuditPrerequisiteArtifact,
+    AuditPrerequisiteContract,
+    AuditPrerequisiteSubject,
     HypothesisDiscriminationTarget,
     SelectionWeights,
 )
+
+
+AUDIT_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "audit-prerequisite"
+SUBJECT_SHA256 = "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d86389505984"
+AUDIT_SHA256 = "1007b052c7bb6e43ffe8fee59108e64735c6b191c9d644e8868300723d521bf2"
+
+
+def audit_contract(*, candidate_advancing: bool) -> AuditPrerequisiteContract:
+    if not candidate_advancing:
+        return AuditPrerequisiteContract(
+            contract_version=1,
+            action_class=ActionAuditClass.EXPOSED_EVALUATOR_DEVELOPMENT,
+            subjects=[],
+            required_audits=[],
+            evaluator_exposure_statement=(
+                "Evaluator implementation is exposed development and cannot advance a candidate."
+            ),
+            limitations=["Synthetic workflow fixture only."],
+            conclusion_ceiling=AUDIT_PREREQUISITE_CONCLUSION_CEILING,
+        )
+    return AuditPrerequisiteContract(
+        contract_version=1,
+        action_class=ActionAuditClass.CANDIDATE_ADVANCING,
+        subjects=[
+            AuditPrerequisiteSubject(
+                subject_role="candidate",
+                subject_id="fixture-candidate",
+                artifact_locator="subject.txt",
+                artifact_sha256=SUBJECT_SHA256,
+            )
+        ],
+        required_audits=[
+            AuditPrerequisiteArtifact(
+                audit_id="audit-fixture-favorable",
+                artifact_role="adversarial_candidate_audit",
+                artifact_locator="favorable-audit.json",
+                artifact_sha256=AUDIT_SHA256,
+                audited_subject_role="candidate",
+                audited_subject_id="fixture-candidate",
+                audited_subject_sha256=SUBJECT_SHA256,
+                verdict="favorable",
+                scope="Exact synthetic candidate artifact bytes for workflow-gate testing only.",
+                auditor_identity="synthetic-test-auditor",
+                audited_at="2026-09-12T12:00:00Z",
+                limitations=[
+                    "Synthetic fixture; does not authenticate the auditor or establish scientific validity."
+                ],
+            )
+        ],
+        evaluator_exposure_statement="",
+        limitations=["Synthetic workflow fixture only."],
+        conclusion_ceiling=AUDIT_PREREQUISITE_CONCLUSION_CEILING,
+    )
 
 
 def prepared_service(root: Path) -> ResearchService:
@@ -28,6 +88,7 @@ def prepared_service(root: Path) -> ResearchService:
         actor="portfolio-test",
         clock=lambda: "2026-09-04T12:00:00Z",
         token=lambda: next(counter),
+        audit_artifact_root=AUDIT_FIXTURE_ROOT,
     )
     service.init_workspace()
     service.create_inquiry(
@@ -57,10 +118,11 @@ def candidate(
     metadata: dict[str, object] | None = None,
     duration: float = 0.0,
 ) -> ActionCandidate:
+    hypotheses = distinguishes_hypotheses or []
     return ActionCandidate(
         action_id=action_id,
         title=action_id.replace("-", " ").title(),
-        distinguishes_hypotheses=distinguishes_hypotheses or [],
+        distinguishes_hypotheses=hypotheses,
         information_targets=[f"{lane_id}:uncertainty"],
         expected_discrimination=score if distinguishes_hypotheses else 0.0,
         uncertainty_reduction=score,
@@ -88,6 +150,9 @@ def candidate(
         factor_interpretability_plan=factor_interpretability_plan,
         hypothesis_discrimination_targets=hypothesis_discrimination_targets or [],
         metadata=metadata or {},
+        audit_prerequisite_contract=audit_contract(
+            candidate_advancing=bool(hypotheses)
+        ),
     )
 
 
@@ -240,7 +305,7 @@ def test_hypothesis_discrimination_targets_are_retained_and_visible(
             ],
         )
     )
-    assert recommendation.score_contract_version == 2
+    assert recommendation.score_contract_version == 3
     assert len(recommendation.recommendation_payload_sha256) == 64
 
     selected = next(
@@ -417,6 +482,7 @@ def test_legacy_sealed_recommendation_without_workflow_states_remains_readable(
     )
     recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
     payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["score_contract_version"] = 2
     for item in payload["candidates"]:
         item.pop("hypothesis_workflow_states", None)
     payload_without_commitment = dict(payload)
@@ -577,6 +643,7 @@ def test_legacy_sealed_recommendation_without_eligibility_basis_remains_visible(
     )
     recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
     payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["score_contract_version"] = 2
     for item in payload["candidates"]:
         item.pop("prerequisite_evidence_refs", None)
         item.pop("safety_review_refs", None)
@@ -616,6 +683,7 @@ def test_legacy_sealed_recommendation_without_duration_remains_readable(
     )
     recommendation_file = next(tmp_path.rglob("recommendations/*.json"))
     payload = json.loads(recommendation_file.read_text(encoding="utf-8"))
+    payload["score_contract_version"] = 2
     payload["weights"].pop("duration")
     for item in payload["candidates"]:
         item.pop("duration")

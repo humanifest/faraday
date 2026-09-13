@@ -324,6 +324,15 @@ canonical write path.
   condition into one prospectively defined signed scalar margin or register
   multiple named controls. This strengthens observable custody and
   inspectability; it cannot prove that producing code was not hardcoded.
+- Require every new recommended action to declare whether it advances exact
+  candidate/implementation bytes or is exposed evaluator development. A
+  candidate-advancing action must bind current subject bytes and exact retained
+  audit JSON for role, hash, subject ID/hash, verdict, scope, declared auditor,
+  audit time, and limitations. Pending, adverse, missing, changed, or differently
+  scoped audits fail closed. Exposed evaluator development may exercise software
+  but must claim no hypothesis discrimination or candidate advancement. Treat a
+  passing receipt as workflow eligibility only, never audit truth, authenticated
+  identity or independence, scientific validity, evidence, or replication.
 - Bind every cross-lane lesson projection to exactly one hash-verified
   `cross-lane-lesson.record` event before it can influence a read, and replay its
   payload commitment when present. Preserve an event-identical historical lesson

@@ -1598,7 +1598,52 @@ def _action_eligibility_summary(candidate: ActionCandidate) -> str:
         if candidate.safety_review_refs
         else "legacy_missing"
     )
-    return (
+    ordinary = (
         f"prerequisites_met={candidate.prerequisites_met} via {prerequisite_refs}; "
         f"safety_approved={candidate.safety_approved} via {safety_refs}"
+    )
+    contract = candidate.audit_prerequisite_contract
+    receipt = candidate.audit_prerequisite_receipt
+    if contract is None or not receipt:
+        return ordinary + "; audit_prerequisite=legacy_missing"
+    if contract.action_class.value == "exposed_evaluator_development":
+        return (
+            ordinary
+            + "; audit action_class=exposed_evaluator_development; "
+            + f"workflow_eligible={receipt.get('workflow_eligible')}; "
+            + "candidate_advancement_eligible=False; exposure="
+            + contract.evaluator_exposure_statement
+            + "; replication_authority_established=False"
+            + "; limitations="
+            + " | ".join(contract.limitations)
+            + "; ceiling="
+            + contract.conclusion_ceiling
+        )
+    subjects = " | ".join(
+        f"{item.subject_role}:{item.subject_id} at {item.artifact_locator} "
+        f"sha256={item.artifact_sha256}"
+        for item in contract.subjects
+    )
+    audits = " | ".join(
+        f"{item.audit_id} role={item.artifact_role} at {item.artifact_locator} "
+        f"sha256={item.artifact_sha256}; subject={item.audited_subject_role}:"
+        f"{item.audited_subject_id}@{item.audited_subject_sha256}; "
+        f"verdict={item.verdict}; scope={item.scope}; "
+        f"auditor={item.auditor_identity}; audited_at={item.audited_at}; "
+        f"limitations={' | '.join(item.limitations)}"
+        for item in contract.required_audits
+    )
+    return (
+        ordinary
+        + "; audit action_class=candidate_advancing; "
+        + f"status={receipt.get('status')}; "
+        + f"workflow_eligible={receipt.get('workflow_eligible')}; "
+        + f"candidate_advancement_eligible={receipt.get('candidate_advancement_eligible')}; "
+        + f"replication_authority_established={receipt.get('replication_authority_established')}; "
+        + f"subjects={subjects}; audits={audits}; "
+        + f"receipt_sha256={receipt.get('receipt_sha256')}; "
+        + "contract limitations="
+        + " | ".join(contract.limitations)
+        + "; ceiling="
+        + contract.conclusion_ceiling
     )

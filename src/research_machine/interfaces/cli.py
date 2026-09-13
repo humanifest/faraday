@@ -746,11 +746,21 @@ def build_parser() -> argparse.ArgumentParser:
     next_action_commands = next_action.add_subparsers(dest="action", required=True)
     recommend = next_action_commands.add_parser("recommend")
     recommend.add_argument("--spec-file", type=Path, required=True)
+    recommend.add_argument(
+        "--audit-artifact-root",
+        type=Path,
+        help="Verify candidate-advancement subjects and audit artifacts beneath this root",
+    )
     _add_inquiry_option(recommend)
     portfolio = next_action_commands.add_parser(
         "portfolio", help="Select one safe, feasible action per active lane"
     )
     portfolio.add_argument("--spec-file", type=Path, required=True)
+    portfolio.add_argument(
+        "--audit-artifact-root",
+        type=Path,
+        help="Verify candidate-advancement subjects and audit artifacts beneath this root",
+    )
     _add_inquiry_option(portfolio)
     recommendation_list = next_action_commands.add_parser("list")
     _add_inquiry_option(recommendation_list)
@@ -2186,6 +2196,7 @@ def _action_candidates(spec: dict[str, Any]) -> list[ActionCandidate]:
         "factorial_or_crossover_design",
         "factor_interpretability_plan",
         "metadata",
+        "audit_prerequisite_contract",
     }
     for value in candidate_values:
         if not isinstance(value, dict):
@@ -2195,7 +2206,7 @@ def _action_candidates(spec: dict[str, Any]) -> list[ActionCandidate]:
             raise ValueError("unknown candidate fields: " + ", ".join(unknown))
         try:
             candidates.append(ActionCandidate.from_dict(value))
-        except TypeError as exc:
+        except (KeyError, TypeError, ValueError) as exc:
             raise ValueError(f"invalid action candidate: {exc}") from exc
     return candidates
 
@@ -2210,14 +2221,23 @@ def _selection_weights(spec: dict[str, Any]) -> SelectionWeights:
         raise ValueError(f"invalid selection weights: {exc}") from exc
 
 
-def _recommendation_command(spec: dict[str, Any]) -> RecommendNextAction:
+def _recommendation_command(
+    spec: dict[str, Any], audit_artifact_root: Path | None = None
+) -> RecommendNextAction:
     return RecommendNextAction(
-        candidates=_action_candidates(spec), weights=_selection_weights(spec)
+        candidates=_action_candidates(spec),
+        weights=_selection_weights(spec),
+        audit_artifact_root=(
+            str(audit_artifact_root.resolve())
+            if audit_artifact_root is not None
+            else None
+        ),
     )
 
 
 def _portfolio_recommendation_command(
     spec: dict[str, Any],
+    audit_artifact_root: Path | None = None,
 ) -> RecommendActionPortfolio:
     lane_values = spec.get("lanes")
     if not isinstance(lane_values, list):
@@ -2242,6 +2262,11 @@ def _portfolio_recommendation_command(
         candidates=_action_candidates(spec),
         completed_action_ids=completed,
         weights=_selection_weights(spec),
+        audit_artifact_root=(
+            str(audit_artifact_root.resolve())
+            if audit_artifact_root is not None
+            else None
+        ),
     )
 
 
@@ -3295,7 +3320,7 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                 label="next-action",
             )
             return service.recommend_next_action(
-                _recommendation_command(spec), args.inquiry
+                _recommendation_command(spec, args.audit_artifact_root), args.inquiry
             ).to_dict()
         if args.action == "portfolio":
             spec = _read_json_object(
@@ -3304,7 +3329,10 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                 label="next-action portfolio",
             )
             return service.recommend_action_portfolio(
-                _portfolio_recommendation_command(spec), args.inquiry
+                _portfolio_recommendation_command(
+                    spec, args.audit_artifact_root
+                ),
+                args.inquiry,
             ).to_dict()
         return [item.to_dict() for item in service.list_recommendations(args.inquiry)]
 

@@ -25,7 +25,16 @@
       "prerequisite_evidence_refs": ["design-review:measurement-contract-audit"],
       "safety_review_refs": ["safety-review:software-only-audit"],
       "rationale": "Tests whether the machine rejects an omitted measurement parameter.",
-      "lane_id": "machine"
+      "lane_id": "machine",
+      "audit_prerequisite_contract": {
+        "contract_version": 1,
+        "action_class": "exposed_evaluator_development",
+        "subjects": [],
+        "required_audits": [],
+        "evaluator_exposure_statement": "This develops an exposed evaluator and cannot advance a candidate or claim hypothesis discrimination.",
+        "limitations": ["Successful development establishes software behavior only."],
+        "conclusion_ceiling": "Workflow eligibility only; does not establish audit truth, auditor identity or independence, scientific validity, or evidence eligibility."
+      }
     },
     {
       "action_id": "run-cheap-falsifier",
@@ -53,7 +62,38 @@
       "safety_review_refs": ["safety-review:bounded-falsifier"],
       "rationale": "Eliminates an ill-typed or non-tangent candidate before expensive work.",
       "lane_id": "substantive",
-      "depends_on": []
+      "depends_on": [],
+      "audit_prerequisite_contract": {
+        "contract_version": 1,
+        "action_class": "candidate_advancing",
+        "subjects": [
+          {
+            "subject_role": "candidate",
+            "subject_id": "<candidate-id>",
+            "artifact_locator": "candidates/candidate.md",
+            "artifact_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "required_audits": [
+          {
+            "audit_id": "<candidate-audit-id>",
+            "artifact_role": "adversarial_candidate_audit",
+            "artifact_locator": "audits/candidate-audit.json",
+            "artifact_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "audited_subject_role": "candidate",
+            "audited_subject_id": "<candidate-id>",
+            "audited_subject_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "verdict": "favorable",
+            "scope": "Exact candidate bytes and the bounded proposed falsifier.",
+            "auditor_identity": "<auditor-identity-as-declared>",
+            "audited_at": "2026-09-12T12:00:00Z",
+            "limitations": ["Identity and independence remain unauthenticated by this artifact."]
+          }
+        ],
+        "evaluator_exposure_statement": "",
+        "limitations": ["A favorable audit permits workflow selection only."],
+        "conclusion_ceiling": "Workflow eligibility only; does not establish audit truth, auditor identity or independence, scientific validity, or evidence eligibility."
+      }
     }
   ],
   "completed_action_ids": []

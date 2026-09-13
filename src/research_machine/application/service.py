@@ -34,6 +34,9 @@ from research_machine.collaboration.redaction import (
     OPERATIONAL_CONTEXT_KEYS,
 )
 from research_machine.application.artifact_integrity import verify_run_artifacts
+from research_machine.application.audit_prerequisite import (
+    bind_action_audit_prerequisites,
+)
 from research_machine.application.policies import (
     declares_legacy_pre_registration_result_exposure,
     is_canonical_sha256,
@@ -1310,11 +1313,17 @@ class ResearchService:
         actor: str = "codex",
         clock: Callable[[], str] = utc_now,
         token: Callable[[], str] | None = None,
+        audit_artifact_root: str | Path | None = None,
     ):
         self.repository = repository
         self.actor = require_text(actor, "actor")
         self.clock = clock
         self.token = token or (lambda: uuid.uuid4().hex[:12])
+        self.audit_artifact_root = (
+            str(Path(audit_artifact_root).resolve())
+            if audit_artifact_root is not None
+            else None
+        )
 
     def init_workspace(self) -> dict[str, Any]:
         return self.repository.init_workspace(self.clock())
@@ -1741,6 +1750,9 @@ class ResearchService:
                 "Treat all supplied material as scoped working context, not established fact.",
                 "Propose competing explanations including measurement error, selection, and confounding.",
                 "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+                "Treat action audit-prerequisite receipts as workflow eligibility only, "
+                "not audit truth, auditor independence, scientific validity, evidence "
+                "eligibility, or replication authority.",
                 "Treat sensor, stream, clock, and control-window commitments as design provenance, "
                 "not proof of custody, calibration, synchronization, or timing validity.",
                 "Generated hypotheses remain unreviewed until a human explicitly activates them.",
@@ -6068,6 +6080,9 @@ class ResearchService:
             researchable_hypotheses,
             hypothesis_alternatives=hypothesis_alternatives,
         )
+        candidates = bind_action_audit_prerequisites(
+            candidates, command.audit_artifact_root or self.audit_artifact_root
+        )
         for candidate in candidates:
             if candidate.depends_on:
                 raise ValidationError(
@@ -6130,6 +6145,9 @@ class ResearchService:
             hypothesis_alternatives,
             lanes,
             command.completed_action_ids,
+        )
+        candidates = bind_action_audit_prerequisites(
+            candidates, command.audit_artifact_root or self.audit_artifact_root
         )
         weights = validate_selection_weights(command.weights)
         rankings = rank_actions_by_lane(candidates, lanes, completed, weights)
@@ -6342,6 +6360,17 @@ class ResearchService:
                     recommendation,
                     hypothesis_alternatives=hypothesis_alternatives,
                 )
+                if (
+                    recommendation.score_contract_version
+                    == CURRENT_RECOMMENDATION_SCORE_CONTRACT_VERSION
+                ):
+                    self.repository.verify_current_recommendation_integrity(
+                        inquiry_id,
+                        recommendation,
+                        expected_score_contract_version=(
+                            CURRENT_RECOMMENDATION_SCORE_CONTRACT_VERSION
+                        ),
+                    )
             elif not self.repository.has_legacy_recommendation_event(
                 inquiry_id, recommendation.recommendation_id
             ):
@@ -7201,6 +7230,7 @@ class ResearchService:
         protocols = self.repository.list_protocols(resolved)
         runs = self.repository.list_runs(resolved)
         cross_lane_lessons = self._verified_cross_lane_lessons(resolved)
+        recommendations = self._verified_recommendations(resolved)
         rigor_audit = audit_research_state(
             inquiry=inquiry,
             questions=self.repository.load_questions(resolved),
@@ -7211,6 +7241,7 @@ class ResearchService:
             protocols=protocols,
             runs=runs,
             cross_lane_lessons=cross_lane_lessons,
+            recommendations=recommendations,
         )
         content = build_synthesis(
             inquiry,
@@ -7221,7 +7252,7 @@ class ResearchService:
             datasets,
             protocols,
             runs,
-            self._verified_recommendations(resolved),
+            recommendations,
             cross_lane_lessons,
             rigor_audit,
             evidence_status_events,
@@ -7259,6 +7290,7 @@ class ResearchService:
             protocols=self.repository.list_protocols(resolved),
             runs=self.repository.list_runs(resolved),
             cross_lane_lessons=self._verified_cross_lane_lessons(resolved),
+            recommendations=self._verified_recommendations(resolved),
         )
         if fail_on not in {"never", "error", "warning"}:
             raise ValidationError("fail_on must be never, error, or warning")

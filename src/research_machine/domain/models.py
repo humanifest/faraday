@@ -172,6 +172,11 @@ class CrossLaneTransferAuthorityStatus(StrEnum):
     LEGACY_PROSE_UNCOMMITTED = "legacy_uncommitted_report_prose"
 
 
+class ActionAuditClass(StrEnum):
+    CANDIDATE_ADVANCING = "candidate_advancing"
+    EXPOSED_EVALUATOR_DEVELOPMENT = "exposed_evaluator_development"
+
+
 def _jsonable(value: Any) -> Any:
     if isinstance(value, StrEnum):
         return value.value
@@ -1235,6 +1240,65 @@ class HypothesisDiscriminationTarget(Serializable):
 
 
 @dataclass(frozen=True)
+class AuditPrerequisiteSubject(Serializable):
+    """One exact candidate or implementation artifact governed by an audit."""
+
+    subject_role: str
+    subject_id: str
+    artifact_locator: str
+    artifact_sha256: str
+
+
+@dataclass(frozen=True)
+class AuditPrerequisiteArtifact(Serializable):
+    """Expected identity and content of one retained audit artifact."""
+
+    audit_id: str
+    artifact_role: str
+    artifact_locator: str
+    artifact_sha256: str
+    audited_subject_role: str
+    audited_subject_id: str
+    audited_subject_sha256: str
+    verdict: str
+    scope: str
+    auditor_identity: str
+    audited_at: str
+    limitations: list[str]
+
+
+@dataclass(frozen=True)
+class AuditPrerequisiteContract(Serializable):
+    """Prospective boundary between candidate advancement and evaluator work."""
+
+    contract_version: int
+    action_class: ActionAuditClass
+    subjects: list[AuditPrerequisiteSubject]
+    required_audits: list[AuditPrerequisiteArtifact]
+    evaluator_exposure_statement: str
+    limitations: list[str]
+    conclusion_ceiling: str
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "AuditPrerequisiteContract":
+        copied = dict(value)
+        copied["action_class"] = ActionAuditClass(copied["action_class"])
+        copied["subjects"] = [
+            item
+            if isinstance(item, AuditPrerequisiteSubject)
+            else AuditPrerequisiteSubject(**item)
+            for item in copied.get("subjects", [])
+        ]
+        copied["required_audits"] = [
+            item
+            if isinstance(item, AuditPrerequisiteArtifact)
+            else AuditPrerequisiteArtifact(**item)
+            for item in copied.get("required_audits", [])
+        ]
+        return cls(**copied)
+
+
+@dataclass(frozen=True)
 class ActionCandidate(Serializable):
     action_id: str
     title: str
@@ -1262,6 +1326,16 @@ class ActionCandidate(Serializable):
     factorial_or_crossover_design: bool = False
     factor_interpretability_plan: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
+    audit_prerequisite_contract: AuditPrerequisiteContract | None = None
+    audit_prerequisite_receipt: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = super().to_dict()
+        if self.audit_prerequisite_contract is None:
+            payload.pop("audit_prerequisite_contract", None)
+        if not self.audit_prerequisite_receipt:
+            payload.pop("audit_prerequisite_receipt", None)
+        return payload
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "ActionCandidate":
@@ -1270,12 +1344,22 @@ class ActionCandidate(Serializable):
         copied.setdefault("hypothesis_workflow_states", {})
         copied.setdefault("prerequisite_evidence_refs", [])
         copied.setdefault("safety_review_refs", [])
+        copied.setdefault("audit_prerequisite_contract", None)
+        copied.setdefault("audit_prerequisite_receipt", {})
         copied["hypothesis_discrimination_targets"] = [
             item
             if isinstance(item, HypothesisDiscriminationTarget)
             else HypothesisDiscriminationTarget.from_dict(item)
             for item in copied["hypothesis_discrimination_targets"]
         ]
+        if copied["audit_prerequisite_contract"] is not None and not isinstance(
+            copied["audit_prerequisite_contract"], AuditPrerequisiteContract
+        ):
+            copied["audit_prerequisite_contract"] = (
+                AuditPrerequisiteContract.from_dict(
+                    copied["audit_prerequisite_contract"]
+                )
+            )
         return cls(**copied)
 
 

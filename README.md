@@ -2577,9 +2577,11 @@ The general execution loop uses JSON contracts:
   --validation-tag internal_consistency \
   --validation-tag controlled_benchmark --confirmatory
 ./research --workspace .research next-action recommend \
-  --spec-file examples/next-actions.json
+  --spec-file examples/next-actions.json \
+  --audit-artifact-root /absolute/path/to/retained-artifacts
 ./research --workspace .research next-action portfolio \
-  --spec-file examples/next-action-portfolio.json
+  --spec-file examples/next-action-portfolio.json \
+  --audit-artifact-root /absolute/path/to/retained-artifacts
 ./research --workspace .research cross-lane-lesson record \
   --spec-file examples/cross-lane-lesson.json
 ./research --workspace .research workspace audit --fail-on error
@@ -2607,6 +2609,18 @@ handle for its declared prerequisite and safety status. These references make
 the selector's eligibility basis auditable; they do not prove that the cited
 review was correct, authenticate the reviewer, or authorize the work outside
 the relevant protocol, ethics, and execution gates.
+Every new candidate must additionally carry a typed
+`audit_prerequisite_contract`. `candidate_advancing` actions bind the current
+bytes of each named candidate or implementation and exact retained audit JSON
+for artifact role/hash, audited subject ID/hash, verdict, scope, declared auditor
+identity and time, and limitations. Supply `--audit-artifact-root` so Faraday can
+verify those files before ranking. Missing, changed, pending, adverse, or
+differently scoped audit material fails closed; pending and adverse records may
+remain visible but cannot be selected. `exposed_evaluator_development` is a
+separate non-advancing class with no audit-coverage claim: it may reduce workflow
+uncertainty but cannot name hypothesis discrimination or acquire candidate
+admission from a favorable development result. See
+[`docs/action-audit-prerequisites.md`](docs/action-audit-prerequisites.md).
 The single `next-action recommend` path has no completed-action graph, so it
 rejects candidates with `depends_on`; dependent actions must use portfolio
 selection where completed actions and dependency acyclicity can be replayed.
@@ -2699,12 +2713,14 @@ stale score record. New recommendations also retain a service-generated
 outside that field itself, so a canonical rewrite of a candidate rationale,
 hypothesis-discrimination target, eligibility reference, lane context,
 completed dependency, weight, score, or selected action fails before it can
-influence later reports. New records also declare `score_contract_version: 2`,
+influence later reports. New records also declare `score_contract_version: 3`,
 which separates hypothesis discrimination from information gain: an action that
 names no hypothesis distinction must assign zero expected discrimination and use
-uncertainty reduction for its information value. Committed version-1 records are
-replayed under their historical arithmetic and must still match their exact
-hash-verified ledger event; they are not silently rescored under version 2.
+uncertainty reduction for its information value. Committed version-1 and
+version-2 records are replayed under their historical contracts and are not
+silently upgraded to typed audit-prerequisite authority. Version-3 reads re-hash
+the retained subject and audit artifacts, replay the service-generated receipt,
+and bind the recommendation projection to its exact hash-verified ledger event.
 Legacy uncommitted recommendations remain readable only
 when their exact stored projection matches their hash-verified historical
 selection event and their bounded recommendation prose passes the applicable

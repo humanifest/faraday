@@ -3,13 +3,73 @@
   "$id": "https://research-machine.local/schemas/next-action.schema.json",
   "title": "Next research action selection",
   "type": "object",
+  "$defs": {
+    "auditPrerequisiteContract": {
+      "type": "object",
+      "required": ["contract_version", "action_class", "subjects", "required_audits", "evaluator_exposure_statement", "limitations", "conclusion_ceiling"],
+      "properties": {
+        "contract_version": {"const": 1},
+        "action_class": {"enum": ["candidate_advancing", "exposed_evaluator_development"]},
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["subject_role", "subject_id", "artifact_locator", "artifact_sha256"],
+            "properties": {
+              "subject_role": {"enum": ["candidate", "implementation"]},
+              "subject_id": {"type": "string", "minLength": 1},
+              "artifact_locator": {"type": "string", "minLength": 1},
+              "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "required_audits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["audit_id", "artifact_role", "artifact_locator", "artifact_sha256", "audited_subject_role", "audited_subject_id", "audited_subject_sha256", "verdict", "scope", "auditor_identity", "audited_at", "limitations"],
+            "properties": {
+              "audit_id": {"type": "string", "minLength": 1},
+              "artifact_role": {"type": "string", "minLength": 1},
+              "artifact_locator": {"type": "string", "minLength": 1},
+              "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "audited_subject_role": {"enum": ["candidate", "implementation"]},
+              "audited_subject_id": {"type": "string", "minLength": 1},
+              "audited_subject_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "verdict": {"enum": ["favorable", "pending", "adverse"]},
+              "scope": {"type": "string", "minLength": 1},
+              "auditor_identity": {"type": "string", "minLength": 1},
+              "audited_at": {"type": "string", "format": "date-time"},
+              "limitations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+            },
+            "additionalProperties": false
+          }
+        },
+        "evaluator_exposure_statement": {"type": "string"},
+        "limitations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "conclusion_ceiling": {"const": "Workflow eligibility only; does not establish audit truth, auditor identity or independence, scientific validity, or evidence eligibility."}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"action_class": {"const": "candidate_advancing"}}, "required": ["action_class"]},
+          "then": {"properties": {"subjects": {"minItems": 1}, "required_audits": {"minItems": 1}, "evaluator_exposure_statement": {"const": ""}}}
+        },
+        {
+          "if": {"properties": {"action_class": {"const": "exposed_evaluator_development"}}, "required": ["action_class"]},
+          "then": {"properties": {"subjects": {"maxItems": 0}, "required_audits": {"maxItems": 0}, "evaluator_exposure_statement": {"minLength": 1}}}
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
   "required": ["candidates"],
   "properties": {
     "candidates": {
       "type": "array", "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["action_id", "title", "distinguishes_hypotheses", "expected_discrimination", "uncertainty_reduction", "cost", "duration", "burden", "safety_risk", "ambiguity_risk", "rationale", "prerequisite_evidence_refs", "safety_review_refs"],
+        "required": ["action_id", "title", "distinguishes_hypotheses", "expected_discrimination", "uncertainty_reduction", "cost", "duration", "burden", "safety_risk", "ambiguity_risk", "rationale", "prerequisite_evidence_refs", "safety_review_refs", "audit_prerequisite_contract"],
         "properties": {
           "action_id": {"type": "string", "minLength": 1},
           "title": {"type": "string", "minLength": 1},
@@ -49,7 +109,8 @@
           "manipulated_factors": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true, "default": []},
           "factorial_or_crossover_design": {"type": "boolean", "default": false},
           "factor_interpretability_plan": {"type": "string", "default": ""},
-          "metadata": {"type": "object"}
+          "metadata": {"type": "object"},
+          "audit_prerequisite_contract": {"$ref": "#/$defs/auditPrerequisiteContract"}
         },
         "anyOf": [
           {
@@ -79,6 +140,22 @@
             },
             "then": {
               "properties": {
+                "expected_discrimination": {"const": 0},
+                "hypothesis_discrimination_targets": {"maxItems": 0}
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "audit_prerequisite_contract": {
+                  "properties": {"action_class": {"const": "exposed_evaluator_development"}}
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "distinguishes_hypotheses": {"maxItems": 0},
                 "expected_discrimination": {"const": 0},
                 "hypothesis_discrimination_targets": {"maxItems": 0}
               }

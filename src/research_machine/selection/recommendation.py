@@ -7,6 +7,9 @@ import math
 import re
 
 from research_machine.domain.errors import ValidationError
+from research_machine.application.audit_prerequisite import (
+    audit_prerequisite_allows_selection,
+)
 from research_machine.domain.models import (
     ActionCandidate,
     ActionLane,
@@ -129,7 +132,7 @@ _CANDIDATE_SCORE_FIELDS = (
 )
 
 _RECOMMENDATION_HYPOTHESIS_STATES = {"active", "pending_review"}
-CURRENT_RECOMMENDATION_SCORE_CONTRACT_VERSION = 2
+CURRENT_RECOMMENDATION_SCORE_CONTRACT_VERSION = 3
 _RECOMMENDATION_OVERCLAIM = re.compile(
     r"\b(?:proved|confirmed|explained|validates?|validated)\b",
     re.IGNORECASE,
@@ -163,6 +166,7 @@ def _validate_candidate_score_inputs_for_replay(
     *,
     allow_legacy_missing_eligibility_basis: bool = False,
     allow_legacy_information_discrimination: bool = False,
+    allow_legacy_missing_audit_prerequisite: bool = False,
 ) -> None:
     if not isinstance(candidate, ActionCandidate):
         raise ValidationError("candidates must contain ActionCandidate values")
@@ -256,6 +260,10 @@ def _validate_candidate_score_inputs_for_replay(
             f"action {candidate.action_id} changes multiple factors without a "
             "factorial or crossover interpretability design"
         )
+    audit_prerequisite_allows_selection(
+        candidate,
+        allow_legacy_missing=allow_legacy_missing_audit_prerequisite,
+    )
 
 
 def _validate_discrimination_target_replay(candidate: ActionCandidate) -> None:
@@ -397,6 +405,7 @@ def _rank_actions(
     *,
     allow_legacy_missing_eligibility_basis: bool = False,
     allow_legacy_information_discrimination: bool = False,
+    allow_legacy_missing_audit_prerequisite: bool = False,
 ) -> list[ActionScore]:
 
     _validate_selection_weights_for_replay(weights)
@@ -409,6 +418,9 @@ def _rank_actions(
             ),
             allow_legacy_information_discrimination=(
                 allow_legacy_information_discrimination
+            ),
+            allow_legacy_missing_audit_prerequisite=(
+                allow_legacy_missing_audit_prerequisite
             ),
         )
         _validate_discrimination_target_replay(candidate)
@@ -427,10 +439,15 @@ def _rank_actions(
         candidate
         for candidate in candidates
         if candidate.prerequisites_met and candidate.safety_approved
+        and audit_prerequisite_allows_selection(
+            candidate,
+            allow_legacy_missing=allow_legacy_missing_audit_prerequisite,
+        )
     ]
     if not eligible:
         raise ValidationError(
-            "no action candidate has both satisfied prerequisites and safety approval"
+            "no action candidate has both satisfied prerequisites and safety approval "
+            "and also has a workflow-eligible audit prerequisite"
         )
 
     scores = []
@@ -474,6 +491,7 @@ def _rank_actions_by_lane(
     *,
     allow_legacy_missing_eligibility_basis: bool = False,
     allow_legacy_information_discrimination: bool = False,
+    allow_legacy_missing_audit_prerequisite: bool = False,
 ) -> dict[str, list[ActionScore]]:
 
     _validate_selection_weights_for_replay(weights)
@@ -486,6 +504,9 @@ def _rank_actions_by_lane(
         ),
         allow_legacy_information_discrimination=(
             allow_legacy_information_discrimination
+        ),
+        allow_legacy_missing_audit_prerequisite=(
+            allow_legacy_missing_audit_prerequisite
         ),
     )
     completed = set(completed_action_ids)
@@ -500,11 +521,16 @@ def _rank_actions_by_lane(
             and candidate.action_id not in completed
             and candidate.prerequisites_met
             and candidate.safety_approved
+            and audit_prerequisite_allows_selection(
+                candidate,
+                allow_legacy_missing=allow_legacy_missing_audit_prerequisite,
+            )
             and set(candidate.depends_on) <= completed
         ]
         if not eligible:
             raise ValidationError(
-                f"active lane {lane.lane_id} has no safe, dependency-complete action"
+                f"active lane {lane.lane_id} has no safe, dependency-complete action "
+                "with a favorable audit prerequisite"
             )
         rankings[lane.lane_id] = _rank_actions(
             eligible,
@@ -514,6 +540,9 @@ def _rank_actions_by_lane(
             ),
             allow_legacy_information_discrimination=(
                 allow_legacy_information_discrimination
+            ),
+            allow_legacy_missing_audit_prerequisite=(
+                allow_legacy_missing_audit_prerequisite
             ),
         )
     return rankings
@@ -541,6 +570,7 @@ def _validate_portfolio_replay_inputs(
     *,
     allow_legacy_missing_eligibility_basis: bool = False,
     allow_legacy_information_discrimination: bool = False,
+    allow_legacy_missing_audit_prerequisite: bool = False,
 ) -> None:
     if not lanes:
         raise ValidationError("at least one action lane is required")
@@ -563,6 +593,9 @@ def _validate_portfolio_replay_inputs(
             ),
             allow_legacy_information_discrimination=(
                 allow_legacy_information_discrimination
+            ),
+            allow_legacy_missing_audit_prerequisite=(
+                allow_legacy_missing_audit_prerequisite
             ),
         )
         _validate_discrimination_target_replay(candidate)
@@ -811,7 +844,7 @@ def verify_recommendation_score_replay(
     if (
         isinstance(recommendation.score_contract_version, bool)
         or recommendation.score_contract_version
-        not in {1, CURRENT_RECOMMENDATION_SCORE_CONTRACT_VERSION}
+        not in {1, 2, CURRENT_RECOMMENDATION_SCORE_CONTRACT_VERSION}
     ):
         raise ValidationError(
             f"recommendation {recommendation.recommendation_id} has unsupported "
@@ -819,6 +852,9 @@ def verify_recommendation_score_replay(
         )
     allow_legacy_information_discrimination = (
         recommendation.score_contract_version == 1
+    )
+    allow_legacy_missing_audit_prerequisite = (
+        recommendation.score_contract_version < 3
     )
 
     allow_legacy_missing_eligibility_basis = (
@@ -842,6 +878,9 @@ def verify_recommendation_score_replay(
             ),
             allow_legacy_information_discrimination=(
                 allow_legacy_information_discrimination
+            ),
+            allow_legacy_missing_audit_prerequisite=(
+                allow_legacy_missing_audit_prerequisite
             ),
         )
         expected_selected_action_id = expected_scores[0].action_id
@@ -868,6 +907,9 @@ def verify_recommendation_score_replay(
             ),
             allow_legacy_information_discrimination=(
                 allow_legacy_information_discrimination
+            ),
+            allow_legacy_missing_audit_prerequisite=(
+                allow_legacy_missing_audit_prerequisite
             ),
         )
         expected_selected_by_lane = {

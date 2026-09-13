@@ -17,6 +17,9 @@ from research_machine.application.commands import (
     RetireHypothesis,
 )
 from research_machine.application.service import ResearchService
+from research_machine.application.audit_prerequisite import (
+    AUDIT_PREREQUISITE_CONCLUSION_CEILING,
+)
 from research_machine.application.run_integrity import run_payload_sha256
 from research_machine.domain.errors import ValidationError
 from research_machine.application.policies import (
@@ -31,6 +34,10 @@ from research_machine.measurement.preprocessing import assess_preprocessing_conf
 from research_machine.measurement.instrument import assess_temporal_order
 from research_machine.domain.models import (
     ActionCandidate,
+    ActionAuditClass,
+    AuditPrerequisiteArtifact,
+    AuditPrerequisiteContract,
+    AuditPrerequisiteSubject,
     AnalysisMode,
     AnalysisContract,
     CanaryTargetPlan,
@@ -55,6 +62,46 @@ CODE_HASH = "a" * 64
 ENVIRONMENT_HASH = "b" * 64
 SEED_REVEAL = "registered-seed-42"
 SEED_COMMITMENT = hashlib.sha256(SEED_REVEAL.encode("utf-8")).hexdigest()
+AUDIT_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "audit-prerequisite"
+SUBJECT_SHA256 = "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d86389505984"
+AUDIT_SHA256 = "1007b052c7bb6e43ffe8fee59108e64735c6b191c9d644e8868300723d521bf2"
+
+
+def action_audit_contract(*, candidate_advancing: bool) -> AuditPrerequisiteContract:
+    if not candidate_advancing:
+        return AuditPrerequisiteContract(
+            1,
+            ActionAuditClass.EXPOSED_EVALUATOR_DEVELOPMENT,
+            [],
+            [],
+            "Evaluator implementation is exposed development and cannot advance a candidate.",
+            ["Synthetic workflow fixture only."],
+            AUDIT_PREREQUISITE_CONCLUSION_CEILING,
+        )
+    return AuditPrerequisiteContract(
+        1,
+        ActionAuditClass.CANDIDATE_ADVANCING,
+        [AuditPrerequisiteSubject("candidate", "fixture-candidate", "subject.txt", SUBJECT_SHA256)],
+        [
+            AuditPrerequisiteArtifact(
+                "audit-fixture-favorable",
+                "adversarial_candidate_audit",
+                "favorable-audit.json",
+                AUDIT_SHA256,
+                "candidate",
+                "fixture-candidate",
+                SUBJECT_SHA256,
+                "favorable",
+                "Exact synthetic candidate artifact bytes for workflow-gate testing only.",
+                "synthetic-test-auditor",
+                "2026-09-12T12:00:00Z",
+                ["Synthetic fixture; does not authenticate the auditor or establish scientific validity."],
+            )
+        ],
+        "",
+        ["Synthetic workflow fixture only."],
+        AUDIT_PREREQUISITE_CONCLUSION_CEILING,
+    )
 
 
 def action_discrimination_target(
@@ -94,6 +141,12 @@ def next_action_candidate(**overrides) -> ActionCandidate:
         "safety_review_refs": [f"safety-review:{action_id}"],
     }
     values.update(overrides)
+    values.setdefault(
+        "audit_prerequisite_contract",
+        action_audit_contract(
+            candidate_advancing=bool(values.get("distinguishes_hypotheses"))
+        ),
+    )
     return ActionCandidate(**values)
 
 
@@ -411,6 +464,7 @@ def prepared_service(root: Path) -> tuple[ResearchService, str]:
         actor="test-researcher",
         clock=lambda: "2026-09-02T12:00:00Z",
         token=lambda: next(counter),
+        audit_artifact_root=AUDIT_FIXTURE_ROOT,
     )
     service.init_workspace()
     service.create_inquiry(

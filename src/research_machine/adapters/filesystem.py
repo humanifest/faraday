@@ -792,6 +792,47 @@ class FileSystemRepository:
             "current_selection_authority": False,
         }
 
+    def verify_current_recommendation_integrity(
+        self,
+        inquiry_id: str,
+        recommendation: ActionRecommendation,
+        *,
+        expected_score_contract_version: int,
+        events: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Bind a current recommendation to its exact hash-verified event."""
+
+        if recommendation.score_contract_version != expected_score_contract_version:
+            raise IntegrityError(
+                f"recommendation {recommendation.recommendation_id} is not current"
+            )
+        verified_events = (
+            events if events is not None else self._verified_ledger_events(inquiry_id)
+        )
+        payload = self._recommendation_selection_payload(
+            verified_events, recommendation.recommendation_id
+        )
+        if payload.get("score_contract_version") != expected_score_contract_version:
+            raise IntegrityError(
+                f"current recommendation {recommendation.recommendation_id} "
+                "score contract differs from its selection event"
+            )
+        path = (
+            self._inquiry_dir(inquiry_id)
+            / "recommendations"
+            / f"{recommendation.recommendation_id}.json"
+        )
+        if self._read_json(path) != payload:
+            raise IntegrityError(
+                f"current recommendation {recommendation.recommendation_id} "
+                "differs from its selection event"
+            )
+        return {
+            "status": "current_recommendation_event_bound",
+            "recommendation_id": recommendation.recommendation_id,
+            "score_contract_version": expected_score_contract_version,
+        }
+
     def has_legacy_recommendation_event(
         self, inquiry_id: str, recommendation_id: str
     ) -> bool:

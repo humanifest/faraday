@@ -11,9 +11,13 @@ from research_machine.application.policies import (
     validate_validation_tag_context,
 )
 from research_machine.application.claim_integrity import claim_level_rank
+from research_machine.application.audit_prerequisite import (
+    verify_action_audit_prerequisite,
+)
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.domain.models import (
     AnalysisMode,
+    ActionRecommendation,
     Claim,
     ClaimDisposition,
     ClaimEpistemicLayer,
@@ -326,6 +330,7 @@ def audit_research_state(
     runs: list[ResearchRun],
     cross_lane_lessons: list[CrossLaneLesson] | None = None,
     questions: list[Question] | None = None,
+    recommendations: list[ActionRecommendation] | None = None,
 ) -> RigorAudit:
     findings: list[RigorFinding] = []
 
@@ -405,6 +410,95 @@ def audit_research_state(
                 + question_ids
             ),
         )
+
+    for recommendation in recommendations or []:
+        if recommendation.score_contract_version < 3:
+            add(
+                "ACTION_AUDIT_PREREQUISITE_LEGACY_MISSING",
+                RigorSeverity.WARNING,
+                (
+                    "Historical recommendation predates typed, current-byte "
+                    "audit-prerequisite eligibility and has no current authority "
+                    "to advance candidate or implementation bytes."
+                ),
+                entity_type="recommendation",
+                entity_id=recommendation.recommendation_id,
+                remediation=(
+                    "Preserve the historical record. Create a new recommendation "
+                    "with a prospective audit-prerequisite contract before advancement."
+                ),
+            )
+            continue
+        selected_ids = (
+            set(recommendation.selected_action_ids_by_lane.values())
+            if recommendation.selection_mode == "portfolio"
+            else {recommendation.selected_action_id}
+        )
+        for candidate in recommendation.candidates:
+            try:
+                receipt = verify_action_audit_prerequisite(candidate)
+            except ResearchMachineError as exc:
+                add(
+                    "ACTION_AUDIT_PREREQUISITE_REPLAY_FAILED",
+                    RigorSeverity.ERROR,
+                    f"Action audit-prerequisite receipt did not replay: {exc}",
+                    entity_type="action_candidate",
+                    entity_id=candidate.action_id,
+                    remediation=(
+                        "Restore the exact retained subject and audit artifacts; "
+                        "do not select or advance the action."
+                    ),
+                )
+                continue
+            contract = candidate.audit_prerequisite_contract
+            if contract is None:
+                continue
+            if receipt.get("action_class") == "exposed_evaluator_development":
+                add(
+                    "ACTION_EXPOSED_EVALUATOR_DEVELOPMENT",
+                    RigorSeverity.INFO,
+                    (
+                        "Action is explicitly exposed evaluator development; it "
+                        "may exercise software but cannot advance a candidate, "
+                        "claim hypothesis discrimination, or establish evidence."
+                    ),
+                    entity_type="action_candidate",
+                    entity_id=candidate.action_id,
+                )
+                continue
+            if receipt.get("candidate_advancement_eligible") is not True:
+                add(
+                    "ACTION_AUDIT_PREREQUISITE_NOT_ELIGIBLE",
+                    (
+                        RigorSeverity.ERROR
+                        if candidate.action_id in selected_ids
+                        else RigorSeverity.WARNING
+                    ),
+                    (
+                        "Candidate-advancing action retains a pending or adverse "
+                        "audit and is not workflow-eligible for advancement."
+                    ),
+                    entity_type="action_candidate",
+                    entity_id=candidate.action_id,
+                    remediation=(
+                        "Do not relabel the audit. Preserve it and address the "
+                        "finding in a new candidate or implementation version."
+                    ),
+                )
+            elif candidate.action_id in selected_ids:
+                add(
+                    "ACTION_AUDIT_PREREQUISITE_WORKFLOW_ELIGIBLE",
+                    RigorSeverity.INFO,
+                    (
+                        "Selected candidate-advancing action is workflow-eligible "
+                        "from exact retained bytes only; audit truth, auditor "
+                        "identity or independence, scientific validity, and "
+                        "evidence eligibility and replication authority remain "
+                        "unestablished."
+                    ),
+                    entity_type="action_candidate",
+                    entity_id=candidate.action_id,
+                )
 
     for lesson in cross_lane_lessons or []:
         if (

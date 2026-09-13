@@ -8,6 +8,65 @@ from pathlib import Path
 from research_machine.interfaces.cli import main
 
 
+AUDIT_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "audit-prerequisite"
+SUBJECT_SHA256 = "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d86389505984"
+AUDIT_SHA256 = "1007b052c7bb6e43ffe8fee59108e64735c6b191c9d644e8868300723d521bf2"
+AUDIT_CEILING = (
+    "Workflow eligibility only; does not establish audit truth, auditor identity "
+    "or independence, scientific validity, or evidence eligibility."
+)
+
+
+def exposed_evaluator_contract() -> dict[str, object]:
+    return {
+        "contract_version": 1,
+        "action_class": "exposed_evaluator_development",
+        "subjects": [],
+        "required_audits": [],
+        "evaluator_exposure_statement": (
+            "Evaluator implementation is exposed development and cannot advance a candidate."
+        ),
+        "limitations": ["Synthetic workflow fixture only."],
+        "conclusion_ceiling": AUDIT_CEILING,
+    }
+
+
+def candidate_advancement_contract() -> dict[str, object]:
+    return {
+        "contract_version": 1,
+        "action_class": "candidate_advancing",
+        "subjects": [
+            {
+                "subject_role": "candidate",
+                "subject_id": "fixture-candidate",
+                "artifact_locator": "subject.txt",
+                "artifact_sha256": SUBJECT_SHA256,
+            }
+        ],
+        "required_audits": [
+            {
+                "audit_id": "audit-fixture-favorable",
+                "artifact_role": "adversarial_candidate_audit",
+                "artifact_locator": "favorable-audit.json",
+                "artifact_sha256": AUDIT_SHA256,
+                "audited_subject_role": "candidate",
+                "audited_subject_id": "fixture-candidate",
+                "audited_subject_sha256": SUBJECT_SHA256,
+                "verdict": "favorable",
+                "scope": "Exact synthetic candidate artifact bytes for workflow-gate testing only.",
+                "auditor_identity": "synthetic-test-auditor",
+                "audited_at": "2026-09-12T12:00:00Z",
+                "limitations": [
+                    "Synthetic fixture; does not authenticate the auditor or establish scientific validity."
+                ],
+            }
+        ],
+        "evaluator_exposure_statement": "",
+        "limitations": ["Synthetic workflow fixture only."],
+        "conclusion_ceiling": AUDIT_CEILING,
+    }
+
+
 def result_from(capsys) -> dict:
     captured = capsys.readouterr()
     assert captured.err == ""
@@ -100,6 +159,7 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
                         "safety_review_refs": ["safety-review:machine-audit"],
                         "rationale": "Probe a machine invariant.",
                         "lane_id": "machine",
+                        "audit_prerequisite_contract": exposed_evaluator_contract(),
                     },
                     {
                         "action_id": "science-falsifier",
@@ -118,6 +178,7 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
                         "safety_review_refs": ["safety-review:science-falsifier"],
                         "rationale": "Probe the cheapest scientific failure.",
                         "lane_id": "science",
+                        "audit_prerequisite_contract": exposed_evaluator_contract(),
                     },
                 ],
             }
@@ -871,6 +932,7 @@ def test_cli_records_general_protocol_run_and_next_action(
                         ],
                         "safety_review_refs": ["safety-review:independent-check"],
                         "rationale": "A second checker probes implementation dependence.",
+                        "audit_prerequisite_contract": candidate_advancement_contract(),
                     }
                 ]
             }
@@ -885,6 +947,8 @@ def test_cli_records_general_protocol_run_and_next_action(
                 "recommend",
                 "--spec-file",
                 str(action_spec),
+                "--audit-artifact-root",
+                str(AUDIT_FIXTURE_ROOT),
             ]
         )
         == 0

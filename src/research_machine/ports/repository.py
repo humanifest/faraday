@@ -94,6 +94,15 @@ class WorkspaceRepository(Protocol):
 
     def list_recommendations(self, inquiry_id: str) -> list[ActionRecommendation]: ...
 
+    def verify_current_recommendation_integrity(
+        self,
+        inquiry_id: str,
+        recommendation: ActionRecommendation,
+        *,
+        expected_score_contract_version: int,
+        events: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]: ...
+
     def save_cross_lane_lesson(
         self, inquiry_id: str, lesson: CrossLaneLesson
     ) -> None: ...

@@ -1,0 +1,14 @@
+{
+  "artifact_role": "adversarial_candidate_audit",
+  "audit_id": "audit-fixture-favorable",
+  "audited_at": "2026-09-12T12:00:00Z",
+  "audited_subject_id": "fixture-candidate",
+  "audited_subject_role": "candidate",
+  "audited_subject_sha256": "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d86389505984",
+  "auditor_identity": "synthetic-test-auditor",
+  "limitations": [
+    "Synthetic fixture; does not authenticate the auditor or establish scientific validity."
+  ],
+  "scope": "Exact synthetic candidate artifact bytes for workflow-gate testing only.",
+  "verdict": "favorable"
+}

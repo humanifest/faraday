@@ -8,6 +8,9 @@ import re
 from typing import Any
 
 from research_machine.application.claim_integrity import claim_level_rank
+from research_machine.application.audit_prerequisite import (
+    validate_audit_prerequisite_contract,
+)
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     ActionCandidate,
@@ -5837,6 +5840,17 @@ def validate_action_candidates(
                 "factorial_or_crossover_design must be true or false"
             )
         metadata = validate_action_metadata(candidate.metadata)
+        if candidate.audit_prerequisite_receipt:
+            raise ValidationError(
+                "audit_prerequisite_receipt is service-generated and must not be supplied"
+            )
+        audit_prerequisite_contract = (
+            validate_audit_prerequisite_contract(
+                candidate.audit_prerequisite_contract
+            )
+            if candidate.audit_prerequisite_contract is not None
+            else None
+        )
         depends_on = require_unique_canonical_text_list(
             candidate.depends_on, "depends_on"
         )
@@ -5901,6 +5915,7 @@ def validate_action_candidates(
                 ),
                 factor_interpretability_plan=factor_interpretability_plan,
                 metadata=metadata,
+                audit_prerequisite_contract=audit_prerequisite_contract,
             )
         )
     return normalized
