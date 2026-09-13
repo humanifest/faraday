@@ -30,25 +30,29 @@ cover every subject. Each audit declaration binds:
 - auditor identity as declared in the artifact;
 - timezone-aware audit time; and
 - explicit limitations; and
-- at least one supporting artifact with its exact role, safe relative locator,
-  and SHA-256.
+- at least one strict `source_pinned_review_finding` supporting artifact with
+  exact role, safe relative locator, and SHA-256.
 
 The audit file is strict JSON containing those audit fields, excluding only its
-own locator and byte hash. Its `supporting_artifacts` member binds the detailed
-audit report or equivalent review material behind the machine-readable
-disposition; the disposition JSON cannot stand in for an unbound report. At
-recommendation creation Faraday verifies the current subject, audit JSON, and
-supporting-artifact bytes, plus exact agreement between the audit JSON and the
-prospective contract. It then retains a service-generated receipt. Authoritative
-reads repeat every byte check and require the recomputed receipt to equal the
-retained receipt.
+own locator and byte hash. Its `supporting_artifacts` member may bind detailed
+reports, but prose reports cannot stand in for the source-pinned finding. The
+finding artifact is strict JSON that must name the audited subject, cite exact
+source bytes, retain a bounded disposition matching the audit verdict, state
+bounded finding and basis text, list limitations, and use the exact
+source-pinned non-evidence ceiling. At recommendation creation Faraday verifies
+the current subject, audit JSON, source-pinned finding, cited source bytes, and
+any other supporting-artifact bytes, plus exact agreement between the audit JSON
+and the prospective contract. It then retains a service-generated receipt.
+Authoritative reads repeat every byte check and require the recomputed receipt
+to equal the retained receipt.
 
 Only a candidate-advancing contract whose required audits all retain
 `favorable` verdicts is workflow-selectable. Pending and adverse audits remain
 visible in the recommendation candidate set but are ineligible. A missing root,
 missing file, symlink, path escape, changed subject, changed audit or supporting
-report, malformed JSON, changed scope or identity, or audit scoped to other
-subject bytes fails closed before selection.
+report, missing source-pinned finding, malformed JSON, changed finding source,
+changed scope or identity, or audit/finding scoped to other subject bytes fails
+closed before selection.
 
 Use the artifact root option when any candidate-advancing action is present:
 
@@ -96,9 +100,10 @@ Every contract uses the exact ceiling:
 > or independence, scientific validity, or evidence eligibility.
 
 The byte checks establish provenance and workflow eligibility under the declared
-rule. Even a bound detailed report does not authenticate the named auditor,
-establish auditor qualifications or independence, prove the audit judgment
-correct, validate the candidate, or support any scientific conclusion.
+rule. Even a source-pinned finding and bound detailed report do not authenticate
+the named auditor, establish auditor qualifications or independence, prove the
+audit judgment correct, validate the candidate, or support any scientific
+conclusion.
 
 Version-1 and version-2 recommendations remain readable under their historical
 score contracts. They do not acquire this new audit-prerequisite authority; a

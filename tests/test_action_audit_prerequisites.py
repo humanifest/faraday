@@ -12,6 +12,8 @@ import pytest
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.audit_prerequisite import (
     AUDIT_PREREQUISITE_CONCLUSION_CEILING,
+    SOURCE_PINNED_REVIEW_FINDING_CEILING,
+    SOURCE_PINNED_REVIEW_FINDING_ROLE,
 )
 from research_machine.application.commands import (
     CreateInquiry,
@@ -44,11 +46,55 @@ _DETAILED_REPORT_BYTES = (
 _DETAILED_REPORT_SHA256 = hashlib.sha256(_DETAILED_REPORT_BYTES).hexdigest()
 
 
+def _source_pinned_finding_payload(
+    subject_sha256: str,
+    verdict: str,
+) -> dict[str, object]:
+    disposition_by_verdict = {
+        "favorable": "supports_workflow_advancement",
+        "pending": "inconclusive",
+        "adverse": "blocks_workflow_advancement",
+    }
+    return {
+        "finding_id": "finding-candidate-v1-source",
+        "finding_kind": "source_pinned_finding",
+        "reviewed_subject_role": "candidate",
+        "reviewed_subject_id": "candidate-v1",
+        "reviewed_subject_sha256": subject_sha256,
+        "source_artifact_role": "audited_candidate_bytes",
+        "source_artifact_locator": "candidate.md",
+        "source_artifact_sha256": subject_sha256,
+        "disposition": disposition_by_verdict[verdict],
+        "finding_statement": "The retained candidate bytes match the bounded audit subject.",
+        "basis": "The finding cites the exact retained candidate artifact and hash.",
+        "limitations": [
+            "Synthetic fixture; this finding does not establish scientific validity."
+        ],
+        "conclusion_ceiling": SOURCE_PINNED_REVIEW_FINDING_CEILING,
+    }
+
+
+def _source_pinned_finding_bytes(subject_sha256: str, verdict: str) -> bytes:
+    return (
+        json.dumps(
+            _source_pinned_finding_payload(subject_sha256, verdict),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
 def _audit_payload(
     subject_sha256: str,
     verdict: str = "favorable",
     supporting_sha256: str = _DETAILED_REPORT_SHA256,
+    finding_sha256: str | None = None,
 ) -> dict[str, object]:
+    if finding_sha256 is None:
+        finding_sha256 = hashlib.sha256(
+            _source_pinned_finding_bytes(subject_sha256, verdict)
+        ).hexdigest()
     return {
         "audit_id": "audit-candidate-v1",
         "artifact_role": "adversarial_candidate_audit",
@@ -63,6 +109,11 @@ def _audit_payload(
             "The record does not authenticate identity, independence, or substantive judgment."
         ],
         "supporting_artifacts": [
+            {
+                "artifact_role": SOURCE_PINNED_REVIEW_FINDING_ROLE,
+                "artifact_locator": "candidate-source-finding.json",
+                "artifact_sha256": finding_sha256,
+            },
             {
                 "artifact_role": "detailed_adversarial_audit_report",
                 "artifact_locator": "candidate-audit-report.md",
@@ -79,6 +130,7 @@ def _contract(
     materialize_subject: bool = True,
     materialize_audit: bool = True,
     materialize_supporting: bool = True,
+    materialize_source_finding: bool = True,
     audit_payload: dict[str, object] | None = None,
     contract_audit_payload: dict[str, object] | None = None,
 ) -> AuditPrerequisiteContract:
@@ -88,6 +140,11 @@ def _contract(
         _write(root / "candidate.md", subject_bytes)
     if materialize_supporting:
         _write(root / "candidate-audit-report.md", _DETAILED_REPORT_BYTES)
+    if materialize_source_finding:
+        _write(
+            root / "candidate-source-finding.json",
+            _source_pinned_finding_bytes(subject_sha256, verdict),
+        )
     observed_payload = audit_payload or _audit_payload(subject_sha256, verdict)
     audit_bytes = (
         json.dumps(observed_payload, indent=2, sort_keys=True) + "\n"
@@ -225,8 +282,14 @@ def test_favorable_exact_audit_makes_candidate_workflow_selectable(tmp_path: Pat
     supporting = receipt["audit_observations"][0][
         "supporting_artifact_observations"
     ][0]
-    assert supporting["artifact_role"] == "detailed_adversarial_audit_report"
-    assert supporting["observed_sha256"] == _DETAILED_REPORT_SHA256
+    assert supporting["artifact_role"] == SOURCE_PINNED_REVIEW_FINDING_ROLE
+    assert supporting["source_pinned_review_finding"]["source_artifact_locator"] == "candidate.md"
+    assert supporting["source_pinned_review_finding"]["source_observed_sha256"] == (
+        receipt["subject_observations"][0]["observed_sha256"]
+    )
+    assert supporting["source_pinned_review_finding"]["disposition"] == (
+        "supports_workflow_advancement"
+    )
     assert service.list_recommendations() == [recommendation]
     synthesis = service.build_synthesis()["content"]
     assert "audit action_class=candidate_advancing" in synthesis
@@ -235,6 +298,7 @@ def test_favorable_exact_audit_makes_candidate_workflow_selectable(tmp_path: Pat
     assert "verdict=favorable" in synthesis
     assert "auditor=declared-auditor-17" in synthesis
     assert "audited_at=2026-09-12T14:00:00Z" in synthesis
+    assert "source_pinned_review_finding@candidate-source-finding.json" in synthesis
     assert "detailed_adversarial_audit_report@candidate-audit-report.md" in synthesis
     assert AUDIT_PREREQUISITE_CONCLUSION_CEILING in synthesis
     rigor = service.audit_rigor()
@@ -263,8 +327,10 @@ def test_favorable_exact_audit_makes_candidate_workflow_selectable(tmp_path: Pat
     context_supporting = context_receipt["audit_observations"][0][
         "supporting_artifact_observations"
     ][0]
-    assert context_supporting["artifact_locator"] == "candidate-audit-report.md"
-    assert context_supporting["observed_sha256"] == _DETAILED_REPORT_SHA256
+    assert context_supporting["artifact_locator"] == "candidate-source-finding.json"
+    assert context_supporting["source_pinned_review_finding"][
+        "source_artifact_locator"
+    ] == "candidate.md"
     assert len(contract_audit_sha) == 64
 
 
@@ -336,12 +402,14 @@ def test_pending_or_adverse_audit_is_retained_but_not_selected(
         "materialize_subject",
         "materialize_audit",
         "materialize_supporting",
+        "materialize_source_finding",
         "message",
     ),
     [
-        (False, True, True, "escapes or is missing"),
-        (True, False, True, "escapes or is missing"),
-        (True, True, False, "escapes or is missing"),
+        (False, True, True, True, "escapes or is missing"),
+        (True, False, True, True, "escapes or is missing"),
+        (True, True, False, True, "escapes or is missing"),
+        (True, True, True, False, "escapes or is missing"),
     ],
 )
 def test_missing_required_bytes_fail_before_recommendation_is_recorded(
@@ -349,6 +417,7 @@ def test_missing_required_bytes_fail_before_recommendation_is_recorded(
     materialize_subject: bool,
     materialize_audit: bool,
     materialize_supporting: bool,
+    materialize_source_finding: bool,
     message: str,
 ) -> None:
     artifacts = tmp_path / "artifacts"
@@ -360,6 +429,7 @@ def test_missing_required_bytes_fail_before_recommendation_is_recorded(
             materialize_subject=materialize_subject,
             materialize_audit=materialize_audit,
             materialize_supporting=materialize_supporting,
+            materialize_source_finding=materialize_source_finding,
         ),
         score=0.9,
     )
@@ -384,6 +454,7 @@ def test_candidate_advancement_without_artifact_root_fails_closed(tmp_path: Path
         ("candidate.md", b"changed candidate bytes\n"),
         ("candidate-audit.json", b"{}\n"),
         ("candidate-audit-report.md", b"changed detailed audit report\n"),
+        ("candidate-source-finding.json", b"{}\n"),
     ],
 )
 def test_hash_mismatched_subject_or_audit_bytes_fail_closed(
@@ -402,7 +473,12 @@ def test_hash_mismatched_subject_or_audit_bytes_fail_closed(
 
 @pytest.mark.parametrize(
     "target",
-    ["candidate.md", "candidate-audit.json", "candidate-audit-report.md"],
+    [
+        "candidate.md",
+        "candidate-audit.json",
+        "candidate-audit-report.md",
+        "candidate-source-finding.json",
+    ],
 )
 def test_subject_or_audit_symlinks_fail_closed(tmp_path: Path, target: str) -> None:
     artifacts = tmp_path / "artifacts"
@@ -538,6 +614,93 @@ def test_candidate_advancing_audit_requires_a_detailed_supporting_artifact(
                     score=0.9,
                 )
             )
+        )
+
+
+def test_candidate_advancing_audit_requires_source_pinned_finding(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    service = _service(tmp_path / "workspace", artifacts)
+    contract = _contract(artifacts)
+    audit = contract.required_audits[0]
+    report_only = [
+        item
+        for item in audit.supporting_artifacts
+        if item.artifact_role != SOURCE_PINNED_REVIEW_FINDING_ROLE
+    ]
+
+    with pytest.raises(ValidationError, match="source_pinned_review_finding"):
+        service.recommend_action_portfolio(
+            _portfolio(
+                _candidate(
+                    "report-only-disposition",
+                    replace(
+                        contract,
+                        required_audits=[
+                            replace(audit, supporting_artifacts=report_only)
+                        ],
+                    ),
+                    score=0.9,
+                )
+            )
+        )
+
+
+def test_source_pinned_finding_rehashes_cited_source_bytes(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    service = _service(tmp_path / "workspace", artifacts)
+    subject_sha = hashlib.sha256(b"candidate v1 exact scientific content\n").hexdigest()
+    source_sha = _write(
+        artifacts / "review-source.json",
+        b'{"bounded":"source for source-pinned finding"}\n',
+    )
+    finding = _source_pinned_finding_payload(subject_sha, "favorable")
+    finding["source_artifact_role"] = "reviewed_source_record"
+    finding["source_artifact_locator"] = "review-source.json"
+    finding["source_artifact_sha256"] = source_sha
+    finding_bytes = (
+        json.dumps(finding, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    finding_sha = _write(artifacts / "candidate-source-finding.json", finding_bytes)
+    contract = _contract(
+        artifacts,
+        materialize_source_finding=False,
+        audit_payload=_audit_payload(subject_sha, finding_sha256=finding_sha),
+        contract_audit_payload=_audit_payload(subject_sha, finding_sha256=finding_sha),
+    )
+    (artifacts / "review-source.json").write_bytes(b'{"bounded":"changed"}\n')
+
+    with pytest.raises(IntegrityError, match="source hash mismatch"):
+        service.recommend_action_portfolio(
+            _portfolio(_candidate("changed-source", contract, score=0.9))
+        )
+
+
+def test_source_pinned_finding_rejects_different_subject_scope(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    service = _service(tmp_path / "workspace", artifacts)
+    subject_sha = hashlib.sha256(b"candidate v1 exact scientific content\n").hexdigest()
+    finding = _source_pinned_finding_payload(subject_sha, "favorable")
+    finding["reviewed_subject_id"] = "candidate-v2"
+    finding_bytes = (
+        json.dumps(finding, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    finding_sha = _write(artifacts / "candidate-source-finding.json", finding_bytes)
+    contract = _contract(
+        artifacts,
+        materialize_source_finding=False,
+        audit_payload=_audit_payload(subject_sha, finding_sha256=finding_sha),
+        contract_audit_payload=_audit_payload(subject_sha, finding_sha256=finding_sha),
+    )
+
+    with pytest.raises(IntegrityError, match="different audited subject"):
+        service.recommend_action_portfolio(
+            _portfolio(_candidate("wrong-subject-finding", contract, score=0.9))
         )
 
 

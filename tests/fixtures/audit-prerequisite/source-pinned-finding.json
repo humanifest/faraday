@@ -1,0 +1,17 @@
+{
+  "basis": "The finding cites the exact retained candidate artifact and hash.",
+  "conclusion_ceiling": "Source-pinned review finding only; does not establish source truth, scientific validity, evidence eligibility, or replication.",
+  "disposition": "supports_workflow_advancement",
+  "finding_id": "fixture-source-finding",
+  "finding_kind": "source_pinned_finding",
+  "finding_statement": "The retained candidate bytes match the bounded audit subject.",
+  "limitations": [
+    "Synthetic fixture; this finding does not establish scientific validity."
+  ],
+  "reviewed_subject_id": "fixture-candidate",
+  "reviewed_subject_role": "candidate",
+  "reviewed_subject_sha256": "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d86389505984",
+  "source_artifact_locator": "subject.txt",
+  "source_artifact_role": "audited_candidate_bytes",
+  "source_artifact_sha256": "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d86389505984"
+}

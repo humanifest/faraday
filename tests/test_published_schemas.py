@@ -904,9 +904,14 @@ def _schema_candidate_advancing_contract() -> dict:
                 "limitations": ["Declared workflow audit only."],
                 "supporting_artifacts": [
                     {
+                        "artifact_role": "source_pinned_review_finding",
+                        "artifact_locator": "source-finding.json",
+                        "artifact_sha256": "c" * 64,
+                    },
+                    {
                         "artifact_role": "detailed_audit_report",
                         "artifact_locator": "audit-report.md",
-                        "artifact_sha256": "c" * 64,
+                        "artifact_sha256": "d" * 64,
                     }
                 ],
             }
@@ -1001,6 +1006,22 @@ def test_next_action_schema_distinguishes_both_nonadvancing_classes_and_audit_cu
     ][0]["supporting_artifacts"]
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(unbound_audit, schema)
+
+    report_only = deepcopy(command)
+    report_only["candidates"][0]["audit_prerequisite_contract"] = (
+        _schema_candidate_advancing_contract()
+    )
+    report_only["candidates"][0]["audit_prerequisite_contract"]["required_audits"][
+        0
+    ]["supporting_artifacts"] = [
+        {
+            "artifact_role": "detailed_audit_report",
+            "artifact_locator": "audit-report.md",
+            "artifact_sha256": "d" * 64,
+        }
+    ]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(report_only, schema)
 
 
 @pytest.mark.parametrize(

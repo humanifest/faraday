@@ -10,7 +10,8 @@ from research_machine.interfaces.cli import main
 
 AUDIT_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "audit-prerequisite"
 SUBJECT_SHA256 = "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d86389505984"
-AUDIT_SHA256 = "eee80863a7ae56790428d8f8c311507123e423bf78c4a46907bbe4cf5ae596f4"
+AUDIT_SHA256 = "0a639e59dbc54232ea6a7c70d4e8ad09dd96aaa6a31188466a18f48cd6e8e939"
+SOURCE_FINDING_SHA256 = "d8eb6386dc6d56530e8b8e412e252b7a0cdb4b4ef0fc4b62cdf4a051dff76a4b"
 AUDIT_REPORT_SHA256 = "d0a65fe83d6d7c6aaae5ebc5dd7b508ee255b66d7b77ed93eb766e2cd79ae425"
 AUDIT_CEILING = (
     "Workflow eligibility only; does not establish audit truth, auditor identity "
@@ -62,6 +63,11 @@ def candidate_advancement_contract() -> dict[str, object]:
                     "Synthetic fixture; does not authenticate the auditor or establish scientific validity."
                 ],
                 "supporting_artifacts": [
+                    {
+                        "artifact_role": "source_pinned_review_finding",
+                        "artifact_locator": "source-pinned-finding.json",
+                        "artifact_sha256": SOURCE_FINDING_SHA256,
+                    },
                     {
                         "artifact_role": "detailed_adversarial_audit_report",
                         "artifact_locator": "detailed-audit-report.md",

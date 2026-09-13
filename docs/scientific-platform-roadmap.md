@@ -90,14 +90,17 @@ calibration, measurement validity, or evidence eligibility.
   `audit_prerequisite_contract`. Candidate-advancing actions bind exact current
   candidate/implementation bytes and strict audit JSON, including role, hash,
   audited subject ID/hash, verdict, scope, declared auditor identity/time, and
-  limitations. Each disposition also binds at least one typed, hash-pinned
-  supporting report. Current-byte and receipt replay fail closed on absence,
-  drift, pending or adverse verdicts, or different subject scope. Exposed
-  evaluator development and ordinary `nonadvancing_information` are distinct,
-  explicitly non-advancing classes with dedicated, mutually exclusive statement
-  fields; neither can claim hypothesis discrimination. The ceiling is workflow
-  eligibility only; audit truth, identity, independence, scientific validity,
-  evidence, and replication remain unestablished. Historical version-1 and
+  limitations. Each disposition also binds at least one strict
+  `source_pinned_review_finding` JSON artifact that names the audited subject,
+  cites exact source bytes, preserves a bounded disposition and conclusion
+  ceiling, and replays the cited source hash; optional prose reports cannot
+  replace it. Current-byte and receipt replay fail closed on absence, drift,
+  report-only support, pending or adverse verdicts, or different subject scope.
+  Exposed evaluator development and ordinary `nonadvancing_information` are
+  distinct, explicitly non-advancing classes with dedicated, mutually exclusive
+  statement fields; neither can claim hypothesis discrimination. The ceiling is
+  workflow eligibility only; audit truth, identity, independence, scientific
+  validity, evidence, and replication remain unestablished. Historical version-1 and
   version-2 recommendations remain readable without acquiring current
   advancement authority.
   Hypothesis-discriminating candidates also retain service-derived workflow

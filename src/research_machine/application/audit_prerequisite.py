@@ -11,6 +11,7 @@ from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any, Sequence
 
 from research_machine.domain.errors import IntegrityError, ValidationError
@@ -28,8 +29,28 @@ AUDIT_PREREQUISITE_CONCLUSION_CEILING = (
     "Workflow eligibility only; does not establish audit truth, auditor identity "
     "or independence, scientific validity, or evidence eligibility."
 )
+SOURCE_PINNED_REVIEW_FINDING_ROLE = "source_pinned_review_finding"
+SOURCE_PINNED_REVIEW_FINDING_CEILING = (
+    "Source-pinned review finding only; does not establish source truth, "
+    "scientific validity, evidence eligibility, or replication."
+)
 _SUBJECT_ROLES = {"candidate", "implementation"}
 _VERDICTS = {"favorable", "pending", "adverse"}
+_FINDING_KINDS = {"completed_review", "source_pinned_finding", "tested_invariant"}
+_FINDING_DISPOSITIONS = {
+    "supports_workflow_advancement",
+    "inconclusive",
+    "blocks_workflow_advancement",
+}
+_DISPOSITION_BY_VERDICT = {
+    "favorable": "supports_workflow_advancement",
+    "pending": "inconclusive",
+    "adverse": "blocks_workflow_advancement",
+}
+_REPORT_OVERCLAIM_RE = re.compile(
+    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
+    re.IGNORECASE,
+)
 
 
 def _canonical_text(value: object, field: str, *, allow_empty: bool = False) -> str:
@@ -40,6 +61,15 @@ def _canonical_text(value: object, field: str, *, allow_empty: bool = False) -> 
     if not allow_empty and not value:
         raise ValidationError(f"{field} must be non-empty text")
     return value
+
+
+def _bounded_text(value: object, field: str) -> str:
+    text = _canonical_text(value, field)
+    if _REPORT_OVERCLAIM_RE.search(text):
+        raise ValidationError(
+            f"{field} uses report-prohibited overclaiming language"
+        )
+    return text
 
 
 def _sha256(value: object, field: str) -> str:
@@ -53,6 +83,17 @@ def _canonical_list(value: object, field: str, *, required: bool = False) -> lis
     if isinstance(value, (str, bytes)) or not isinstance(value, list):
         raise ValidationError(f"{field} must be a list")
     normalized = [_canonical_text(item, f"{field} item") for item in value]
+    if len(set(normalized)) != len(normalized):
+        raise ValidationError(f"{field} must not repeat items")
+    if required and not normalized:
+        raise ValidationError(f"{field} must contain at least one item")
+    return normalized
+
+
+def _bounded_list(value: object, field: str, *, required: bool = False) -> list[str]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, list):
+        raise ValidationError(f"{field} must be a list")
+    normalized = [_bounded_text(item, f"{field} item") for item in value]
     if len(set(normalized)) != len(normalized):
         raise ValidationError(f"{field} must not repeat items")
     if required and not normalized:
@@ -147,6 +188,14 @@ def _normalize_audit(audit: AuditPrerequisiteArtifact) -> AuditPrerequisiteArtif
     if not supporting_artifacts:
         raise ValidationError(
             "candidate-advancing audits require at least one supporting artifact"
+        )
+    if not any(
+        item.artifact_role == SOURCE_PINNED_REVIEW_FINDING_ROLE
+        for item in supporting_artifacts
+    ):
+        raise ValidationError(
+            "candidate-advancing audits require a source_pinned_review_finding "
+            "supporting artifact"
         )
     supporting_locators = [
         item.artifact_locator for item in supporting_artifacts
@@ -398,6 +447,131 @@ def _load_exact_json(path: Path) -> tuple[dict[str, Any], bytes]:
     return value, content
 
 
+def _source_pinned_finding_payload(
+    *,
+    value: dict[str, Any],
+    supporting: AuditPrerequisiteSupportingArtifact,
+    audit: AuditPrerequisiteArtifact,
+    root: Path,
+) -> dict[str, Any]:
+    allowed_keys = {
+        "finding_id",
+        "finding_kind",
+        "reviewed_subject_role",
+        "reviewed_subject_id",
+        "reviewed_subject_sha256",
+        "source_artifact_role",
+        "source_artifact_locator",
+        "source_artifact_sha256",
+        "disposition",
+        "finding_statement",
+        "basis",
+        "limitations",
+        "conclusion_ceiling",
+    }
+    extra = sorted(set(value) - allowed_keys)
+    missing = sorted(allowed_keys - set(value))
+    if extra or missing:
+        details = []
+        if missing:
+            details.append("missing " + ", ".join(missing))
+        if extra:
+            details.append("extra " + ", ".join(extra))
+        raise IntegrityError(
+            "source-pinned review finding has invalid fields: "
+            + "; ".join(details)
+        )
+    finding_id = _canonical_text(value["finding_id"], "source-pinned finding id")
+    finding_kind = _canonical_text(
+        value["finding_kind"], "source-pinned finding kind"
+    )
+    if finding_kind not in _FINDING_KINDS:
+        raise IntegrityError("source-pinned finding kind is unsupported")
+    reviewed_subject_role = _canonical_text(
+        value["reviewed_subject_role"], "source-pinned finding subject role"
+    )
+    reviewed_subject_id = _canonical_text(
+        value["reviewed_subject_id"], "source-pinned finding subject id"
+    )
+    reviewed_subject_sha256 = _sha256(
+        value["reviewed_subject_sha256"],
+        "source-pinned finding subject sha256",
+    )
+    if (
+        reviewed_subject_role != audit.audited_subject_role
+        or reviewed_subject_id != audit.audited_subject_id
+        or reviewed_subject_sha256 != audit.audited_subject_sha256
+    ):
+        raise IntegrityError(
+            f"source-pinned review finding {finding_id} is scoped to a "
+            "different audited subject"
+        )
+    source_role = _canonical_text(
+        value["source_artifact_role"], "source-pinned finding source role"
+    )
+    source_locator = _safe_locator(
+        value["source_artifact_locator"], "source-pinned finding source locator"
+    )
+    if source_locator == supporting.artifact_locator:
+        raise IntegrityError(
+            f"source-pinned review finding {finding_id} cannot cite itself as source"
+        )
+    source_sha256 = _sha256(
+        value["source_artifact_sha256"], "source-pinned finding source sha256"
+    )
+    disposition = _canonical_text(
+        value["disposition"], "source-pinned finding disposition"
+    )
+    if disposition not in _FINDING_DISPOSITIONS:
+        raise IntegrityError("source-pinned finding disposition is unsupported")
+    expected_disposition = _DISPOSITION_BY_VERDICT[audit.verdict]
+    if disposition != expected_disposition:
+        raise IntegrityError(
+            f"source-pinned review finding {finding_id} disposition does not "
+            f"match audit verdict {audit.verdict}"
+        )
+    finding_statement = _bounded_text(
+        value["finding_statement"], "source-pinned finding statement"
+    )
+    basis = _bounded_text(value["basis"], "source-pinned finding basis")
+    limitations = _bounded_list(
+        value["limitations"], "source-pinned finding limitations", required=True
+    )
+    ceiling = _canonical_text(
+        value["conclusion_ceiling"], "source-pinned finding conclusion ceiling"
+    )
+    if ceiling != SOURCE_PINNED_REVIEW_FINDING_CEILING:
+        raise IntegrityError(
+            "source-pinned review finding must retain the bounded non-evidence ceiling"
+        )
+    source_path = _resolve_artifact(root, source_locator)
+    source_content = source_path.read_bytes()
+    observed_source_sha256 = hashlib.sha256(source_content).hexdigest()
+    if observed_source_sha256 != source_sha256:
+        raise IntegrityError(
+            f"source-pinned review finding {finding_id} source hash mismatch: "
+            f"expected {source_sha256}, observed {observed_source_sha256}"
+        )
+    return {
+        "finding_id": finding_id,
+        "finding_kind": finding_kind,
+        "reviewed_subject_role": reviewed_subject_role,
+        "reviewed_subject_id": reviewed_subject_id,
+        "reviewed_subject_sha256": reviewed_subject_sha256,
+        "source_artifact_role": source_role,
+        "source_artifact_locator": source_locator,
+        "source_artifact_sha256": source_sha256,
+        "source_observed_sha256": observed_source_sha256,
+        "source_size_bytes": len(source_content),
+        "disposition": disposition,
+        "finding_statement": finding_statement,
+        "basis": basis,
+        "limitations": limitations,
+        "conclusion_ceiling": ceiling,
+        "selected_payload_sha256": _canonical_json_sha256(value),
+    }
+
+
 def _resolve_artifact(root: Path, locator: str) -> Path:
     if not root.is_absolute():
         raise ValidationError("audit_artifact_root must be absolute")
@@ -523,14 +697,23 @@ def _build_receipt(
                     f"role {supporting.artifact_role}: expected "
                     f"{supporting.artifact_sha256}, observed {supporting_observed}"
                 )
-            supporting_observations.append(
-                {
-                    **supporting.to_dict(),
-                    "observed_sha256": supporting_observed,
-                    "size_bytes": len(supporting_content),
-                    "status": "matched",
-                }
-            )
+            observation = {
+                **supporting.to_dict(),
+                "observed_sha256": supporting_observed,
+                "size_bytes": len(supporting_content),
+                "status": "matched",
+            }
+            if supporting.artifact_role == SOURCE_PINNED_REVIEW_FINDING_ROLE:
+                finding_value, _ = _load_exact_json(supporting_path)
+                observation["source_pinned_review_finding"] = (
+                    _source_pinned_finding_payload(
+                        value=finding_value,
+                        supporting=supporting,
+                        audit=audit,
+                        root=root,
+                    )
+                )
+            supporting_observations.append(observation)
         audit_observations.append(
             {
                 **audit.to_dict(),
