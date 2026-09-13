@@ -1460,11 +1460,19 @@ class ResearchService:
         from research_machine.application.dataset_integrity import (
             validate_protected_dataset_lineage_closure,
         )
+        from research_machine.application.dataset_source_authority import (
+            validate_dataset_source_authority,
+        )
         for dataset in datasets:
             from research_machine.application.dataset_integrity import (
                 validate_dataset_payload_commitment,
             )
             validate_dataset_payload_commitment(dataset)
+            if "source_authority" in dataset.metadata:
+                validate_dataset_source_authority(
+                    dataset.metadata["source_authority"],
+                    synthetic=dataset.synthetic,
+                )
             validate_protected_dataset_lineage_closure(dataset, datasets_by_id)
             if (
                 dataset.role in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
@@ -2458,6 +2466,17 @@ class ResearchService:
                 "cannot be relabeled"
             )
 
+        final_synthetic = command.synthetic or any(source.synthetic for source in sources)
+        if "source_authority" in dataset_metadata:
+            from research_machine.application.dataset_source_authority import (
+                validate_dataset_source_authority,
+            )
+            dataset_metadata["source_authority"] = validate_dataset_source_authority(
+                dataset_metadata["source_authority"],
+                synthetic=final_synthetic,
+                allow_service_fields=False,
+            )
+
         dataset_id = command.dataset_id or f"ds-{self.token()}"
         dataset = DatasetManifest(
             dataset_id=dataset_id,
@@ -2471,7 +2490,7 @@ class ResearchService:
             ),
             source_dataset_ids=source_ids,
             protocol_id=protocol.protocol_id if protocol else None,
-            synthetic=command.synthetic or any(source.synthetic for source in sources),
+            synthetic=final_synthetic,
             quality_attestations=require_text_list(
                 command.quality_attestations, "quality_attestations"
             ),

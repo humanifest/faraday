@@ -196,6 +196,7 @@ def _dataset_inventory_lines(inventory: dict[str, object]) -> list[str]:
             [str(item) for item in media_types] if isinstance(media_types, list) else []
         )
         payload = dataset.get("payload_commitment", {})
+        source_authority = dataset.get("source_authority", {})
         observation = dataset.get("observation_access", {})
         custody = dataset.get("measurement_custody", {})
         ethics = dataset.get("ethics", {})
@@ -213,6 +214,7 @@ def _dataset_inventory_lines(inventory: dict[str, object]) -> list[str]:
             f"{'synthetic' if dataset.get('synthetic') else 'non-synthetic'}; "
             f"protocol {protocol_label}]: {dataset.get('artifact_count', 0)} "
             f"artifact(s), media {media_text}, sources {source_text}; "
+            f"source authority: {source_authority.get('summary') if isinstance(source_authority, dict) else 'unavailable'}; "
             f"{payload.get('summary') if isinstance(payload, dict) else 'payload status unavailable'}; "
             "access/readiness: "
             f"{observation.get('summary') if isinstance(observation, dict) else 'unavailable'}; "

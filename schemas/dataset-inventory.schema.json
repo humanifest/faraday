@@ -51,6 +51,7 @@
         "artifact_count",
         "media_types",
         "source_dataset_ids",
+        "source_authority",
         "payload_commitment",
         "observation_access",
         "measurement_custody",
@@ -83,6 +84,7 @@
           "type": "array",
           "items": {"type": "string", "minLength": 1}
         },
+        "source_authority": {"$ref": "#/$defs/source_authority"},
         "payload_commitment": {"$ref": "#/$defs/payload_commitment"},
         "observation_access": {"$ref": "#/$defs/observation_access"},
         "measurement_custody": {"$ref": "#/$defs/measurement_custody"},
@@ -93,6 +95,52 @@
         },
         "readiness": {"$ref": "#/$defs/readiness"},
         "operational_roots_redacted": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "source_authority": {
+      "type": "object",
+      "required": [
+        "status",
+        "source_type",
+        "source_name",
+        "source_record_id",
+        "retrieved_or_collected_at",
+        "classification_service_checked",
+        "source_truth_verified",
+        "custody_verified_by_source_authority",
+        "evidence_eligibility_conferred",
+        "authority_boundary",
+        "limitations",
+        "summary"
+      ],
+      "properties": {
+        "status": {"enum": ["not_recorded", "typed_source_route"]},
+        "source_type": {
+          "enum": [
+            "not_recorded",
+            "registered_experiment",
+            "acquisition_addon",
+            "scientific_connector",
+            "manual_import",
+            "external_attestation",
+            "synthetic_fixture"
+          ]
+        },
+        "source_name": {"type": "string"},
+        "source_record_id": {"type": "string"},
+        "retrieved_or_collected_at": {"type": "string"},
+        "classification_service_checked": {"type": "boolean"},
+        "source_truth_verified": {"const": false},
+        "custody_verified_by_source_authority": {"const": false},
+        "evidence_eligibility_conferred": {"const": false},
+        "authority_boundary": {"type": "string", "minLength": 1},
+        "limitations": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "summary": {"type": "string", "minLength": 1}
       },
       "additionalProperties": false
     },

@@ -447,6 +447,7 @@
         "artifact_count",
         "media_types",
         "source_dataset_ids",
+        "source_authority",
         "payload_commitment",
         "observation_access",
         "measurement_custody",
@@ -479,6 +480,7 @@
           "type": "array",
           "items": {"$ref": "#/$defs/canonicalNonEmptyText"}
         },
+        "source_authority": {"$ref": "#/$defs/datasetSourceAuthority"},
         "payload_commitment": {"$ref": "#/$defs/datasetPayloadCommitment"},
         "observation_access": {"$ref": "#/$defs/datasetObservationAccess"},
         "measurement_custody": {"$ref": "#/$defs/datasetMeasurementCustody"},
@@ -489,6 +491,52 @@
         },
         "readiness": {"$ref": "#/$defs/datasetReadiness"},
         "operational_roots_redacted": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "datasetSourceAuthority": {
+      "type": "object",
+      "required": [
+        "status",
+        "source_type",
+        "source_name",
+        "source_record_id",
+        "retrieved_or_collected_at",
+        "classification_service_checked",
+        "source_truth_verified",
+        "custody_verified_by_source_authority",
+        "evidence_eligibility_conferred",
+        "authority_boundary",
+        "limitations",
+        "summary"
+      ],
+      "properties": {
+        "status": {"enum": ["not_recorded", "typed_source_route"]},
+        "source_type": {
+          "enum": [
+            "not_recorded",
+            "registered_experiment",
+            "acquisition_addon",
+            "scientific_connector",
+            "manual_import",
+            "external_attestation",
+            "synthetic_fixture"
+          ]
+        },
+        "source_name": {"type": "string"},
+        "source_record_id": {"type": "string"},
+        "retrieved_or_collected_at": {"type": "string"},
+        "classification_service_checked": {"type": "boolean"},
+        "source_truth_verified": {"const": false},
+        "custody_verified_by_source_authority": {"const": false},
+        "evidence_eligibility_conferred": {"const": false},
+        "authority_boundary": {"$ref": "#/$defs/canonicalNonEmptyText"},
+        "limitations": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/canonicalNonEmptyText"},
+          "uniqueItems": true
+        },
+        "summary": {"$ref": "#/$defs/canonicalNonEmptyText"}
       },
       "additionalProperties": false
     },

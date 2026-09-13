@@ -10,6 +10,9 @@ from research_machine.domain.models import (
     RigorFinding,
     RigorSeverity,
 )
+from research_machine.application.dataset_source_authority import (
+    dataset_source_authority_status,
+)
 
 
 INTERPRETATION_LIMIT = (
@@ -295,6 +298,7 @@ def build_dataset_inventory(
                 "artifact_count": len(dataset.artifacts),
                 "media_types": media_types,
                 "source_dataset_ids": list(dataset.source_dataset_ids),
+                "source_authority": dataset_source_authority_status(dataset.metadata),
                 "payload_commitment": _payload_commitment(dataset),
                 "observation_access": _observation_access(dataset),
                 "measurement_custody": _measurement_custody(dataset, protocol),

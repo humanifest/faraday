@@ -209,6 +209,26 @@ def _context_with_artifact_metadata(metadata: dict) -> dict:
             "role": "exploratory",
             "synthetic": True,
             "protocol_id": None,
+            "source_authority": {
+                "status": "not_recorded",
+                "source_type": "not_recorded",
+                "source_name": "",
+                "source_record_id": "",
+                "retrieved_or_collected_at": "",
+                "classification_service_checked": False,
+                "source_truth_verified": False,
+                "custody_verified_by_source_authority": False,
+                "evidence_eligibility_conferred": False,
+                "authority_boundary": (
+                    "Source route only; not proof of source truth, custody, consent, "
+                    "calibration, measurement validity, or evidence eligibility."
+                ),
+                "limitations": [],
+                "summary": (
+                    "source route not typed; artifact hashes and dataset role do "
+                    "not establish source authority"
+                ),
+            },
             "observation_access": {"status": "synthetic_fixture"},
             "readiness": {"status": "not_protected_evidence_dataset"},
             "rigor_error_codes": [],

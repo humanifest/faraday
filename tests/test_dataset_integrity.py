@@ -360,6 +360,149 @@ def test_cli_reports_structured_dataset_inventory(
     assert str(tmp_path) not in json.dumps(result)
 
 
+def test_dataset_source_authority_records_connector_without_upgrading_authority(
+    tmp_path: Path,
+) -> None:
+    service, _ = prepared_service(tmp_path)
+    dataset = service.register_dataset(
+        RegisterDataset(
+            dataset_id="connector-source-fixture",
+            name="Connector source fixture",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[DatasetArtifact("connector.json", "a" * 64, 20, "application/json")],
+            synthetic=False,
+            metadata={
+                "source_authority": {
+                    "source_type": "scientific_connector",
+                    "source_name": "Open scientific registry connector",
+                    "source_record_id": "query-2026-09-13",
+                    "retrieved_or_collected_at": "2026-09-13T12:00:00Z",
+                    "limitations": [
+                        "Connector output is retained as a source route only."
+                    ],
+                }
+            },
+        )
+    )
+
+    authority = dataset.metadata["source_authority"]
+    assert authority["source_type"] == "scientific_connector"
+    assert authority["classification_service_checked"] is True
+    assert authority["source_truth_verified"] is False
+    assert authority["custody_verified_by_source_authority"] is False
+    assert authority["evidence_eligibility_conferred"] is False
+    assert "not proof of source truth" in authority["authority_boundary"]
+
+    inventory = service.dataset_inventory()
+    row = inventory["datasets"][0]
+    assert row["source_authority"]["status"] == "typed_source_route"
+    assert row["source_authority"]["source_type"] == "scientific_connector"
+    assert row["source_authority"]["source_truth_verified"] is False
+    assert "does not confer evidence eligibility" in row["source_authority"]["summary"]
+    synthesis = build_synthesis(
+        service.repository.load_inquiry("formal"),
+        questions=[],
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[dataset],
+        protocols=[],
+        runs=[],
+        recommendations=[],
+        cross_lane_lessons=[],
+        rigor_audit=audit_research_state(
+            inquiry=service.repository.load_inquiry("formal"),
+            claims=[],
+            hypotheses=[],
+            evidence=[],
+            datasets=[dataset],
+            protocols=[],
+            runs=[],
+        ),
+        evidence_status_events=[],
+    )
+    assert "source authority: scientific_connector source route" in synthesis
+    assert "does not confer evidence eligibility" in synthesis
+
+
+def test_dataset_source_authority_rejects_overclaim_and_resealed_drift(
+    tmp_path: Path,
+) -> None:
+    service, _ = prepared_service(tmp_path)
+    with pytest.raises(ValidationError, match="overclaiming language"):
+        service.register_dataset(
+            RegisterDataset(
+                dataset_id="overclaiming-source",
+                name="Overclaiming source",
+                role=DatasetRole.EXPLORATORY,
+                artifacts=[DatasetArtifact("source.json", "b" * 64)],
+                synthetic=False,
+                metadata={
+                    "source_authority": {
+                        "source_type": "scientific_connector",
+                        "source_name": "Connector that validated truth",
+                    }
+                },
+            )
+        )
+    with pytest.raises(ValidationError, match="service-derived fields"):
+        service.register_dataset(
+            RegisterDataset(
+                dataset_id="caller-service-field",
+                name="Caller service field",
+                role=DatasetRole.EXPLORATORY,
+                artifacts=[DatasetArtifact("service-field.json", "d" * 64)],
+                synthetic=False,
+                metadata={
+                    "source_authority": {
+                        "source_type": "manual_import",
+                        "source_name": "Researcher file import",
+                        "source_truth_verified": False,
+                    }
+                },
+            )
+        )
+
+    accepted = service.register_dataset(
+        RegisterDataset(
+            dataset_id="typed-source",
+            name="Typed source",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[DatasetArtifact("typed.json", "c" * 64)],
+            synthetic=False,
+            metadata={
+                "source_authority": {
+                    "source_type": "manual_import",
+                    "source_name": "Researcher file import",
+                }
+            },
+        )
+    )
+    dataset_path = (
+        tmp_path
+        / "inquiries"
+        / "formal"
+        / "datasets"
+        / f"{accepted.dataset_id}.json"
+    )
+    record = json.loads(dataset_path.read_text(encoding="utf-8"))
+    record["metadata"]["source_authority"]["evidence_eligibility_conferred"] = True
+    record["metadata"].pop("dataset_payload_sha256", None)
+    record["metadata"]["dataset_payload_sha256"] = dataset_payload_sha256(
+        DatasetManifest.from_dict(record)
+    )
+    dataset_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence_eligibility_conferred must be false",
+    ):
+        service.list_datasets()
+
+
 @pytest.mark.parametrize(
     ("datasets", "root_id", "message"),
     [

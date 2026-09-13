@@ -1194,10 +1194,14 @@ calibration, synchronization, or timing validity. The frozen context also carrie
 the same structured dataset inventory used by `dataset inventory` and
 deterministic synthesis, so optional reviewers see registered dataset counts,
 roles, synthetic/protected status, observation access, custody, ethics state,
-rigor blockers, and readiness without treating draft data-source mentions or
-plugin access as datasets. Context freezing replays that inventory against the
-visible dataset records, counts, role totals, rigor-error totals, and redaction
-flags before publishing it. Current service-generated contexts use
+rigor blockers, source-authority routes, and readiness without treating draft
+data-source mentions or plugin access as datasets. Source-authority entries are
+provider-neutral provenance labels only: experiment, add-on, connector, import,
+or attestation access does not prove source truth, custody, consent,
+calibration, measurement validity, or evidence eligibility. Context freezing
+replays that inventory against the visible dataset records, counts, role totals,
+rigor-error totals, and redaction flags before publishing it. Current
+service-generated contexts use
 `context_version: 2`, whose dataset inventory is mandatory. Historical
 `context_version: 1` contexts retain their original inventory-free shape and
 remain replayable; they are never upgraded by synthesizing a retrospective
@@ -2313,9 +2317,13 @@ gate evidence.
   descriptive identity.
 - `dataset inventory` and synthesis now expose a registered dataset inventory
   that reports role counts, synthetic/non-synthetic status, artifact media,
-  protocol binding, lineage sources, payload sealing, observation-byte
-  access/readiness, custody, ethics-check state, and dataset-scoped rigor
-  blockers. Empty inventories explicitly say that draft data-source mentions,
+  protocol binding, lineage sources, source-authority route, payload sealing,
+  observation-byte access/readiness, custody, ethics-check state, and
+  dataset-scoped rigor blockers. Source authority is typed as a source route
+  such as a registered experiment, acquisition add-on, scientific connector,
+  manual import, external attestation, or synthetic fixture, and the service
+  rejects attempts to treat that route as verified truth, custody, or evidence
+  eligibility. Empty inventories explicitly say that draft data-source mentions,
   plugin access, and design briefs are not registered datasets. The published
   schema at `schemas/dataset-inventory.schema.json` lets provider-neutral
   clients validate the structured CLI payload. The payload redacts operational
