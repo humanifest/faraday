@@ -46,7 +46,7 @@
   ],
   "scientific_constraints": [
     "Treat supplied material as scoped context, not established fact.",
-    "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+    "Do not claim causality, mechanism, legal characterization, or replication beyond recorded evidence.",
     "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action."
   ],
   "write_boundary": {

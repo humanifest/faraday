@@ -1854,7 +1854,7 @@ def test_collaborator_schema_examples_match_service_validator(tmp_path):
         "dataset_inventory": build_dataset_inventory([], []),
         "scientific_constraints": [
             "Treat supplied material as scoped context, not established fact.",
-            "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+            "Do not claim causality, mechanism, legal characterization, or replication beyond recorded evidence.",
             "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
         ],
         "write_boundary": {
@@ -1979,7 +1979,7 @@ def test_collaborator_review_record_schema_keeps_advanced_triage_bounded(
         "dataset_inventory": build_dataset_inventory([], []),
         "scientific_constraints": [
             "Treat supplied material as scoped context, not established fact.",
-            "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+            "Do not claim causality, mechanism, legal characterization, or replication beyond recorded evidence.",
             "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
         ],
         "write_boundary": {
@@ -2058,7 +2058,7 @@ def test_collaborator_proposal_record_schema_keeps_pending_review_bounded(
         "dataset_inventory": build_dataset_inventory([], []),
         "scientific_constraints": [
             "Treat supplied material as scoped context, not established fact.",
-            "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+            "Do not claim causality, mechanism, legal characterization, or replication beyond recorded evidence.",
             "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
         ],
         "write_boundary": {

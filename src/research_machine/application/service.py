@@ -1742,7 +1742,7 @@ class ResearchService:
             "scientific_constraints": [
                 "Treat all supplied material as scoped working context, not established fact.",
                 "Propose competing explanations including measurement error, selection, and confounding.",
-                "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+                "Do not claim causality, mechanism, legal characterization, or replication beyond recorded evidence.",
                 "Treat action audit-prerequisite receipts as workflow eligibility only, "
                 "not audit truth, auditor independence, scientific validity, evidence "
                 "eligibility, or replication authority.",

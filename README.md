@@ -1207,9 +1207,10 @@ creation, canonical action, human-review completion, or authenticated reviewer
 identity. The frozen context must carry canonical,
 nonempty scientific constraints that include explicit inferential-boundary and
 authorization-boundary prohibitions: the constraints must tell collaborators not
-to claim causality, mechanism, or replication beyond recorded evidence and not
-to authorize collection, protocol freeze, data registration, evidence recording,
-or other canonical action. The constraints also warn that sensor, stream, clock,
+to claim causality, mechanism, legal characterization, or replication beyond
+recorded evidence and not to authorize collection, protocol freeze, data
+registration, evidence recording, or other canonical action. The constraints
+also warn that sensor, stream, clock,
 and control-window commitments are design provenance, not proof of custody,
 calibration, synchronization, or timing validity. The frozen context also carries
 the same structured dataset inventory used by `dataset inventory` and

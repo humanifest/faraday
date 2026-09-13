@@ -496,20 +496,33 @@ def _validate_body_grounding_receipt(
     return checked
 
 
-def _context_scientific_constraints(context: dict[str, Any]) -> list[str]:
+def _context_scientific_constraints(
+    context: dict[str, Any],
+    *,
+    allow_legacy_inferential_boundary: bool = False,
+) -> list[str]:
     constraints = _canonical_string_array(
         context.get("scientific_constraints"),
         "scientific_constraints",
         label="collaborator context",
     )
     folded = [item.casefold() for item in constraints]
-    if not any(
+    has_current_inferential_boundary = any(
+        "do not claim" in item
+        and "causality" in item
+        and "mechanism" in item
+        and "legal characterization" in item
+        and "replication" in item
+        for item in folded
+    )
+    has_legacy_inferential_boundary = allow_legacy_inferential_boundary and any(
         "do not claim" in item
         and "causality" in item
         and "mechanism" in item
         and "replication" in item
         for item in folded
-    ):
+    )
+    if not (has_current_inferential_boundary or has_legacy_inferential_boundary):
         raise ValidationError(
             "collaborator context scientific_constraints must include an inferential-boundary warning"
         )
@@ -1256,7 +1269,10 @@ def _validate_context_snapshot(context: dict[str, Any]) -> list[str]:
         )
     if context_version == 2:
         _validate_context_dataset_inventory(context)
-    return _context_scientific_constraints(context)
+    return _context_scientific_constraints(
+        context,
+        allow_legacy_inferential_boundary=context_version == 1,
+    )
 
 
 def _publish_json(root: Path, filename: str, value: dict[str, Any]) -> bytes:

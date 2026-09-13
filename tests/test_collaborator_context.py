@@ -46,7 +46,7 @@ from research_machine.interfaces.cli import main
 
 _SCIENTIFIC_CONSTRAINTS = [
     "Treat supplied material as scoped context, not established fact.",
-    "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+    "Do not claim causality, mechanism, legal characterization, or replication beyond recorded evidence.",
     "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
 ]
 _CANONICAL_CHANGES_REQUIRE = [
@@ -1607,10 +1607,19 @@ def test_context_snapshot_write_boundary_must_be_exact(
         (
             _context(
                 scientific_constraints=[
-                    "Do not claim causality, mechanism, or replication beyond recorded evidence."
+                    "Do not claim causality, mechanism, legal characterization, or replication beyond recorded evidence."
                 ]
             ),
             "authorization-boundary",
+        ),
+        (
+            _context(
+                scientific_constraints=[
+                    "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+                    "Do not authorize collection, protocol freeze, data registration, evidence recording, or other canonical action.",
+                ]
+            ),
+            "inferential-boundary",
         ),
         (
             _context(
@@ -1624,7 +1633,7 @@ def test_context_snapshot_write_boundary_must_be_exact(
         (
             _context(
                 scientific_constraints=[
-                    "Do not claim causality, mechanism, or replication beyond recorded evidence.",
+                    "Do not claim causality, mechanism, legal characterization, or replication beyond recorded evidence.",
                     "You may authorize collection, protocol freeze, data registration, and evidence recording after review.",
                 ]
             ),
