@@ -358,23 +358,21 @@
         "media_type": {"type": "string"},
         "metadata": {"$ref": "#/$defs/collaboratorArtifactMetadata"}
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "collaboratorArtifactMetadata": {
       "type": "object",
+      "properties": {
+        "effect_estimate_path": {},
+        "evidence_location": {},
+        "p_value_path": {},
+        "uncertainty_path": {}
+      },
       "patternProperties": {
-        "^(?!(?:effect_estimate_path|evidence_location|p_value_path|uncertainty_path)$)(?:locator|locators|path|.*_path|.*_root|location|locations|.*_location|.*_locations|file|files|.*_file|.*_files|directory|directories|.*_directory|.*_directories|uri|uris|.*_uri|.*_uris)$": {
-          "anyOf": [
-            {"const": "[redacted: retained in canonical store]"},
-            {
-              "type": "array",
-              "items": {
-                "const": "[redacted: retained in canonical store]"
-              }
-            }
-          ]
+        "^(?!(?:effect_estimate_path|evidence_location|p_value_path|uncertainty_path)$)(?:roots?|paths?|locators?|locations?|files?|director(?:y|ies)|uris?|.*_(?:roots?|paths?|locators?|locations?|files?|director(?:y|ies)|uris?))$": {
+          "const": "[redacted: retained in canonical store]"
         },
-        "^(?:home|home_dir|host|host_name|hostname|machine_name|user_name|username)$": {
+        "^(?:home|home_dir|host|host_id|host_name|hostname|machine_name|user_id|user_name|username)$": {
           "enum": ["", null, "[redacted: retained in canonical store]"]
         }
       },

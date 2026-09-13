@@ -451,9 +451,12 @@ canonical write path.
   `review_only` authority, perform no canonical writes, and are never scientific
   evidence or authorization. Core commands must not require or invoke a provider.
   Current version-2 collaborator contexts must redact every dataset artifact
-  locator and its nested typed location metadata while preserving hashes, roles,
-  media types, and sizes. Other structured path/locator fields may retain only
-  strict logical relative values; explicit host/user identity fields are redacted.
+  locator and normalize every nested typed location-metadata value to the one
+  scalar redaction marker while preserving hashes, roles, media types, and sizes.
+  Artifact records expose only those five canonical fields. Other structured
+  path/locator fields may retain only strict logical relative values. Redact the
+  explicit identity keys `home`, `home_dir`, `host`, `host_id`, `host_name`,
+  `hostname`, `machine_name`, `user_id`, `user_name`, and `username`.
   Do not scan ordinary scientific prose for path-like substrings, reinterpret JSON
   selectors as filesystem paths, substitute a basename as provenance, or rewrite
   canonical dataset state. Preserve exact historical version-1 replay semantics.

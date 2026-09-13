@@ -35,9 +35,11 @@ HOST_IDENTITY_KEYS = {
     "home",
     "home_dir",
     "host",
+    "host_id",
     "host_name",
     "hostname",
     "machine_name",
+    "user_id",
     "user_name",
     "username",
 }
@@ -62,6 +64,12 @@ _METADATA_LOCATION_KEYS = {
     "files",
     "location",
     "locations",
+    "locator",
+    "locators",
+    "path",
+    "paths",
+    "root",
+    "roots",
     "uri",
     "uris",
 }
@@ -103,16 +111,8 @@ def is_safe_logical_locator(value: object) -> bool:
 def is_typed_metadata_location_key(key: object) -> bool:
     if not isinstance(key, str) or key in JSON_SELECTOR_KEYS:
         return False
-    return (
-        key in _METADATA_LOCATION_KEYS
-        or key.endswith("_location")
-        or key.endswith("_locations")
-        or key.endswith("_file")
-        or key.endswith("_files")
-        or key.endswith("_directory")
-        or key.endswith("_directories")
-        or key.endswith("_uri")
-        or key.endswith("_uris")
+    return key in _METADATA_LOCATION_KEYS or any(
+        key.endswith(f"_{suffix}") for suffix in _METADATA_LOCATION_KEYS
     )
 
 
@@ -129,6 +129,8 @@ def _locator_value(
 def redact_collaborator_context(
     value: Any,
     *,
+    _context_root: bool = True,
+    _dataset_record: bool = False,
     _dataset_artifact: bool = False,
     _metadata: bool = False,
 ) -> Any:
@@ -137,6 +139,8 @@ def redact_collaborator_context(
         return [
             redact_collaborator_context(
                 item,
+                _context_root=False,
+                _dataset_record=_dataset_record,
                 _dataset_artifact=_dataset_artifact,
                 _metadata=_metadata,
             )
@@ -148,11 +152,14 @@ def redact_collaborator_context(
     projected: dict[str, Any] = {}
     for key, item in value.items():
         if key in OPERATIONAL_CONTEXT_KEYS:
-            projected[key] = (
-                None
-                if key == "current_synthesis_path" and item is None
-                else COLLABORATOR_CONTEXT_REDACTION_MARKER
-            )
+            if _dataset_artifact and _metadata and is_typed_metadata_location_key(key):
+                projected[key] = COLLABORATOR_CONTEXT_REDACTION_MARKER
+            else:
+                projected[key] = (
+                    None
+                    if key == "current_synthesis_path" and item is None
+                    else COLLABORATOR_CONTEXT_REDACTION_MARKER
+                )
         elif key in HOST_IDENTITY_KEYS:
             projected[key] = (
                 item
@@ -161,6 +168,30 @@ def redact_collaborator_context(
             )
         elif key in JSON_SELECTOR_KEYS:
             projected[key] = item
+        elif _context_root and key == "datasets" and isinstance(item, list):
+            projected[key] = [
+                redact_collaborator_context(
+                    entry,
+                    _context_root=False,
+                    _dataset_record=True,
+                )
+                for entry in item
+            ]
+        elif _dataset_record and key == "artifacts" and isinstance(item, list):
+            projected[key] = [
+                redact_collaborator_context(
+                    entry,
+                    _context_root=False,
+                    _dataset_artifact=True,
+                )
+                for entry in item
+            ]
+        elif (
+            _dataset_artifact
+            and _metadata
+            and is_typed_metadata_location_key(key)
+        ):
+            projected[key] = COLLABORATOR_CONTEXT_REDACTION_MARKER
         elif key == "locator" or key.endswith("_locator"):
             projected[key] = _locator_value(
                 item,
@@ -181,24 +212,10 @@ def redact_collaborator_context(
                 projected[key] = item
             else:
                 projected[key] = COLLABORATOR_CONTEXT_REDACTION_MARKER
-        elif _metadata and is_typed_metadata_location_key(key):
-            values = item if isinstance(item, list) else [item]
-            redacted = [
-                _locator_value(entry, force_redaction=_dataset_artifact)
-                for entry in values
-            ]
-            projected[key] = redacted if isinstance(item, list) else redacted[0]
-        elif key == "artifacts" and isinstance(item, list) and "dataset_id" in value:
-            projected[key] = [
-                redact_collaborator_context(
-                    entry,
-                    _dataset_artifact=True,
-                )
-                for entry in item
-            ]
         else:
             projected[key] = redact_collaborator_context(
                 item,
+                _context_root=False,
                 _dataset_artifact=_dataset_artifact,
                 _metadata=_metadata or key == "metadata",
             )

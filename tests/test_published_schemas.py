@@ -1214,21 +1214,51 @@ def test_collaborator_context_v2_schema_recurses_typed_artifact_metadata():
             "sha256": "a" * 64,
             "metadata": {
                 "note": "X:12345 and DOI:10.1000/example",
+                "root": "[redacted: retained in canonical store]",
+                "host_id": "[redacted: retained in canonical store]",
+                "user_id": "[redacted: retained in canonical store]",
                 "nested": {
                     "source_path": "[redacted: retained in canonical store]",
+                    "locators": "[redacted: retained in canonical store]",
                     "location": "[redacted: retained in canonical store]",
-                    "effect_estimate_path": "/results/effect/estimate",
+                    "current_synthesis_path": "[redacted: retained in canonical store]",
+                    "effect_estimate_path": {
+                        "selector": "/results/effect/estimate",
+                        "source_path": "/selector/value/is/not/a/filesystem/path",
+                    },
                 },
             },
         }],
     }]
     jsonschema.validate(context, schema)
 
-    context["datasets"][0]["artifacts"][0]["metadata"]["nested"][
+    list_shaped_path = deepcopy(context)
+    list_shaped_path["datasets"][0]["artifacts"][0]["metadata"]["nested"][
         "source_path"
-    ] = "logical/result.csv"
+    ] = ["[redacted: retained in canonical store]"]
     with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(context, schema)
+        jsonschema.validate(list_shaped_path, schema)
+
+    unredacted_root = deepcopy(context)
+    unredacted_root["datasets"][0]["artifacts"][0]["metadata"][
+        "root"
+    ] = "/Users/alice/result.csv"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(unredacted_root, schema)
+
+    unredacted_host_id = deepcopy(context)
+    unredacted_host_id["datasets"][0]["artifacts"][0]["metadata"][
+        "host_id"
+    ] = "host-42"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(unredacted_host_id, schema)
+
+    artifact_extension = deepcopy(context)
+    artifact_extension["datasets"][0]["artifacts"][0][
+        "source_path"
+    ] = "[redacted: retained in canonical store]"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(artifact_extension, schema)
 
 
 def test_collaborator_context_schema_keeps_v1_local_locator_shape_replayable():

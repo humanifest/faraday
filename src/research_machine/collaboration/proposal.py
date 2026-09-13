@@ -29,6 +29,14 @@ from research_machine.domain.errors import ValidationError
 
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+_COLLABORATOR_ARTIFACT_FIELDS = {
+    "locator",
+    "sha256",
+    "size_bytes",
+    "media_type",
+    "metadata",
+}
+_REQUIRED_COLLABORATOR_ARTIFACT_FIELDS = {"locator", "sha256"}
 _PROPOSAL_FIELDS = {
     "proposal_version",
     "proposal_id",
@@ -637,11 +645,47 @@ def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
     return refs
 
 
+def _validate_v2_collaborator_artifact_shape(
+    artifact: Any, path: str
+) -> None:
+    if not isinstance(artifact, dict):
+        raise ValidationError(f"collaborator context {path} must be an object")
+    missing = _REQUIRED_COLLABORATOR_ARTIFACT_FIELDS - set(artifact)
+    unexpected = set(artifact) - _COLLABORATOR_ARTIFACT_FIELDS
+    if missing or unexpected:
+        raise ValidationError(
+            f"collaborator context {path} fields mismatch; "
+            f"missing={sorted(missing)} unexpected={sorted(unexpected)}"
+        )
+    digest = artifact["sha256"]
+    if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+        raise ValidationError(
+            f"collaborator context {path}.sha256 must be a lowercase SHA-256 digest"
+        )
+    if "size_bytes" in artifact:
+        size_bytes = artifact["size_bytes"]
+        if size_bytes is not None and (
+            type(size_bytes) is not int or size_bytes < 0
+        ):
+            raise ValidationError(
+                f"collaborator context {path}.size_bytes must be a non-negative integer or null"
+            )
+    if "media_type" in artifact and not isinstance(artifact["media_type"], str):
+        raise ValidationError(
+            f"collaborator context {path}.media_type must be text"
+        )
+    if "metadata" in artifact and not isinstance(artifact["metadata"], dict):
+        raise ValidationError(
+            f"collaborator context {path}.metadata must be an object"
+        )
+
+
 def _validate_context_operational_redaction(
     value: Any,
     path: str,
     *,
     context_version: int,
+    dataset_record: bool = False,
     dataset_artifact: bool = False,
     metadata: bool = False,
 ) -> None:
@@ -656,6 +700,14 @@ def _validate_context_operational_redaction(
             if key in operational_keys:
                 if context_version == 1:
                     invalid_operational_value = bool(item) and (
+                        item != COLLABORATOR_CONTEXT_REDACTION_MARKER
+                    )
+                elif (
+                    dataset_artifact
+                    and metadata
+                    and is_typed_metadata_location_key(key)
+                ):
+                    invalid_operational_value = (
                         item != COLLABORATOR_CONTEXT_REDACTION_MARKER
                     )
                 elif key == "current_synthesis_path":
@@ -687,6 +739,41 @@ def _validate_context_operational_redaction(
                     )
             elif key in JSON_SELECTOR_KEYS:
                 pass
+            elif path == "context" and key == "datasets":
+                if not isinstance(item, list):
+                    raise ValidationError(
+                        "collaborator context datasets must be an array"
+                    )
+                for index, entry in enumerate(item):
+                    _validate_context_operational_redaction(
+                        entry,
+                        f"{child_path}[{index}]",
+                        context_version=context_version,
+                        dataset_record=True,
+                    )
+            elif dataset_record and key == "artifacts":
+                if not isinstance(item, list):
+                    raise ValidationError(
+                        f"collaborator context {child_path} must be an array"
+                    )
+                for index, entry in enumerate(item):
+                    artifact_path = f"{child_path}[{index}]"
+                    _validate_v2_collaborator_artifact_shape(entry, artifact_path)
+                    _validate_context_operational_redaction(
+                        entry,
+                        artifact_path,
+                        context_version=context_version,
+                        dataset_artifact=True,
+                    )
+            elif (
+                dataset_artifact
+                and metadata
+                and is_typed_metadata_location_key(key)
+            ):
+                if item != COLLABORATOR_CONTEXT_REDACTION_MARKER:
+                    raise ValidationError(
+                        f"collaborator context dataset artifact metadata location {child_path} must use the canonical scalar redaction marker"
+                    )
             elif key == "locator" or key.endswith("_locator"):
                 if dataset_artifact and item != COLLABORATOR_CONTEXT_REDACTION_MARKER:
                     raise ValidationError(
@@ -725,28 +812,6 @@ def _validate_context_operational_redaction(
                 ):
                     raise ValidationError(
                         f"collaborator context path field {child_path} must be a safe relative logical path or the canonical redaction marker"
-                    )
-            elif metadata and is_typed_metadata_location_key(key):
-                entries = item if isinstance(item, list) else [item]
-                if dataset_artifact and any(
-                    entry != COLLABORATOR_CONTEXT_REDACTION_MARKER for entry in entries
-                ):
-                    raise ValidationError(
-                        f"collaborator context dataset artifact metadata location {child_path} must use only canonical redaction markers"
-                    )
-                if not dataset_artifact and any(
-                    not is_safe_logical_locator(entry) for entry in entries
-                ):
-                    raise ValidationError(
-                        f"collaborator context metadata location {child_path} must contain only safe relative logical locations or canonical redaction markers"
-                    )
-            elif key == "artifacts" and isinstance(item, list) and "dataset_id" in value:
-                for index, entry in enumerate(item):
-                    _validate_context_operational_redaction(
-                        entry,
-                        f"{child_path}[{index}]",
-                        context_version=context_version,
-                        dataset_artifact=True,
                     )
             else:
                 _validate_context_operational_redaction(

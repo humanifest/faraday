@@ -293,6 +293,10 @@ def test_v2_dataset_locators_are_always_redacted_and_replay_stable(
                 "artifact_role": "analysis_input",
                 "hostname": "alice-macbook.local",
                 "host": 0,
+                "host_id": "host-42",
+                "user_id": "alice",
+                "root": {"kind": "local", "value": "/Users/alice"},
+                "locators": ["logical/result.csv", "/Users/alice/result.csv"],
                 "source_note": "copied from /Users/alice/private/result.csv",
                 "drive_hint": "C:result.csv",
                 "escaped_hint": "logical/%2e%2e/result.csv",
@@ -300,8 +304,14 @@ def test_v2_dataset_locators_are_always_redacted_and_replay_stable(
                 "unc_hint": "\\\\server\\share\\result.csv",
                 "/Users/alice/private-key": "unsafe metadata key",
                 "nested": {
-                    "source_path": "/Users/alice/nested/result.csv",
-                    "location": "alice-macbook.local/result.csv",
+                    "source_path": ["/Users/alice/nested/result.csv"],
+                    "location": {"host": "alice-macbook.local"},
+                    "roots": [],
+                    "current_synthesis_path": None,
+                    "effect_estimate_path": {
+                        "selector": "/results/effect/estimate",
+                        "source_path": "/selector/value/is/not/a/filesystem/path",
+                    },
                     "note": "X:12345",
                 },
             },
@@ -347,6 +357,10 @@ def test_v2_dataset_locators_are_always_redacted_and_replay_stable(
     assert first["datasets"][0]["role"] == "exploratory"
     assert projected[3]["metadata"]["hostname"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
     assert projected[3]["metadata"]["host"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert projected[3]["metadata"]["host_id"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert projected[3]["metadata"]["user_id"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert projected[3]["metadata"]["root"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert projected[3]["metadata"]["locators"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
     assert projected[3]["metadata"]["source_note"] == (
         "copied from /Users/alice/private/result.csv"
     )
@@ -358,6 +372,12 @@ def test_v2_dataset_locators_are_always_redacted_and_replay_stable(
     assert projected[3]["metadata"]["nested"] == {
         "source_path": COLLABORATOR_CONTEXT_REDACTION_MARKER,
         "location": COLLABORATOR_CONTEXT_REDACTION_MARKER,
+        "roots": COLLABORATOR_CONTEXT_REDACTION_MARKER,
+        "current_synthesis_path": COLLABORATOR_CONTEXT_REDACTION_MARKER,
+        "effect_estimate_path": {
+            "selector": "/results/effect/estimate",
+            "source_path": "/selector/value/is/not/a/filesystem/path",
+        },
         "note": "X:12345",
     }
     assert "locator" not in json.dumps(first["dataset_inventory"], sort_keys=True)
@@ -366,9 +386,23 @@ def test_v2_dataset_locators_are_always_redacted_and_replay_stable(
     tampered = copy.deepcopy(first)
     tampered["datasets"][0]["artifacts"][3]["metadata"]["nested"][
         "source_path"
-    ] = "logical/result.csv"
-    with pytest.raises(ValidationError, match="dataset artifact path"):
+    ] = [COLLABORATOR_CONTEXT_REDACTION_MARKER]
+    with pytest.raises(ValidationError, match="canonical scalar redaction marker"):
         create_context_snapshot(tampered, tmp_path / "tampered-context")
+
+    artifact_extension = copy.deepcopy(first)
+    artifact_extension["datasets"][0]["artifacts"][3][
+        "source_path"
+    ] = COLLABORATOR_CONTEXT_REDACTION_MARKER
+    with pytest.raises(ValidationError, match="fields mismatch"):
+        create_context_snapshot(artifact_extension, tmp_path / "artifact-extension")
+
+    identity_tampering = copy.deepcopy(first)
+    identity_tampering["datasets"][0]["artifacts"][3]["metadata"][
+        "host_id"
+    ] = "host-42"
+    with pytest.raises(ValidationError, match="host field"):
+        create_context_snapshot(identity_tampering, tmp_path / "identity-tampering")
 
     first_snapshot = create_context_snapshot(first, tmp_path / "context-one")
     second_snapshot = create_context_snapshot(second, tmp_path / "context-two")

@@ -1578,15 +1578,20 @@ evidence records they qualify. The collaborator context redacts operational
 artifact roots and attestation-schema paths while retaining IDs, hashes, status
 history, and review-event handles, keeping provider-neutral review separate from
 local custody access. Version-2 contexts also redact absolute and host-specific
-dataset artifact locators unconditionally, including nested metadata fields
-whose keys explicitly identify locations, while preserving hashes, roles, media
-types, and sizes and never substituting a basename. Other typed path/locator
-fields reject platform-root or `.local` host segments, traversal, URI/drive,
+dataset artifact locators unconditionally and normalize recursively nested typed
+location-metadata values of any original shape to one scalar marker. Artifact
+records expose only `locator`, `sha256`, `size_bytes`, `media_type`, and
+`metadata`, while preserving hashes, roles, media types, and sizes and never
+substituting a basename. Other typed path/locator fields reject platform-root or
+`.local` host segments, traversal, URI/drive,
 tilde/backslash, percent-encoded, and control-bearing forms. Ordinary prose is
 not scanned for path-like substrings, and JSON result selectors remain intact.
-The schema recursively covers dataset artifact metadata; runtime validation also
-walks typed fields in arbitrary record extensions. This projection never rewrites
-the canonical dataset manifest, while exact historical version-1 replay remains unchanged.
+The explicit identity-key set is `home`, `home_dir`, `host`, `host_id`,
+`host_name`, `hostname`, `machine_name`, `user_id`, `user_name`, and `username`.
+Schema and runtime close the artifact surface identically; other context record
+types remain intentionally open, with runtime validation covering typed extension
+fields. This projection never rewrites the canonical dataset manifest, while
+exact historical version-1 replay remains unchanged.
 It also carries the structured dataset inventory used by
 the CLI and synthesis, so provider-neutral reviewers can see registered dataset
 counts, roles, synthetic/protected status, observation access, custody, ethics
