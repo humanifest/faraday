@@ -20,6 +20,12 @@ SOURCE_AUTHORITY_TYPES = frozenset({
     "external_attestation",
     "synthetic_fixture",
 })
+_ANCHOR_REQUIRED_TYPES = frozenset({
+    "registered_experiment",
+    "acquisition_addon",
+    "scientific_connector",
+    "external_attestation",
+})
 SOURCE_AUTHORITY_BOUNDARY = (
     "Source route only; not proof of source truth, custody, consent, "
     "calibration, measurement validity, or evidence eligibility."
@@ -107,6 +113,11 @@ def validate_dataset_source_authority(
     )
     source_record_id_value = value.get("source_record_id", "")
     if source_record_id_value == "":
+        if source_type in _ANCHOR_REQUIRED_TYPES:
+            raise ValidationError(
+                "dataset source_authority.source_record_id is required for "
+                f"{source_type} source routes"
+            )
         source_record_id = ""
     else:
         source_record_id = require_canonical_text(
@@ -115,6 +126,11 @@ def validate_dataset_source_authority(
         )
     timestamp_value = value.get("retrieved_or_collected_at", "")
     if timestamp_value == "":
+        if source_type in _ANCHOR_REQUIRED_TYPES:
+            raise ValidationError(
+                "dataset source_authority.retrieved_or_collected_at is required for "
+                f"{source_type} source routes"
+            )
         timestamp = ""
     else:
         timestamp = validate_source_authority_timestamp(

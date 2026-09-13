@@ -1609,6 +1609,8 @@ def test_audit_flags_invalid_dataset_source_authority() -> None:
             "source_authority": {
                 "source_type": "scientific_connector",
                 "source_name": "Registry connector fixture",
+                "source_record_id": "invalid-source-route-1",
+                "retrieved_or_collected_at": "2026-09-02T12:00:00Z",
                 "source_truth_verified": True,
             },
         },

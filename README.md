@@ -2354,7 +2354,9 @@ gate evidence.
   authority is typed as a source route
   such as a registered experiment, acquisition add-on, scientific connector,
   manual import, external attestation, or synthetic fixture, and the service
-  rejects attempts to treat that route as verified truth, custody, or evidence
+  now requires experiment, add-on, connector, and external-attestation routes to
+  retain a nonempty source record ID plus offset-aware retrieval or collection
+  time. It rejects attempts to treat that route as verified truth, custody, or evidence
   eligibility. The rigor audit flags malformed source-authority metadata and
   malformed or overclaiming workflow-materialization metadata as errors, and it
   warns when a non-synthetic protected dataset lacks a typed source route. The

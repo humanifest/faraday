@@ -2423,8 +2423,8 @@ source-route contract for registered experiments, acquisition add-ons,
 scientific connectors, manual imports, external attestations, or synthetic
 fixtures. Registration normalizes it, rejects overclaiming source text or any
 attempt to mark source truth, custody, or evidence eligibility as conferred,
-requires any supplied retrieval or collection time to be an offset-aware
-ISO-8601 timestamp, and
+requires experiment, add-on, connector, and external-attestation routes to keep
+a nonempty source record ID and offset-aware retrieval or collection time, and
 authoritative reads, run intake, evidence admission, and collaborator-context
 freezing replay the same validation from the sealed dataset payload and visible
 dataset inventory. A tampered provider-neutral context cannot promote a

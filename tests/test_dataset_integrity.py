@@ -18,6 +18,9 @@ from research_machine.application.dataset_integrity import (
     verify_dataset_artifacts,
 )
 from research_machine.application.dataset_inventory import build_dataset_inventory
+from research_machine.application.dataset_source_authority import (
+    validate_dataset_source_authority,
+)
 from research_machine.application.evidence_admission import (
     validate_evidence_admission_receipts,
 )
@@ -625,6 +628,30 @@ def test_dataset_source_authority_records_connector_without_upgrading_authority(
     assert "does not confer evidence eligibility" in synthesis
 
 
+@pytest.mark.parametrize(
+    "source_type",
+    [
+        "registered_experiment",
+        "acquisition_addon",
+        "scientific_connector",
+        "external_attestation",
+    ],
+)
+def test_source_authority_real_routes_require_record_anchor(source_type: str) -> None:
+    with pytest.raises(ValidationError, match="source_record_id is required"):
+        validate_dataset_source_authority({
+            "source_type": source_type,
+            "source_name": "Anchored route fixture",
+            "retrieved_or_collected_at": "2026-09-13T12:00:00Z",
+        })
+    with pytest.raises(ValidationError, match="retrieved_or_collected_at is required"):
+        validate_dataset_source_authority({
+            "source_type": source_type,
+            "source_name": "Anchored route fixture",
+            "source_record_id": "route-record-1",
+        })
+
+
 def test_dataset_inventory_exposes_invalid_source_authority() -> None:
     inquiry = Inquiry(
         inquiry_id="invalid-source-inventory",
@@ -711,6 +738,40 @@ def test_dataset_source_authority_rejects_overclaim_and_resealed_drift(
                 },
             )
         )
+    with pytest.raises(ValidationError, match="source_record_id is required"):
+        service.register_dataset(
+            RegisterDataset(
+                dataset_id="connector-without-record",
+                name="Connector without record",
+                role=DatasetRole.EXPLORATORY,
+                artifacts=[DatasetArtifact("connector.json", "1" * 64)],
+                synthetic=False,
+                metadata={
+                    "source_authority": {
+                        "source_type": "scientific_connector",
+                        "source_name": "Registry connector",
+                        "retrieved_or_collected_at": "2026-09-13T12:00:00Z",
+                    }
+                },
+            )
+        )
+    with pytest.raises(ValidationError, match="retrieved_or_collected_at is required"):
+        service.register_dataset(
+            RegisterDataset(
+                dataset_id="experiment-without-collection-time",
+                name="Experiment without collection time",
+                role=DatasetRole.EXPLORATORY,
+                artifacts=[DatasetArtifact("experiment.csv", "2" * 64)],
+                synthetic=False,
+                metadata={
+                    "source_authority": {
+                        "source_type": "registered_experiment",
+                        "source_name": "Registered experiment",
+                        "source_record_id": "experiment-record-1",
+                    }
+                },
+            )
+        )
     with pytest.raises(ValidationError, match="service-derived fields"):
         service.register_dataset(
             RegisterDataset(
@@ -740,6 +801,7 @@ def test_dataset_source_authority_rejects_overclaim_and_resealed_drift(
                     "source_authority": {
                         "source_type": "scientific_connector",
                         "source_name": "Registry connector",
+                        "source_record_id": "source-time-without-offset-1",
                         "retrieved_or_collected_at": "2026-09-13T12:00:00",
                     }
                 },
@@ -973,6 +1035,9 @@ def test_scientific_evidence_replay_checks_dataset_source_authority(
             "source_authority": {
                 "source_type": "registered_experiment",
                 "source_name": "Registered source-authority replay fixture",
+                "source_record_id": "source-authority-scientific-dataset-1",
+                "retrieved_or_collected_at": "2026-09-13T12:00:00Z",
+                "limitations": ["Synthetic software fixture only."],
             }
         },
     ))
