@@ -129,7 +129,12 @@
         },
         "source_name": {"type": "string"},
         "source_record_id": {"type": "string"},
-        "retrieved_or_collected_at": {"type": "string"},
+        "retrieved_or_collected_at": {
+          "anyOf": [
+            {"const": ""},
+            {"type": "string", "format": "date-time"}
+          ]
+        },
         "classification_service_checked": {"type": "boolean"},
         "source_truth_verified": {"const": false},
         "custody_verified_by_source_authority": {"const": false},

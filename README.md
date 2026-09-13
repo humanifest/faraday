@@ -1202,7 +1202,9 @@ rigor blockers, source-authority routes, and readiness without treating draft
 data-source mentions or plugin access as datasets. Source-authority entries are
 provider-neutral provenance labels only: experiment, add-on, connector, import,
 or attestation access does not prove source truth, custody, consent,
-calibration, measurement validity, or evidence eligibility. Context freezing
+calibration, measurement validity, or evidence eligibility. When supplied, the
+retrieval or collection time must be an offset-aware ISO-8601 timestamp so
+source-route chronology is machine-checkable rather than prose. Context freezing
 replays that inventory against the visible dataset records, counts, role totals,
 rigor-error totals, source-authority boundaries, and redaction flags before
 publishing it. A frozen context cannot upgrade a connector, add-on, experiment,

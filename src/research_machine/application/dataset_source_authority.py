@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Mapping
 
 from research_machine.application.policies import (
@@ -42,6 +43,20 @@ _SERVICE_DERIVED_FIELDS = frozenset({
     "evidence_eligibility_conferred",
     "authority_boundary",
 })
+
+
+def validate_source_authority_timestamp(value: str, field: str) -> str:
+    """Require a canonical ISO-8601 timestamp with an explicit UTC offset."""
+    timestamp = require_canonical_text(value, field)
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValidationError(f"{field} must be a valid ISO-8601 timestamp") from exc
+    if parsed.utcoffset() is None:
+        raise ValidationError(f"{field} must include a UTC offset")
+    if "T" not in timestamp and "t" not in timestamp:
+        raise ValidationError(f"{field} must include a time component")
+    return timestamp
 
 
 def validate_dataset_source_authority(
@@ -98,7 +113,7 @@ def validate_dataset_source_authority(
     if timestamp_value == "":
         timestamp = ""
     else:
-        timestamp = require_canonical_text(
+        timestamp = validate_source_authority_timestamp(
             timestamp_value,
             "dataset source_authority.retrieved_or_collected_at",
         )

@@ -933,6 +933,13 @@ def test_context_snapshot_replays_typed_source_authority_boundary(
     ):
         create_context_snapshot(tampered, tmp_path / "tampered-context")
 
+    timestamp_tampered = copy.deepcopy(context)
+    timestamp_tampered["dataset_inventory"]["datasets"][0]["source_authority"][
+        "retrieved_or_collected_at"
+    ] = "2026-09-13T12:00:00"
+    with pytest.raises(ValidationError, match="must include a UTC offset"):
+        create_context_snapshot(timestamp_tampered, tmp_path / "timestamp-tampered")
+
 
 def test_collaborator_context_exposes_acquisition_timing_as_non_authority(
     tmp_path: Path,

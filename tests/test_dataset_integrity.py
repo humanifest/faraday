@@ -472,6 +472,40 @@ def test_dataset_source_authority_rejects_overclaim_and_resealed_drift(
                 },
             )
         )
+    with pytest.raises(ValidationError, match="must include a UTC offset"):
+        service.register_dataset(
+            RegisterDataset(
+                dataset_id="source-time-without-offset",
+                name="Source time without offset",
+                role=DatasetRole.EXPLORATORY,
+                artifacts=[DatasetArtifact("source-time.json", "e" * 64)],
+                synthetic=False,
+                metadata={
+                    "source_authority": {
+                        "source_type": "scientific_connector",
+                        "source_name": "Registry connector",
+                        "retrieved_or_collected_at": "2026-09-13T12:00:00",
+                    }
+                },
+            )
+        )
+    with pytest.raises(ValidationError, match="valid ISO-8601 timestamp"):
+        service.register_dataset(
+            RegisterDataset(
+                dataset_id="source-time-invalid",
+                name="Source time invalid",
+                role=DatasetRole.EXPLORATORY,
+                artifacts=[DatasetArtifact("source-time-invalid.json", "f" * 64)],
+                synthetic=False,
+                metadata={
+                    "source_authority": {
+                        "source_type": "manual_import",
+                        "source_name": "Researcher file import",
+                        "retrieved_or_collected_at": "after lunch",
+                    }
+                },
+            )
+        )
 
     accepted = service.register_dataset(
         RegisterDataset(

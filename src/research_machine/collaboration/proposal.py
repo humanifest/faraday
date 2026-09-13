@@ -20,6 +20,7 @@ from typing import Any
 from research_machine.application.dataset_source_authority import (
     SOURCE_AUTHORITY_BOUNDARY,
     SOURCE_AUTHORITY_TYPES,
+    validate_source_authority_timestamp,
 )
 from research_machine.collaboration.redaction import (
     COLLABORATOR_CONTEXT_REDACTION_MARKER,
@@ -926,6 +927,11 @@ def _validate_dataset_inventory_source_authority(
             f"{path}.retrieved_or_collected_at",
             allow_empty=True,
         )
+        if value["retrieved_or_collected_at"]:
+            validate_source_authority_timestamp(
+                value["retrieved_or_collected_at"],
+                f"collaborator context {path}.retrieved_or_collected_at",
+            )
         if value["classification_service_checked"] is not True:
             raise ValidationError(
                 f"collaborator context {path}.classification_service_checked must be true for typed source routes"
