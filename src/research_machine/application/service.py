@@ -6518,6 +6518,11 @@ class ResearchService:
                 self.repository.find_dataset(resolved, dataset_id)
                 for dataset_id in run.dataset_ids
             ]
+            self._validate_run_datasets(
+                protocol,
+                datasets,
+                all_datasets=self.repository.list_datasets(resolved),
+            )
             if run.protocol_hash != protocol.protocol_hash or _protocol_commitment(
                 protocol
             ) != protocol.protocol_hash:
@@ -6539,11 +6544,6 @@ class ResearchService:
                     f"result exposure disclosure.{legacy_exposure}"
                 )
             if run.scientific_evidence_eligible:
-                self._validate_run_datasets(
-                    protocol,
-                    datasets,
-                    all_datasets=self.repository.list_datasets(resolved),
-                )
                 from research_machine.application.run_integrity import (
                     reverify_run_artifacts,
                 )

@@ -2400,9 +2400,11 @@ scientific connectors, manual imports, external attestations, or synthetic
 fixtures. Registration normalizes it, rejects overclaiming source text or any
 attempt to mark source truth, custody, or evidence eligibility as conferred, and
 authoritative reads, run intake, and evidence admission replay the same
-validation from the sealed dataset payload. Run intake and scientific-evidence
-admission replay also check protected lineage ancestors, so a derived dataset
-cannot launder a rewritten source route into execution or evidence.
+validation from the sealed dataset payload. Evidence admission now replays every
+run dataset even for non-scientific exploratory records that omit a single
+dataset selector. Run intake and scientific-evidence admission replay also check
+protected lineage ancestors, so a derived dataset cannot launder a rewritten
+source route into execution or evidence.
 
 Instrument-adapter foundation: validated add-on manifests may now register
 bounded inspectors with stable IDs, supported media types, and explicit config

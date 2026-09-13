@@ -763,6 +763,115 @@ def test_scientific_evidence_replay_checks_dataset_source_authority(
         )
 
 
+def test_run_backed_exploratory_evidence_replays_all_dataset_source_authority(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    draft = service.create_protocol(CreateProtocol(
+        experiment_id="exploratory-source-authority",
+        title="Exploratory source-authority replay",
+        analysis_mode=AnalysisMode.EXPLORATORY,
+        hypotheses_tested=[hypothesis_id],
+        primary_outcome="Exploratory source route verdict",
+        protocol_kind=ProtocolKind.FORMAL,
+        methodology="Replay exploratory source-route checks.",
+        quality_requirements=["proof-check"],
+        controls=["A deliberately invalid derivation must fail."],
+        expected_outputs=["Exploratory transcript"],
+        success_conditions=["The exploratory route is reproducible."],
+        environment_requirements=["Pinned checker"],
+        sample_size_or_stopping_rule="Two exploratory source fixtures.",
+        failure_conditions=["A source route cannot be reconstructed."],
+        safety_constraints=["Do not report this as confirmation."],
+        analysis_code_hash="a" * 64,
+    ))
+    protocol = service.freeze_protocol(draft.protocol_id)
+    datasets = [
+        service.register_dataset(RegisterDataset(
+            dataset_id=f"exploratory-source-authority-{index}",
+            name=f"Exploratory source authority {index}",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[DatasetArtifact(f"source-{index}.csv", str(index) * 64)],
+            protocol_id=protocol.protocol_id,
+            synthetic=True,
+            metadata={
+                "source_authority": {
+                    "source_type": "synthetic_fixture",
+                    "source_name": f"Synthetic exploratory source {index}",
+                }
+            },
+        ))
+        for index in (1, 2)
+    ]
+    run = service.record_run(RecordRun(
+        protocol_id=protocol.protocol_id,
+        started_at="2026-09-02T12:01:00Z",
+        completed_at="2026-09-02T12:02:00Z",
+        analysis_code_hash="a" * 64,
+        environment_hash="b" * 64,
+        dataset_ids=[dataset.dataset_id for dataset in datasets],
+        output_artifacts=[
+            DatasetArtifact("result.json", "e" * 64, media_type="application/json")
+        ],
+        quality_gates=[
+            QualityGateResult(
+                "proof-check",
+                QualityGateStatus.PASSED,
+                "Synthetic fixture gate.",
+                details={"evidence_sha256": "e" * 64},
+            )
+        ],
+        summary="Synthetic exploratory source-authority fixture.",
+        synthetic=True,
+        metadata={
+            "protocol_deviation_disclosure": {
+                "status": "no_deviations_declared",
+                "deviations": [],
+            },
+            "result_exposure_disclosure": {
+                "status": "no_relevant_output_seen",
+                "exposures": [],
+            },
+        },
+    ))
+    dataset_path = (
+        tmp_path
+        / "inquiries"
+        / "formal"
+        / "datasets"
+        / f"{datasets[1].dataset_id}.json"
+    )
+    record = json.loads(dataset_path.read_text(encoding="utf-8"))
+    record["metadata"]["source_authority"]["evidence_eligibility_conferred"] = True
+    record["metadata"].pop("dataset_payload_sha256", None)
+    record["metadata"]["dataset_payload_sha256"] = dataset_payload_sha256(
+        DatasetManifest.from_dict(record)
+    )
+    dataset_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence_eligibility_conferred must be false",
+    ):
+        service.record_evidence(RecordEvidence(
+            hypothesis_id=hypothesis_id,
+            direction=EvidenceDirection.INCONCLUSIVE,
+            summary="The exploratory run remains inconclusive.",
+            analysis_id=run.run_id,
+            run_id=run.run_id,
+            uncertainty="Synthetic exploratory fixture only.",
+            scope="Synthetic exploratory fixture only.",
+            higher_level_conclusions_unsupported=[
+                "Source truth, custody, and evidence eligibility remain unverified."
+            ],
+            validation_tags=[ValidationTag.CALIBRATION],
+            exploratory=True,
+        ))
+
+
 @pytest.mark.parametrize(
     ("datasets", "root_id", "message"),
     [
