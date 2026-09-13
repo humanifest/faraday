@@ -5,10 +5,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import tempfile
 from typing import Any
 
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.extraction import validate_extraction_boundary
 from research_machine.literature.hashes import require_sha256
@@ -37,12 +37,6 @@ _PASSAGE_RECEIPT_FIELDS = {
     "quote_occurrence_count",
     "machine_verification",
 }
-_CITATION_PROSE_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
-
-
 def _canonical_text(value: Any, field: str) -> str:
     text = _text(value, field)
     if text != text.strip():
@@ -52,7 +46,7 @@ def _canonical_text(value: Any, field: str) -> str:
 
 def _bounded_citation_text(value: Any, field: str) -> str:
     text = _canonical_text(value, field)
-    if _CITATION_PROSE_OVERCLAIM.search(text):
+    if report_overclaim_terms(text):
         raise ValidationError(
             f"{field} uses citation-verification prohibited overclaiming language; "
             "describe the citation check and bounded verdict without claiming "

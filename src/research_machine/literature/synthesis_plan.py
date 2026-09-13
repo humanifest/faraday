@@ -5,10 +5,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import tempfile
 from typing import Any
 
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.json_loading import load_json_object
@@ -24,10 +24,6 @@ QUANTITATIVE_SENSITIVITIES = {
     "alternate_fixed_effect",
     "alternate_random_effects",
 }
-_SYNTHESIS_PLAN_PROSE_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
 _BOUNDED_PLAN_FIELDS = (
     "eligibility_policy",
     "missing_statistics_policy",
@@ -57,7 +53,7 @@ def _canonical_text(value: Any, field: str) -> str:
 
 def _bounded_plan_text(value: Any, field: str) -> str:
     text = _canonical_text(value, field)
-    if _SYNTHESIS_PLAN_PROSE_OVERCLAIM.search(text):
+    if report_overclaim_terms(text):
         raise ValidationError(
             f"synthesis plan {field} uses prohibited overclaiming language; "
             "describe the prospective rule without claiming proof, "

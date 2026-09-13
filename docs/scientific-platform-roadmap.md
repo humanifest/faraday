@@ -1822,7 +1822,9 @@ coverage and duplicate checks, so whitespace padding cannot create a second
 apparent screening decision or criterion citation. Screening reasons and
 retained limitations also reject report-prohibited overclaiming language, so an
 include/exclude decision or copied screening boundary cannot claim that a source
-proved, confirmed, validated, or explained a scientific proposition.
+proved, confirmed, validated, or explained a scientific proposition, or retain
+legal/intent authority phrases such as "establishes legal responsibility" or
+"finds fraudulent intent."
 Screening now also carries each source's exact retained-file SHA-256 from the
 pinned snapshot into the downstream decision record. Extraction preserves that
 source-byte anchor by source review; citation verification retains it on each
@@ -2095,7 +2097,7 @@ either as semantic source support.
 Retained qualitative-synthesis limitations and bounded-conclusion prose now also
 reject report-prohibited overclaiming language, so a copied synthesis cannot
 keep its non-authority flags false while describing proof, confirmation,
-validation, or explanation in narrative fields.
+validation, explanation, or legal/intent attribution in narrative fields.
 The quantitative branch begins with `research literature prepare-effects`. It
 requires canonical lowercase trusted hashes for the frozen quantitative plan and
 exact evidence-map lineage, then records exactly one effect measure, standard

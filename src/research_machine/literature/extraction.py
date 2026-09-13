@@ -5,10 +5,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import tempfile
 from typing import Any
 
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.json_loading import load_json_object
@@ -18,10 +18,6 @@ from research_machine.literature.snapshot import _text
 _LAYERS = {"observed", "derived", "model-dependent", "inferred", "hypothesized", "speculative"}
 _DIRECTIONS = {"supports", "weakens", "mixed", "null", "not_applicable"}
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
-_EXTRACTION_PROSE_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
 
 
 def _canonical_text(value: Any, field: str) -> str:
@@ -33,7 +29,7 @@ def _canonical_text(value: Any, field: str) -> str:
 
 def _bounded_extraction_text(value: Any, field: str) -> str:
     text = _canonical_text(value, field)
-    if _EXTRACTION_PROSE_OVERCLAIM.search(text):
+    if report_overclaim_terms(text):
         raise ValidationError(
             f"{field} uses extraction-prohibited overclaiming language; "
             "describe the extraction judgment without claiming proof, "

@@ -6,11 +6,11 @@ import json
 import math
 import os
 from pathlib import Path
-import re
 from statistics import NormalDist
 import tempfile
 from typing import Any
 
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.deviations import (
     validate_retained_synthesis_deviations,
@@ -37,12 +37,6 @@ _DEVIATION_STATUSES = {
     "prospective_deviations_recorded",
     "retrospective_or_uncertain_deviation_review_required",
 }
-_META_ANALYSIS_PROSE_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
-
-
 _T_CRITICAL_975 = {
     1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447,
     7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228, 11: 2.201, 12: 2.179,
@@ -82,7 +76,7 @@ def _canonical_text(value: Any, field: str) -> str:
 
 def _bounded_meta_text(value: Any, field: str) -> str:
     text = _canonical_text(value, field)
-    if _META_ANALYSIS_PROSE_OVERCLAIM.search(text):
+    if report_overclaim_terms(text):
         raise ValidationError(
             f"{field} uses meta-analysis prohibited overclaiming language; "
             "describe availability, sensitivity, or diagnostics without claiming "

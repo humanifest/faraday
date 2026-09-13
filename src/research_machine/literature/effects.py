@@ -6,10 +6,10 @@ import json
 import math
 import os
 from pathlib import Path
-import re
 import tempfile
 from typing import Any
 
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.evidence_map import validate_evidence_map_boundary
 from research_machine.literature.extraction import validate_extraction_boundary
@@ -20,10 +20,6 @@ from research_machine.literature.synthesis_plan import validate_synthesis_plan_b
 from research_machine.literature.verification import _validate_passage_receipt
 
 _LEGACY_SOURCE_ANCHOR = "legacy_missing"
-_EFFECT_PROSE_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
 _EXTRACTION_RECORD_FIELDS = {
     "extraction_id",
     "study_id",
@@ -49,7 +45,7 @@ def _canonical_text(value: Any, field: str) -> str:
 
 def _bounded_effect_text(value: Any, field: str) -> str:
     text = _canonical_text(value, field)
-    if _EFFECT_PROSE_OVERCLAIM.search(text):
+    if report_overclaim_terms(text):
         raise ValidationError(
             f"{field} uses effect-record prohibited overclaiming language; "
             "describe provenance, availability, or arithmetic without claiming "

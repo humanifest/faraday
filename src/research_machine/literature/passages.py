@@ -5,10 +5,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import tempfile
 from typing import Any
 
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.extraction import (
     _LEGACY_SOURCE_ANCHOR,
@@ -20,10 +20,6 @@ from research_machine.literature.snapshot import _text
 
 
 _MACHINE_VERIFICATION = "exact_utf8_quote_found_in_retained_source_bytes"
-_PASSAGE_PROSE_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
 _EXTRACTION_RECORD_FIELDS = {
     "extraction_id",
     "study_id",
@@ -45,7 +41,7 @@ def _canonical_text(value: Any, field: str) -> str:
 
 def _bounded_passage_text(value: Any, field: str) -> str:
     text = _canonical_text(value, field)
-    if _PASSAGE_PROSE_OVERCLAIM.search(text):
+    if report_overclaim_terms(text):
         raise ValidationError(
             f"{field} uses passage-verification prohibited overclaiming language; "
             "describe byte-level passage checking without claiming proof, "

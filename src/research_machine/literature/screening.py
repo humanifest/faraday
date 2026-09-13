@@ -3,20 +3,14 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import tempfile
 from typing import Any
 
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.json_loading import load_json_object
 from research_machine.literature.snapshot import _text, validate_snapshot_boundary
-
-
-_SCREENING_PROSE_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
 
 
 def _canonical_text(value: Any, field: str) -> str:
@@ -28,7 +22,7 @@ def _canonical_text(value: Any, field: str) -> str:
 
 def _bounded_screening_text(value: Any, field: str) -> str:
     text = _canonical_text(value, field)
-    if _SCREENING_PROSE_OVERCLAIM.search(text):
+    if report_overclaim_terms(text):
         raise ValidationError(
             f"{field} uses screening-prohibited overclaiming language; "
             "describe the eligibility decision without claiming proof, "

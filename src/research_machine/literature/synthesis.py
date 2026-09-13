@@ -5,10 +5,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import tempfile
 from typing import Any
 
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.deviations import (
     validate_retained_synthesis_deviations,
@@ -37,10 +37,6 @@ _INTERPRETIVE_CEILINGS = (
     "insufficient_for_conclusion",
 )
 _PASSAGE_MACHINE_VERIFICATION = "exact_utf8_quote_found_in_retained_source_bytes"
-_SYNTHESIS_PROSE_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
 _EXTRACTION_RECORD_FIELDS = {
     "extraction_id",
     "study_id",
@@ -66,7 +62,7 @@ def _canonical_text(value: Any, field: str) -> str:
 
 def _bounded_synthesis_text(value: Any, field: str) -> str:
     text = _canonical_text(value, field)
-    if _SYNTHESIS_PROSE_OVERCLAIM.search(text):
+    if report_overclaim_terms(text):
         raise ValidationError(
             f"{field} uses literature-synthesis prohibited overclaiming language; "
             "describe the organized review result without claiming proof, "

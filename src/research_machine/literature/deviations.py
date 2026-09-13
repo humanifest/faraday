@@ -5,10 +5,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import tempfile
 from typing import Any
 
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.errors import ValidationError
 from research_machine.literature.hashes import require_sha256
 from research_machine.literature.json_loading import load_json_object
@@ -19,10 +19,6 @@ from research_machine.literature.synthesis_plan import validate_synthesis_plan_b
 _STAGES = {"extraction", "citation_verification", "bias_assessment", "study_reconciliation",
            "effect_preparation", "synthesis", "reporting"}
 _TIMINGS = {"before_extraction", "before_synthesis", "after_results_seen", "unknown"}
-_DEVIATION_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
 
 
 def _canonical_text(value: Any, field: str) -> str:
@@ -34,7 +30,7 @@ def _canonical_text(value: Any, field: str) -> str:
 
 def _bounded_deviation_text(value: Any, field: str) -> str:
     text = _canonical_text(value, field)
-    if _DEVIATION_OVERCLAIM.search(text):
+    if report_overclaim_terms(text):
         raise ValidationError(
             f"{field} uses deviation-prohibited overclaiming language; "
             "state the departure, uncertainty, impact, or corrective action "

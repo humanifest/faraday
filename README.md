@@ -1450,7 +1450,8 @@ trusting the screened-in source set.
 Screening reasons and retained limitations also reject report-prohibited
 overclaiming language, so an include/exclude decision or copied screening
 boundary cannot claim that a source proved, confirmed, validated, or explained a
-scientific proposition.
+scientific proposition, or preserve legal/intent authority phrases such as
+"establishes legal responsibility" or "finds fraudulent intent."
 The snapshot boundary itself also replays before publication and again before
 screening trusts retained sources: version, canonical handles, criteria, source
 classifications, retained source SHA-256 digests and sizes, byte-identity
@@ -1576,9 +1577,10 @@ registration IDs, population, setting, recruitment period, sample size, identity
 notes, and every pairwise relationship with rationale and cited locations must
 remain canonical and complete before mapped claims can be joined. The identity
 notes and pairwise rationales must also remain free of overclaiming verbs such
-as proof, confirmation, validation, or explanation; a matched pair review
-remains a bounded reviewer assertion rather than evidence that cohorts are
-truly independent. The
+as proof, confirmation, validation, or explanation, and legal/intent authority
+phrases such as "establishes legal responsibility"; a matched pair review remains
+a bounded reviewer assertion rather than evidence that cohorts are truly
+independent. The
 study-reconciliation boundary now also replays its own version, retained
 bias-assessment SHA-256, canonical snapshot handle, reviewer handle, retained
 study list, retained relationship list, derived relationship counts, and
@@ -1598,7 +1600,8 @@ authentication authority must remain false, so a clean hash chain cannot hide
 rewritten boundary summaries or imply authenticated reviewer authority.
 Evidence-map retained limitations also reject report-prohibited overclaiming
 language, so a map cannot preserve false authority flags while narrating proof,
-confirmation, validation, or explanation in its own boundary prose.
+confirmation, validation, explanation, or legal/intent attribution in its own
+boundary prose.
 Qualitative synthesis also requires canonical
 frozen plan source IDs, extraction source IDs, mapped claim IDs, study/source
 IDs, citation provenance, and bias-domain provenance before joining claims.
