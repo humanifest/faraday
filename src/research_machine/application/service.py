@@ -1646,10 +1646,7 @@ class ResearchService:
                 "purpose must be canonical without surrounding whitespace"
             )
         state = self.show_inquiry(inquiry_id)
-        workspace_root = getattr(self.repository, "root", None)
-        redacted_state = redact_collaborator_context(
-            state, workspace_root=workspace_root
-        )
+        redacted_state = redact_collaborator_context(state)
         dataset_inventory = self.dataset_inventory(inquiry_id)
         open_questions = [
             question
@@ -1756,7 +1753,7 @@ class ResearchService:
                     "applicable human review and protocol-freeze gates",
                 ],
             },
-        }, workspace_root=workspace_root)
+        })
 
     def add_question(
         self, command: AddQuestion, inquiry_id: str | None = None

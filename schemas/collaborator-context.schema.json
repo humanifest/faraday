@@ -352,21 +352,42 @@
       "type": "object",
       "required": ["locator", "sha256"],
       "properties": {
-        "locator": {"$ref": "#/$defs/safeLogicalLocator"},
+        "locator": {"const": "[redacted: retained in canonical store]"},
         "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "size_bytes": {"type": ["integer", "null"], "minimum": 0},
         "media_type": {"type": "string"},
-        "metadata": {"type": "object"}
+        "metadata": {"$ref": "#/$defs/collaboratorArtifactMetadata"}
       },
       "additionalProperties": true
     },
-    "safeLogicalLocator": {
-      "anyOf": [
-        {"const": "[redacted: retained in canonical store]"},
-        {
-          "type": "string",
-          "pattern": "^(?!.*[\\u0000-\\u001f\\u007f])(?!/)(?!~)(?![A-Za-z]:)(?![A-Za-z][A-Za-z0-9+.-]*:)(?!.*%2[eEfF])(?!.*%5[cC])(?!.*\\\\)(?!.*//)(?!\\.{1,2}(?:/|$))(?!.*?/\\.{1,2}(?:/|$))(?:\\S|\\S.*\\S)$"
+    "collaboratorArtifactMetadata": {
+      "type": "object",
+      "patternProperties": {
+        "^(?!(?:effect_estimate_path|evidence_location|p_value_path|uncertainty_path)$)(?:locator|locators|path|.*_path|.*_root|location|locations|.*_location|.*_locations|file|files|.*_file|.*_files|directory|directories|.*_directory|.*_directories|uri|uris|.*_uri|.*_uris)$": {
+          "anyOf": [
+            {"const": "[redacted: retained in canonical store]"},
+            {
+              "type": "array",
+              "items": {
+                "const": "[redacted: retained in canonical store]"
+              }
+            }
+          ]
+        },
+        "^(?:home|home_dir|host|host_name|hostname|machine_name|user_name|username)$": {
+          "enum": ["", null, "[redacted: retained in canonical store]"]
         }
+      },
+      "additionalProperties": {"$ref": "#/$defs/collaboratorArtifactMetadataValue"}
+    },
+    "collaboratorArtifactMetadataValue": {
+      "anyOf": [
+        {"type": ["string", "number", "boolean", "null"]},
+        {
+          "type": "array",
+          "items": {"$ref": "#/$defs/collaboratorArtifactMetadataValue"}
+        },
+        {"$ref": "#/$defs/collaboratorArtifactMetadata"}
       ]
     },
     "datasetInventory": {

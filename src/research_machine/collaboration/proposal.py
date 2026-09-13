@@ -22,9 +22,8 @@ from research_machine.collaboration.redaction import (
     JSON_SELECTOR_KEYS,
     LEGACY_OPERATIONAL_CONTEXT_KEYS,
     OPERATIONAL_CONTEXT_KEYS,
-    contains_forbidden_control,
-    contains_host_location,
     is_safe_logical_locator,
+    is_typed_metadata_location_key,
 )
 from research_machine.domain.errors import ValidationError
 
@@ -639,7 +638,12 @@ def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
 
 
 def _validate_context_operational_redaction(
-    value: Any, path: str, *, context_version: int
+    value: Any,
+    path: str,
+    *,
+    context_version: int,
+    dataset_artifact: bool = False,
+    metadata: bool = False,
 ) -> None:
     if isinstance(value, dict):
         for key, item in value.items():
@@ -650,7 +654,20 @@ def _validate_context_operational_redaction(
                 else OPERATIONAL_CONTEXT_KEYS
             )
             if key in operational_keys:
-                if item and item != COLLABORATOR_CONTEXT_REDACTION_MARKER:
+                if context_version == 1:
+                    invalid_operational_value = bool(item) and (
+                        item != COLLABORATOR_CONTEXT_REDACTION_MARKER
+                    )
+                elif key == "current_synthesis_path":
+                    invalid_operational_value = item not in (
+                        None,
+                        COLLABORATOR_CONTEXT_REDACTION_MARKER,
+                    )
+                else:
+                    invalid_operational_value = (
+                        item != COLLABORATOR_CONTEXT_REDACTION_MARKER
+                    )
+                if invalid_operational_value:
                     raise ValidationError(
                         "collaborator context operational field "
                         f"{child_path} must use the canonical redaction marker before freezing"
@@ -659,58 +676,95 @@ def _validate_context_operational_redaction(
                 _validate_context_operational_redaction(
                     item, child_path, context_version=context_version
                 )
-            elif contains_forbidden_control(key) or contains_host_location(key):
-                raise ValidationError(
-                    f"collaborator context field name {child_path} contains a prohibited control or host location"
-                )
             elif key in HOST_IDENTITY_KEYS:
-                if item and item != COLLABORATOR_CONTEXT_REDACTION_MARKER:
+                if item not in (
+                    None,
+                    "",
+                    COLLABORATOR_CONTEXT_REDACTION_MARKER,
+                ):
                     raise ValidationError(
                         f"collaborator context host field {child_path} must use the canonical redaction marker"
                     )
             elif key in JSON_SELECTOR_KEYS:
-                if contains_forbidden_control(item):
-                    raise ValidationError(
-                        f"collaborator context JSON selector {child_path} contains a prohibited control"
-                    )
+                pass
             elif key == "locator" or key.endswith("_locator"):
-                if not is_safe_logical_locator(item):
+                if dataset_artifact and item != COLLABORATOR_CONTEXT_REDACTION_MARKER:
+                    raise ValidationError(
+                        f"collaborator context dataset artifact locator {child_path} must use the canonical redaction marker"
+                    )
+                if not dataset_artifact and not is_safe_logical_locator(item):
                     raise ValidationError(
                         f"collaborator context locator field {child_path} must be a safe relative logical locator or the canonical redaction marker"
                     )
             elif key == "locators" or key.endswith("_locators"):
-                if not isinstance(item, list) or any(
+                if not isinstance(item, list):
+                    raise ValidationError(
+                        f"collaborator context locator list {child_path} must be an array"
+                    )
+                if dataset_artifact and any(
+                    entry != COLLABORATOR_CONTEXT_REDACTION_MARKER for entry in item
+                ):
+                    raise ValidationError(
+                        f"collaborator context dataset artifact locator list {child_path} must contain only canonical redaction markers"
+                    )
+                if not dataset_artifact and any(
                     not is_safe_logical_locator(entry) for entry in item
                 ):
                     raise ValidationError(
                         f"collaborator context locator list {child_path} must contain only safe relative logical locators or canonical redaction markers"
                     )
-            elif (
-                key == "path" or key.endswith("_path") or key.endswith("_root")
-            ) and item:
-                if not is_safe_logical_locator(item):
+            elif key == "path" or key.endswith("_path") or key.endswith("_root"):
+                if dataset_artifact and item != COLLABORATOR_CONTEXT_REDACTION_MARKER:
+                    raise ValidationError(
+                        f"collaborator context dataset artifact path {child_path} must use the canonical redaction marker"
+                    )
+                if (
+                    not dataset_artifact
+                    and item
+                    and not is_safe_logical_locator(item)
+                ):
                     raise ValidationError(
                         f"collaborator context path field {child_path} must be a safe relative logical path or the canonical redaction marker"
                     )
-            elif contains_forbidden_control(item) or contains_host_location(item):
-                raise ValidationError(
-                    f"collaborator context field {child_path} contains a prohibited control or host location"
-                )
+            elif metadata and is_typed_metadata_location_key(key):
+                entries = item if isinstance(item, list) else [item]
+                if dataset_artifact and any(
+                    entry != COLLABORATOR_CONTEXT_REDACTION_MARKER for entry in entries
+                ):
+                    raise ValidationError(
+                        f"collaborator context dataset artifact metadata location {child_path} must use only canonical redaction markers"
+                    )
+                if not dataset_artifact and any(
+                    not is_safe_logical_locator(entry) for entry in entries
+                ):
+                    raise ValidationError(
+                        f"collaborator context metadata location {child_path} must contain only safe relative logical locations or canonical redaction markers"
+                    )
+            elif key == "artifacts" and isinstance(item, list) and "dataset_id" in value:
+                for index, entry in enumerate(item):
+                    _validate_context_operational_redaction(
+                        entry,
+                        f"{child_path}[{index}]",
+                        context_version=context_version,
+                        dataset_artifact=True,
+                    )
             else:
                 _validate_context_operational_redaction(
-                    item, child_path, context_version=context_version
+                    item,
+                    child_path,
+                    context_version=context_version,
+                    dataset_artifact=dataset_artifact,
+                    metadata=metadata or key == "metadata",
                 )
     elif isinstance(value, list):
         for index, item in enumerate(value):
             _validate_context_operational_redaction(
-                item, f"{path}[{index}]", context_version=context_version
+                item,
+                f"{path}[{index}]",
+                context_version=context_version,
+                dataset_artifact=dataset_artifact,
+                metadata=metadata,
             )
-    elif context_version == 2 and (
-        contains_forbidden_control(value) or contains_host_location(value)
-    ):
-        raise ValidationError(
-            f"collaborator context field {path} contains a prohibited control or host location"
-        )
 
 
 def _validate_context_dataset_inventory(context: dict[str, Any]) -> None:

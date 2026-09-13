@@ -263,7 +263,7 @@ def test_cli_absolute_dataset_file_is_redacted_but_canonical_state_is_unchanged(
     assert canonical.list_datasets()[0].artifacts[0].locator == str(source.resolve())
 
 
-def test_v2_dataset_projection_is_symlink_safe_collision_free_and_replay_stable(
+def test_v2_dataset_locators_are_always_redacted_and_replay_stable(
     tmp_path: Path,
 ) -> None:
     workspace = tmp_path / "workspace"
@@ -292,18 +292,27 @@ def test_v2_dataset_projection_is_symlink_safe_collision_free_and_replay_stable(
             {
                 "artifact_role": "analysis_input",
                 "hostname": "alice-macbook.local",
+                "host": 0,
                 "source_note": "copied from /Users/alice/private/result.csv",
                 "drive_hint": "C:result.csv",
                 "escaped_hint": "logical/%2e%2e/result.csv",
                 "remote_hint": "macbook:/private/result.csv",
                 "unc_hint": "\\\\server\\share\\result.csv",
                 "/Users/alice/private-key": "unsafe metadata key",
+                "nested": {
+                    "source_path": "/Users/alice/nested/result.csv",
+                    "location": "alice-macbook.local/result.csv",
+                    "note": "X:12345",
+                },
             },
         ),
         DatasetArtifact(
             "/home/bob/result.csv", "e" * 64, 13, "application/octet-stream",
             {"artifact_role": "control_input"},
         ),
+        DatasetArtifact("alice-macbook.local/result.csv", "f" * 64, 14, "text/csv"),
+        DatasetArtifact("Users/alice/result.csv", "1" * 64, 15, "text/csv"),
+        DatasetArtifact("logical/%252e%252e/result.csv", "2" * 64, 16, "text/csv"),
     ]
     service.register_dataset(
         RegisterDataset(
@@ -325,10 +334,9 @@ def test_v2_dataset_projection_is_symlink_safe_collision_free_and_replay_stable(
     )
     assert first == second
     projected = first["datasets"][0]["artifacts"]
-    assert projected[0]["locator"] == "logical/safe.csv"
-    assert [item["locator"] for item in projected[1:]] == [
+    assert [item["locator"] for item in projected] == [
         COLLABORATOR_CONTEXT_REDACTION_MARKER
-    ] * 4
+    ] * len(artifacts)
     assert [item["sha256"] for item in projected] == [item.sha256 for item in artifacts]
     assert [item["media_type"] for item in projected] == [
         item.media_type for item in artifacts
@@ -338,21 +346,29 @@ def test_v2_dataset_projection_is_symlink_safe_collision_free_and_replay_stable(
     ]
     assert first["datasets"][0]["role"] == "exploratory"
     assert projected[3]["metadata"]["hostname"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
-    assert projected[3]["metadata"]["source_note"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
-    assert projected[3]["metadata"]["drive_hint"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
-    assert projected[3]["metadata"]["escaped_hint"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
-    assert projected[3]["metadata"]["remote_hint"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
-    assert projected[3]["metadata"]["unc_hint"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
-    assert "/Users/alice/private-key" not in projected[3]["metadata"]
-    serialized = json.dumps(first, sort_keys=True)
-    for prohibited in (
-        str(outside), "../private/result.csv", "/Users/alice/result.csv",
-        "/home/bob/result.csv", "alice-macbook.local",
-    ):
-        assert prohibited not in serialized
-    assert "result.csv" not in serialized
+    assert projected[3]["metadata"]["host"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert projected[3]["metadata"]["source_note"] == (
+        "copied from /Users/alice/private/result.csv"
+    )
+    assert projected[3]["metadata"]["drive_hint"] == "C:result.csv"
+    assert projected[3]["metadata"]["escaped_hint"] == "logical/%2e%2e/result.csv"
+    assert projected[3]["metadata"]["remote_hint"] == "macbook:/private/result.csv"
+    assert projected[3]["metadata"]["unc_hint"] == "\\\\server\\share\\result.csv"
+    assert projected[3]["metadata"]["/Users/alice/private-key"] == "unsafe metadata key"
+    assert projected[3]["metadata"]["nested"] == {
+        "source_path": COLLABORATOR_CONTEXT_REDACTION_MARKER,
+        "location": COLLABORATOR_CONTEXT_REDACTION_MARKER,
+        "note": "X:12345",
+    }
     assert "locator" not in json.dumps(first["dataset_inventory"], sort_keys=True)
     assert service.list_datasets(inquiry.inquiry_id)[0].artifacts == artifacts
+
+    tampered = copy.deepcopy(first)
+    tampered["datasets"][0]["artifacts"][3]["metadata"]["nested"][
+        "source_path"
+    ] = "logical/result.csv"
+    with pytest.raises(ValidationError, match="dataset artifact path"):
+        create_context_snapshot(tampered, tmp_path / "tampered-context")
 
     first_snapshot = create_context_snapshot(first, tmp_path / "context-one")
     second_snapshot = create_context_snapshot(second, tmp_path / "context-two")
@@ -385,6 +401,9 @@ def test_v2_dataset_projection_is_symlink_safe_collision_free_and_replay_stable(
 @pytest.mark.parametrize(
     "locator",
     [
+        "logical/safe.csv",
+        "alice-macbook.local/result.csv",
+        "Users/alice/result.csv",
         "/private/result.csv",
         "../private/result.csv",
         "C:result.csv",
@@ -392,6 +411,7 @@ def test_v2_dataset_projection_is_symlink_safe_collision_free_and_replay_stable(
         "urn:artifact:result",
         "file:/private/result.csv",
         "logical/%2e%2e/result.csv",
+        "logical/%252e%252e/result.csv",
         "logical/result\x1f.csv",
         "logical/result\x7f.csv",
     ],
@@ -422,7 +442,7 @@ def test_v2_context_freeze_rejects_unsafe_locator_tampering(
         {"ref": "dataset:tampered-locator", "kind": "dataset"}
     ]
 
-    with pytest.raises(ValidationError, match="locator field"):
+    with pytest.raises(ValidationError, match="dataset artifact locator"):
         create_context_snapshot(context, tmp_path / "context")
 
 
@@ -441,35 +461,56 @@ def test_v2_context_preserves_json_selectors_and_safe_relative_paths(
 
 
 @pytest.mark.parametrize(
-    "host_value",
+    "path",
     [
-        "copied from /Users/alice/private/result.csv",
-        "file:/private/result.csv",
-        "C:result.csv",
-        "logical/%2e%2e/result.csv",
-        "alice-macbook.local:/private/result.csv",
-        "unsafe\x00text",
+        "alice-macbook.local/result.csv",
+        "Users/alice/result.csv",
+        "reports/Users/alice/result.csv",
+        "logical/%252e%252e/result.csv",
     ],
 )
-def test_v2_context_validation_rejects_embedded_host_location_tampering(
-    tmp_path: Path, host_value: str
+def test_v2_context_rejects_host_platform_and_encoded_typed_paths(
+    tmp_path: Path, path: str
 ) -> None:
     context = _context(
         context_reference_index=[{"ref": "inquiry:inq-1", "kind": "inquiry"}]
     )
-    context["inquiry"]["metadata"] = {"source_note": host_value}
-    with pytest.raises(ValidationError, match="prohibited control or host location"):
+    context["inquiry"]["analysis_path"] = path
+    with pytest.raises(ValidationError, match="path field"):
         create_context_snapshot(context, tmp_path / "context")
 
 
-def test_v2_context_validation_rejects_host_location_in_metadata_key(
+def test_v2_typed_projection_preserves_colon_bearing_scientific_prose(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    inquiry = service.create_inquiry(
+        CreateInquiry(
+            "X:12345",
+            "Compare X:12345 with DOI:10.1000/example and ratio 1/2.",
+            "typed-prose",
+        )
+    )
+    context = service.collaborator_context(
+        inquiry.inquiry_id, purpose="Review X:12345 without reinterpretation."
+    )
+    assert context["inquiry"]["title"] == "X:12345"
+    assert context["inquiry"]["initial_statement"] == (
+        "Compare X:12345 with DOI:10.1000/example and ratio 1/2."
+    )
+    assert context["purpose"] == "Review X:12345 without reinterpretation."
+    create_context_snapshot(context, tmp_path / "context")
+
+
+def test_v2_context_validation_rejects_explicit_host_identity_tampering(
     tmp_path: Path,
 ) -> None:
     context = _context(
         context_reference_index=[{"ref": "inquiry:inq-1", "kind": "inquiry"}]
     )
-    context["inquiry"]["metadata"] = {"/Users/alice/private-key": "value"}
-    with pytest.raises(ValidationError, match="field name"):
+    context["inquiry"]["metadata"] = {"hostname": "alice-macbook.local"}
+    with pytest.raises(ValidationError, match="host field"):
         create_context_snapshot(context, tmp_path / "context")
 
 

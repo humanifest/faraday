@@ -1164,12 +1164,16 @@ def test_collaborator_context_schema_separates_versioned_inventory_shapes():
 @pytest.mark.parametrize(
     "locator",
     [
+        "logical/results.csv",
+        "alice-macbook.local/result.csv",
+        "Users/alice/result.csv",
         "/private/result.csv",
         "../private/result.csv",
         "C:result.csv",
         "urn:artifact:result",
         "file:/private/result.csv",
         "logical/%2e%2e/result.csv",
+        "logical/%252e%252e/result.csv",
         "logical/result\x00.csv",
         "logical/result\x7f.csv",
     ],
@@ -1185,23 +1189,46 @@ def test_collaborator_context_v2_schema_rejects_unsafe_artifact_locator(locator)
         jsonschema.validate(context, schema)
 
 
-@pytest.mark.parametrize(
-    "locator",
-    ["logical/results.csv", "nested/v2/result.json", "[redacted: retained in canonical store]"],
-)
-def test_collaborator_context_v2_schema_accepts_safe_or_redacted_locator(locator):
+def test_collaborator_context_v2_schema_requires_redacted_artifact_locator():
     schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
     context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
     context["datasets"] = [{
         "dataset_id": "locator-schema-fixture",
         "artifacts": [{
-            "locator": locator,
+            "locator": "[redacted: retained in canonical store]",
             "sha256": "a" * 64,
             "size_bytes": 17,
             "media_type": "text/csv",
         }],
     }]
     jsonschema.validate(context, schema)
+
+
+def test_collaborator_context_v2_schema_recurses_typed_artifact_metadata():
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    context["datasets"] = [{
+        "dataset_id": "metadata-schema-fixture",
+        "artifacts": [{
+            "locator": "[redacted: retained in canonical store]",
+            "sha256": "a" * 64,
+            "metadata": {
+                "note": "X:12345 and DOI:10.1000/example",
+                "nested": {
+                    "source_path": "[redacted: retained in canonical store]",
+                    "location": "[redacted: retained in canonical store]",
+                    "effect_estimate_path": "/results/effect/estimate",
+                },
+            },
+        }],
+    }]
+    jsonschema.validate(context, schema)
+
+    context["datasets"][0]["artifacts"][0]["metadata"]["nested"][
+        "source_path"
+    ] = "logical/result.csv"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(context, schema)
 
 
 def test_collaborator_context_schema_keeps_v1_local_locator_shape_replayable():

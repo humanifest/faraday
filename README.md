@@ -1214,15 +1214,21 @@ proposal validation both reject any retained collaborator context that still
 contains an unredacted operational root or attestation-schema path, including
 near-redaction strings that do not equal Faraday's canonical
 `[redacted: retained in canonical store]` marker. Version-2 projection also
-removes absolute, host/user-specific, URI, drive-relative, traversing, escaped,
-control-bearing, and symlink-backed dataset artifact locations. It retains an
-artifact locator only when the original locator is canonical relative text and
-a no-symlink component walk verifies a regular file beneath the workspace root;
-hashes, roles, media types, and sizes remain available without inventing a
-basename as false provenance. JSON result selectors are selectors, not filesystem
-paths, and remain intact. Canonical dataset manifests are never rewritten by
-this collaborator-only projection. Historical version-1 bytes replay under their
-original contract but are not appropriate templates for new external sharing.
+always replaces dataset artifact locators and nested typed location metadata
+with the canonical marker; hashes, roles, media types, and sizes remain available
+without inventing a basename as false provenance. Other structured locator and
+path fields may retain only canonical relative logical values: URI/drive forms,
+platform-root segments, `.local` host segments, traversal, percent encodings,
+tilde/backslash forms, and controls fail closed. Explicit host/user identity
+fields are also redacted. Ordinary scientific prose is not interpreted as a
+filesystem path, so identifiers such as `X:12345` remain byte-for-byte. JSON
+result selectors are selectors, not filesystem paths, and remain intact. The
+published schema recursively constrains typed location metadata inside dataset
+artifacts; runtime freezing additionally walks typed fields in arbitrary context
+record extensions that JSON Schema cannot enumerate prospectively. Canonical
+dataset manifests are never rewritten by this collaborator-only projection.
+Historical version-1 bytes replay under their original contract but are not
+appropriate templates for new external sharing.
 The frozen context
 also carries a compact reference index such as
 `question:<id>`, `claim:<id>`, `hypothesis:<id>`, `evidence:<id>`,
