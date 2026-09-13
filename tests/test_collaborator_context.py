@@ -14,6 +14,7 @@ from research_machine.collaboration.proposal import (
     verify_collaborator_proposal_record,
     verify_collaborator_review_record,
 )
+from research_machine.collaboration.redaction import COLLABORATOR_CONTEXT_REDACTION_MARKER
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import (
     AddClaim,
@@ -219,6 +220,272 @@ def test_collaborator_context_includes_bounded_dataset_inventory(tmp_path) -> No
     assert row["readiness"]["status"] == "not_protected_evidence_dataset"
     assert row["operational_roots_redacted"] is True
     assert str(tmp_path.resolve()) not in json.dumps(context)
+
+
+def test_cli_absolute_dataset_file_is_redacted_but_canonical_state_is_unchanged(
+    tmp_path: Path, capsys
+) -> None:
+    workspace = tmp_path / "workspace"
+    source = tmp_path / "Users" / "alice" / "observations.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text("unit,outcome\nu1,1\n", encoding="utf-8")
+    common = ["--workspace", str(workspace), "--json"]
+    assert main([*common, "workspace", "init"]) == 0
+    capsys.readouterr()
+    assert main([
+        *common, "inquiry", "create", "--id", "path-audit",
+        "--title", "Path audit", "--statement", "Can host paths stay local?",
+    ]) == 0
+    capsys.readouterr()
+    assert main([
+        *common, "dataset", "register", "--id", "absolute-file",
+        "--name", "Absolute file", "--role", "exploratory", "--file", str(source),
+        "--synthetic", "--quality-attestation", "Synthetic redaction fixture.",
+    ]) == 0
+    capsys.readouterr()
+    output = tmp_path / "frozen"
+    assert main([
+        *common, "collaborator", "context", "--purpose", "Audit disclosure.",
+        "--output", str(output),
+    ]) == 0
+    result = json.loads(capsys.readouterr().out)["result"]
+    context = json.loads(Path(result["context_file"]).read_text(encoding="utf-8"))
+    artifact = context["datasets"][0]["artifacts"][0]
+    assert artifact["locator"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert artifact["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+    assert artifact["size_bytes"] == source.stat().st_size
+    serialized = json.dumps(context, sort_keys=True)
+    assert str(source) not in serialized
+    assert str(tmp_path) not in serialized
+    assert "alice" not in serialized
+    assert "locator" not in json.dumps(context["dataset_inventory"], sort_keys=True)
+    canonical = ResearchService(FileSystemRepository(workspace), actor="test")
+    assert canonical.list_datasets()[0].artifacts[0].locator == str(source.resolve())
+
+
+def test_v2_dataset_projection_is_symlink_safe_collision_free_and_replay_stable(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    service = ResearchService(
+        FileSystemRepository(workspace),
+        actor="test",
+        clock=lambda: "2026-09-12T12:00:00Z",
+    )
+    service.init_workspace()
+    inquiry = service.create_inquiry(
+        CreateInquiry("Projection", "Which locators are safe?", "projection")
+    )
+    safe_file = workspace / "logical" / "safe.csv"
+    safe_file.parent.mkdir()
+    safe_file.write_text("safe\n", encoding="utf-8")
+    outside = tmp_path / "private" / "result.csv"
+    outside.parent.mkdir()
+    outside.write_text("outside\n", encoding="utf-8")
+    (workspace / "linked.csv").symlink_to(outside)
+    artifacts = [
+        DatasetArtifact("logical/safe.csv", "a" * 64, 5, "text/csv"),
+        DatasetArtifact("linked.csv", "b" * 64, 8, "text/csv"),
+        DatasetArtifact("../private/result.csv", "c" * 64, 11, "text/csv"),
+        DatasetArtifact(
+            "/Users/alice/result.csv", "d" * 64, 12, "application/json",
+            {
+                "artifact_role": "analysis_input",
+                "hostname": "alice-macbook.local",
+                "source_note": "copied from /Users/alice/private/result.csv",
+                "drive_hint": "C:result.csv",
+                "escaped_hint": "logical/%2e%2e/result.csv",
+                "remote_hint": "macbook:/private/result.csv",
+                "unc_hint": "\\\\server\\share\\result.csv",
+                "/Users/alice/private-key": "unsafe metadata key",
+            },
+        ),
+        DatasetArtifact(
+            "/home/bob/result.csv", "e" * 64, 13, "application/octet-stream",
+            {"artifact_role": "control_input"},
+        ),
+    ]
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="projection-fixture",
+            name="Projection fixture",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=artifacts,
+            synthetic=True,
+            quality_attestations=["Synthetic projection fixture."],
+        ),
+        inquiry.inquiry_id,
+    )
+
+    first = service.collaborator_context(
+        inquiry.inquiry_id, purpose="Stress-test the design."
+    )
+    second = service.collaborator_context(
+        inquiry.inquiry_id, purpose="Stress-test the design."
+    )
+    assert first == second
+    projected = first["datasets"][0]["artifacts"]
+    assert projected[0]["locator"] == "logical/safe.csv"
+    assert [item["locator"] for item in projected[1:]] == [
+        COLLABORATOR_CONTEXT_REDACTION_MARKER
+    ] * 4
+    assert [item["sha256"] for item in projected] == [item.sha256 for item in artifacts]
+    assert [item["media_type"] for item in projected] == [
+        item.media_type for item in artifacts
+    ]
+    assert [item["size_bytes"] for item in projected] == [
+        item.size_bytes for item in artifacts
+    ]
+    assert first["datasets"][0]["role"] == "exploratory"
+    assert projected[3]["metadata"]["hostname"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert projected[3]["metadata"]["source_note"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert projected[3]["metadata"]["drive_hint"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert projected[3]["metadata"]["escaped_hint"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert projected[3]["metadata"]["remote_hint"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert projected[3]["metadata"]["unc_hint"] == COLLABORATOR_CONTEXT_REDACTION_MARKER
+    assert "/Users/alice/private-key" not in projected[3]["metadata"]
+    serialized = json.dumps(first, sort_keys=True)
+    for prohibited in (
+        str(outside), "../private/result.csv", "/Users/alice/result.csv",
+        "/home/bob/result.csv", "alice-macbook.local",
+    ):
+        assert prohibited not in serialized
+    assert "result.csv" not in serialized
+    assert "locator" not in json.dumps(first["dataset_inventory"], sort_keys=True)
+    assert service.list_datasets(inquiry.inquiry_id)[0].artifacts == artifacts
+
+    first_snapshot = create_context_snapshot(first, tmp_path / "context-one")
+    second_snapshot = create_context_snapshot(second, tmp_path / "context-two")
+    assert first_snapshot["context_sha256"] == second_snapshot["context_sha256"]
+    assert Path(first_snapshot["context_file"]).read_bytes() == Path(
+        second_snapshot["context_file"]
+    ).read_bytes()
+    proposal_file = tmp_path / "proposal.json"
+    proposal_file.write_text(json.dumps(_proposal(
+        first_snapshot["context_sha256"],
+        evidence_refs=["dataset:projection-fixture"],
+    )), encoding="utf-8")
+    first_record = validate_collaborator_proposal(
+        Path(first_snapshot["context_file"]), first_snapshot["context_sha256"],
+        proposal_file, tmp_path / "proposal-one",
+    )
+    second_record = validate_collaborator_proposal(
+        Path(second_snapshot["context_file"]), second_snapshot["context_sha256"],
+        proposal_file, tmp_path / "proposal-two",
+    )
+    assert first_record["record_sha256"] == second_record["record_sha256"]
+    assert Path(first_record["record_file"]).read_bytes() == Path(
+        second_record["record_file"]
+    ).read_bytes()
+    assert verify_collaborator_proposal_record(
+        Path(second_record["record_file"]), second_record["record_sha256"]
+    )["record_status"] == "pending_human_review"
+
+
+@pytest.mark.parametrize(
+    "locator",
+    [
+        "/private/result.csv",
+        "../private/result.csv",
+        "C:result.csv",
+        "C:/result.csv",
+        "urn:artifact:result",
+        "file:/private/result.csv",
+        "logical/%2e%2e/result.csv",
+        "logical/result\x1f.csv",
+        "logical/result\x7f.csv",
+    ],
+)
+def test_v2_context_freeze_rejects_unsafe_locator_tampering(
+    tmp_path: Path, locator: str
+) -> None:
+    context = _context()
+    context["datasets"] = [{
+        "dataset_id": "tampered-locator",
+        "artifacts": [{"locator": locator, "sha256": "a" * 64}],
+    }]
+    context["dataset_inventory"]["registered_dataset_count"] = 1
+    context["dataset_inventory"]["synthetic_count"] = 1
+    context["dataset_inventory"]["empty_inventory_notice"] = ""
+    context["dataset_inventory"]["datasets"] = [{
+        "dataset_id": "tampered-locator",
+        "role": "exploratory",
+        "synthetic": True,
+        "protocol_id": None,
+        "observation_access": {"status": "synthetic_fixture"},
+        "readiness": {"status": "not_protected_evidence_dataset"},
+        "rigor_error_codes": [],
+        "operational_roots_redacted": True,
+    }]
+    context["dataset_inventory"]["role_counts"] = {"exploratory": 1}
+    context["context_reference_index"] = [
+        {"ref": "dataset:tampered-locator", "kind": "dataset"}
+    ]
+
+    with pytest.raises(ValidationError, match="locator field"):
+        create_context_snapshot(context, tmp_path / "context")
+
+
+def test_v2_context_preserves_json_selectors_and_safe_relative_paths(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "inquiry:inq-1", "kind": "inquiry"}]
+    )
+    context["inquiry"]["analysis_path"] = "summaries/current.json"
+    context["inquiry"]["effect_estimate_path"] = "/results/effect/estimate"
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    frozen = json.loads(Path(snapshot["context_file"]).read_text(encoding="utf-8"))
+    assert frozen["inquiry"]["analysis_path"] == "summaries/current.json"
+    assert frozen["inquiry"]["effect_estimate_path"] == "/results/effect/estimate"
+
+
+@pytest.mark.parametrize(
+    "host_value",
+    [
+        "copied from /Users/alice/private/result.csv",
+        "file:/private/result.csv",
+        "C:result.csv",
+        "logical/%2e%2e/result.csv",
+        "alice-macbook.local:/private/result.csv",
+        "unsafe\x00text",
+    ],
+)
+def test_v2_context_validation_rejects_embedded_host_location_tampering(
+    tmp_path: Path, host_value: str
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "inquiry:inq-1", "kind": "inquiry"}]
+    )
+    context["inquiry"]["metadata"] = {"source_note": host_value}
+    with pytest.raises(ValidationError, match="prohibited control or host location"):
+        create_context_snapshot(context, tmp_path / "context")
+
+
+def test_v2_context_validation_rejects_host_location_in_metadata_key(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "inquiry:inq-1", "kind": "inquiry"}]
+    )
+    context["inquiry"]["metadata"] = {"/Users/alice/private-key": "value"}
+    with pytest.raises(ValidationError, match="field name"):
+        create_context_snapshot(context, tmp_path / "context")
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["current_synthesis_path", "evidence_artifact_root", "interpreter_path"],
+)
+def test_v2_context_requires_new_operational_fields_to_be_redacted(
+    tmp_path: Path, field: str
+) -> None:
+    context = _context(
+        context_reference_index=[{"ref": "inquiry:inq-1", "kind": "inquiry"}]
+    )
+    context["inquiry"][field] = "local/relative-value"
+    with pytest.raises(ValidationError, match="operational field"):
+        create_context_snapshot(context, tmp_path / "context")
 
 
 @pytest.mark.parametrize(
@@ -906,6 +1173,26 @@ def test_historical_version_1_context_replays_without_dataset_inventory(
 
     assert result["status"] == "pending_human_review"
     assert result["canonical_writes_performed"] is False
+
+
+def test_historical_v1_replays_local_locator_bytes_without_retroactive_rewrite(
+    tmp_path: Path,
+) -> None:
+    fixture = Path(__file__).parent / "fixtures" / "collaborator-context-v1.json"
+    historical = json.loads(fixture.read_text(encoding="utf-8"))
+    historical["datasets"] = [{
+        "dataset_id": "legacy-local-locator",
+        "artifacts": [{
+            "locator": "/Users/historical-user/archive/result.csv",
+            "sha256": "a" * 64,
+        }],
+    }]
+    historical["context_reference_index"].append(
+        {"ref": "dataset:legacy-local-locator", "kind": "dataset"}
+    )
+
+    snapshot = create_context_snapshot(historical, tmp_path / "historical-context")
+    assert json.loads(Path(snapshot["context_file"]).read_text(encoding="utf-8")) == historical
 
 
 def test_context_versions_fail_closed_across_dataset_inventory_boundary(

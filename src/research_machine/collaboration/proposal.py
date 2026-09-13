@@ -18,7 +18,13 @@ from typing import Any
 
 from research_machine.collaboration.redaction import (
     COLLABORATOR_CONTEXT_REDACTION_MARKER,
+    HOST_IDENTITY_KEYS,
+    JSON_SELECTOR_KEYS,
+    LEGACY_OPERATIONAL_CONTEXT_KEYS,
     OPERATIONAL_CONTEXT_KEYS,
+    contains_forbidden_control,
+    contains_host_location,
+    is_safe_logical_locator,
 )
 from research_machine.domain.errors import ValidationError
 
@@ -632,21 +638,79 @@ def _context_body_reference_ids(context: dict[str, Any]) -> set[str]:
     return refs
 
 
-def _validate_context_operational_redaction(value: Any, path: str) -> None:
+def _validate_context_operational_redaction(
+    value: Any, path: str, *, context_version: int
+) -> None:
     if isinstance(value, dict):
         for key, item in value.items():
             child_path = f"{path}.{key}" if path else key
-            if key in OPERATIONAL_CONTEXT_KEYS and item:
-                if item != COLLABORATOR_CONTEXT_REDACTION_MARKER:
+            operational_keys = (
+                LEGACY_OPERATIONAL_CONTEXT_KEYS
+                if context_version == 1
+                else OPERATIONAL_CONTEXT_KEYS
+            )
+            if key in operational_keys:
+                if item and item != COLLABORATOR_CONTEXT_REDACTION_MARKER:
                     raise ValidationError(
                         "collaborator context operational field "
                         f"{child_path} must use the canonical redaction marker before freezing"
                     )
+            elif context_version == 1:
+                _validate_context_operational_redaction(
+                    item, child_path, context_version=context_version
+                )
+            elif contains_forbidden_control(key) or contains_host_location(key):
+                raise ValidationError(
+                    f"collaborator context field name {child_path} contains a prohibited control or host location"
+                )
+            elif key in HOST_IDENTITY_KEYS:
+                if item and item != COLLABORATOR_CONTEXT_REDACTION_MARKER:
+                    raise ValidationError(
+                        f"collaborator context host field {child_path} must use the canonical redaction marker"
+                    )
+            elif key in JSON_SELECTOR_KEYS:
+                if contains_forbidden_control(item):
+                    raise ValidationError(
+                        f"collaborator context JSON selector {child_path} contains a prohibited control"
+                    )
+            elif key == "locator" or key.endswith("_locator"):
+                if not is_safe_logical_locator(item):
+                    raise ValidationError(
+                        f"collaborator context locator field {child_path} must be a safe relative logical locator or the canonical redaction marker"
+                    )
+            elif key == "locators" or key.endswith("_locators"):
+                if not isinstance(item, list) or any(
+                    not is_safe_logical_locator(entry) for entry in item
+                ):
+                    raise ValidationError(
+                        f"collaborator context locator list {child_path} must contain only safe relative logical locators or canonical redaction markers"
+                    )
+            elif (
+                key == "path" or key.endswith("_path") or key.endswith("_root")
+            ) and item:
+                if not is_safe_logical_locator(item):
+                    raise ValidationError(
+                        f"collaborator context path field {child_path} must be a safe relative logical path or the canonical redaction marker"
+                    )
+            elif contains_forbidden_control(item) or contains_host_location(item):
+                raise ValidationError(
+                    f"collaborator context field {child_path} contains a prohibited control or host location"
+                )
             else:
-                _validate_context_operational_redaction(item, child_path)
+                _validate_context_operational_redaction(
+                    item, child_path, context_version=context_version
+                )
     elif isinstance(value, list):
         for index, item in enumerate(value):
-            _validate_context_operational_redaction(item, f"{path}[{index}]")
+            _validate_context_operational_redaction(
+                item, f"{path}[{index}]", context_version=context_version
+            )
+    elif context_version == 2 and (
+        contains_forbidden_control(value) or contains_host_location(value)
+    ):
+        raise ValidationError(
+            f"collaborator context field {path} contains a prohibited control or host location"
+        )
 
 
 def _validate_context_dataset_inventory(context: dict[str, Any]) -> None:
@@ -774,7 +838,9 @@ def _validate_context_snapshot(context: dict[str, Any]) -> list[str]:
         raise ValidationError(
             "collaborator context_version 2 requires dataset_inventory"
         )
-    _validate_context_operational_redaction(context, "context")
+    _validate_context_operational_redaction(
+        context, "context", context_version=context_version
+    )
     _context_write_boundary(context)
     _canonical_text(context.get("purpose", ""), "context purpose")
     indexed_refs = _context_reference_ids(context)

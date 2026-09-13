@@ -1161,6 +1161,79 @@ def test_collaborator_context_schema_separates_versioned_inventory_shapes():
         jsonschema.validate(invented_legacy_inventory, schema)
 
 
+@pytest.mark.parametrize(
+    "locator",
+    [
+        "/private/result.csv",
+        "../private/result.csv",
+        "C:result.csv",
+        "urn:artifact:result",
+        "file:/private/result.csv",
+        "logical/%2e%2e/result.csv",
+        "logical/result\x00.csv",
+        "logical/result\x7f.csv",
+    ],
+)
+def test_collaborator_context_v2_schema_rejects_unsafe_artifact_locator(locator):
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    context["datasets"] = [{
+        "dataset_id": "locator-schema-fixture",
+        "artifacts": [{"locator": locator, "sha256": "a" * 64}],
+    }]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(context, schema)
+
+
+@pytest.mark.parametrize(
+    "locator",
+    ["logical/results.csv", "nested/v2/result.json", "[redacted: retained in canonical store]"],
+)
+def test_collaborator_context_v2_schema_accepts_safe_or_redacted_locator(locator):
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    context["datasets"] = [{
+        "dataset_id": "locator-schema-fixture",
+        "artifacts": [{
+            "locator": locator,
+            "sha256": "a" * 64,
+            "size_bytes": 17,
+            "media_type": "text/csv",
+        }],
+    }]
+    jsonschema.validate(context, schema)
+
+
+def test_collaborator_context_schema_keeps_v1_local_locator_shape_replayable():
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    historical = json.loads(
+        (Path(__file__).parent / "fixtures" / "collaborator-context-v1.json").read_text()
+    )
+    historical["datasets"] = [{
+        "dataset_id": "legacy-local-locator",
+        "artifacts": [{
+            "locator": "/Users/historical-user/archive/result.csv",
+            "sha256": "a" * 64,
+        }],
+    }]
+    historical["context_reference_index"].append(
+        {"ref": "dataset:legacy-local-locator", "kind": "dataset"}
+    )
+    jsonschema.validate(historical, schema)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["current_synthesis_path", "evidence_artifact_root", "interpreter_path"],
+)
+def test_collaborator_context_v2_schema_requires_new_operational_redaction(field):
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    context["inquiry"][field] = "local/relative-value"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(context, schema)
+
+
 def test_service_generated_collaborator_context_matches_published_schema(tmp_path):
     from research_machine.adapters.filesystem import FileSystemRepository
     from research_machine.application.commands import AddQuestion, CreateInquiry

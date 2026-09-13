@@ -1577,7 +1577,14 @@ withdrawal, and retraction events are independently citable alongside the
 evidence records they qualify. The collaborator context redacts operational
 artifact roots and attestation-schema paths while retaining IDs, hashes, status
 history, and review-event handles, keeping provider-neutral review separate from
-local custody access. It also carries the structured dataset inventory used by
+local custody access. Version-2 contexts also redact absolute and host-specific
+dataset artifact locators, traversal, URI and Windows-drive forms, controls, and
+relative locators whose workspace components are missing or symlinked. Only an
+already-relative regular file verified beneath the workspace can retain its
+logical locator; hashes, roles, media types, and sizes remain, and no basename is
+substituted as false provenance. This projection never rewrites the canonical
+dataset manifest, while exact historical version-1 replay remains unchanged.
+It also carries the structured dataset inventory used by
 the CLI and synthesis, so provider-neutral reviewers can see registered dataset
 counts, roles, synthetic/protected status, observation access, custody, ethics
 state, rigor findings, and readiness while the same boundary states that draft

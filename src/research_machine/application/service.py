@@ -29,10 +29,7 @@ from research_machine.application.commands import (
     RetireHypothesis,
     SetInquiryDecision,
 )
-from research_machine.collaboration.redaction import (
-    COLLABORATOR_CONTEXT_REDACTION_MARKER,
-    OPERATIONAL_CONTEXT_KEYS,
-)
+from research_machine.collaboration.redaction import redact_collaborator_context
 from research_machine.application.artifact_integrity import verify_run_artifacts
 from research_machine.application.audit_prerequisite import (
     bind_action_audit_prerequisites,
@@ -1643,27 +1640,16 @@ class ResearchService:
         self, inquiry_id: str | None = None, *, purpose: str = ""
     ) -> dict[str, Any]:
         """Read-only context for a UI or optional local/remote model adapter."""
-        def redact_operational_context(value: Any) -> Any:
-            if isinstance(value, dict):
-                return {
-                    key: (
-                        COLLABORATOR_CONTEXT_REDACTION_MARKER
-                        if key in OPERATIONAL_CONTEXT_KEYS and item
-                        else redact_operational_context(item)
-                    )
-                    for key, item in value.items()
-                }
-            if isinstance(value, list):
-                return [redact_operational_context(item) for item in value]
-            return value
-
         purpose_text = require_text(purpose, "purpose")
         if purpose_text != purpose:
             raise ValidationError(
                 "purpose must be canonical without surrounding whitespace"
             )
         state = self.show_inquiry(inquiry_id)
-        redacted_state = redact_operational_context(state)
+        workspace_root = getattr(self.repository, "root", None)
+        redacted_state = redact_collaborator_context(
+            state, workspace_root=workspace_root
+        )
         dataset_inventory = self.dataset_inventory(inquiry_id)
         open_questions = [
             question
@@ -1721,7 +1707,7 @@ class ResearchService:
                 for item in redacted_state["ethics_review_events"]
             ],
         ]
-        return {
+        return redact_collaborator_context({
             "context_version": 2,
             "purpose": purpose_text,
             "inquiry": redacted_state["inquiry"],
@@ -1770,7 +1756,7 @@ class ResearchService:
                     "applicable human review and protocol-freeze gates",
                 ],
             },
-        }
+        }, workspace_root=workspace_root)
 
     def add_question(
         self, command: AddQuestion, inquiry_id: str | None = None

@@ -1213,7 +1213,17 @@ custody paths merely to reason about the scientific state. Context freezing and
 proposal validation both reject any retained collaborator context that still
 contains an unredacted operational root or attestation-schema path, including
 near-redaction strings that do not equal Faraday's canonical
-`[redacted: retained in canonical store]` marker. The frozen context
+`[redacted: retained in canonical store]` marker. Version-2 projection also
+removes absolute, host/user-specific, URI, drive-relative, traversing, escaped,
+control-bearing, and symlink-backed dataset artifact locations. It retains an
+artifact locator only when the original locator is canonical relative text and
+a no-symlink component walk verifies a regular file beneath the workspace root;
+hashes, roles, media types, and sizes remain available without inventing a
+basename as false provenance. JSON result selectors are selectors, not filesystem
+paths, and remain intact. Canonical dataset manifests are never rewritten by
+this collaborator-only projection. Historical version-1 bytes replay under their
+original contract but are not appropriate templates for new external sharing.
+The frozen context
 also carries a compact reference index such as
 `question:<id>`, `claim:<id>`, `hypothesis:<id>`, `evidence:<id>`,
 `evidence_status_event:<id>`, `protocol:<id>`, `run:<id>`, and

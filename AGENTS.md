@@ -450,6 +450,13 @@ canonical write path.
   and next tests. Proposals remain `pending_human_review`, have only
   `review_only` authority, perform no canonical writes, and are never scientific
   evidence or authorization. Core commands must not require or invoke a provider.
+  Current version-2 collaborator contexts must not disclose absolute local paths,
+  host or user locations, workspace roots, traversal, URI/drive path forms, or
+  symlink-backed dataset locators. Preserve artifact hashes, roles, media types,
+  and sizes; retain a logical locator only when it was already canonical relative
+  text and a no-symlink walk verifies a regular file beneath the workspace. Never
+  substitute a basename as provenance, never rewrite canonical dataset state,
+  and preserve exact historical version-1 replay semantics.
   Review every suggestion through a separately hash-bound adjudication artifact;
   require exact coverage and an explicit reject, defer, or compatible
   advance-to-domain-review disposition. Advancement is triage only, never an

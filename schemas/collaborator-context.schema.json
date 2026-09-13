@@ -148,7 +148,24 @@
         "properties": {"context_version": {"const": 2}},
         "required": ["context_version"]
       },
-      "then": {"required": ["dataset_inventory"]},
+      "then": {
+        "required": ["dataset_inventory"],
+        "properties": {
+          "inquiry": {"$ref": "#/$defs/redactedOperationalFieldsV2"},
+          "open_questions": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "active_hypotheses": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "pending_hypotheses": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "claims": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "evidence": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "evidence_status_events": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "datasets": {"items": {"$ref": "#/$defs/datasetV2"}},
+          "protocols": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "runs": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "recommendations": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "cross_lane_lessons": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "ethics_review_events": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}}
+        }
+      },
       "else": {"not": {"required": ["dataset_inventory"]}}
     }
   ],
@@ -170,6 +187,23 @@
         "run_attestation_schema_path": {"const": "[redacted: retained in canonical store]"}
       },
       "additionalProperties": true
+    },
+    "redactedOperationalFieldsV2": {
+      "allOf": [
+        {"$ref": "#/$defs/redactedOperationalFields"},
+        {
+          "type": "object",
+          "properties": {
+            "current_synthesis_path": {
+              "enum": [null, "[redacted: retained in canonical store]"]
+            },
+            "evidence_artifact_root": {"const": "[redacted: retained in canonical store]"},
+            "interpreter_path": {"const": "[redacted: retained in canonical store]"},
+            "origin_artifact_root": {"const": "[redacted: retained in canonical store]"}
+          },
+          "additionalProperties": true
+        }
+      ]
     },
     "contextRef": {
       "type": "string",
@@ -298,6 +332,42 @@
         "dataset_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
       },
       "additionalProperties": true
+    },
+    "datasetV2": {
+      "allOf": [
+        {"$ref": "#/$defs/dataset"},
+        {"$ref": "#/$defs/redactedOperationalFieldsV2"},
+        {
+          "type": "object",
+          "properties": {
+            "artifacts": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/collaboratorArtifact"}
+            }
+          }
+        }
+      ]
+    },
+    "collaboratorArtifact": {
+      "type": "object",
+      "required": ["locator", "sha256"],
+      "properties": {
+        "locator": {"$ref": "#/$defs/safeLogicalLocator"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "media_type": {"type": "string"},
+        "metadata": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "safeLogicalLocator": {
+      "anyOf": [
+        {"const": "[redacted: retained in canonical store]"},
+        {
+          "type": "string",
+          "pattern": "^(?!.*[\\u0000-\\u001f\\u007f])(?!/)(?!~)(?![A-Za-z]:)(?![A-Za-z][A-Za-z0-9+.-]*:)(?!.*%2[eEfF])(?!.*%5[cC])(?!.*\\\\)(?!.*//)(?!\\.{1,2}(?:/|$))(?!.*?/\\.{1,2}(?:/|$))(?:\\S|\\S.*\\S)$"
+        }
+      ]
     },
     "datasetInventory": {
       "type": "object",
