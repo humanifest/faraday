@@ -146,6 +146,151 @@ def test_audit_and_synthesis_expose_protected_lineage_mismatch() -> None:
     assert "protocol-closure provenance, not proof" in synthesis
 
 
+def test_synthesis_reports_registered_dataset_inventory_without_overclaiming() -> None:
+    inquiry = Inquiry(
+        inquiry_id="inventory",
+        title="Dataset inventory",
+        initial_statement="What data have we actually registered?",
+        created_at="2026-09-10T00:00:00Z",
+        decision_to_support="Whether the workspace has usable data.",
+        minimum_evidence=(
+            "A deterministic manifest inventory that separates drafts from "
+            "registered datasets."
+        ),
+        decision_change_criteria=["Do not claim access from a design brief."],
+        decision_owner="project-owner",
+    )
+    protocol = ExperimentProtocol(
+        protocol_id="protocol-v1",
+        protocol_family_id="protocol",
+        version=1,
+        experiment_id="inventory-test",
+        title="Inventory test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[],
+        primary_outcome="Outcome",
+        created_at="2026-09-10T00:00:00Z",
+        created_by="test",
+        protocol_kind=ProtocolKind.OBSERVATIONAL,
+        quality_requirements=["gate"],
+        controls=["control"],
+        sample_size_or_stopping_rule="synthetic fixture",
+        status=ProtocolStatus.FROZEN,
+        protocol_hash="c" * 64,
+    )
+    exploratory = DatasetManifest(
+        dataset_id="exploratory-register",
+        name="Exploratory register",
+        role=DatasetRole.EXPLORATORY,
+        created_at="2026-09-10T00:00:00Z",
+        artifacts=[DatasetArtifact("explore.csv", "a" * 64, 10, "text/csv")],
+        synthetic=False,
+        metadata={"dataset_payload_sha256": "d" * 64},
+    )
+    protected = DatasetManifest(
+        dataset_id="protected-register",
+        name="Protected register",
+        role=DatasetRole.CONFIRMATORY,
+        created_at="2026-09-10T00:00:00Z",
+        artifacts=[DatasetArtifact("observations.csv", "b" * 64, 12, "text/csv")],
+        protocol_id=protocol.protocol_id,
+        synthetic=False,
+        metadata={
+            "dataset_payload_sha256": "e" * 64,
+            "dataset_artifact_verification": {
+                "dataset_artifact_root": "/tmp/private-observations",
+                "artifact_integrity": {
+                    "status": "passed",
+                    "all_artifacts_match": True,
+                },
+            },
+        },
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[exploratory, protected],
+        protocols=[protocol],
+        runs=[],
+    )
+    synthesis = build_synthesis(
+        inquiry,
+        questions=[],
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[exploratory, protected],
+        protocols=[protocol],
+        runs=[],
+        recommendations=[],
+        cross_lane_lessons=[],
+        rigor_audit=audit,
+        evidence_status_events=[],
+    )
+
+    assert "### Registered dataset inventory" in synthesis
+    assert (
+        "Role counts: confirmatory: 1, exploratory: 1; synthetic: 0; "
+        "non-synthetic: 2"
+    ) in synthesis
+    assert (
+        "Dataset `exploratory-register` [exploratory; non-synthetic; "
+        "protocol unbound]"
+    ) in synthesis
+    assert "not a protected evidence dataset or proof of current local access" in synthesis
+    assert (
+        "Dataset `protected-register` [confirmatory; non-synthetic; "
+        "protocol `protocol-v1`]"
+    ) in synthesis
+    assert "registered observation bytes service-verified under retained local custody" in synthesis
+    assert (
+        "not a claim that source truth, consent truth, measurement validity, "
+        "or analysis adequacy"
+    ) in synthesis
+    assert "/tmp/private-observations" not in synthesis
+
+
+def test_synthesis_dataset_inventory_explicitly_excludes_unregistered_sources() -> None:
+    inquiry = Inquiry(
+        inquiry_id="empty-inventory",
+        title="Empty inventory",
+        initial_statement="Do draft data-source mentions count?",
+        created_at="2026-09-10T00:00:00Z",
+    )
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[],
+        runs=[],
+    )
+
+    synthesis = build_synthesis(
+        inquiry,
+        questions=[],
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[],
+        protocols=[],
+        runs=[],
+        recommendations=[],
+        cross_lane_lessons=[],
+        rigor_audit=audit,
+        evidence_status_events=[],
+    )
+
+    assert "### Registered dataset inventory" in synthesis
+    assert "No datasets are registered in canonical workspace state" in synthesis
+    assert "external plugin access" in synthesis
+    assert "design briefs are not counted as datasets" in synthesis
+
+
 @pytest.mark.parametrize(
     ("datasets", "root_id", "message"),
     [

@@ -2218,6 +2218,13 @@ gate evidence.
   run intake reject later edits to role, synthetic status, protocol binding,
   lineage, observation unit, attestations, metadata, artifact declarations, or
   descriptive identity.
+- Synthesis now includes a registered dataset inventory that reports role
+  counts, synthetic/non-synthetic status, artifact media, protocol binding,
+  lineage sources, payload sealing, observation-byte access/readiness, custody,
+  and ethics-check state. Empty inventories explicitly say that draft data-source
+  mentions, plugin access, and design briefs are not registered datasets. The
+  inventory is provenance visibility, not proof of source truth, consent truth,
+  measurement validity, or analysis adequacy.
 - Draft, amend, and hash-freeze observational, experimental, computational,
   formal, literature, and synthesis protocols.
 - Bind each frozen protocol to the complete scientific content of every tested
