@@ -24,6 +24,10 @@ SOURCE_AUTHORITY_BOUNDARY = (
     "Source route only; not proof of source truth, custody, consent, "
     "calibration, measurement validity, or evidence eligibility."
 )
+INVALID_SOURCE_AUTHORITY_SUMMARY = (
+    "source authority metadata invalid; source route not trusted until the "
+    "dataset rigor finding is resolved"
+)
 _SOURCE_AUTHORITY_FIELDS = frozenset({
     "source_type",
     "source_name",
@@ -179,7 +183,23 @@ def dataset_source_authority_status(metadata: Mapping[str, object]) -> dict[str,
                 "establish source authority"
             ),
         }
-    authority = validate_dataset_source_authority(value)
+    try:
+        authority = validate_dataset_source_authority(value)
+    except ValidationError:
+        return {
+            "status": "invalid_metadata",
+            "source_type": "invalid_metadata",
+            "source_name": "",
+            "source_record_id": "",
+            "retrieved_or_collected_at": "",
+            "classification_service_checked": False,
+            "source_truth_verified": False,
+            "custody_verified_by_source_authority": False,
+            "evidence_eligibility_conferred": False,
+            "authority_boundary": SOURCE_AUTHORITY_BOUNDARY,
+            "limitations": [],
+            "summary": INVALID_SOURCE_AUTHORITY_SUMMARY,
+        }
     return {
         "status": "typed_source_route",
         **authority,

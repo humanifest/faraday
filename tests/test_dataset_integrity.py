@@ -625,6 +625,72 @@ def test_dataset_source_authority_records_connector_without_upgrading_authority(
     assert "does not confer evidence eligibility" in synthesis
 
 
+def test_dataset_inventory_exposes_invalid_source_authority() -> None:
+    inquiry = Inquiry(
+        inquiry_id="invalid-source-inventory",
+        title="Invalid source inventory",
+        initial_statement="Can malformed source authority hide a rigor blocker?",
+        created_at="2026-09-10T00:00:00Z",
+    )
+    dataset = DatasetManifest(
+        dataset_id="invalid-source-register",
+        name="Invalid source register",
+        role=DatasetRole.EXPLORATORY,
+        created_at="2026-09-10T00:00:00Z",
+        artifacts=[DatasetArtifact("observations.csv", "b" * 64, 12, "text/csv")],
+        synthetic=False,
+        metadata={
+            "dataset_payload_sha256": "e" * 64,
+            "source_authority": {
+                "source_type": "scientific_connector",
+                "source_name": "Inventory fixture connector",
+                "source_truth_verified": True,
+            },
+        },
+    )
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[dataset],
+        protocols=[],
+        runs=[],
+    )
+
+    inventory = build_dataset_inventory([dataset], [], audit.findings)
+    row = inventory["datasets"][0]
+
+    assert "DATASET_SOURCE_AUTHORITY_INVALID" in {
+        finding.code for finding in audit.findings
+    }
+    assert row["source_authority"]["status"] == "invalid_metadata"
+    assert row["source_authority"]["source_type"] == "invalid_metadata"
+    assert row["source_authority"]["classification_service_checked"] is False
+    assert row["source_authority"]["source_truth_verified"] is False
+    assert row["source_authority"]["custody_verified_by_source_authority"] is False
+    assert row["source_authority"]["evidence_eligibility_conferred"] is False
+    assert row["source_authority"]["limitations"] == []
+    assert row["readiness"]["status"] == "not_protected_evidence_dataset"
+
+    synthesis = build_synthesis(
+        inquiry,
+        questions=[],
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[dataset],
+        protocols=[],
+        runs=[],
+        recommendations=[],
+        cross_lane_lessons=[],
+        rigor_audit=audit,
+        evidence_status_events=[],
+    )
+    assert "source authority metadata invalid" in synthesis
+    assert "source route not trusted" in synthesis
+
+
 def test_dataset_source_authority_rejects_overclaim_and_resealed_drift(
     tmp_path: Path,
 ) -> None:

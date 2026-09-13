@@ -1226,7 +1226,9 @@ rigor-error totals, source-authority boundaries, workflow-materialization
 authority flags, and redaction flags before publishing it. A frozen context
 cannot upgrade a connector, add-on, experiment, import, attestation, synthetic
 source route, or materialized workflow byte chain into source truth, custody,
-scientific interpretation, or evidence eligibility. Current
+scientific interpretation, or evidence eligibility. `invalid_metadata`
+source-authority and workflow-materialization rows remain visible with all
+authority flags false for review rather than being suppressed. Current
 service-generated contexts use
 `context_version: 2`, whose dataset inventory is mandatory. Historical
 `context_version: 1` contexts retain their original inventory-free shape and
@@ -2356,8 +2358,9 @@ gate evidence.
   eligibility. The rigor audit flags malformed source-authority metadata and
   malformed or overclaiming workflow-materialization metadata as errors, and it
   warns when a non-synthetic protected dataset lacks a typed source route. The
-  inventory and synthesis paths render invalid workflow materialization as an
-  untrusted `invalid_metadata` status rather than raising or treating the byte
+  inventory, synthesis, and collaborator-context paths render invalid source
+  authority or workflow materialization as an untrusted `invalid_metadata`
+  status rather than raising, accepting the source route, or treating the byte
   chain as verified, so connector, experiment, or workflow provenance gaps
   remain visible even when other byte-level checks pass. Run intake replays the
   same source-authority

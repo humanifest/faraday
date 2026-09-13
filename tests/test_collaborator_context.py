@@ -1040,6 +1040,84 @@ def test_context_snapshot_replays_typed_source_authority_boundary(
         create_context_snapshot(timestamp_tampered, tmp_path / "timestamp-tampered")
 
 
+def test_context_snapshot_accepts_invalid_source_authority_boundary(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    inquiry = service.create_inquiry(
+        CreateInquiry(
+            "Source review",
+            "Can invalid source provenance be reviewed?",
+            "dataset",
+        )
+    )
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="context-dataset",
+            name="Context dataset",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[
+                DatasetArtifact(
+                    "context.csv",
+                    hashlib.sha256(b"unit,outcome\nu1,1\n").hexdigest(),
+                    18,
+                    "text/csv",
+                )
+            ],
+            synthetic=True,
+            quality_attestations=["Synthetic collaborator-context fixture."],
+        ),
+        inquiry.inquiry_id,
+    )
+    context = service.collaborator_context(
+        inquiry.inquiry_id,
+        purpose="Review invalid source-route boundaries.",
+    )
+    authority = context["dataset_inventory"]["datasets"][0]["source_authority"]
+    authority.update(
+        {
+            "status": "invalid_metadata",
+            "source_type": "invalid_metadata",
+            "source_name": "",
+            "source_record_id": "",
+            "retrieved_or_collected_at": "",
+            "classification_service_checked": False,
+            "source_truth_verified": False,
+            "custody_verified_by_source_authority": False,
+            "evidence_eligibility_conferred": False,
+            "authority_boundary": (
+                "Source route only; not proof of source truth, custody, consent, "
+                "calibration, measurement validity, or evidence eligibility."
+            ),
+            "limitations": [],
+            "summary": (
+                "source authority metadata invalid; source route not trusted "
+                "until the dataset rigor finding is resolved"
+            ),
+        }
+    )
+
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    frozen = json.loads(Path(snapshot["context_file"]).read_text(encoding="utf-8"))
+    frozen_authority = frozen["dataset_inventory"]["datasets"][0][
+        "source_authority"
+    ]
+    assert frozen_authority["status"] == "invalid_metadata"
+    assert frozen_authority["classification_service_checked"] is False
+    assert frozen_authority["source_truth_verified"] is False
+    assert frozen_authority["evidence_eligibility_conferred"] is False
+
+    tampered = copy.deepcopy(context)
+    tampered["dataset_inventory"]["datasets"][0]["source_authority"][
+        "source_truth_verified"
+    ] = True
+    with pytest.raises(
+        ValidationError, match="source_truth_verified must remain false"
+    ):
+        create_context_snapshot(tampered, tmp_path / "tampered-context")
+
+
 def test_collaborator_context_exposes_acquisition_timing_as_non_authority(
     tmp_path: Path,
 ) -> None:

@@ -271,6 +271,10 @@ _NOT_RECORDED_SOURCE_AUTHORITY_SUMMARY = (
     "source route not typed; artifact hashes and dataset role do not "
     "establish source authority"
 )
+_INVALID_SOURCE_AUTHORITY_SUMMARY = (
+    "source authority metadata invalid; source route not trusted until the "
+    "dataset rigor finding is resolved"
+)
 _NOT_RECORDED_WORKFLOW_MATERIALIZATION_SUMMARY = (
     "no workflow materialization verification recorded"
 )
@@ -905,15 +909,18 @@ def _validate_dataset_inventory_source_authority(
         f"collaborator context {path}",
     )
     status = _canonical_text(value["status"], f"{path}.status")
-    if status not in {"not_recorded", "typed_source_route"}:
+    if status not in {"not_recorded", "typed_source_route", "invalid_metadata"}:
         raise ValidationError(
             f"collaborator context {path}.status is unsupported"
         )
     source_type = _canonical_text(value["source_type"], f"{path}.source_type")
-    if status == "not_recorded":
-        if source_type != "not_recorded":
+    if status in {"not_recorded", "invalid_metadata"}:
+        expected_source_type = (
+            "not_recorded" if status == "not_recorded" else "invalid_metadata"
+        )
+        if source_type != expected_source_type:
             raise ValidationError(
-                f"collaborator context {path}.source_type must be not_recorded"
+                f"collaborator context {path}.source_type must be {expected_source_type}"
             )
         for field in (
             "source_name",
@@ -926,11 +933,16 @@ def _validate_dataset_inventory_source_authority(
                 )
         if value["classification_service_checked"] is not False:
             raise ValidationError(
-                f"collaborator context {path}.classification_service_checked must be false when source authority is not recorded"
+                f"collaborator context {path}.classification_service_checked must be false when source authority is not trusted"
             )
-        if value["summary"] != _NOT_RECORDED_SOURCE_AUTHORITY_SUMMARY:
+        expected_summary = (
+            _NOT_RECORDED_SOURCE_AUTHORITY_SUMMARY
+            if status == "not_recorded"
+            else _INVALID_SOURCE_AUTHORITY_SUMMARY
+        )
+        if value["summary"] != expected_summary:
             raise ValidationError(
-                f"collaborator context {path}.summary must preserve the not-recorded source-authority boundary"
+                f"collaborator context {path}.summary must preserve the untrusted source-authority boundary"
             )
     else:
         if source_type not in SOURCE_AUTHORITY_TYPES:

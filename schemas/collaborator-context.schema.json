@@ -513,10 +513,13 @@
         "summary"
       ],
       "properties": {
-        "status": {"enum": ["not_recorded", "typed_source_route"]},
+        "status": {
+          "enum": ["not_recorded", "typed_source_route", "invalid_metadata"]
+        },
         "source_type": {
           "enum": [
             "not_recorded",
+            "invalid_metadata",
             "registered_experiment",
             "acquisition_addon",
             "scientific_connector",

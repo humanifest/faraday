@@ -2874,9 +2874,10 @@ source-authority metadata and malformed or overclaiming workflow-materialization
 metadata as errors and warns when a non-synthetic protected dataset lacks a
 typed source route, keeping connector, experiment, or workflow provenance gaps
 visible instead of letting byte-level checks imply source authority. Inventory,
-synthesis, and collaborator context reports render invalid workflow
-materialization as an untrusted `invalid_metadata` state rather than suppressing
-the row or accepting the byte chain. This
+synthesis, and collaborator context reports render invalid source authority or
+workflow materialization as an untrusted `invalid_metadata` state rather than
+suppressing the row, accepting the source route, or accepting the byte chain.
+This
 makes routine "what data do we have?"
 questions answerable from canonical state without promoting manifest
 declarations into proof of current access, source truth, consent truth,

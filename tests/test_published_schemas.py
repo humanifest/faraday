@@ -429,10 +429,41 @@ def test_dataset_inventory_schema_accepts_builder_payloads():
             )
         ],
     )
+    invalid_source = DatasetManifest(
+        dataset_id="invalid-source-schema-fixture",
+        name="Invalid source schema fixture",
+        role=DatasetRole.EXPLORATORY,
+        created_at="2026-09-13T00:00:00Z",
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64, 13, "text/csv")],
+        synthetic=False,
+        metadata={
+            "dataset_payload_sha256": "e" * 64,
+            "source_authority": {
+                "source_type": "scientific_connector",
+                "source_name": "Schema fixture connector",
+                "source_truth_verified": True,
+            },
+        },
+    )
+    invalid_source_inventory = build_dataset_inventory(
+        [invalid_source],
+        [protocol],
+        [
+            RigorFinding(
+                code="DATASET_SOURCE_AUTHORITY_INVALID",
+                severity=RigorSeverity.ERROR,
+                message="Invalid source authority fixture.",
+                entity_type="dataset",
+                entity_id=invalid_source.dataset_id,
+                remediation="Do not trust the dataset source route.",
+            )
+        ],
+    )
 
     jsonschema.validate(empty_inventory, schema)
     jsonschema.validate(populated_inventory, schema)
     jsonschema.validate(invalid_inventory, schema)
+    jsonschema.validate(invalid_source_inventory, schema)
     protected_row = next(
         row for row in populated_inventory["datasets"]
         if row["dataset_id"] == protected.dataset_id
@@ -446,6 +477,10 @@ def test_dataset_inventory_schema_accepts_builder_payloads():
     invalid_workflow_row = invalid_inventory["datasets"][0]["workflow_materialization"]
     assert invalid_workflow_row["status"] == "invalid_metadata"
     assert invalid_workflow_row["scientific_evidence_eligible"] is False
+    invalid_source_row = invalid_source_inventory["datasets"][0]["source_authority"]
+    assert invalid_source_row["status"] == "invalid_metadata"
+    assert invalid_source_row["source_type"] == "invalid_metadata"
+    assert invalid_source_row["source_truth_verified"] is False
 
 
 def test_dataset_inventory_schema_requires_operational_root_redaction():
