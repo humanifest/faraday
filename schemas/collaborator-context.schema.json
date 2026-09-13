@@ -353,7 +353,12 @@
       "required": ["locator", "sha256"],
       "properties": {
         "locator": {"const": "[redacted: retained in canonical store]"},
-        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "sha256": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+        },
         "size_bytes": {"type": ["integer", "null"], "minimum": 0},
         "media_type": {"type": "string"},
         "metadata": {"$ref": "#/$defs/collaboratorArtifactMetadata"}

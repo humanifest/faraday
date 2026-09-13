@@ -1590,6 +1590,10 @@ The explicit identity-key set is `home`, `home_dir`, `host`, `host_id`,
 `host_name`, `hostname`, `machine_name`, `user_id`, `user_name`, and `username`.
 Artifact-metadata property names containing C0 or DEL controls fail closed at
 projection, runtime freeze, and schema validation; ordinary values remain exact.
+Artifact sizes use JSON mathematical-integer semantics, accepting non-negative
+zero-fraction and exponent encodings but rejecting booleans and fractions. SHA-256
+identifiers require exactly 64 lowercase hexadecimal characters without line
+separators.
 Schema and runtime close the artifact surface identically; other context record
 types remain intentionally open, with runtime validation covering typed extension
 fields. This projection never rewrites the canonical dataset manifest, while

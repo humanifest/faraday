@@ -1231,7 +1231,11 @@ or DEL controls fail closed in projection, runtime freezing, and the schema;
 ordinary scientific values are not scanned or rewritten. JSON
 result selectors are selectors, not filesystem paths, and remain intact. The
 published schema and runtime enforce the same closed artifact shape and recursive
-metadata rules. Other context record types remain intentionally extensible;
+metadata rules. `size_bytes` follows JSON's mathematical-integer model, so
+non-negative integral decimal or exponent encodings are valid while booleans and
+fractions are not. Artifact `sha256` is exactly 64 lowercase hexadecimal
+characters; terminal or embedded line separators are invalid. Other context
+record types remain intentionally extensible;
 runtime freezing applies the structured path/locator and explicit identity rules
 to extensions that their open JSON Schema records cannot enumerate. Canonical
 dataset manifests are never rewritten by this collaborator-only projection.

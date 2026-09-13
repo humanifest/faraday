@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import tempfile
@@ -665,11 +666,16 @@ def _validate_v2_collaborator_artifact_shape(
         )
     if "size_bytes" in artifact:
         size_bytes = artifact["size_bytes"]
+        is_json_integer = type(size_bytes) is int or (
+            type(size_bytes) is float
+            and math.isfinite(size_bytes)
+            and size_bytes.is_integer()
+        )
         if size_bytes is not None and (
-            type(size_bytes) is not int or size_bytes < 0
+            not is_json_integer or size_bytes < 0
         ):
             raise ValidationError(
-                f"collaborator context {path}.size_bytes must be a non-negative integer or null"
+                f"collaborator context {path}.size_bytes must be a non-negative JSON integer or null"
             )
     if "media_type" in artifact and not isinstance(artifact["media_type"], str):
         raise ValidationError(

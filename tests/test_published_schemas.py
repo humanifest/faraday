@@ -15,6 +15,55 @@ _CONTROL_KEY_TEMPLATES = [
     "source{control}_path",
     "source_path{control}",
 ]
+_VALID_ARTIFACT_SIZES = [None, 0, 12, 0.0, -0.0, 12.0, 1.2e3, 1e20]
+_INVALID_ARTIFACT_SIZES = [
+    True,
+    False,
+    -1,
+    -1.0,
+    0.5,
+    1e-3,
+    "12",
+    [],
+    {},
+    float("nan"),
+    float("inf"),
+    float("-inf"),
+]
+_SHA_LINE_TERMINATORS = ["\n", "\r", "\x85", "\u2028", "\u2029"]
+_SHA_TERMINATOR_PLACEMENTS = [
+    "replacement-leading",
+    "replacement-embedded",
+    "replacement-trailing",
+    "appended-leading",
+    "appended-embedded",
+    "appended-trailing",
+]
+
+
+def _sha_with_terminator(terminator: str, placement: str) -> str:
+    if placement == "replacement-leading":
+        return terminator + "a" * 63
+    if placement == "replacement-embedded":
+        return "a" * 31 + terminator + "a" * 32
+    if placement == "replacement-trailing":
+        return "a" * 63 + terminator
+    if placement == "appended-leading":
+        return terminator + "a" * 64
+    if placement == "appended-embedded":
+        return "a" * 32 + terminator + "a" * 32
+    return "a" * 64 + terminator
+
+
+def _context_with_schema_artifact(artifact: dict) -> dict:
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    context["datasets"] = [{
+        "dataset_id": "artifact-schema-fixture",
+        "artifacts": [artifact],
+    }]
+    return context
+
+
 from research_machine.addons.general_science import MANIFEST
 from research_machine.application.dataset_inventory import build_dataset_inventory
 from research_machine.domain.models import (
@@ -1317,6 +1366,114 @@ def test_collaborator_context_v2_schema_preserves_controls_in_values_and_selecto
     }]
 
     jsonschema.validate(context, schema)
+
+
+@pytest.mark.parametrize(
+    "size_bytes",
+    _VALID_ARTIFACT_SIZES,
+    ids=[
+        "null",
+        "zero-integer",
+        "positive-integer",
+        "zero-fraction-encoding",
+        "negative-zero-encoding",
+        "integral-float-encoding",
+        "integral-decimal-exponent",
+        "integral-large-exponent",
+    ],
+)
+def test_collaborator_artifact_schema_accepts_json_nonnegative_integers(
+    size_bytes: object,
+) -> None:
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = _context_with_schema_artifact({
+        "locator": "[redacted: retained in canonical store]",
+        "sha256": "a" * 64,
+        "size_bytes": size_bytes,
+    })
+    jsonschema.validate(context, schema)
+
+
+@pytest.mark.parametrize(
+    "size_bytes",
+    _INVALID_ARTIFACT_SIZES,
+    ids=[
+        "true",
+        "false",
+        "negative-integer",
+        "negative-integral-float",
+        "fraction",
+        "fractional-exponent",
+        "string",
+        "array",
+        "object",
+        "nan",
+        "positive-infinity",
+        "negative-infinity",
+    ],
+)
+def test_collaborator_artifact_schema_rejects_non_json_integers(
+    size_bytes: object,
+) -> None:
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = _context_with_schema_artifact({
+        "locator": "[redacted: retained in canonical store]",
+        "sha256": "a" * 64,
+        "size_bytes": size_bytes,
+    })
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(context, schema)
+
+
+@pytest.mark.parametrize(
+    "digest",
+    ["0" * 64, "0123456789abcdef" * 4],
+    ids=["lowercase-zero", "lowercase-mixed"],
+)
+def test_collaborator_artifact_schema_accepts_exact_lowercase_sha256(
+    digest: str,
+) -> None:
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = _context_with_schema_artifact({
+        "locator": "[redacted: retained in canonical store]",
+        "sha256": digest,
+    })
+    jsonschema.validate(context, schema)
+
+
+@pytest.mark.parametrize(
+    "digest",
+    ["a" * 63, "a" * 65, "A" * 64, "a" * 63 + "g"],
+    ids=["length-63", "length-65", "uppercase", "nonhex"],
+)
+def test_collaborator_artifact_schema_rejects_sha256_boundaries(
+    digest: str,
+) -> None:
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = _context_with_schema_artifact({
+        "locator": "[redacted: retained in canonical store]",
+        "sha256": digest,
+    })
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(context, schema)
+
+
+@pytest.mark.parametrize(
+    "terminator",
+    _SHA_LINE_TERMINATORS,
+    ids=lambda value: f"U+{ord(value):04X}",
+)
+@pytest.mark.parametrize("placement", _SHA_TERMINATOR_PLACEMENTS)
+def test_collaborator_artifact_schema_rejects_sha256_line_terminators(
+    terminator: str, placement: str
+) -> None:
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = _context_with_schema_artifact({
+        "locator": "[redacted: retained in canonical store]",
+        "sha256": _sha_with_terminator(terminator, placement),
+    })
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(context, schema)
 
 
 def test_collaborator_context_schema_keeps_v1_local_locator_shape_replayable():

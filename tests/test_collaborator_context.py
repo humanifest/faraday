@@ -77,6 +77,44 @@ _CONTROL_KEY_TEMPLATES = [
     "source{control}_path",
     "source_path{control}",
 ]
+_VALID_ARTIFACT_SIZES = [None, 0, 12, 0.0, -0.0, 12.0, 1.2e3, 1e20]
+_INVALID_ARTIFACT_SIZES = [
+    True,
+    False,
+    -1,
+    -1.0,
+    0.5,
+    1e-3,
+    "12",
+    [],
+    {},
+    float("nan"),
+    float("inf"),
+    float("-inf"),
+]
+_SHA_LINE_TERMINATORS = ["\n", "\r", "\x85", "\u2028", "\u2029"]
+_SHA_TERMINATOR_PLACEMENTS = [
+    "replacement-leading",
+    "replacement-embedded",
+    "replacement-trailing",
+    "appended-leading",
+    "appended-embedded",
+    "appended-trailing",
+]
+
+
+def _sha_with_terminator(terminator: str, placement: str) -> str:
+    if placement == "replacement-leading":
+        return terminator + "a" * 63
+    if placement == "replacement-embedded":
+        return "a" * 31 + terminator + "a" * 32
+    if placement == "replacement-trailing":
+        return "a" * 63 + terminator
+    if placement == "appended-leading":
+        return terminator + "a" * 64
+    if placement == "appended-embedded":
+        return "a" * 32 + terminator + "a" * 32
+    return "a" * 64 + terminator
 
 
 def _context(
@@ -511,6 +549,105 @@ def test_v2_artifact_metadata_controls_in_values_and_selectors_remain_exact(
     assert metadata["note"] == scientific_value
     assert metadata["effect_estimate_path"] == selector
     create_context_snapshot(projected, tmp_path / "context")
+
+
+@pytest.mark.parametrize(
+    "size_bytes",
+    _VALID_ARTIFACT_SIZES,
+    ids=[
+        "null",
+        "zero-integer",
+        "positive-integer",
+        "zero-fraction-encoding",
+        "negative-zero-encoding",
+        "integral-float-encoding",
+        "integral-decimal-exponent",
+        "integral-large-exponent",
+    ],
+)
+def test_v2_artifact_size_accepts_json_nonnegative_integers(
+    tmp_path: Path, size_bytes: object
+) -> None:
+    context = _context_with_artifact_metadata({})
+    context["datasets"][0]["artifacts"][0]["size_bytes"] = size_bytes
+
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    frozen = json.loads(Path(snapshot["context_file"]).read_text(encoding="utf-8"))
+    assert frozen["datasets"][0]["artifacts"][0]["size_bytes"] == size_bytes
+
+
+@pytest.mark.parametrize(
+    "size_bytes",
+    _INVALID_ARTIFACT_SIZES,
+    ids=[
+        "true",
+        "false",
+        "negative-integer",
+        "negative-integral-float",
+        "fraction",
+        "fractional-exponent",
+        "string",
+        "array",
+        "object",
+        "nan",
+        "positive-infinity",
+        "negative-infinity",
+    ],
+)
+def test_v2_artifact_size_rejects_non_json_integers(
+    tmp_path: Path, size_bytes: object
+) -> None:
+    context = _context_with_artifact_metadata({})
+    context["datasets"][0]["artifacts"][0]["size_bytes"] = size_bytes
+
+    with pytest.raises(ValidationError, match="non-negative JSON integer"):
+        create_context_snapshot(context, tmp_path / "context")
+
+
+@pytest.mark.parametrize(
+    "digest",
+    ["0" * 64, "0123456789abcdef" * 4],
+    ids=["lowercase-zero", "lowercase-mixed"],
+)
+def test_v2_artifact_sha256_accepts_exact_lowercase_hex(
+    tmp_path: Path, digest: str
+) -> None:
+    context = _context_with_artifact_metadata({})
+    context["datasets"][0]["artifacts"][0]["sha256"] = digest
+    create_context_snapshot(context, tmp_path / "context")
+
+
+@pytest.mark.parametrize(
+    "digest",
+    ["a" * 63, "a" * 65, "A" * 64, "a" * 63 + "g"],
+    ids=["length-63", "length-65", "uppercase", "nonhex"],
+)
+def test_v2_artifact_sha256_rejects_length_case_and_alphabet_boundaries(
+    tmp_path: Path, digest: str
+) -> None:
+    context = _context_with_artifact_metadata({})
+    context["datasets"][0]["artifacts"][0]["sha256"] = digest
+
+    with pytest.raises(ValidationError, match="lowercase SHA-256"):
+        create_context_snapshot(context, tmp_path / "context")
+
+
+@pytest.mark.parametrize(
+    "terminator",
+    _SHA_LINE_TERMINATORS,
+    ids=lambda value: f"U+{ord(value):04X}",
+)
+@pytest.mark.parametrize("placement", _SHA_TERMINATOR_PLACEMENTS)
+def test_v2_artifact_sha256_rejects_line_terminators_at_every_boundary(
+    tmp_path: Path, terminator: str, placement: str
+) -> None:
+    context = _context_with_artifact_metadata({})
+    context["datasets"][0]["artifacts"][0]["sha256"] = _sha_with_terminator(
+        terminator, placement
+    )
+
+    with pytest.raises(ValidationError, match="lowercase SHA-256"):
+        create_context_snapshot(context, tmp_path / "context")
 
 
 @pytest.mark.parametrize(

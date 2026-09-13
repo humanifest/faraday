@@ -458,7 +458,10 @@ canonical write path.
   explicit identity keys `home`, `home_dir`, `host`, `host_id`, `host_name`,
   `hostname`, `machine_name`, `user_id`, `user_name`, and `username`.
   Reject C0 and DEL controls in artifact-metadata property names; do not scan or
-  rewrite ordinary scientific values.
+  rewrite ordinary scientific values. Treat `size_bytes` under the JSON numeric
+  model: accept non-negative mathematical integers, including zero-fraction or
+  exponent encodings, but never booleans or fractions. Require `sha256` to be
+  exactly 64 lowercase hexadecimal characters with no line terminator.
   Do not scan ordinary scientific prose for path-like substrings, reinterpret JSON
   selectors as filesystem paths, substitute a basename as provenance, or rewrite
   canonical dataset state. Preserve exact historical version-1 replay semantics.
