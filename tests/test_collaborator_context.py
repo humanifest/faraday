@@ -2016,10 +2016,22 @@ def test_context_snapshot_and_proposal_are_write_once_and_noncanonical(
             "summary must not claim acceptance",
         ),
         (
+            lambda proposal: proposal.update(
+                {"summary": "This proposal establishes legal responsibility."}
+            ),
+            "summary must not claim acceptance",
+        ),
+        (
             lambda proposal: proposal["competing_explanations"][0].update(
                 {"statement": "This validates the favored mechanism."}
             ),
             "competing_explanations\\[0\\].statement must not claim acceptance",
+        ),
+        (
+            lambda proposal: proposal["suggestions"][0].update(
+                {"rationale": "This proposal determines fraudulent intent."}
+            ),
+            "rationale must not claim acceptance",
         ),
         (
             lambda proposal: proposal["suggestions"][0].update(
@@ -2097,6 +2109,12 @@ def test_proposal_fails_closed_on_missing_scientific_boundaries(
         (
             lambda record: record["proposal"].update(
                 {"summary": "This proposal proves the finding."}
+            ),
+            "summary must not claim acceptance",
+        ),
+        (
+            lambda record: record["proposal"].update(
+                {"summary": "This proposal establishes legal liability."}
             ),
             "summary must not claim acceptance",
         ),
@@ -2341,6 +2359,18 @@ def test_collaborator_review_prose_must_be_canonical(
             ),
             "must not claim acceptance",
         ),
+        (
+            lambda review: review.update(
+                {"overall_assessment": "This review establishes legal responsibility."}
+            ),
+            "must not claim acceptance",
+        ),
+        (
+            lambda review: review["decisions"][0].update(
+                {"rationale": "This review finds intentional wrongdoing."}
+            ),
+            "must not claim acceptance",
+        ),
     ],
 )
 def test_collaborator_review_prose_must_remain_non_authority(
@@ -2493,7 +2523,7 @@ def test_review_record_replay_rejects_rewritten_falsification_authority_claim(
     review_record_path = Path(reviewed["record_file"])
     record = json.loads(review_record_path.read_text(encoding="utf-8"))
     record["reviewed_suggestions"][0]["suggestion"]["falsification_conditions"] = [
-        "This proves the suggested mechanism."
+        "This establishes legal responsibility."
     ]
     review_record_path.write_text(
         json.dumps(record, indent=2, sort_keys=True) + "\n",

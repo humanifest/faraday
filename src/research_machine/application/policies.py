@@ -110,7 +110,14 @@ _PENDING_REVIEW_AUTHORITY_CLAIM = re.compile(
     r"proved|proof|validates?|validated|validation)\b|"
     r"human[- ]reviewed|reviewed by human|human review complete|"
     r"canonical write|canonical action|evidence creation|creates evidence|"
-    r"created evidence",
+    r"created evidence|"
+    r"\b(?:establish(?:es|ed)?|finds?|found|determines?|determined|"
+    r"shows?|showed|demonstrates?|demonstrated)\b(?:\s+\w+){0,6}\s+"
+    r"\b(?:legal characterization|legal responsibility|legal liability|"
+    r"culpability|liability|guilt|negligence|fraudulent intent|criminal intent|"
+    r"intentional wrongdoing)\b|"
+    r"\b(?:is|are|was|were)\s+(?:legally responsible|liable|guilty|negligent)\b|"
+    r"\bcommitted\s+fraud\b",
     re.IGNORECASE,
 )
 _PENDING_REVIEW_NEGATION_PREFIX = re.compile(
@@ -264,7 +271,8 @@ def require_pending_review_rationale(value: str) -> str:
         raise ValidationError(
             "pending-review rationale must not describe provisional staging as "
             "approval, validation, confirmation, human-reviewed acceptance, "
-            "evidence creation, canonical action, or authorization"
+            "evidence creation, canonical action, authorization, or "
+            "legal/intent characterization"
         )
     return rationale
 

@@ -1367,7 +1367,8 @@ activation, pending-review staging, and protocol freeze, including nested fields
 Pending-review staging rationales are now canonical bounded text and are replayed
 on authoritative hypothesis reads, so a provisional lane cannot later claim
 approval, validation, confirmation, human-reviewed acceptance, evidence creation,
-canonical action, or authorization through mutable workflow prose.
+canonical action, authorization, or legal/intent characterization through
+mutable workflow prose.
 The scaffold also requires an explicit human-participant/data assessment: omission
 blocks the draft and remains `null`, not `false`, in its human-subject field.
 Replacing the marker is necessary but not sufficient scientific review: these
@@ -1597,8 +1598,9 @@ suggestion has `review_only` authority. Proposal summaries, uncertainty
 statements, grounded body claims, suggestion prose, and returned falsification
 conditions now also fail closed when they claim acceptance, approval,
 authorization, proof, confirmation, validation, evidence creation, or canonical
-action, human-review completion, or authenticated reviewer identity, and the
-published proposal schema preflights the same boundary for apps and plugins. The
+action, human-review completion, authenticated reviewer identity, or legal/intent
+characterization, and the published proposal schema preflights the same boundary
+for apps and plugins. The
 context now includes a compact
 reference index for inquiry, question, claim, hypothesis, evidence, dataset,
 evidence-status-event, protocol, run, and ethics-review-event records, and
@@ -1675,6 +1677,10 @@ prose, review assessments, and review-decision rationales must be canonical
 without surrounding whitespace before coverage or duplicate checks, so
 whitespace padding cannot be silently rewritten into a task purpose, citation,
 source identity, review obligation, or scientific prose.
+The same bounded-prose guard now rejects collaborator proposal, review, retained
+proposal-record, and retained review-record language that would turn optional
+triage into legal or intent characterization, including legal responsibility,
+liability, culpability, negligence, fraudulent intent, or intentional wrongdoing.
 The resulting record remains `pending_human_review`, scientifically ineligible,
 and unable to authorize or write anything. Neither command invokes a model, so
 this workflow has no provider or API-cost dependency.

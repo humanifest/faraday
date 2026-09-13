@@ -1768,6 +1768,12 @@ def test_collaborator_proposal_schema_requires_provider_for_model_generators():
         lambda proposal: proposal["suggestions"][0].update(
             {"falsification_conditions": ["This proves the suggested mechanism."]}
         ),
+        lambda proposal: proposal.update(
+            {"summary": "This proposal establishes legal responsibility."}
+        ),
+        lambda proposal: proposal["suggestions"][0].update(
+            {"rationale": "This proposal finds fraudulent intent."}
+        ),
     ],
 )
 def test_collaborator_proposal_schema_rejects_authority_claims(mutation):
@@ -1816,6 +1822,12 @@ def test_collaborator_review_schema_constrains_route_authority(mutation):
         ),
         lambda review: review["decisions"][0].update(
             {"rationale": "This triage proposes Evidence Creation."}
+        ),
+        lambda review: review.update(
+            {"overall_assessment": "This review determines legal liability."}
+        ),
+        lambda review: review["decisions"][0].update(
+            {"rationale": "This review shows intentional wrongdoing."}
         ),
     ],
 )
@@ -1953,6 +1965,9 @@ def test_collaborator_schema_examples_match_service_validator(tmp_path):
         lambda record: record["reviewed_suggestions"][0]["suggestion"].update(
             {"kind": "next_action"}
         ),
+        lambda record: record["review"].update(
+            {"overall_assessment": "This review establishes legal responsibility."}
+        ),
     ],
 )
 def test_collaborator_review_record_schema_keeps_advanced_triage_bounded(
@@ -2035,6 +2050,9 @@ def test_collaborator_review_record_schema_keeps_advanced_triage_bounded(
         ),
         lambda record: record.update(
             {"conclusion_ceiling": "This proposal authorizes a protocol amendment."}
+        ),
+        lambda record: record["proposal"].update(
+            {"summary": "This proposal finds legal liability."}
         ),
     ],
 )

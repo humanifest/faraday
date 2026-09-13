@@ -801,9 +801,18 @@ def test_pending_review_requires_complete_high_confidence_proposal(
             rationale="Codex approved and validated this proposal for human review.",
             confidence="high",
         )
+    with pytest.raises(ValidationError, match="legal/intent characterization"):
+        service.stage_hypothesis(
+            complete.hypothesis_id,
+            rationale="Codex determined legal liability and found fraudulent intent.",
+            confidence="high",
+        )
     staged = service.stage_hypothesis(
         complete.hypothesis_id,
-        rationale="The structure is complete and exploratory work is reversible.",
+        rationale=(
+            "The structure is complete, exploratory work is reversible, and "
+            "staging does not establish legal responsibility."
+        ),
         confidence="high",
     )
     assert staged.workflow_state.value == "pending_review"
@@ -818,8 +827,8 @@ def test_pending_review_requires_complete_high_confidence_proposal(
     )
     stored = json.loads(hypothesis_path.read_text(encoding="utf-8"))
     stored["pending_review_rationale"] = (
-        "Codex approved and validated this proposal after human review."
+        "Codex established legal responsibility after human review."
     )
     hypothesis_path.write_text(json.dumps(stored), encoding="utf-8")
-    with pytest.raises(ValidationError, match="provisional staging"):
+    with pytest.raises(ValidationError, match="legal/intent characterization"):
         service.list_hypotheses(state="pending_review")

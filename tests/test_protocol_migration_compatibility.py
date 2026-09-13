@@ -482,7 +482,8 @@ def test_committed_v1_information_score_replays_without_retroactive_rewrite(
 def test_pending_review_authority_guard_distinguishes_negation_from_claim() -> None:
     negated = (
         "The structure is ready for review, but staging does not imply human "
-        "approval and does not create evidence."
+        "approval, does not create evidence, and does not establish legal "
+        "responsibility."
     )
 
     assert require_pending_review_rationale(negated) == negated
@@ -494,3 +495,11 @@ def test_pending_review_authority_guard_distinguishes_negation_from_claim() -> N
         assert "provisional staging" in str(exc)
     else:
         raise AssertionError("unnegated authority claim was accepted")
+    try:
+        require_pending_review_rationale(
+            "Codex determined legal liability and found fraudulent intent."
+        )
+    except ValidationError as exc:
+        assert "legal/intent characterization" in str(exc)
+    else:
+        raise AssertionError("unnegated legal characterization was accepted")

@@ -122,7 +122,14 @@ _AUTHORITY_CLAIM = re.compile(
     r"confirms?|confirmed|proves?|proved|proof|validates?|validated)\b|"
     r"canonical write|canonical action|evidence creation|creates evidence|created evidence|"
     r"human[- ]reviewed|reviewed by human|reviewer identity authenticated|"
-    r"authenticated reviewer|authenticated identity"
+    r"authenticated reviewer|authenticated identity|"
+    r"\b(?:establish(?:es|ed)?|finds?|found|determines?|determined|"
+    r"shows?|showed|demonstrates?|demonstrated)\b(?:\s+\w+){0,6}\s+"
+    r"\b(?:legal characterization|legal responsibility|legal liability|"
+    r"culpability|liability|guilt|negligence|fraudulent intent|criminal intent|"
+    r"intentional wrongdoing)\b|"
+    r"\b(?:is|are|was|were)\s+(?:legally responsible|liable|guilty|negligent)\b|"
+    r"\bcommitted\s+fraud\b"
 )
 _PROPOSAL_RECORD_FIELDS = {
     "collaborator_proposal_record_version",
@@ -569,7 +576,8 @@ def _review_boundary_text(value: Any, field: str) -> str:
         raise ValidationError(
             f"collaborator proposal {field} must not claim acceptance, approval, "
             "authorization, proof, confirmation, validation, evidence creation, "
-            "canonical action, human review completion, or authenticated reviewer identity"
+            "canonical action, human review completion, authenticated reviewer "
+            "identity, or legal/intent characterization"
         )
     return text
 
@@ -580,7 +588,8 @@ def _proposal_boundary_text(value: Any, field: str) -> str:
         raise ValidationError(
             f"collaborator proposal {field} must not claim acceptance, approval, "
             "authorization, proof, confirmation, validation, evidence creation, "
-            "canonical action, human review completion, or authenticated reviewer identity"
+            "canonical action, human review completion, authenticated reviewer "
+            "identity, or legal/intent characterization"
         )
     return text
 

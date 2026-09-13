@@ -1204,7 +1204,9 @@ statements, grounded body claims, suggestion prose, and returned falsification
 conditions must not claim
 acceptance, approval, authorization, proof, confirmation, validation, evidence
 creation, canonical action, human-review completion, or authenticated reviewer
-identity. The frozen context must carry canonical,
+identity, and they cannot assert legal or intent characterization such as legal
+responsibility, liability, culpability, negligence, fraudulent intent, or
+intentional wrongdoing. The frozen context must carry canonical,
 nonempty scientific constraints that include explicit inferential-boundary and
 authorization-boundary prohibitions: the constraints must tell collaborators not
 to claim causality, mechanism, legal characterization, or replication beyond
@@ -1300,7 +1302,9 @@ uncertainty statements, suggestion statements, suggestion rationales, suggestion
 uncertainty, next-test prose, review assessments, and review-decision rationales
 must be canonical without surrounding whitespace before coverage or duplicate
 checks, so whitespace padding cannot be silently rewritten into a task purpose,
-citation, source identity, review obligation, or scientific prose. Published
+citation, source identity, review obligation, or scientific prose. The same
+bounded-prose guard rejects proposal and review language that would turn
+provider-neutral triage into a legal or intent finding. Published
 JSON Schemas for provider-neutral exchange artifacts live in
 `schemas/collaborator-context.schema.json`,
 `schemas/collaborator-proposal.schema.json`, and
@@ -1316,7 +1320,8 @@ proposal shape, and review-only authority boundary, including case-insensitive
 rejection of summary,
 body-claim, suggestion, and review prose that claims acceptance, approval,
 authorization, proof, confirmation, validation, evidence creation, or canonical
-action, human-review completion, or authenticated reviewer identity. Generated
+action, human-review completion, authenticated reviewer identity, or legal/intent
+characterization. Generated
 review records also preflight disposition/route/manual-review consistency and
 route compatibility with each reviewed suggestion kind before the application
 service repeats hash, reference, and route validation. They do
@@ -1361,7 +1366,8 @@ retains one decision receipt per proposal suggestion, including the exact
 suggestion snapshot, its SHA-256, disposition, rationale, compatible route, and
 manual-review flag. Review assessments and rationales must not claim acceptance,
 approval, authorization, proof, confirmation, validation, evidence creation, or
-canonical action, and must not claim authenticated reviewer identity. It
+canonical action, authenticated reviewer identity, or legal/intent
+characterization. It
 authenticates neither reviewer identity nor scientific adequacy, authorizes no
 action, and does not execute the named command.
 Replay a saved review record before relying on it as triage provenance:
@@ -2699,9 +2705,9 @@ confirmatory evidence still require activation after human review. The staging
 rationale is canonical bounded text: it may explain why exploratory review is
 worth continuing, but it cannot describe provisional staging as approval,
 validation, confirmation, human-reviewed acceptance, evidence creation,
-canonical action, or authorization. Authoritative hypothesis reads replay that
-boundary so a later edit to the mutable rationale cannot make a pending proposal
-look accepted.
+canonical action, authorization, or legal/intent characterization. Authoritative
+hypothesis reads replay that boundary so a later edit to the mutable rationale
+cannot make a pending proposal look accepted or legally characterized.
 
 The general execution loop uses JSON contracts:
 
