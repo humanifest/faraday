@@ -821,6 +821,12 @@ def test_v2_context_requires_new_operational_fields_to_be_redacted(
             "rows must redact operational roots",
         ),
         (
+            lambda context: context["dataset_inventory"]["datasets"][0][
+                "source_authority"
+            ].update({"source_truth_verified": True}),
+            "source_truth_verified must remain false",
+        ),
+        (
             lambda context: context["dataset_inventory"].update(
                 {"role_counts": {"confirmatory": 1}}
             ),
@@ -863,6 +869,69 @@ def test_context_snapshot_replays_dataset_inventory_consistency(
     with pytest.raises(ValidationError, match=message):
         create_context_snapshot(context, tmp_path / "context")
     assert not (tmp_path / "context").exists()
+
+
+def test_context_snapshot_replays_typed_source_authority_boundary(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    inquiry = service.create_inquiry(
+        CreateInquiry(
+            "Connector review",
+            "Can connector material be reviewed without upgrading authority?",
+            "connector",
+        )
+    )
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="connector-context-dataset",
+            name="Connector context dataset",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[
+                DatasetArtifact(
+                    "connector.json",
+                    hashlib.sha256(b'{"record":1}\n').hexdigest(),
+                    13,
+                    "application/json",
+                )
+            ],
+            synthetic=False,
+            metadata={
+                "source_authority": {
+                    "source_type": "scientific_connector",
+                    "source_name": "Open registry connector",
+                    "source_record_id": "query-2026-09-13",
+                    "retrieved_or_collected_at": "2026-09-13T12:00:00Z",
+                    "limitations": [
+                        "Connector output is retained as source-route context only."
+                    ],
+                }
+            },
+        ),
+        inquiry.inquiry_id,
+    )
+    context = service.collaborator_context(
+        inquiry.inquiry_id,
+        purpose="Review connector source-route boundaries.",
+    )
+
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    frozen = json.loads(Path(snapshot["context_file"]).read_text(encoding="utf-8"))
+    authority = frozen["dataset_inventory"]["datasets"][0]["source_authority"]
+    assert authority["source_type"] == "scientific_connector"
+    assert authority["source_truth_verified"] is False
+    assert authority["custody_verified_by_source_authority"] is False
+    assert authority["evidence_eligibility_conferred"] is False
+
+    tampered = copy.deepcopy(context)
+    tampered["dataset_inventory"]["datasets"][0]["source_authority"][
+        "evidence_eligibility_conferred"
+    ] = True
+    with pytest.raises(
+        ValidationError, match="evidence_eligibility_conferred must remain false"
+    ):
+        create_context_snapshot(tampered, tmp_path / "tampered-context")
 
 
 def test_collaborator_context_exposes_acquisition_timing_as_non_authority(

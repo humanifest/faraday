@@ -2399,10 +2399,13 @@ source-route contract for registered experiments, acquisition add-ons,
 scientific connectors, manual imports, external attestations, or synthetic
 fixtures. Registration normalizes it, rejects overclaiming source text or any
 attempt to mark source truth, custody, or evidence eligibility as conferred, and
-authoritative reads, run intake, and evidence admission replay the same
-validation from the sealed dataset payload. Evidence admission now replays every
-run dataset even for non-scientific exploratory records that omit a single
-dataset selector. Run intake and scientific-evidence admission replay also check
+authoritative reads, run intake, evidence admission, and collaborator-context
+freezing replay the same validation from the sealed dataset payload and visible
+dataset inventory. A tampered provider-neutral context cannot promote a
+connector, add-on, experiment, import, attestation, or fixture route into source
+truth, custody, or evidence eligibility. Evidence admission now replays every run
+dataset even for non-scientific exploratory records that omit a single dataset
+selector. Run intake and scientific-evidence admission replay also check
 protected lineage ancestors, so a derived dataset cannot launder a rewritten
 source route into execution or evidence.
 

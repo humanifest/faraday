@@ -1204,7 +1204,10 @@ provider-neutral provenance labels only: experiment, add-on, connector, import,
 or attestation access does not prove source truth, custody, consent,
 calibration, measurement validity, or evidence eligibility. Context freezing
 replays that inventory against the visible dataset records, counts, role totals,
-rigor-error totals, and redaction flags before publishing it. Current
+rigor-error totals, source-authority boundaries, and redaction flags before
+publishing it. A frozen context cannot upgrade a connector, add-on, experiment,
+import, attestation, or synthetic source route into source truth, custody, or
+evidence eligibility. Current
 service-generated contexts use
 `context_version: 2`, whose dataset inventory is mandatory. Historical
 `context_version: 1` contexts retain their original inventory-free shape and

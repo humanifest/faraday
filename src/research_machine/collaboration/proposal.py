@@ -17,6 +17,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from research_machine.application.dataset_source_authority import (
+    SOURCE_AUTHORITY_BOUNDARY,
+    SOURCE_AUTHORITY_TYPES,
+)
 from research_machine.collaboration.redaction import (
     COLLABORATOR_CONTEXT_REDACTION_MARKER,
     HOST_IDENTITY_KEYS,
@@ -235,6 +239,26 @@ _DATASET_INVENTORY_ROLES = {
     "confirmatory",
     "replication",
 }
+_DATASET_INVENTORY_SOURCE_AUTHORITY_FIELDS = {
+    "status",
+    "source_type",
+    "source_name",
+    "source_record_id",
+    "retrieved_or_collected_at",
+    "classification_service_checked",
+    "source_truth_verified",
+    "custody_verified_by_source_authority",
+    "evidence_eligibility_conferred",
+    "authority_boundary",
+    "limitations",
+    "summary",
+}
+_NOT_RECORDED_SOURCE_AUTHORITY_SUMMARY = (
+    "source route not typed; artifact hashes and dataset role do not "
+    "establish source authority"
+)
+
+
 def _duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -844,6 +868,103 @@ def _validate_context_operational_redaction(
             )
 
 
+def _validate_dataset_inventory_source_authority(
+    value: Any, path: str
+) -> None:
+    if not isinstance(value, dict):
+        raise ValidationError(f"collaborator context {path} must be an object")
+    _exact_fields(
+        value,
+        _DATASET_INVENTORY_SOURCE_AUTHORITY_FIELDS,
+        f"collaborator context {path}",
+    )
+    status = _canonical_text(value["status"], f"{path}.status")
+    if status not in {"not_recorded", "typed_source_route"}:
+        raise ValidationError(
+            f"collaborator context {path}.status is unsupported"
+        )
+    source_type = _canonical_text(value["source_type"], f"{path}.source_type")
+    if status == "not_recorded":
+        if source_type != "not_recorded":
+            raise ValidationError(
+                f"collaborator context {path}.source_type must be not_recorded"
+            )
+        for field in (
+            "source_name",
+            "source_record_id",
+            "retrieved_or_collected_at",
+        ):
+            if value[field] != "":
+                raise ValidationError(
+                    f"collaborator context {path}.{field} must be blank when source authority is not recorded"
+                )
+        if value["classification_service_checked"] is not False:
+            raise ValidationError(
+                f"collaborator context {path}.classification_service_checked must be false when source authority is not recorded"
+            )
+        if value["summary"] != _NOT_RECORDED_SOURCE_AUTHORITY_SUMMARY:
+            raise ValidationError(
+                f"collaborator context {path}.summary must preserve the not-recorded source-authority boundary"
+            )
+    else:
+        if source_type not in SOURCE_AUTHORITY_TYPES:
+            raise ValidationError(
+                f"collaborator context {path}.source_type is unsupported"
+            )
+        if source_type == "not_recorded":
+            raise ValidationError(
+                f"collaborator context {path}.source_type cannot be not_recorded for typed source routes"
+            )
+        _canonical_text(value["source_name"], f"{path}.source_name")
+        _canonical_text(
+            value["source_record_id"],
+            f"{path}.source_record_id",
+            allow_empty=True,
+        )
+        _canonical_text(
+            value["retrieved_or_collected_at"],
+            f"{path}.retrieved_or_collected_at",
+            allow_empty=True,
+        )
+        if value["classification_service_checked"] is not True:
+            raise ValidationError(
+                f"collaborator context {path}.classification_service_checked must be true for typed source routes"
+            )
+        expected_summary = (
+            f"{source_type} source route `{value['source_name']}` "
+            "recorded as provenance only; connector, add-on, experiment, import, "
+            "or attestation access does not confer evidence eligibility"
+        )
+        if value["summary"] != expected_summary:
+            raise ValidationError(
+                f"collaborator context {path}.summary must preserve the typed source-route boundary"
+            )
+    for field in (
+        "source_truth_verified",
+        "custody_verified_by_source_authority",
+        "evidence_eligibility_conferred",
+    ):
+        if value[field] is not False:
+            raise ValidationError(
+                f"collaborator context {path}.{field} must remain false"
+            )
+    if value["authority_boundary"] != SOURCE_AUTHORITY_BOUNDARY:
+        raise ValidationError(
+            f"collaborator context {path}.authority_boundary must preserve the source-authority boundary"
+        )
+    limitations = value["limitations"]
+    if not isinstance(limitations, list):
+        raise ValidationError(
+            f"collaborator context {path}.limitations must be an array"
+        )
+    if len(set(limitations)) != len(limitations):
+        raise ValidationError(
+            f"collaborator context {path}.limitations must be unique"
+        )
+    for index, item in enumerate(limitations):
+        _canonical_text(item, f"{path}.limitations[{index}]")
+
+
 def _validate_context_dataset_inventory(context: dict[str, Any]) -> None:
     inventory = context.get("dataset_inventory")
     if not isinstance(inventory, dict):
@@ -905,6 +1026,10 @@ def _validate_context_dataset_inventory(context: dict[str, Any]) -> None:
             raise ValidationError(
                 "collaborator context dataset_inventory rows must redact operational roots"
             )
+        _validate_dataset_inventory_source_authority(
+            row.get("source_authority"),
+            f"dataset_inventory.datasets[{index}].source_authority",
+        )
         findings = row.get("rigor_findings", [])
         if not isinstance(findings, list):
             raise ValidationError(
