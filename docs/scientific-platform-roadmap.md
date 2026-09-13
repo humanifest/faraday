@@ -4,6 +4,51 @@ The target is one discipline-agnostic, self-contained tool for designing,
 executing, auditing, and extending scientific investigations. Add-ons widen its
 methods without changing its epistemic rules or canonical state.
 
+## High-confidence campaign readiness
+
+Faraday should become usable for hard domain campaigns, including foundations
+physics work such as reconciling quantum mechanics and relativity and forensic
+physical-science work such as evaluating WTC 7 hypotheses, only when the shared
+machine can enforce the same scientific boundary in both settings. The target is
+not a single persuasive result. It is a repeatable campaign environment that can
+show exactly what was observed, derived, modeled, inferred, contradicted,
+replicated, or left unresolved.
+
+The next development track pursues seven readiness requirements:
+
+- Domain add-ons for the campaign's actual methods: formal mathematics,
+  symbolic derivation, dimensional/unit checks, numerical simulation,
+  experiment-data acquisition, structural/fire modeling, video/geometry/source
+  ingestion, and source-document handling where those methods are needed.
+- Trusted datasets and custody, with real source collections entering from
+  registered experiments, acquisition add-ons, or scientific connectors, then
+  becoming canonical only after Faraday records their source authority, role,
+  synthetic status, lineage, protocol binding, hashes, custody, ethics context,
+  and readiness blockers.
+- Validated methods whose assumptions, calibration checks, numerical stability,
+  sensitivity limits, implementation hashes, and claim ceilings are explicit;
+  successful execution remains separate from scientific adequacy.
+- Adversarial competing-model workflows that preserve nulls, mundane processes,
+  measurement error, confounding, sensitivity analyses, blind comparisons, and
+  disconfirming observations instead of optimizing for the favored explanation.
+- Independent review records for domain, method, ethics, and adversarial
+  critique, with reviewer identity and expertise treated as unauthenticated
+  unless a later trust layer proves them.
+- Replication campaigns with independent implementations, different executors,
+  different code hashes where relevant, portable packages, and visible failures
+  or non-reproductions.
+- Claim discipline that keeps observation, calculation, model consistency,
+  association, causality, mechanism, attribution, intent, and legal
+  characterization in separate claim nodes with bounded conclusion ceilings.
+
+Scientific connectors are allowed source and acquisition ports, not shortcuts
+around provenance. A connector may retrieve literature, public records, sensor
+exports, catalog metadata, experiment outputs, or other scientific sources, but
+its output stays a low-authority proposal until Faraday registers the material
+through the ordinary dataset, protocol, run, evidence, review, and ledger
+contracts. Connector access does not prove source truth, custody, consent,
+calibration, measurement validity, or evidence eligibility.
+
 ## Delivered foundation
 
 - A common inquiry, claim, hypothesis, dataset, protocol, run, evidence,

@@ -533,6 +533,17 @@ operates the machine through a stable command interface. A later UI, HTTP API,
 or model provider can call the same application services without changing the
 domain model.
 
+The long-range adequacy target is demanding: Faraday should support hard
+scientific campaigns only after the machine can handle the needed domain
+add-ons, trusted dataset custody, validated methods, adversarial competing
+models, independent review, replication campaigns, and disciplined claim
+separation. For campaigns such as foundations physics or forensic structural
+analysis, data should enter from registered experiments, acquisition add-ons, or
+scientific connectors. Connector output remains low-authority source material
+until Faraday registers and audits it through the normal dataset, protocol, run,
+evidence, review, and ledger contracts; plugin or connector access is not itself
+evidence.
+
 The machine is deliberately not a claim-confirmation engine. It keeps competing
 explanations alive, separates levels of inference, records scoped evidence, and
 preserves rejected hypotheses with the conditions under which they should be
