@@ -2,6 +2,7 @@ import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
+import shutil
 
 import pytest
 
@@ -15,6 +16,8 @@ from research_machine.application.service import ResearchService
 from research_machine.application.audit_prerequisite import (
     AUDIT_PREREQUISITE_CONCLUSION_CEILING,
     SOURCE_PINNED_REVIEW_FINDING_ROLE,
+    bind_action_audit_prerequisites,
+    validate_audit_prerequisite_contract,
 )
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
@@ -39,6 +42,18 @@ SUBJECT_SHA256 = "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d863895059
 AUDIT_SHA256 = "0a639e59dbc54232ea6a7c70d4e8ad09dd96aaa6a31188466a18f48cd6e8e939"
 SOURCE_FINDING_SHA256 = "d8eb6386dc6d56530e8b8e412e252b7a0cdb4b4ef0fc4b62cdf4a051dff76a4b"
 AUDIT_REPORT_SHA256 = "d0a65fe83d6d7c6aaae5ebc5dd7b508ee255b66d7b77ed93eb766e2cd79ae425"
+
+
+def sha256_bytes(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def write_canonical_json(path: Path, payload: dict[str, object]) -> str:
+    content = (
+        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    ).encode("utf-8")
+    path.write_bytes(content)
+    return sha256_bytes(content)
 
 
 def audit_contract(*, candidate_advancing: bool) -> AuditPrerequisiteContract:
@@ -103,6 +118,40 @@ def audit_contract(*, candidate_advancing: bool) -> AuditPrerequisiteContract:
     )
 
 
+def overclaiming_source_pinned_root(tmp_path: Path) -> tuple[Path, AuditPrerequisiteContract]:
+    root = tmp_path / "audit-root"
+    shutil.copytree(AUDIT_FIXTURE_ROOT, root)
+
+    finding_path = root / "source-pinned-finding.json"
+    finding_payload = json.loads(finding_path.read_text(encoding="utf-8"))
+    finding_payload[
+        "finding_statement"
+    ] = "The retained candidate establishes legal responsibility for the event."
+    finding_sha256 = write_canonical_json(finding_path, finding_payload)
+
+    audit_path = root / "favorable-audit.json"
+    audit_payload = json.loads(audit_path.read_text(encoding="utf-8"))
+    for artifact in audit_payload["supporting_artifacts"]:
+        if artifact["artifact_role"] == SOURCE_PINNED_REVIEW_FINDING_ROLE:
+            artifact["artifact_sha256"] = finding_sha256
+    audit_sha256 = write_canonical_json(audit_path, audit_payload)
+
+    base = audit_contract(candidate_advancing=True)
+    base_audit = base.required_audits[0]
+    updated_supporting = [
+        replace(item, artifact_sha256=finding_sha256)
+        if item.artifact_role == SOURCE_PINNED_REVIEW_FINDING_ROLE
+        else item
+        for item in base_audit.supporting_artifacts
+    ]
+    updated_audit = replace(
+        base_audit,
+        artifact_sha256=audit_sha256,
+        supporting_artifacts=updated_supporting,
+    )
+    return root, replace(base, required_audits=[updated_audit])
+
+
 def prepared_service(root: Path) -> ResearchService:
     counter = iter(f"portfolio{index:02d}" for index in range(100))
     service = ResearchService(
@@ -121,6 +170,38 @@ def prepared_service(root: Path) -> ResearchService:
         )
     )
     return service
+
+
+def test_source_pinned_review_finding_rejects_legal_overclaiming_prose(
+    tmp_path: Path,
+) -> None:
+    root, contract = overclaiming_source_pinned_root(tmp_path)
+    action = replace(
+        candidate("source-pinned-overclaim", "machine", 0.8),
+        audit_prerequisite_contract=contract,
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="source-pinned finding statement uses report-prohibited overclaiming language",
+    ):
+        bind_action_audit_prerequisites([action], root)
+
+
+def test_nonadvancing_audit_statement_rejects_legal_overclaiming_prose() -> None:
+    contract = audit_contract(candidate_advancing=False)
+    contract = replace(
+        contract,
+        nonadvancing_information_statement=(
+            "This bounded information work establishes legal responsibility."
+        ),
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="nonadvancing information statement uses report-prohibited overclaiming language",
+    ):
+        validate_audit_prerequisite_contract(contract)
 
 
 def candidate(

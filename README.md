@@ -2767,16 +2767,21 @@ identity and time, limitations, at least one strict
 `source_pinned_review_finding` JSON artifact, and any additional supporting
 reports. The source-pinned finding must name the audited subject, cite exact
 source bytes, retain a bounded disposition and conclusion ceiling, and replay
-the cited source hash before ranking. Supply `--audit-artifact-root` so Faraday
-can verify all of those files before ranking. Missing, changed, pending,
-adverse, report-only, or differently scoped audit material fails closed; pending
-and adverse records may remain visible but cannot be selected.
+the cited source hash before ranking. Audit scopes, audit limitations,
+source-pinned finding statements, finding bases, and finding limitations also
+use the bounded report-language guard, including rejection of legal/intent
+authority phrases such as "establishes legal responsibility" or "finds
+fraudulent intent." Supply `--audit-artifact-root` so Faraday can verify all of
+those files before ranking. Missing, changed, pending, adverse, report-only, or
+differently scoped audit material fails closed; pending and adverse records may
+remain visible but cannot be selected.
 `exposed_evaluator_development` is a separate non-advancing class for public
 evaluator work. `nonadvancing_information` covers ordinary bounded source,
 literature, and infrastructure inquiries without falsely calling them evaluator
 development. Both require their own canonical statement, must leave the other
-statement empty, and cannot name hypothesis discrimination or acquire candidate
-admission from a favorable result. See
+statement empty, must keep their statements and limitations bounded, and cannot
+name hypothesis discrimination or acquire candidate admission from a favorable
+result. See
 [`docs/action-audit-prerequisites.md`](docs/action-audit-prerequisites.md).
 The single `next-action recommend` path has no completed-action graph, so it
 rejects candidates with `depends_on`; dependent actions must use portfolio

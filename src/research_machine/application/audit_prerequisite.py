@@ -11,9 +11,9 @@ from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
-import re
 from typing import Any, Sequence
 
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.errors import IntegrityError, ValidationError
 from research_machine.domain.models import (
     ActionAuditClass,
@@ -47,12 +47,6 @@ _DISPOSITION_BY_VERDICT = {
     "pending": "inconclusive",
     "adverse": "blocks_workflow_advancement",
 }
-_REPORT_OVERCLAIM_RE = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
-
-
 def _canonical_text(value: object, field: str, *, allow_empty: bool = False) -> str:
     if not isinstance(value, str):
         raise ValidationError(f"{field} must be text")
@@ -63,9 +57,9 @@ def _canonical_text(value: object, field: str, *, allow_empty: bool = False) -> 
     return value
 
 
-def _bounded_text(value: object, field: str) -> str:
-    text = _canonical_text(value, field)
-    if _REPORT_OVERCLAIM_RE.search(text):
+def _bounded_text(value: object, field: str, *, allow_empty: bool = False) -> str:
+    text = _canonical_text(value, field, allow_empty=allow_empty)
+    if report_overclaim_terms(text):
         raise ValidationError(
             f"{field} uses report-prohibited overclaiming language"
         )
@@ -220,14 +214,14 @@ def _normalize_audit(audit: AuditPrerequisiteArtifact) -> AuditPrerequisiteArtif
             "audit artifact audited subject sha256",
         ),
         verdict=verdict,
-        scope=_canonical_text(audit.scope, "audit artifact scope"),
+        scope=_bounded_text(audit.scope, "audit artifact scope"),
         auditor_identity=_canonical_text(
             audit.auditor_identity, "audit artifact auditor identity"
         ),
         audited_at=_timezone_aware_timestamp(
             audit.audited_at, "audit artifact audited_at"
         ),
-        limitations=_canonical_list(
+        limitations=_bounded_list(
             audit.limitations, "audit artifact limitations", required=True
         ),
         supporting_artifacts=supporting_artifacts,
@@ -265,17 +259,17 @@ def validate_audit_prerequisite_contract(
         raise ValidationError("audit prerequisite required_audits must be a list")
     subjects = [_normalize_subject(item) for item in contract.subjects]
     audits = [_normalize_audit(item) for item in contract.required_audits]
-    exposure = _canonical_text(
+    exposure = _bounded_text(
         contract.evaluator_exposure_statement,
         "evaluator exposure statement",
         allow_empty=True,
     )
-    information_statement = _canonical_text(
+    information_statement = _bounded_text(
         contract.nonadvancing_information_statement,
         "nonadvancing information statement",
         allow_empty=True,
     )
-    limitations = _canonical_list(
+    limitations = _bounded_list(
         contract.limitations, "audit prerequisite limitations", required=True
     )
     ceiling = _canonical_text(

@@ -12,6 +12,7 @@ from research_machine.application.audit_prerequisite import (
     validate_audit_prerequisite_contract,
 )
 from research_machine.domain.errors import ValidationError
+from research_machine.application.report_language import report_overclaim_terms
 from research_machine.domain.models import (
     ActionCandidate,
     ActionLane,
@@ -100,20 +101,6 @@ def typed_result_exposure_allows_evidence(metadata: Mapping[str, Any]) -> bool:
     )
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_REPORT_OVERCLAIM = re.compile(
-    r"\b(?:proved|confirmed|explained|validates?|validated)\b",
-    re.IGNORECASE,
-)
-_LEGAL_INTENT_OVERCLAIM = re.compile(
-    r"\b(?:establish(?:es|ed)?|finds?|found|determines?|determined|"
-    r"shows?|showed|demonstrates?|demonstrated)\b(?:\s+\w+){0,6}\s+"
-    r"\b(?:legal characterization|legal responsibility|legal liability|"
-    r"culpability|liability|guilt|negligence|fraudulent intent|criminal intent|"
-    r"intentional wrongdoing)\b|"
-    r"\b(?:is|are|was|were)\s+(?:legally responsible|liable|guilty|negligent)\b|"
-    r"\bcommitted\s+fraud\b",
-    re.IGNORECASE,
-)
 _PENDING_REVIEW_AUTHORITY_CLAIM = re.compile(
     r"\b(?:accepts?|accepted|approves?|approved|approval|authorizes?|"
     r"authorized|authorization|confirms?|confirmed|confirmation|proves?|"
@@ -373,20 +360,6 @@ def validate_hypothesis_retirement_boundary(hypothesis: Hypothesis) -> None:
 
 def require_bounded_evidence_summary(value: str) -> str:
     return require_bounded_report_text(value, "evidence summary")
-
-
-def report_overclaim_terms(value: str) -> list[str]:
-    if not isinstance(value, str):
-        return []
-    terms: list[str] = []
-    seen: set[str] = set()
-    for pattern in (_REPORT_OVERCLAIM, _LEGAL_INTENT_OVERCLAIM):
-        for match in pattern.finditer(value):
-            term = match.group(0).casefold()
-            if term not in seen:
-                seen.add(term)
-                terms.append(term)
-    return terms
 
 
 def _metadata_overclaim_terms(value: str) -> list[str]:

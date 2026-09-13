@@ -94,14 +94,17 @@ calibration, measurement validity, or evidence eligibility.
   `source_pinned_review_finding` JSON artifact that names the audited subject,
   cites exact source bytes, preserves a bounded disposition and conclusion
   ceiling, and replays the cited source hash; optional prose reports cannot
-  replace it. Current-byte and receipt replay fail closed on absence, drift,
-  report-only support, pending or adverse verdicts, or different subject scope.
+  replace it. Audit scopes, audit limitations, source-pinned finding statements,
+  bases, and limitations are also bounded report prose and reject legal/intent
+  authority phrases such as "establishes legal responsibility" or "finds
+  fraudulent intent." Current-byte and receipt replay fail closed on absence,
+  drift, report-only support, pending or adverse verdicts, or different subject scope.
   Exposed evaluator development and ordinary `nonadvancing_information` are
   distinct, explicitly non-advancing classes with dedicated, mutually exclusive
-  statement fields; neither can claim hypothesis discrimination. The ceiling is
-  workflow eligibility only; audit truth, identity, independence, scientific
-  validity, evidence, and replication remain unestablished. Historical version-1 and
-  version-2 recommendations remain readable without acquiring current
+  bounded statement fields; neither can claim hypothesis discrimination. The
+  ceiling is workflow eligibility only; audit truth, identity, independence,
+  scientific validity, evidence, and replication remain unestablished.
+  Historical version-1 and version-2 recommendations remain readable without acquiring current
   advancement authority.
   Hypothesis-discriminating candidates also retain service-derived workflow
   states for every cited target, so `pending_review` proposals remain visibly

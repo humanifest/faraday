@@ -39,12 +39,16 @@ reports, but prose reports cannot stand in for the source-pinned finding. The
 finding artifact is strict JSON that must name the audited subject, cite exact
 source bytes, retain a bounded disposition matching the audit verdict, state
 bounded finding and basis text, list limitations, and use the exact
-source-pinned non-evidence ceiling. At recommendation creation Faraday verifies
-the current subject, audit JSON, source-pinned finding, cited source bytes, and
-any other supporting-artifact bytes, plus exact agreement between the audit JSON
-and the prospective contract. It then retains a service-generated receipt.
-Authoritative reads repeat every byte check and require the recomputed receipt
-to equal the retained receipt.
+source-pinned non-evidence ceiling. The audit scope, audit limitations, finding
+statement, finding basis, and finding limitations use the same bounded
+report-language guard as canonical reports, including rejection of legal/intent
+authority phrases such as "establishes legal responsibility" or "finds
+fraudulent intent." At recommendation creation Faraday verifies the current
+subject, audit JSON, source-pinned finding, cited source bytes, and any other
+supporting-artifact bytes, plus exact agreement between the audit JSON and the
+prospective contract. It then retains a service-generated receipt. Authoritative
+reads repeat every byte check and require the recomputed receipt to equal the
+retained receipt.
 
 Only a candidate-advancing contract whose required audits all retain
 `favorable` verdicts is workflow-selectable. Pending and adverse audits remain
@@ -76,7 +80,10 @@ claim. It requires its own canonical `nonadvancing_information_statement`, an
 empty evaluator-exposure statement, and explicit limitations. It can select
 bounded literature/source search, catalog work, or infrastructure audit without
 mislabeling that work as evaluator development. It must name no hypothesis
-distinction and must keep `expected_discrimination` at zero.
+distinction and must keep `expected_discrimination` at zero. Its statement and
+limitations must also remain bounded report text, so they cannot claim proof,
+validation, legal/intent attribution, evidence, replication, or candidate
+advancement.
 
 ## Exposed evaluator development
 
@@ -84,7 +91,8 @@ An exposed evaluator-development contract has no audited subjects or audit
 coverage claim. It requires an explicit evaluator-exposure statement, an empty
 non-advancing-information statement, and limitations. It may be selected to
 develop or exercise an evaluator, but it must name no hypothesis distinction and
-must keep `expected_discrimination` at zero.
+must keep `expected_discrimination` at zero. Its exposure statement and
+limitations use the same bounded report-language guard.
 
 Receipts for both non-advancing classes always set
 `candidate_advancement_eligible`, `scientific_validity_established`, and
