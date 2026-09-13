@@ -1207,18 +1207,20 @@ calibration, synchronization, or timing validity. The frozen context also carrie
 the same structured dataset inventory used by `dataset inventory` and
 deterministic synthesis, so optional reviewers see registered dataset counts,
 roles, synthetic/protected status, observation access, custody, ethics state,
-rigor blockers, source-authority routes, and readiness without treating draft
-data-source mentions or plugin access as datasets. Source-authority entries are
+rigor blockers, source-authority routes, bounded workflow-materialization
+status, and readiness without treating draft data-source mentions or plugin
+access as datasets. Source-authority entries are
 provider-neutral provenance labels only: experiment, add-on, connector, import,
 or attestation access does not prove source truth, custody, consent,
 calibration, measurement validity, or evidence eligibility. When supplied, the
 retrieval or collection time must be an offset-aware ISO-8601 timestamp so
 source-route chronology is machine-checkable rather than prose. Context freezing
 replays that inventory against the visible dataset records, counts, role totals,
-rigor-error totals, source-authority boundaries, and redaction flags before
-publishing it. A frozen context cannot upgrade a connector, add-on, experiment,
-import, attestation, or synthetic source route into source truth, custody, or
-evidence eligibility. Current
+rigor-error totals, source-authority boundaries, workflow-materialization
+authority flags, and redaction flags before publishing it. A frozen context
+cannot upgrade a connector, add-on, experiment, import, attestation, synthetic
+source route, or materialized workflow byte chain into source truth, custody,
+scientific interpretation, or evidence eligibility. Current
 service-generated contexts use
 `context_version: 2`, whose dataset inventory is mandatory. Historical
 `context_version: 1` contexts retain their original inventory-free shape and
@@ -2339,8 +2341,9 @@ gate evidence.
 - `dataset inventory` and synthesis now expose a registered dataset inventory
   that reports role counts, synthetic/non-synthetic status, artifact media,
   protocol binding, lineage sources, source-authority route, payload sealing,
-  observation-byte access/readiness, custody, ethics-check state, and
-  dataset-scoped rigor blockers. Source authority is typed as a source route
+  observation-byte access/readiness, custody, ethics-check state, bounded
+  workflow-materialization status, and dataset-scoped rigor blockers. Source
+  authority is typed as a source route
   such as a registered experiment, acquisition add-on, scientific connector,
   manual import, external attestation, or synthetic fixture, and the service
   rejects attempts to treat that route as verified truth, custody, or evidence
@@ -2356,7 +2359,8 @@ gate evidence.
   `schemas/dataset-inventory.schema.json` lets provider-neutral clients
   validate the structured CLI payload. The payload redacts operational roots and
   keeps the inventory as provenance visibility, not proof of source truth,
-  consent truth, measurement validity, or analysis adequacy.
+  consent truth, workflow source truth, measurement validity, scientific
+  interpretation, or analysis adequacy.
 - Draft, amend, and hash-freeze observational, experimental, computational,
   formal, literature, and synthesis protocols.
 - Bind each frozen protocol to the complete scientific content of every tested

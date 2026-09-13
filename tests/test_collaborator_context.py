@@ -70,6 +70,19 @@ _EMPTY_DATASET_INVENTORY = {
     ),
     "datasets": [],
 }
+_NO_WORKFLOW_MATERIALIZATION = {
+    "status": "not_recorded",
+    "service_verified": False,
+    "source_receipts_replayed": False,
+    "scientific_evidence_eligible": False,
+    "scientific_interpretation_verified": False,
+    "family_step_id": "",
+    "family_id": "",
+    "source_count": 0,
+    "output_sha256": None,
+    "row_count": 0,
+    "summary": "no workflow materialization verification recorded",
+}
 _CONTROL_CHARACTERS = [chr(codepoint) for codepoint in range(0x20)] + [chr(0x7F)]
 _CONTROL_KEY_TEMPLATES = [
     "{control}_path",
@@ -230,6 +243,7 @@ def _context_with_artifact_metadata(metadata: dict) -> dict:
                 ),
             },
             "observation_access": {"status": "synthetic_fixture"},
+            "workflow_materialization": copy.deepcopy(_NO_WORKFLOW_MATERIALIZATION),
             "readiness": {"status": "not_protected_evidence_dataset"},
             "rigor_error_codes": [],
             "operational_roots_redacted": True,
@@ -314,6 +328,8 @@ def test_collaborator_context_includes_bounded_dataset_inventory(tmp_path) -> No
     row = inventory["datasets"][0]
     assert row["dataset_id"] == "context-dataset"
     assert row["observation_access"]["status"] == "synthetic_fixture"
+    assert row["workflow_materialization"]["status"] == "not_recorded"
+    assert row["workflow_materialization"]["scientific_evidence_eligible"] is False
     assert row["readiness"]["status"] == "not_protected_evidence_dataset"
     assert row["operational_roots_redacted"] is True
     assert str(tmp_path.resolve()) not in json.dumps(context)
@@ -705,6 +721,7 @@ def test_v2_context_freeze_rejects_unsafe_locator_tampering(
         "synthetic": True,
         "protocol_id": None,
         "observation_access": {"status": "synthetic_fixture"},
+        "workflow_materialization": copy.deepcopy(_NO_WORKFLOW_MATERIALIZATION),
         "readiness": {"status": "not_protected_evidence_dataset"},
         "rigor_error_codes": [],
         "operational_roots_redacted": True,
@@ -825,6 +842,12 @@ def test_v2_context_requires_new_operational_fields_to_be_redacted(
                 "source_authority"
             ].update({"source_truth_verified": True}),
             "source_truth_verified must remain false",
+        ),
+        (
+            lambda context: context["dataset_inventory"]["datasets"][0][
+                "workflow_materialization"
+            ].update({"scientific_evidence_eligible": True}),
+            "scientific_evidence_eligible must remain false",
         ),
         (
             lambda context: context["dataset_inventory"].update(

@@ -254,9 +254,30 @@ _DATASET_INVENTORY_SOURCE_AUTHORITY_FIELDS = {
     "limitations",
     "summary",
 }
+_DATASET_INVENTORY_WORKFLOW_MATERIALIZATION_FIELDS = {
+    "status",
+    "service_verified",
+    "source_receipts_replayed",
+    "scientific_evidence_eligible",
+    "scientific_interpretation_verified",
+    "family_step_id",
+    "family_id",
+    "source_count",
+    "output_sha256",
+    "row_count",
+    "summary",
+}
 _NOT_RECORDED_SOURCE_AUTHORITY_SUMMARY = (
     "source route not typed; artifact hashes and dataset role do not "
     "establish source authority"
+)
+_NOT_RECORDED_WORKFLOW_MATERIALIZATION_SUMMARY = (
+    "no workflow materialization verification recorded"
+)
+_WORKFLOW_MATERIALIZATION_LIMIT = (
+    "Local Holm-family byte-chain replay only; not evidence eligibility, "
+    "scientific interpretation, chronology authentication, executor "
+    "independence, gate success, or source-data truth."
 )
 
 
@@ -971,6 +992,91 @@ def _validate_dataset_inventory_source_authority(
         _canonical_text(item, f"{path}.limitations[{index}]")
 
 
+def _validate_dataset_inventory_workflow_materialization(
+    value: Any, path: str
+) -> None:
+    if not isinstance(value, dict):
+        raise ValidationError(f"collaborator context {path} must be an object")
+    _exact_fields(
+        value,
+        _DATASET_INVENTORY_WORKFLOW_MATERIALIZATION_FIELDS,
+        f"collaborator context {path}",
+    )
+    status = _canonical_text(value["status"], f"{path}.status")
+    if status not in {"not_recorded", "source_receipts_replayed"}:
+        raise ValidationError(f"collaborator context {path}.status is unsupported")
+    for field in (
+        "service_verified",
+        "source_receipts_replayed",
+        "scientific_evidence_eligible",
+        "scientific_interpretation_verified",
+    ):
+        if not isinstance(value[field], bool):
+            raise ValidationError(f"collaborator context {path}.{field} must be boolean")
+    if value["scientific_evidence_eligible"] is not False:
+        raise ValidationError(
+            f"collaborator context {path}.scientific_evidence_eligible must remain false"
+        )
+    if value["scientific_interpretation_verified"] is not False:
+        raise ValidationError(
+            f"collaborator context {path}.scientific_interpretation_verified must remain false"
+        )
+    source_count = value["source_count"]
+    row_count = value["row_count"]
+    if (
+        isinstance(source_count, bool)
+        or not isinstance(source_count, int)
+        or source_count < 0
+        or isinstance(row_count, bool)
+        or not isinstance(row_count, int)
+        or row_count < 0
+    ):
+        raise ValidationError(
+            f"collaborator context {path} source_count and row_count must be non-negative integers"
+        )
+    if status == "not_recorded":
+        if value["service_verified"] is not False or value["source_receipts_replayed"] is not False:
+            raise ValidationError(
+                f"collaborator context {path} must not claim workflow verification when not recorded"
+            )
+        if value["family_step_id"] != "" or value["family_id"] != "":
+            raise ValidationError(
+                f"collaborator context {path} identifiers must be blank when not recorded"
+            )
+        if value["output_sha256"] is not None:
+            raise ValidationError(
+                f"collaborator context {path}.output_sha256 must be null when not recorded"
+            )
+        if source_count != 0 or row_count != 0:
+            raise ValidationError(
+                f"collaborator context {path} counts must be zero when not recorded"
+            )
+        if value["summary"] != _NOT_RECORDED_WORKFLOW_MATERIALIZATION_SUMMARY:
+            raise ValidationError(
+                f"collaborator context {path}.summary must preserve the not-recorded workflow boundary"
+            )
+        return
+    if value["service_verified"] is not True or value["source_receipts_replayed"] is not True:
+        raise ValidationError(
+            f"collaborator context {path} must retain source receipt replay status"
+        )
+    _canonical_text(value["family_step_id"], f"{path}.family_step_id")
+    _canonical_text(value["family_id"], f"{path}.family_id")
+    if source_count < 1 or row_count < 1:
+        raise ValidationError(
+            f"collaborator context {path} counts must be positive when replayed"
+        )
+    output_sha256 = value["output_sha256"]
+    if not isinstance(output_sha256, str) or not _SHA256.fullmatch(output_sha256):
+        raise ValidationError(
+            f"collaborator context {path}.output_sha256 must be a lowercase SHA-256 digest"
+        )
+    if value["summary"] != _WORKFLOW_MATERIALIZATION_LIMIT:
+        raise ValidationError(
+            f"collaborator context {path}.summary must preserve the workflow materialization boundary"
+        )
+
+
 def _validate_context_dataset_inventory(context: dict[str, Any]) -> None:
     inventory = context.get("dataset_inventory")
     if not isinstance(inventory, dict):
@@ -1035,6 +1141,10 @@ def _validate_context_dataset_inventory(context: dict[str, Any]) -> None:
         _validate_dataset_inventory_source_authority(
             row.get("source_authority"),
             f"dataset_inventory.datasets[{index}].source_authority",
+        )
+        _validate_dataset_inventory_workflow_materialization(
+            row.get("workflow_materialization"),
+            f"dataset_inventory.datasets[{index}].workflow_materialization",
         )
         findings = row.get("rigor_findings", [])
         if not isinstance(findings, list):

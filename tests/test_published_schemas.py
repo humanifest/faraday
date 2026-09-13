@@ -334,6 +334,58 @@ def test_dataset_inventory_schema_accepts_builder_payloads():
                     "all_artifacts_match": True,
                 }
             },
+            "workflow_materialization_verification": {
+                "verification_version": 1,
+                "verified_at": "2026-09-13T00:00:00Z",
+                "verified_by": "schema-test",
+                "status": "workflow_materialization_verified",
+                "protocol_id": protocol.protocol_id,
+                "protocol_hash": protocol.protocol_hash,
+                "family_step_id": "holm-family",
+                "family_id": "confirmatory-family",
+                "dependency_manifest": {
+                    "artifact_root": "/redacted/source",
+                    "locator": "dependencies.json",
+                    "sha256": "1" * 64,
+                },
+                "materialization": {
+                    "artifact_root": "/redacted/materialization",
+                    "receipt_sha256": "2" * 64,
+                },
+                "output": {
+                    "locator": "observations.csv",
+                    "sha256": "d" * 64,
+                    "size_bytes": 13,
+                    "row_count": 2,
+                },
+                "verified_sources": [
+                    {
+                        "source_step_id": "test-a",
+                        "receipt_sha256": "3" * 64,
+                        "result_sha256": "4" * 64,
+                        "p_value_path": "/p_value",
+                        "p_value_sha256": "5" * 64,
+                    },
+                    {
+                        "source_step_id": "test-b",
+                        "receipt_sha256": "6" * 64,
+                        "result_sha256": "7" * 64,
+                        "p_value_path": "/p_value",
+                        "p_value_sha256": "8" * 64,
+                    },
+                ],
+                "scope": (
+                    "Holm-family materialization from pinned source execution receipts "
+                    "and registered p-value selectors"
+                ),
+                "scientific_evidence_eligible": False,
+                "scientific_interpretation_verified": False,
+                "notice": (
+                    "Verifies local source receipt/result bytes and registered p-value selectors; "
+                    "it does not authenticate chronology, executors, scientific gates, or "
+                    "source data truth."
+                ),
+            },
         },
     )
     finding = RigorFinding(
@@ -358,6 +410,10 @@ def test_dataset_inventory_schema_accepts_builder_payloads():
     )
     assert protected_row["operational_roots_redacted"] is True
     assert protected_row["readiness"]["status"] == "protected_use_blocked_by_rigor"
+    workflow = protected_row["workflow_materialization"]
+    assert workflow["status"] == "source_receipts_replayed"
+    assert workflow["source_count"] == 2
+    assert workflow["scientific_evidence_eligible"] is False
 
 
 def test_dataset_inventory_schema_requires_operational_root_redaction():

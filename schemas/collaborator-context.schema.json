@@ -451,6 +451,7 @@
         "payload_commitment",
         "observation_access",
         "measurement_custody",
+        "workflow_materialization",
         "ethics",
         "rigor_findings",
         "readiness",
@@ -484,6 +485,7 @@
         "payload_commitment": {"$ref": "#/$defs/datasetPayloadCommitment"},
         "observation_access": {"$ref": "#/$defs/datasetObservationAccess"},
         "measurement_custody": {"$ref": "#/$defs/datasetMeasurementCustody"},
+        "workflow_materialization": {"$ref": "#/$defs/datasetWorkflowMaterialization"},
         "ethics": {"$ref": "#/$defs/datasetEthics"},
         "rigor_findings": {
           "type": "array",
@@ -596,6 +598,41 @@
         },
         "required_by_protocol": {"type": "boolean"},
         "service_verified": {"type": "boolean"},
+        "summary": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": false
+    },
+    "datasetWorkflowMaterialization": {
+      "type": "object",
+      "required": [
+        "status",
+        "service_verified",
+        "source_receipts_replayed",
+        "scientific_evidence_eligible",
+        "scientific_interpretation_verified",
+        "family_step_id",
+        "family_id",
+        "source_count",
+        "output_sha256",
+        "row_count",
+        "summary"
+      ],
+      "properties": {
+        "status": {"enum": ["not_recorded", "source_receipts_replayed"]},
+        "service_verified": {"type": "boolean"},
+        "source_receipts_replayed": {"type": "boolean"},
+        "scientific_evidence_eligible": {"const": false},
+        "scientific_interpretation_verified": {"const": false},
+        "family_step_id": {"type": "string"},
+        "family_id": {"type": "string"},
+        "source_count": {"type": "integer", "minimum": 0},
+        "output_sha256": {
+          "anyOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        },
+        "row_count": {"type": "integer", "minimum": 0},
         "summary": {"$ref": "#/$defs/canonicalNonEmptyText"}
       },
       "additionalProperties": false

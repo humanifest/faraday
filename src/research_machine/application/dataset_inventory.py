@@ -13,6 +13,7 @@ from research_machine.domain.models import (
 from research_machine.application.dataset_source_authority import (
     dataset_source_authority_status,
 )
+from research_machine.domain.errors import ValidationError
 
 
 INTERPRETATION_LIMIT = (
@@ -23,6 +24,20 @@ EMPTY_INVENTORY_NOTICE = (
     "No datasets are registered in canonical workspace state. Draft data-source "
     "mentions, external plugin access, and design briefs are not counted as "
     "datasets until they are registered through the service."
+)
+WORKFLOW_MATERIALIZATION_LIMIT = (
+    "Local Holm-family byte-chain replay only; not evidence eligibility, "
+    "scientific interpretation, chronology authentication, executor "
+    "independence, gate success, or source-data truth."
+)
+_WORKFLOW_MATERIALIZATION_SCOPE = (
+    "Holm-family materialization from pinned source execution receipts and "
+    "registered p-value selectors"
+)
+_WORKFLOW_MATERIALIZATION_NOTICE = (
+    "Verifies local source receipt/result bytes and registered p-value selectors; "
+    "it does not authenticate chronology, executors, scientific gates, or source "
+    "data truth."
 )
 
 
@@ -118,6 +133,144 @@ def _measurement_custody(
         "required_by_protocol": False,
         "service_verified": False,
         "summary": "no measurement-custody verification recorded",
+    }
+
+
+def _sha256(value: object, field_name: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValidationError(f"{field_name} must be a lowercase SHA-256 digest")
+    return value
+
+
+def _workflow_materialization(dataset: DatasetManifest) -> dict[str, Any]:
+    if "workflow_materialization" in dataset.metadata:
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} retains raw workflow_materialization input"
+        )
+    receipt = dataset.metadata.get("workflow_materialization_verification")
+    if receipt is None:
+        return {
+            "status": "not_recorded",
+            "service_verified": False,
+            "source_receipts_replayed": False,
+            "scientific_evidence_eligible": False,
+            "scientific_interpretation_verified": False,
+            "family_step_id": "",
+            "family_id": "",
+            "source_count": 0,
+            "output_sha256": None,
+            "row_count": 0,
+            "summary": "no workflow materialization verification recorded",
+        }
+    if not isinstance(receipt, dict):
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow_materialization_verification must be an object"
+        )
+    if set(receipt) != {
+        "verification_version",
+        "verified_at",
+        "verified_by",
+        "status",
+        "protocol_id",
+        "protocol_hash",
+        "family_step_id",
+        "family_id",
+        "dependency_manifest",
+        "materialization",
+        "output",
+        "verified_sources",
+        "scope",
+        "scientific_evidence_eligible",
+        "scientific_interpretation_verified",
+        "notice",
+    }:
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization verification fields changed"
+        )
+    if receipt.get("verification_version") != 1:
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization version is unsupported"
+        )
+    if receipt.get("status") != "workflow_materialization_verified":
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization status changed"
+        )
+    if receipt.get("scientific_evidence_eligible") is not False:
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization must remain non-evidentiary"
+        )
+    if receipt.get("scientific_interpretation_verified") is not False:
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization must remain non-interpretive"
+        )
+    if receipt.get("scope") != _WORKFLOW_MATERIALIZATION_SCOPE:
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization scope changed"
+        )
+    if receipt.get("notice") != _WORKFLOW_MATERIALIZATION_NOTICE:
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization notice changed"
+        )
+    output = receipt.get("output")
+    if not isinstance(output, dict):
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization output must be an object"
+        )
+    output_sha256 = _sha256(
+        output.get("sha256"),
+        f"dataset {dataset.dataset_id} workflow materialization output sha256",
+    )
+    matching_artifacts = [
+        artifact for artifact in dataset.artifacts if artifact.sha256 == output_sha256
+    ]
+    if len(matching_artifacts) != 1:
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization output must match exactly one dataset artifact"
+        )
+    row_count = output.get("row_count")
+    if isinstance(row_count, bool) or not isinstance(row_count, int) or row_count < 1:
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization row_count is invalid"
+        )
+    sources = receipt.get("verified_sources")
+    if not isinstance(sources, list) or len(sources) != row_count:
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization source count changed"
+        )
+    family_step_id = receipt.get("family_step_id")
+    family_id = receipt.get("family_id")
+    if not isinstance(family_step_id, str) or not family_step_id.strip():
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization family_step_id is missing"
+        )
+    if family_step_id != family_step_id.strip():
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization family_step_id must be canonical"
+        )
+    if not isinstance(family_id, str) or not family_id.strip():
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization family_id is missing"
+        )
+    if family_id != family_id.strip():
+        raise ValidationError(
+            f"dataset {dataset.dataset_id} workflow materialization family_id must be canonical"
+        )
+    return {
+        "status": "source_receipts_replayed",
+        "service_verified": True,
+        "source_receipts_replayed": True,
+        "scientific_evidence_eligible": False,
+        "scientific_interpretation_verified": False,
+        "family_step_id": family_step_id,
+        "family_id": family_id,
+        "source_count": len(sources),
+        "output_sha256": output_sha256,
+        "row_count": row_count,
+        "summary": WORKFLOW_MATERIALIZATION_LIMIT,
     }
 
 
@@ -302,6 +455,7 @@ def build_dataset_inventory(
                 "payload_commitment": _payload_commitment(dataset),
                 "observation_access": _observation_access(dataset),
                 "measurement_custody": _measurement_custody(dataset, protocol),
+                "workflow_materialization": _workflow_materialization(dataset),
                 "ethics": _ethics_context(dataset, protocol),
                 "rigor_findings": [
                     _finding_summary(finding) for finding in current_findings

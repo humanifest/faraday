@@ -55,6 +55,7 @@
         "payload_commitment",
         "observation_access",
         "measurement_custody",
+        "workflow_materialization",
         "ethics",
         "rigor_findings",
         "readiness",
@@ -88,6 +89,7 @@
         "payload_commitment": {"$ref": "#/$defs/payload_commitment"},
         "observation_access": {"$ref": "#/$defs/observation_access"},
         "measurement_custody": {"$ref": "#/$defs/measurement_custody"},
+        "workflow_materialization": {"$ref": "#/$defs/workflow_materialization"},
         "ethics": {"$ref": "#/$defs/ethics"},
         "rigor_findings": {
           "type": "array",
@@ -200,6 +202,41 @@
         },
         "required_by_protocol": {"type": "boolean"},
         "service_verified": {"type": "boolean"},
+        "summary": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "workflow_materialization": {
+      "type": "object",
+      "required": [
+        "status",
+        "service_verified",
+        "source_receipts_replayed",
+        "scientific_evidence_eligible",
+        "scientific_interpretation_verified",
+        "family_step_id",
+        "family_id",
+        "source_count",
+        "output_sha256",
+        "row_count",
+        "summary"
+      ],
+      "properties": {
+        "status": {"enum": ["not_recorded", "source_receipts_replayed"]},
+        "service_verified": {"type": "boolean"},
+        "source_receipts_replayed": {"type": "boolean"},
+        "scientific_evidence_eligible": {"const": false},
+        "scientific_interpretation_verified": {"const": false},
+        "family_step_id": {"type": "string"},
+        "family_id": {"type": "string"},
+        "source_count": {"type": "integer", "minimum": 0},
+        "output_sha256": {
+          "anyOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        },
+        "row_count": {"type": "integer", "minimum": 0},
         "summary": {"type": "string", "minLength": 1}
       },
       "additionalProperties": false

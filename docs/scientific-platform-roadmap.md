@@ -1623,10 +1623,11 @@ exact historical version-1 replay remains unchanged.
 It also carries the structured dataset inventory used by
 the CLI and synthesis, so provider-neutral reviewers can see registered dataset
 counts, roles, synthetic/protected status, observation access, custody, ethics
-state, rigor findings, and readiness while the same boundary states that draft
-data-source mentions, plugin access, and design briefs are not registered
-datasets. Freezing replays the inventory against the visible dataset records,
-registered count, role totals, synthetic totals, rigor-error totals, and
+state, rigor findings, bounded workflow-materialization status, and readiness
+while the same boundary states that draft data-source mentions, plugin access,
+and design briefs are not registered datasets. Freezing replays the inventory
+against the visible dataset records, registered count, role totals, synthetic
+totals, rigor-error totals, workflow-materialization authority flags, and
 operational-root redaction flags before the context can be published. This
 inventory-bearing shape is collaborator `context_version: 2`; exact historical
 version-1 contexts remain valid only in their original inventory-free form, so
@@ -2407,9 +2408,10 @@ unredacted canonical commitment. The structured `dataset inventory` payload now
 has a published schema at `schemas/dataset-inventory.schema.json`, so
 provider-neutral clients can validate dataset role, synthetic status, payload
 commitment, observation access, custody, ethics state, rigor findings, readiness,
-source-authority route, and operational-root redaction without treating the
-inventory as evidence of source truth, consent truth, measurement validity, or
-analysis adequacy. Caller-supplied `metadata.source_authority` is now a typed
+source-authority route, bounded workflow-materialization status, and
+operational-root redaction without treating the inventory as evidence of source
+truth, consent truth, workflow source truth, measurement validity, scientific
+interpretation, or analysis adequacy. Caller-supplied `metadata.source_authority` is now a typed
 source-route contract for registered experiments, acquisition add-ons,
 scientific connectors, manual imports, external attestations, or synthetic
 fixtures. Registration normalizes it, rejects overclaiming source text or any
