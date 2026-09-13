@@ -689,7 +689,7 @@ class SourceComposabilitySourceReference(Serializable):
 
 @dataclass(frozen=True)
 class SourceComposabilityNode(Serializable):
-    """One exact target object whose local support must remain visible."""
+    """One exact target object whose declared support must remain visible."""
 
     node_id: str
     statement: str
@@ -715,7 +715,7 @@ class SourceComposabilityArrow(Serializable):
 
 @dataclass(frozen=True)
 class SourceComposabilityContract(Serializable):
-    """Prospective, public-development contract for a source-composability chain."""
+    """Prospective public-development contract for a source dependency graph."""
 
     contract_version: int
     contract_id: str

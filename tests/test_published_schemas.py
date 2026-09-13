@@ -43,6 +43,7 @@ def test_published_schema_is_well_formed(path):
 
 
 def test_source_composability_example_matches_published_schema_and_status_model():
+    import hashlib
     from research_machine.domain.models import SourceComposabilityStatus
 
     schema = json.loads((SCHEMAS / "source-composability.schema.json").read_text())
@@ -51,11 +52,23 @@ def test_source_composability_example_matches_published_schema_and_status_model(
     assert set(schema["$defs"]["status"]["enum"]) == {
         status.value for status in SourceComposabilityStatus
     }
+    source_root = EXAMPLES / "source-composability-sources"
+    for source in example["source_references"]:
+        source_path = source_root / source["locator"]
+        assert source_path.is_file()
+        assert hashlib.sha256(source_path.read_bytes()).hexdigest() == source[
+            "record_sha256"
+        ]
 
     missing_scope = deepcopy(example)
     missing_scope["required_arrows"][0]["scope"].pop("carrier")
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(missing_scope, schema)
+
+    unsafe_locator = deepcopy(example)
+    unsafe_locator["source_references"][0]["locator"] = "../outside.txt"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(unsafe_locator, schema)
 
 
 def test_protocol_schema_accepts_typed_runtime_and_freeze_bundle_requirements():

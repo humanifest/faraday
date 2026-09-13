@@ -1,0 +1,2 @@
+Synthetic primary source fixture.
+Section 2: The local object has the declared signed construction.

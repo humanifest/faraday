@@ -1,6 +1,6 @@
 {
   "contract_version": 1,
-  "contract_id": "synthetic-source-chain-v1",
+  "contract_id": "synthetic-source-dependency-graph-v2",
   "development_scope": "exposed_evaluator_development",
   "target_scope": {
     "signature": "declared signature fixture",
@@ -21,22 +21,22 @@
       "source_ref": "primary-local",
       "source_kind": "primary_source",
       "canonical_citation": "Synthetic primary source fixture, section 2",
-      "locator": "fixtures/primary-local.txt#section-2",
-      "record_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+      "locator": "primary-local.txt",
+      "record_sha256": "cd81731ff77c2724e23163825d2d801233f21c6115228ccc79418fe30352bb1d"
     },
     {
       "source_ref": "primary-assembled",
       "source_kind": "primary_source",
       "canonical_citation": "Synthetic adjacent-source fixture, proposition 4",
-      "locator": "fixtures/primary-assembled.txt#proposition-4",
-      "record_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+      "locator": "primary-assembled.txt",
+      "record_sha256": "36e5e63a842b10a910f19d42dece42ea3aedd2397000f6f2573f43f0424cb30f"
     },
     {
       "source_ref": "search-record",
       "source_kind": "bounded_search_record",
       "canonical_citation": "Synthetic bounded-search record fixture, version 1",
-      "locator": "fixtures/bounded-search.json",
-      "record_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+      "locator": "bounded-search.json",
+      "record_sha256": "6202a89280d14800655368c10753029534119c40ed6ffcb6ce1d9aaa416a70b1"
     }
   ],
   "nodes": [

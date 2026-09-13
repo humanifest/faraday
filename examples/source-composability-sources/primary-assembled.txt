@@ -1,0 +1,2 @@
+Synthetic adjacent source fixture.
+Proposition 4: A boundary ingredient is available, but the exact assembled target and composition arrow are not asserted.

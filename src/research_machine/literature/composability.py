@@ -1,12 +1,12 @@
-"""Evaluate a typed, source-bound compatibility chain without granting authority."""
+"""Evaluate a typed, source-bound compatibility graph without granting authority."""
 from __future__ import annotations
 
 from collections import Counter
 import hashlib
 import json
 import os
-from pathlib import Path
-import tempfile
+from pathlib import Path, PurePosixPath
+import stat
 from typing import Any
 
 from research_machine.domain.errors import ValidationError
@@ -43,7 +43,14 @@ _SOURCE_FIELDS = {
     "locator",
     "record_sha256",
 }
-_NODE_FIELDS = {"node_id", "statement", "scope", "status", "source_refs", "assessment"}
+_NODE_FIELDS = {
+    "node_id",
+    "statement",
+    "scope",
+    "status",
+    "source_refs",
+    "assessment",
+}
 _ARROW_FIELDS = {
     "arrow_id",
     "source_node_id",
@@ -56,22 +63,27 @@ _ARROW_FIELDS = {
 }
 _AUTHORITY_FIELDS = {
     "source_truth_established": False,
+    "source_semantics_established": False,
     "scientific_validity_established": False,
     "scientific_evidence_eligible": False,
     "replication_authority_established": False,
     "candidate_advancement_eligible": False,
     "runtime_promotion_authorized": False,
     "conclusion_authorized": False,
+    "assessor_identity_authenticated": False,
     "auditor_independence_established": False,
 }
 _LIMITATIONS = [
-    "Statuses and source-to-requirement judgments are declared inputs; Faraday checks their typed structure and custody but does not establish their truth.",
-    "A not-found status is limited to the cited bounded-search record and does not establish global absence.",
-    "Exact support for individual nodes or arrows does not establish a scientific theory, empirical adequacy, independence, or replication.",
+    "Each local source artifact was observed as a regular non-symlink file whose bytes matched its declared SHA-256, but Faraday does not interpret those bytes or validate an internal source schema.",
+    "Statuses and source-to-requirement judgments are declared inputs; matching source bytes do not establish those judgments or source semantics.",
+    "A not-found status is limited to the cited bounded-search record; Faraday does not establish that the search was complete or exhaustive.",
+    "Graph checks establish declared topology and exact signature/dimension equality only; carrier and domain transitions remain explicit human-reviewed arrow content and are not semantically validated.",
+    "Exact support for graph members does not establish mathematical composability, assessor identity, a scientific theory, empirical adequacy, independence, or replication.",
 ]
 _CONCLUSION_CEILING = (
-    "Public-development workflow description of declared source composability only; "
-    "no scientific, evidence, replication, candidate-advancement, or runtime-promotion authority."
+    "Public-development workflow description of a declared source-composability graph "
+    "with matched local source bytes only; no source-semantic, scientific, evidence, "
+    "replication, candidate-advancement, or runtime-promotion authority."
 )
 
 
@@ -95,11 +107,15 @@ def _canonical_ids(value: Any, field: str, *, minimum: int = 1) -> list[str]:
     if (
         not isinstance(value, list)
         or len(value) < minimum
-        or any(not isinstance(item, str) or not item or item != item.strip() for item in value)
+        or any(
+            not isinstance(item, str) or not item or item != item.strip()
+            for item in value
+        )
         or len(value) != len(set(value))
     ):
         raise ValidationError(
-            f"source composability {field} must be a unique ordered array of canonical identifiers"
+            f"source composability {field} must be a unique ordered array of "
+            "canonical identifiers"
         )
     return list(value)
 
@@ -128,31 +144,122 @@ def _source_kind(value: Any, field: str) -> SourceComposabilitySourceKind:
         raise ValidationError(f"invalid source composability {field}") from exc
 
 
-def _parse_contract(specification: dict[str, Any]) -> SourceComposabilityContract:
-    value = _exact_fields(specification, _CONTRACT_FIELDS, "contract")
-    if value["contract_version"] != 1:
-        raise ValidationError("source composability contract_version must be 1")
-    if value["development_scope"] != "exposed_evaluator_development":
+def _safe_relative_locator(value: Any, field: str) -> str:
+    locator = _canonical_text(value, field)
+    if "\\" in locator:
         raise ValidationError(
-            "source composability development_scope must be exposed_evaluator_development"
+            f"source composability {field} must use a safe relative POSIX locator"
+        )
+    path = PurePosixPath(locator)
+    if (
+        path.is_absolute()
+        or path.as_posix() != locator
+        or not path.parts
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
+        raise ValidationError(
+            f"source composability {field} must use a safe relative POSIX locator"
+        )
+    return locator
+
+
+def _validate_graph_topology(
+    target_node_ids: list[str], arrows: list[SourceComposabilityArrow]
+) -> None:
+    successors = {node_id: [] for node_id in target_node_ids}
+    undirected = {node_id: set() for node_id in target_node_ids}
+    indegree = {node_id: 0 for node_id in target_node_ids}
+    for arrow in arrows:
+        successors[arrow.source_node_id].append(arrow.target_node_id)
+        undirected[arrow.source_node_id].add(arrow.target_node_id)
+        undirected[arrow.target_node_id].add(arrow.source_node_id)
+        indegree[arrow.target_node_id] += 1
+
+    visited: set[str] = set()
+    pending = [target_node_ids[0]]
+    while pending:
+        node_id = pending.pop()
+        if node_id in visited:
+            continue
+        visited.add(node_id)
+        pending.extend(undirected[node_id] - visited)
+    if visited != set(target_node_ids):
+        raise ValidationError(
+            "source composability required dependency graph must be weakly connected"
         )
 
-    target_node_ids = _canonical_ids(value["target_node_ids"], "target_node_ids", minimum=2)
-    required_arrow_ids = _canonical_ids(value["required_arrow_ids"], "required_arrow_ids")
+    roots = [node_id for node_id in target_node_ids if indegree[node_id] == 0]
+    processed = 0
+    while roots:
+        node_id = roots.pop()
+        processed += 1
+        for target_id in successors[node_id]:
+            indegree[target_id] -= 1
+            if indegree[target_id] == 0:
+                roots.append(target_id)
+    if processed != len(target_node_ids):
+        raise ValidationError(
+            "source composability required dependency graph must be acyclic"
+        )
+
+    position = {node_id: index for index, node_id in enumerate(target_node_ids)}
+    if any(
+        position[arrow.source_node_id] >= position[arrow.target_node_id]
+        for arrow in arrows
+    ):
+        raise ValidationError(
+            "source composability target_node_ids must be a topological order with "
+            "each arrow source before its target"
+        )
+
+
+def _parse_contract(specification: dict[str, Any]) -> SourceComposabilityContract:
+    value = _exact_fields(specification, _CONTRACT_FIELDS, "contract")
+    if isinstance(value["contract_version"], bool) or value["contract_version"] != 1:
+        raise ValidationError(
+            "source composability contract_version must be integer 1, not Boolean"
+        )
+    if value["development_scope"] != "exposed_evaluator_development":
+        raise ValidationError(
+            "source composability development_scope must be "
+            "exposed_evaluator_development"
+        )
+
+    target_scope = _scope(value["target_scope"], "target_scope")
+    target_node_ids = _canonical_ids(
+        value["target_node_ids"], "target_node_ids", minimum=2
+    )
+    required_arrow_ids = _canonical_ids(
+        value["required_arrow_ids"], "required_arrow_ids"
+    )
 
     raw_sources = value["source_references"]
     if not isinstance(raw_sources, list) or not raw_sources:
-        raise ValidationError("source composability source_references must be a non-empty array")
+        raise ValidationError(
+            "source composability source_references must be a non-empty array"
+        )
     sources: list[SourceComposabilitySourceReference] = []
     for index, raw in enumerate(raw_sources):
         item = _exact_fields(raw, _SOURCE_FIELDS, f"source_references[{index}]")
         sources.append(
             SourceComposabilitySourceReference(
-                source_ref=_canonical_text(item["source_ref"], f"source_references[{index}].source_ref"),
-                source_kind=_source_kind(item["source_kind"], f"source_references[{index}].source_kind"),
-                canonical_citation=_canonical_text(item["canonical_citation"], f"source_references[{index}].canonical_citation"),
-                locator=_canonical_text(item["locator"], f"source_references[{index}].locator"),
-                record_sha256=require_sha256(item["record_sha256"], f"source_references[{index}].record_sha256"),
+                source_ref=_canonical_text(
+                    item["source_ref"], f"source_references[{index}].source_ref"
+                ),
+                source_kind=_source_kind(
+                    item["source_kind"], f"source_references[{index}].source_kind"
+                ),
+                canonical_citation=_canonical_text(
+                    item["canonical_citation"],
+                    f"source_references[{index}].canonical_citation",
+                ),
+                locator=_safe_relative_locator(
+                    item["locator"], f"source_references[{index}].locator"
+                ),
+                record_sha256=require_sha256(
+                    item["record_sha256"],
+                    f"source_references[{index}].record_sha256",
+                ),
             )
         )
     source_by_id = {item.source_ref: item for item in sources}
@@ -162,7 +269,11 @@ def _parse_contract(specification: dict[str, Any]) -> SourceComposabilityContrac
         value["bounded_search_source_ref"], "bounded_search_source_ref"
     )
     bounded_source = source_by_id.get(bounded_search_source_ref)
-    if bounded_source is None or bounded_source.source_kind != SourceComposabilitySourceKind.BOUNDED_SEARCH_RECORD:
+    if (
+        bounded_source is None
+        or bounded_source.source_kind
+        != SourceComposabilitySourceKind.BOUNDED_SEARCH_RECORD
+    ):
         raise ValidationError(
             "bounded_search_source_ref must name a bounded_search_record source"
         )
@@ -173,16 +284,33 @@ def _parse_contract(specification: dict[str, Any]) -> SourceComposabilityContrac
     nodes: list[SourceComposabilityNode] = []
     for index, raw in enumerate(raw_nodes):
         item = _exact_fields(raw, _NODE_FIELDS, f"nodes[{index}]")
+        node_scope = _scope(item["scope"], f"nodes[{index}].scope")
+        if (
+            node_scope.signature != target_scope.signature
+            or node_scope.dimension != target_scope.dimension
+        ):
+            raise ValidationError(
+                "source composability node signature and dimension must equal "
+                "the target scope"
+            )
         nodes.append(
             SourceComposabilityNode(
-                node_id=_canonical_text(item["node_id"], f"nodes[{index}].node_id"),
-                statement=_canonical_text(item["statement"], f"nodes[{index}].statement"),
-                scope=_scope(item["scope"], f"nodes[{index}].scope"),
+                node_id=_canonical_text(
+                    item["node_id"], f"nodes[{index}].node_id"
+                ),
+                statement=_canonical_text(
+                    item["statement"], f"nodes[{index}].statement"
+                ),
+                scope=node_scope,
                 status=_status(item["status"], f"nodes[{index}].status"),
                 source_refs=sorted(
-                    _canonical_ids(item["source_refs"], f"nodes[{index}].source_refs")
+                    _canonical_ids(
+                        item["source_refs"], f"nodes[{index}].source_refs"
+                    )
                 ),
-                assessment=_canonical_text(item["assessment"], f"nodes[{index}].assessment"),
+                assessment=_canonical_text(
+                    item["assessment"], f"nodes[{index}].assessment"
+                ),
             )
         )
     node_by_id = {item.node_id: item for item in nodes}
@@ -197,39 +325,69 @@ def _parse_contract(specification: dict[str, Any]) -> SourceComposabilityContrac
     arrows: list[SourceComposabilityArrow] = []
     for index, raw in enumerate(raw_arrows):
         item = _exact_fields(raw, _ARROW_FIELDS, f"required_arrows[{index}]")
+        arrow_scope = _scope(item["scope"], f"required_arrows[{index}].scope")
+        if (
+            arrow_scope.signature != target_scope.signature
+            or arrow_scope.dimension != target_scope.dimension
+        ):
+            raise ValidationError(
+                "source composability arrow signature and dimension must equal "
+                "the target scope"
+            )
         arrows.append(
             SourceComposabilityArrow(
-                arrow_id=_canonical_text(item["arrow_id"], f"required_arrows[{index}].arrow_id"),
-                source_node_id=_canonical_text(item["source_node_id"], f"required_arrows[{index}].source_node_id"),
-                target_node_id=_canonical_text(item["target_node_id"], f"required_arrows[{index}].target_node_id"),
-                compatibility_requirement=_canonical_text(item["compatibility_requirement"], f"required_arrows[{index}].compatibility_requirement"),
-                scope=_scope(item["scope"], f"required_arrows[{index}].scope"),
-                status=_status(item["status"], f"required_arrows[{index}].status"),
+                arrow_id=_canonical_text(
+                    item["arrow_id"], f"required_arrows[{index}].arrow_id"
+                ),
+                source_node_id=_canonical_text(
+                    item["source_node_id"],
+                    f"required_arrows[{index}].source_node_id",
+                ),
+                target_node_id=_canonical_text(
+                    item["target_node_id"],
+                    f"required_arrows[{index}].target_node_id",
+                ),
+                compatibility_requirement=_canonical_text(
+                    item["compatibility_requirement"],
+                    f"required_arrows[{index}].compatibility_requirement",
+                ),
+                scope=arrow_scope,
+                status=_status(
+                    item["status"], f"required_arrows[{index}].status"
+                ),
                 source_refs=sorted(
                     _canonical_ids(
-                        item["source_refs"], f"required_arrows[{index}].source_refs"
+                        item["source_refs"],
+                        f"required_arrows[{index}].source_refs",
                     )
                 ),
-                assessment=_canonical_text(item["assessment"], f"required_arrows[{index}].assessment"),
+                assessment=_canonical_text(
+                    item["assessment"], f"required_arrows[{index}].assessment"
+                ),
             )
         )
     arrow_by_id = {item.arrow_id: item for item in arrows}
-    if len(arrow_by_id) != len(arrows) or set(arrow_by_id) != set(required_arrow_ids):
+    if len(arrow_by_id) != len(arrows) or set(arrow_by_id) != set(
+        required_arrow_ids
+    ):
         raise ValidationError(
-            "source composability required_arrows must define every required_arrow_id exactly once"
+            "source composability required_arrows must define every "
+            "required_arrow_id exactly once"
         )
 
-    used_nodes: set[str] = set()
     for arrow in arrows:
-        if arrow.source_node_id not in node_by_id or arrow.target_node_id not in node_by_id:
-            raise ValidationError("source composability arrow endpoints must name target nodes")
+        if (
+            arrow.source_node_id not in node_by_id
+            or arrow.target_node_id not in node_by_id
+        ):
+            raise ValidationError(
+                "source composability arrow endpoints must name target nodes"
+            )
         if arrow.source_node_id == arrow.target_node_id:
-            raise ValidationError("source composability arrows must connect distinct target nodes")
-        used_nodes.update((arrow.source_node_id, arrow.target_node_id))
-    if used_nodes != set(target_node_ids):
-        raise ValidationError(
-            "every source composability target node must participate in a required arrow"
-        )
+            raise ValidationError(
+                "source composability arrows must connect distinct target nodes"
+            )
+    _validate_graph_topology(target_node_ids, arrows)
 
     for label, record in [
         *((f"node {item.node_id}", item) for item in nodes),
@@ -237,17 +395,24 @@ def _parse_contract(specification: dict[str, Any]) -> SourceComposabilityContrac
     ]:
         unknown = sorted(set(record.source_refs) - set(source_by_id))
         if unknown:
-            raise ValidationError(f"source composability {label} cites unknown source refs: {', '.join(unknown)}")
-        kinds = {source_by_id[source_ref].source_kind for source_ref in record.source_refs}
+            raise ValidationError(
+                f"source composability {label} cites unknown source refs: "
+                f"{', '.join(unknown)}"
+            )
+        kinds = {
+            source_by_id[source_ref].source_kind for source_ref in record.source_refs
+        }
         if record.status == SourceComposabilityStatus.NOT_FOUND_IN_BOUNDED_SEARCH:
             if bounded_search_source_ref not in record.source_refs:
                 raise ValidationError(
-                    f"source composability {label} not-found status must cite bounded_search_source_ref"
+                    f"source composability {label} not-found status must cite "
+                    "bounded_search_source_ref"
                 )
         elif record.status == SourceComposabilityStatus.EXACT_SUPPORT:
             if SourceComposabilitySourceKind.PRIMARY_SOURCE not in kinds:
                 raise ValidationError(
-                    f"source composability {label} exact support must cite a primary source"
+                    f"source composability {label} exact support must cite a "
+                    "primary source"
                 )
         elif not kinds.intersection(
             {
@@ -256,23 +421,27 @@ def _parse_contract(specification: dict[str, Any]) -> SourceComposabilityContrac
             }
         ):
             raise ValidationError(
-                f"source composability {label} {record.status.value} must cite a literature source"
+                f"source composability {label} {record.status.value} must cite "
+                "a literature source"
             )
 
     for arrow in arrows:
         if arrow.status == SourceComposabilityStatus.EXACT_SUPPORT and (
-            node_by_id[arrow.source_node_id].status != SourceComposabilityStatus.EXACT_SUPPORT
-            or node_by_id[arrow.target_node_id].status != SourceComposabilityStatus.EXACT_SUPPORT
+            node_by_id[arrow.source_node_id].status
+            != SourceComposabilityStatus.EXACT_SUPPORT
+            or node_by_id[arrow.target_node_id].status
+            != SourceComposabilityStatus.EXACT_SUPPORT
         ):
             raise ValidationError(
-                f"source composability arrow {arrow.arrow_id} cannot claim exact support when an endpoint is not exactly supported"
+                f"source composability arrow {arrow.arrow_id} cannot claim exact "
+                "support when an endpoint is not exactly supported"
             )
 
     return SourceComposabilityContract(
         contract_version=1,
         contract_id=_canonical_text(value["contract_id"], "contract_id"),
         development_scope="exposed_evaluator_development",
-        target_scope=_scope(value["target_scope"], "target_scope"),
+        target_scope=target_scope,
         bounded_search_source_ref=bounded_search_source_ref,
         target_node_ids=target_node_ids,
         required_arrow_ids=required_arrow_ids,
@@ -284,12 +453,141 @@ def _parse_contract(specification: dict[str, Any]) -> SourceComposabilityContrac
 
 def _canonical_digest(value: dict[str, Any]) -> str:
     encoded = json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _evaluate(contract: SourceComposabilityContract, specification_sha256: str) -> dict[str, Any]:
+def _open_trusted_source_root(source_artifact_root: Path) -> int:
+    candidate = source_artifact_root.expanduser()
+    try:
+        metadata = candidate.lstat()
+    except OSError as exc:
+        raise ValidationError(
+            "source composability source artifact root is missing or unreadable"
+        ) from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValidationError(
+            "source composability source artifact root must be a non-symlink directory"
+        )
+    flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        flags |= os.O_DIRECTORY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    try:
+        descriptor = os.open(candidate, flags)
+    except OSError as exc:
+        raise ValidationError(
+            "source composability source artifact root could not be opened safely"
+        ) from exc
+    if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise ValidationError(
+            "source composability source artifact root must be a non-symlink directory"
+        )
+    return descriptor
+
+
+def _observe_source_file(
+    root_descriptor: int, source: SourceComposabilitySourceReference
+) -> dict[str, Any]:
+    relative = PurePosixPath(source.locator)
+    directory_flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        directory_flags |= os.O_DIRECTORY
+    if hasattr(os, "O_NOFOLLOW"):
+        directory_flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_CLOEXEC"):
+        directory_flags |= os.O_CLOEXEC
+    file_flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        file_flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_CLOEXEC"):
+        file_flags |= os.O_CLOEXEC
+    opened_directories: list[int] = []
+    try:
+        parent_descriptor = root_descriptor
+        for part in relative.parts[:-1]:
+            parent_descriptor = os.open(
+                part, directory_flags, dir_fd=parent_descriptor
+            )
+            opened_directories.append(parent_descriptor)
+        descriptor = os.open(
+            relative.parts[-1], file_flags, dir_fd=parent_descriptor
+        )
+        with os.fdopen(descriptor, "rb") as handle:
+            opened = os.fstat(handle.fileno())
+            if not stat.S_ISREG(opened.st_mode):
+                raise ValidationError(
+                    f"source composability artifact must be a regular file: "
+                    f"{source.locator}"
+                )
+            digest = hashlib.sha256()
+            size = 0
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+                size += len(chunk)
+            observed = digest.hexdigest()
+            closed = os.fstat(handle.fileno())
+    except ValidationError:
+        raise
+    except OSError as exc:
+        raise ValidationError(
+            "source composability artifact is missing, non-regular, symlinked, "
+            f"or unreadable beneath its trusted root: {source.locator}"
+        ) from exc
+    finally:
+        for directory_descriptor in reversed(opened_directories):
+            os.close(directory_descriptor)
+    if (
+        opened.st_dev != closed.st_dev
+        or opened.st_ino != closed.st_ino
+        or opened.st_size != closed.st_size
+        or opened.st_mtime_ns != closed.st_mtime_ns
+    ):
+        raise ValidationError(
+            f"source composability artifact changed while hashing: {source.locator}"
+        )
+    if observed != source.record_sha256:
+        raise ValidationError(
+            f"source composability artifact SHA-256 mismatch: {source.locator}"
+        )
+    return {
+        "source_ref": source.source_ref,
+        "source_kind": source.source_kind.value,
+        "locator": source.locator,
+        "expected_sha256": source.record_sha256,
+        "observed_sha256": observed,
+        "observed_size_bytes": size,
+        "status": "matched",
+    }
+
+
+def _observe_source_artifacts(
+    contract: SourceComposabilityContract, source_artifact_root: Path
+) -> list[dict[str, Any]]:
+    root_descriptor = _open_trusted_source_root(source_artifact_root)
+    try:
+        return [
+            _observe_source_file(root_descriptor, source)
+            for source in contract.source_references
+        ]
+    finally:
+        os.close(root_descriptor)
+
+
+def _evaluate(
+    contract: SourceComposabilityContract,
+    specification_sha256: str,
+    source_artifact_receipts: list[dict[str, Any]],
+) -> dict[str, Any]:
     exact_nodes = [
         item.to_dict()
         for item in contract.nodes
@@ -300,34 +598,51 @@ def _evaluate(contract: SourceComposabilityContract, specification_sha256: str) 
         for item in contract.required_arrows
         if item.status != SourceComposabilityStatus.EXACT_SUPPORT
     ]
-    chain_closed = not unclosed_arrows
-    if chain_closed:
-        verdict = "closed_under_declared_exact_support"
+    graph_fully_supported = not unclosed_arrows
+    if graph_fully_supported:
+        verdict = "required_graph_fully_supported_under_declared_exact_support"
     elif exact_nodes:
-        verdict = "unclosed_with_exact_local_support"
+        verdict = "required_graph_has_unclosed_arrows_with_exact_node_support"
     else:
-        verdict = "unclosed_without_exact_local_support"
+        verdict = "required_graph_has_unclosed_arrows_without_exact_node_support"
     node_counts = Counter(item.status.value for item in contract.nodes)
     arrow_counts = Counter(item.status.value for item in contract.required_arrows)
     status_values = [item.value for item in SourceComposabilityStatus]
     first_unclosed = unclosed_arrows[0] if unclosed_arrows else None
     contract_payload = contract.to_dict()
     return {
-        "source_composability_evaluation_version": 1,
-        "status": "source_composability_evaluated",
+        "source_composability_evaluation_version": 2,
+        "status": "source_composability_graph_evaluated",
         "development_scope": "exposed_evaluator_development",
         "specification_sha256": specification_sha256,
         "contract_sha256": _canonical_digest(contract_payload),
         "contract": contract_payload,
-        "node_status_counts": {key: node_counts.get(key, 0) for key in status_values},
-        "arrow_status_counts": {key: arrow_counts.get(key, 0) for key in status_values},
-        "chain_closed_under_declared_exact_support": chain_closed,
+        "source_artifact_byte_custody_status": "all_declared_source_bytes_matched",
+        "source_artifact_receipts": source_artifact_receipts,
+        "graph_topology": {
+            "weakly_connected": True,
+            "acyclic": True,
+            "target_node_ids_topological": True,
+        },
+        "node_status_counts": {
+            key: node_counts.get(key, 0) for key in status_values
+        },
+        "arrow_status_counts": {
+            key: arrow_counts.get(key, 0) for key in status_values
+        },
+        "required_graph_fully_supported_under_declared_exact_support": (
+            graph_fully_supported
+        ),
         "verdict": verdict,
-        "locally_supported_node_ids": [item["node_id"] for item in exact_nodes],
-        "locally_supported_nodes": exact_nodes,
-        "unclosed_required_arrow_ids": [item["arrow_id"] for item in unclosed_arrows],
+        "exactly_supported_node_ids": [item["node_id"] for item in exact_nodes],
+        "exactly_supported_nodes": exact_nodes,
+        "unclosed_required_arrow_ids": [
+            item["arrow_id"] for item in unclosed_arrows
+        ],
         "unclosed_required_arrows": unclosed_arrows,
-        "first_unclosed_required_arrow_id": first_unclosed["arrow_id"] if first_unclosed else None,
+        "first_unclosed_required_arrow_id": (
+            first_unclosed["arrow_id"] if first_unclosed else None
+        ),
         "first_unclosed_required_arrow": first_unclosed,
         "generic_missing_formula_verdict_permitted": False,
         **_AUTHORITY_FIELDS,
@@ -336,8 +651,10 @@ def _evaluate(contract: SourceComposabilityContract, specification_sha256: str) 
     }
 
 
-def validate_source_composability_boundary(evaluation: dict[str, Any]) -> None:
-    """Replay every derived field and authority ceiling from the retained contract."""
+def validate_source_composability_boundary(
+    evaluation: dict[str, Any], source_artifact_root: Path
+) -> None:
+    """Re-hash sources and replay every derived field and authority ceiling."""
     if not isinstance(evaluation, dict):
         raise ValidationError("source composability evaluation must be an object")
     specification_sha256 = require_sha256(
@@ -345,21 +662,45 @@ def validate_source_composability_boundary(evaluation: dict[str, Any]) -> None:
     )
     contract_value = evaluation.get("contract")
     if not isinstance(contract_value, dict):
-        raise ValidationError("source composability evaluation requires its retained contract")
+        raise ValidationError(
+            "source composability evaluation requires its retained contract"
+        )
     contract = _parse_contract(contract_value)
-    expected = _evaluate(contract, specification_sha256)
+    receipts = _observe_source_artifacts(contract, source_artifact_root)
+    expected = _evaluate(contract, specification_sha256, receipts)
     if evaluation != expected:
         raise ValidationError(
-            "source composability evaluation does not replay from its retained contract"
+            "source composability evaluation does not replay from its retained "
+            "contract and source artifacts"
         )
+
+
+def _reserve_and_write_output(root: Path, encoded: bytes) -> None:
+    root.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        root.mkdir()
+    except FileExistsError as exc:
+        raise ValidationError("source composability output already exists") from exc
+    except OSError as exc:
+        raise ValidationError(
+            "source composability output could not be reserved"
+        ) from exc
+    try:
+        with (root / "source-composability-evaluation.json").open("xb") as handle:
+            handle.write(encoded)
+    except OSError as exc:
+        raise ValidationError(
+            "source composability output write failed after fail-closed reservation"
+        ) from exc
 
 
 def create_source_composability_evaluation(
     specification_path: Path,
     expected_specification_sha256: str,
+    source_artifact_root: Path,
     output: Path,
 ) -> dict[str, Any]:
-    """Create one write-once evaluation from an exact, caller-trusted spec hash."""
+    """Create one write-once evaluation from trusted spec and source paths."""
     expected = require_sha256(
         expected_specification_sha256, "expected_specification_sha256"
     )
@@ -371,22 +712,22 @@ def create_source_composability_evaluation(
             "source composability specification does not match the expected SHA-256"
         )
     contract = _parse_contract(specification)
-    evaluation = _evaluate(contract, digest)
-    validate_source_composability_boundary(evaluation)
+    receipts = _observe_source_artifacts(contract, source_artifact_root)
+    evaluation = _evaluate(contract, digest, receipts)
+    validate_source_composability_boundary(evaluation, source_artifact_root)
 
-    root = output.expanduser().resolve()
-    if root.exists():
-        raise ValidationError("source composability output already exists")
-    root.parent.mkdir(parents=True, exist_ok=True)
+    root = Path(os.path.abspath(os.fspath(output.expanduser())))
     encoded = (
-        json.dumps(evaluation, sort_keys=True, indent=2, ensure_ascii=False, allow_nan=False)
+        json.dumps(
+            evaluation,
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
         + "\n"
     ).encode("utf-8")
-    with tempfile.TemporaryDirectory(prefix=".source-composability-", dir=root.parent) as temporary:
-        staging = Path(temporary) / "source-composability"
-        staging.mkdir()
-        (staging / "source-composability-evaluation.json").write_bytes(encoded)
-        os.replace(staging, root)
+    _reserve_and_write_output(root, encoded)
     return {
         "path": str(root),
         "evaluation_sha256": hashlib.sha256(encoded).hexdigest(),
@@ -397,10 +738,11 @@ def create_source_composability_evaluation(
 def verify_source_composability_evaluation(
     specification_path: Path,
     expected_specification_sha256: str,
+    source_artifact_root: Path,
     evaluation_path: Path,
     expected_evaluation_sha256: str,
 ) -> dict[str, Any]:
-    """Replay a retained evaluation from the separately retained exact spec bytes."""
+    """Re-hash sources and replay an evaluation from exact retained artifacts."""
     expected_spec = require_sha256(
         expected_specification_sha256, "expected_specification_sha256"
     )
@@ -421,16 +763,23 @@ def verify_source_composability_evaluation(
         raise ValidationError(
             "source composability evaluation does not match the expected SHA-256"
         )
-    expected_evaluation = _evaluate(_parse_contract(specification), specification_digest)
-    validate_source_composability_boundary(evaluation)
+    contract = _parse_contract(specification)
+    receipts = _observe_source_artifacts(contract, source_artifact_root)
+    expected_evaluation = _evaluate(contract, specification_digest, receipts)
+    validate_source_composability_boundary(evaluation, source_artifact_root)
     if evaluation != expected_evaluation:
         raise ValidationError(
-            "source composability evaluation does not match the retained specification"
+            "source composability evaluation does not match the retained "
+            "specification and source artifacts"
         )
     return {
-        "status": "source_composability_evaluation_replayed",
+        "status": "source_composability_graph_evaluation_replayed",
         "specification_sha256": specification_digest,
         "evaluation_sha256": evaluation_digest,
+        "source_artifact_byte_custody_status": (
+            "all_declared_source_bytes_matched"
+        ),
+        "source_artifact_receipts": receipts,
         **_AUTHORITY_FIELDS,
         "limitations": list(_LIMITATIONS),
         "conclusion_ceiling": _CONCLUSION_CEILING,

@@ -1647,16 +1647,20 @@ evidence maps, or synthesis.
 
 Source-composability public-development delivery: `research literature
 evaluate-composability` accepts a trusted hash for a prospective typed contract
-of exact target nodes and ordered directed compatibility arrows. Every node and
-arrow retains signature, dimension, carrier, domain, a four-state source
-relationship, and canonical byte-hashed source references. Derived output
-preserves all exactly supported local nodes, identifies the first unclosed arrow
-by declared arrow order, and replays from the retained specification. The
-separate `verify-composability` command checks both retained artifact hashes and
-all derived fields. This evaluator remains exposed development: it cannot grant
-scientific, evidence, replication, candidate-advancement, conclusion, or
-runtime-promotion authority, and it does not establish that a declared source
-judgment is true.
+of exact target nodes and ordered directed compatibility arrows. A separately
+trusted source root is mandatory; safe relative locators must resolve to
+regular non-symlink files whose observed bytes match their declared hashes.
+Every node and arrow retains signature, dimension, carrier, domain, a four-state
+source relationship, and canonical source references. The graph must be weakly
+connected and acyclic, `target_node_ids` must be topological, and every member's
+signature and dimension must equal the target. Derived output preserves all
+exactly supported nodes, identifies the first unclosed arrow by declared arrow
+order, and replays after re-hashing the source artifacts. Atomic output-directory
+reservation never replaces a preexisting destination. This evaluator remains
+exposed development: it does not interpret source semantics, validate internal
+source/search schemas or carrier/domain transitions, establish search
+exhaustiveness or mathematical composability, or grant scientific, evidence,
+replication, candidate-advancement, conclusion, or runtime-promotion authority.
 
 Snapshots now group byte-identical retained files by SHA-256 without deleting
 source records or resolving conflicting metadata. Unique-content counts are not
