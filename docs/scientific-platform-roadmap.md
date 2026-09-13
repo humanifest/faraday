@@ -1645,7 +1645,7 @@ canonical without surrounding whitespace before the snapshot is published, so a
 padded root literature handle cannot be carried into screening, extraction,
 evidence maps, or synthesis.
 
-Source-composability public-development delivery: `research literature
+Source-composability version 2 public-development delivery: `research literature
 evaluate-composability` accepts a trusted hash for a prospective typed contract
 of exact target nodes and ordered directed compatibility arrows. A separately
 trusted source root is mandatory; safe relative locators must resolve to
@@ -1656,11 +1656,15 @@ source relationship, and canonical source references. The graph must be weakly
 connected and acyclic, `target_node_ids` must be topological, and every member's
 signature and dimension must equal the target. Derived output preserves all
 exactly supported nodes, identifies the first unclosed arrow by declared arrow
-order, and replays after re-hashing the source artifacts. Atomic output-directory
-reservation and child creation are descriptor-relative, sync the written bytes,
-verify the parent entry still names the reserved inode, and never replace a
-preexisting destination or report success after entry substitution. This
-evaluator remains exposed development: it does not interpret source semantics,
+order, and replays after re-hashing the source artifacts. Atomic publication
+holds the parent descriptor and creates the exact JSON output file with
+exclusive no-follow flags, so creation and custody of the returned file inode
+are one operation. It syncs the file and parent directory and verifies that the
+parent entry still names the originally opened regular-file inode before
+reporting success; a collision, substitution, or write failure is fail-closed.
+The unpromoted version 1 contract and version 1/2 evaluations are superseded
+and intentionally non-replayable; they never granted authority. This evaluator
+remains exposed development: it does not interpret source semantics,
 validate internal source/search schemas or carrier/domain transitions,
 establish search exhaustiveness or mathematical composability, or grant
 scientific, evidence, replication, candidate-advancement, conclusion, or

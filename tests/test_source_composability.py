@@ -53,7 +53,7 @@ def _create(
     path, digest = _write_spec(tmp_path, specification, f"{name}-spec.json")
     sources = source_root or _copy_sources(tmp_path, f"{name}-sources")
     result = create_source_composability_evaluation(
-        path, digest, sources, tmp_path / name
+        path, digest, sources, tmp_path / f"{name}.json"
     )
     return result, path, sources
 
@@ -61,7 +61,7 @@ def _create(
 def test_cli_evaluates_and_replays_matched_bytes_without_authority(tmp_path, capsys):
     spec_path, spec_digest = _write_spec(tmp_path, _spec())
     sources = _copy_sources(tmp_path)
-    output = tmp_path / "evaluation"
+    output = tmp_path / "evaluation.json"
     assert main(
         [
             "--json",
@@ -78,7 +78,7 @@ def test_cli_evaluates_and_replays_matched_bytes_without_authority(tmp_path, cap
         ]
     ) == 0
     result = json.loads(capsys.readouterr().out)["result"]
-    assert result["source_composability_evaluation_version"] == 2
+    assert result["source_composability_evaluation_version"] == 3
     assert result["verdict"] == (
         "required_graph_has_unclosed_arrows_with_exact_node_support"
     )
@@ -114,7 +114,9 @@ def test_cli_evaluates_and_replays_matched_bytes_without_authority(tmp_path, cap
     ):
         assert result[field] is False
 
-    evaluation_path = output / "source-composability-evaluation.json"
+    evaluation_path = output
+    assert evaluation_path.is_file()
+    assert result["path"] == str(evaluation_path)
     assert main(
         [
             "--json",
@@ -249,7 +251,7 @@ def test_relabeling_cannot_replace_declared_arrow_order_with_lexical_order(tmp_p
         ),
         (
             lambda value: value.update({"contract_version": True}),
-            "integer 1, not Boolean",
+            "integer 2, not Boolean",
         ),
         (
             lambda value: value["nodes"][0]["scope"].update(
@@ -370,7 +372,7 @@ def test_replay_rejects_false_graph_support_exact_node_erasure_and_authority(
 
 def test_source_mutation_blocks_replay_even_when_evaluation_bytes_are_unchanged(tmp_path):
     result, spec_path, sources = _create(tmp_path)
-    evaluation_path = Path(result["path"]) / "source-composability-evaluation.json"
+    evaluation_path = Path(result["path"])
     (sources / "primary-local.txt").write_text("mutated source bytes\n")
     with pytest.raises(ValidationError, match="artifact SHA-256 mismatch"):
         verify_source_composability_evaluation(
@@ -385,7 +387,7 @@ def test_source_mutation_blocks_replay_even_when_evaluation_bytes_are_unchanged(
 @pytest.mark.parametrize("condition", ["missing", "symlink"])
 def test_source_removal_or_symlink_substitution_blocks_replay(tmp_path, condition):
     result, spec_path, sources = _create(tmp_path)
-    evaluation_path = Path(result["path"]) / "source-composability-evaluation.json"
+    evaluation_path = Path(result["path"])
     target = sources / "primary-local.txt"
     target.unlink()
     if condition == "symlink":
@@ -558,7 +560,7 @@ def test_in_place_source_mutation_with_restored_mtime_is_rejected(
 
 def test_changed_spec_or_evaluation_bytes_fail_hash_bound_replay(tmp_path):
     result, spec_path, sources = _create(tmp_path)
-    evaluation_path = Path(result["path"]) / "source-composability-evaluation.json"
+    evaluation_path = Path(result["path"])
 
     changed_spec = _spec()
     changed_spec["contract_id"] = "changed-contract"
@@ -597,85 +599,109 @@ def test_preexisting_empty_destination_is_never_replaced(tmp_path):
     assert list(output.iterdir()) == []
 
 
-def test_destination_created_in_reservation_race_is_never_replaced(
-    tmp_path, monkeypatch
+def _install_substitute(path: Path, kind: str, symlink_target: Path) -> None:
+    if kind == "regular_file":
+        path.write_text("attacker replacement\n", encoding="utf-8")
+    elif kind == "directory":
+        path.mkdir()
+    else:
+        path.symlink_to(symlink_target)
+
+
+@pytest.mark.parametrize("kind", ["regular_file", "directory", "symlink"])
+def test_preopen_output_substitution_is_a_collision_and_never_replaced(
+    tmp_path, monkeypatch, kind
 ):
     spec_path, digest = _write_spec(tmp_path, _spec())
     sources = _copy_sources(tmp_path)
-    output = tmp_path / "race-output"
-    original_mkdir = Path.mkdir
-    injected = False
-
-    def racing_mkdir(path, *args, **kwargs):
-        nonlocal injected
-        result = original_mkdir(path, *args, **kwargs)
-        if path == output.parent and not injected:
-            original_mkdir(output)
-            injected = True
-        return result
-
-    monkeypatch.setattr(Path, "mkdir", racing_mkdir)
-    with pytest.raises(ValidationError, match="already exists"):
-        create_source_composability_evaluation(
-            spec_path, digest, sources, output
-        )
-    assert injected is True
-    assert output.is_dir()
-    assert list(output.iterdir()) == []
-
-
-def test_write_failure_leaves_fail_closed_output_reservation(tmp_path, monkeypatch):
-    spec_path, digest = _write_spec(tmp_path, _spec())
-    sources = _copy_sources(tmp_path)
-    output = tmp_path / "evaluation"
-
-    def failing_write(_descriptor, _encoded):
-        raise OSError("injected write failure")
-
-    monkeypatch.setattr(composability_module, "_write_output_file", failing_write)
-    with pytest.raises(ValidationError, match="fail-closed reservation"):
-        create_source_composability_evaluation(
-            spec_path, digest, sources, output
-        )
-    assert output.is_dir()
-    partial = output / "source-composability-evaluation.json"
-    assert partial.is_file()
-    assert partial.stat().st_size == 0
-
-
-def test_reserved_directory_substitution_cannot_redirect_publication(
-    tmp_path, monkeypatch
-):
-    spec_path, digest = _write_spec(tmp_path, _spec())
-    sources = _copy_sources(tmp_path)
-    output = tmp_path / "evaluation"
-    moved_reservation = tmp_path / "moved-reservation"
-    attacker_directory = tmp_path / "attacker-directory"
-    attacker_directory.mkdir()
+    output = tmp_path / "race-output.json"
+    symlink_target = tmp_path / "attacker-target.txt"
+    symlink_target.write_text("attacker target\n", encoding="utf-8")
     original_open = composability_module.os.open
     injected = False
 
     def substituting_open(path, flags, mode=0o777, *, dir_fd=None):
         nonlocal injected
-        if path == "source-composability-evaluation.json" and not injected:
-            output.rename(moved_reservation)
-            output.symlink_to(attacker_directory, target_is_directory=True)
+        if path == output.name and flags & os.O_CREAT and not injected:
+            _install_substitute(output, kind, symlink_target)
             injected = True
         return original_open(path, flags, mode, dir_fd=dir_fd)
 
     monkeypatch.setattr(composability_module.os, "open", substituting_open)
-    with pytest.raises(ValidationError, match="no longer names the reserved"):
+    with pytest.raises(ValidationError, match="already exists"):
         create_source_composability_evaluation(
             spec_path, digest, sources, output
         )
     assert injected is True
-    assert output.is_symlink()
-    assert not (
-        attacker_directory / "source-composability-evaluation.json"
-    ).exists()
-    assert (
-        moved_reservation / "source-composability-evaluation.json"
-    ).is_file()
+    if kind == "regular_file":
+        assert output.read_text(encoding="utf-8") == "attacker replacement\n"
+    elif kind == "directory":
+        assert output.is_dir()
+        assert list(output.iterdir()) == []
+    else:
+        assert output.is_symlink()
+        assert symlink_target.read_text(encoding="utf-8") == "attacker target\n"
+
+
+def test_write_failure_leaves_atomically_created_output(tmp_path, monkeypatch):
+    spec_path, digest = _write_spec(tmp_path, _spec())
+    sources = _copy_sources(tmp_path)
+    output = tmp_path / "evaluation.json"
+
+    def failing_write(_descriptor, _encoded):
+        raise OSError("injected write failure")
+
+    monkeypatch.setattr(composability_module, "_write_output_file", failing_write)
+    with pytest.raises(ValidationError, match="failed after atomic creation"):
+        create_source_composability_evaluation(
+            spec_path, digest, sources, output
+        )
+    assert output.is_file()
+    assert output.stat().st_size == 0
+
+
+@pytest.mark.parametrize("kind", ["regular_file", "directory", "symlink"])
+def test_postopen_output_substitution_cannot_redirect_or_report_success(
+    tmp_path, monkeypatch, kind
+):
+    spec_path, digest = _write_spec(tmp_path, _spec())
+    sources = _copy_sources(tmp_path)
+    output = tmp_path / "evaluation.json"
+    moved_output = tmp_path / "moved-created-output.json"
+    symlink_target = tmp_path / "attacker-target.txt"
+    symlink_target.write_text("attacker target\n", encoding="utf-8")
+    original_write = composability_module._write_output_file
+    injected = False
+
+    def substitute_after_open(descriptor, encoded):
+        nonlocal injected
+        if not injected:
+            output.rename(moved_output)
+            _install_substitute(output, kind, symlink_target)
+            injected = True
+        original_write(descriptor, encoded)
+
+    monkeypatch.setattr(
+        composability_module, "_write_output_file", substitute_after_open
+    )
+    with pytest.raises(
+        ValidationError, match="no longer names the atomically created"
+    ):
+        create_source_composability_evaluation(
+            spec_path, digest, sources, output
+        )
+    assert injected is True
+    assert moved_output.is_file()
+    moved_payload = json.loads(moved_output.read_text(encoding="utf-8"))
+    assert moved_payload["source_composability_evaluation_version"] == 3
+    if kind == "regular_file":
+        assert output.read_text(encoding="utf-8") == "attacker replacement\n"
+    elif kind == "directory":
+        assert output.is_dir()
+        assert list(output.iterdir()) == []
+    else:
+        assert output.is_symlink()
+        assert symlink_target.read_text(encoding="utf-8") == "attacker target\n"
 
 
 def test_boolean_contract_version_is_rejected_by_schema_and_runtime(tmp_path):
@@ -690,10 +716,41 @@ def test_boolean_contract_version_is_rejected_by_schema_and_runtime(tmp_path):
 
     spec_path, digest = _write_spec(tmp_path, spec)
     sources = _copy_sources(tmp_path)
-    with pytest.raises(ValidationError, match="integer 1, not Boolean"):
+    with pytest.raises(ValidationError, match="integer 2, not Boolean"):
         create_source_composability_evaluation(
             spec_path, digest, sources, tmp_path / "evaluation"
         )
+
+
+def test_superseded_v1_contract_is_rejected_by_schema_and_runtime(tmp_path):
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = json.loads(
+        (ROOT / "schemas" / "source-composability.schema.json").read_text()
+    )
+    spec = _spec()
+    spec["contract_version"] = 1
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(spec, schema)
+
+    spec_path, digest = _write_spec(tmp_path, spec)
+    sources = _copy_sources(tmp_path)
+    with pytest.raises(ValidationError, match="integer 2"):
+        create_source_composability_evaluation(
+            spec_path, digest, sources, tmp_path / "evaluation.json"
+        )
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_superseded_evaluation_versions_are_nonreplayable(tmp_path, version):
+    result, _, sources = _create(tmp_path)
+    evaluation = {
+        key: value
+        for key, value in result.items()
+        if key not in {"path", "evaluation_sha256"}
+    }
+    evaluation["source_composability_evaluation_version"] = version
+    with pytest.raises(ValidationError, match="does not replay"):
+        validate_source_composability_boundary(evaluation, sources)
 
 
 def test_direct_limitation_is_distinct_and_unclosed(tmp_path):

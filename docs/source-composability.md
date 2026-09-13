@@ -1,6 +1,6 @@
 # Source-composability evaluator
 
-Faraday's source-composability evaluator is a prospective public-development
+Faraday's version 2 source-composability evaluator is a prospective public-development
 tool for describing whether exact source-backed objects have every directed
 compatibility relation needed by a proposed dependency graph. It is
 domain-neutral: the
@@ -19,6 +19,11 @@ to preflight the exchange shape. The runtime then applies cross-reference and
 status rules that JSON Schema cannot express. A complete synthetic contract is
 published at
 [`examples/source-composability.json`](../examples/source-composability.json).
+
+The unpromoted version 1 contract and version 1/2 evaluation artifacts are
+superseded and intentionally non-replayable. Their directory-based output
+exchange could not make `mkdir` atomically return a held descriptor for the
+inode it created. They never granted scientific or workflow authority.
 
 The contract separates:
 
@@ -65,7 +70,7 @@ Pin the exact specification bytes before evaluation:
   --spec-file examples/source-composability.json \
   --expected-spec-sha256 <sha256> \
   --source-artifact-root examples/source-composability-sources \
-  --output source-composability-evaluation
+  --output source-composability-evaluation.json
 ```
 
 The source root is a separately trusted local directory. Each locator must name
@@ -78,16 +83,17 @@ device, inode, size, modification time, and change time before and after the
 read. The retained receipt includes its declared and observed SHA-256, observed
 byte size, and `matched` status.
 
-The command writes a new directory containing
-`source-composability-evaluation.json` and refuses to replace an existing
-directory. Reservation and publication are descriptor-relative: Faraday holds
-the parent descriptor, creates and opens the reserved directory relative to it,
-creates the child with exclusive no-follow flags relative to the reserved
-descriptor, flushes and syncs the bytes, and then verifies that the parent entry
-still names the same non-symlink directory inode. A concurrently created empty
-destination is not replaced. Rename-and-substitute attacks cannot redirect the
-JSON and cause reported success; an entry substitution or write failure fails
-closed and may leave the reserved or partially written artifact for diagnosis.
+The command atomically creates one new JSON file at the exact `--output` path
+and refuses to replace any existing file, directory, or symlink. Publication is
+descriptor-relative: Faraday holds the parent descriptor and opens the final
+entry with exclusive-create and no-follow flags, so the same atomic operation
+both creates the file and returns custody of its inode. It writes, flushes, and
+syncs through that held descriptor, syncs the parent directory, and then checks
+without following links that the parent entry still names the same regular-file
+device and inode. A pre-open collision is never replaced. A post-open rename or
+substitution cannot redirect the held write and cannot produce reported
+success. An entry substitution or write failure fails closed and may leave the
+created, moved, or partially written file for diagnosis.
 The output embeds the normalized contract, its canonical digest,
 the original specification-byte digest, complete status counts, every exact
 node, every unclosed arrow, and the deterministic first unclosed arrow. A graph
@@ -102,7 +108,7 @@ Replay both retained artifacts and their caller-trusted hashes with:
   --spec-file examples/source-composability.json \
   --expected-spec-sha256 <sha256> \
   --source-artifact-root examples/source-composability-sources \
-  --evaluation-file source-composability-evaluation/source-composability-evaluation.json \
+  --evaluation-file source-composability-evaluation.json \
   --expected-evaluation-sha256 <sha256>
 ```
 
@@ -123,8 +129,9 @@ compose. Those judgments require source review and, where applicable,
 mathematical proof or empirical tests outside this evaluator.
 
 The filesystem threat model covers hostile path components below the trusted
-source root and rename/symlink substitution of the output entry during the
-command. It relies on the local kernel's descriptor, no-follow, exclusive-create,
-metadata, and synchronization semantics. It does not claim to prevent an actor
-with filesystem write access from altering an artifact after the command has
-returned; replay and trusted hashes detect such later changes.
+source root and regular-file, directory, or symlink substitution of the output
+entry before or after its atomic creation. It relies on the local kernel's
+descriptor, no-follow, exclusive-create, metadata, and synchronization
+semantics. It does not claim to prevent an actor with filesystem write access
+from altering an artifact after the command has returned; replay and trusted
+hashes detect such later changes.

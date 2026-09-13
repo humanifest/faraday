@@ -1250,7 +1250,12 @@ def build_parser() -> argparse.ArgumentParser:
     literature_composability.add_argument(
         "--source-artifact-root", type=Path, required=True
     )
-    literature_composability.add_argument("--output", type=Path, required=True)
+    literature_composability.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Atomically create this exact version 3 evaluation JSON file",
+    )
     literature_verify_composability = literature_commands.add_parser(
         "verify-composability",
         help="Replay a source-composability evaluation from retained artifacts",

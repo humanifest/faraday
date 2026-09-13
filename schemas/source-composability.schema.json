@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://faraday.local/schemas/source-composability.schema.json",
-  "title": "Faraday source-composability dependency-graph public-development contract",
+  "title": "Faraday source-composability dependency-graph public-development contract v2",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -17,7 +17,7 @@
     "required_arrows"
   ],
   "properties": {
-    "contract_version": {"const": 1},
+    "contract_version": {"const": 2},
     "contract_id": {"$ref": "#/$defs/text"},
     "development_scope": {"const": "exposed_evaluator_development"},
     "target_scope": {"$ref": "#/$defs/scope"},

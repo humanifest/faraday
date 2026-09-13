@@ -1311,10 +1311,14 @@ directed dependency graph, use the public-development
 declared hashes against regular non-symlink source files beneath a separately
 trusted root, retains every exactly supported node, checks connected acyclic
 topology plus signature/dimension equality, and names the first unclosed
-required arrow deterministically. Source reads and atomic output publication
-are descriptor-relative and fail closed without no-follow support or after an
-output-entry substitution. It grants no source-semantic, scientific,
-evidence, replication, candidate-advancement, or runtime-promotion authority.
+required arrow deterministically. Version 2 source reads and atomic output
+publication are descriptor-relative; publication exclusively creates the exact
+JSON file under a held parent descriptor, keeps the returned file descriptor,
+and fails closed without no-follow support or after an output-entry
+substitution. The unpromoted version 1 contract and version 1/2 evaluations are
+superseded and intentionally non-replayable. The evaluator grants no
+source-semantic, scientific, evidence, replication, candidate-advancement, or
+runtime-promotion authority.
 
 Capture a reproducible local record of a literature search without trusting a
 search tool as evidence authority:

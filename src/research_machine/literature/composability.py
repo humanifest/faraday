@@ -222,9 +222,9 @@ def _validate_graph_topology(
 
 def _parse_contract(specification: dict[str, Any]) -> SourceComposabilityContract:
     value = _exact_fields(specification, _CONTRACT_FIELDS, "contract")
-    if isinstance(value["contract_version"], bool) or value["contract_version"] != 1:
+    if isinstance(value["contract_version"], bool) or value["contract_version"] != 2:
         raise ValidationError(
-            "source composability contract_version must be integer 1, not Boolean"
+            "source composability contract_version must be integer 2, not Boolean"
         )
     if value["development_scope"] != "exposed_evaluator_development":
         raise ValidationError(
@@ -445,7 +445,7 @@ def _parse_contract(specification: dict[str, Any]) -> SourceComposabilityContrac
             )
 
     return SourceComposabilityContract(
-        contract_version=1,
+        contract_version=2,
         contract_id=_canonical_text(value["contract_id"], "contract_id"),
         development_scope="exposed_evaluator_development",
         target_scope=target_scope,
@@ -623,7 +623,7 @@ def _evaluate(
     first_unclosed = unclosed_arrows[0] if unclosed_arrows else None
     contract_payload = contract.to_dict()
     return {
-        "source_composability_evaluation_version": 2,
+        "source_composability_evaluation_version": 3,
         "status": "source_composability_graph_evaluated",
         "development_scope": "exposed_evaluator_development",
         "specification_sha256": specification_sha256,
@@ -695,8 +695,8 @@ def _write_output_file(descriptor: int, encoded: bytes) -> None:
         os.fsync(handle.fileno())
 
 
-def _parent_entry_matches_reservation(
-    parent_descriptor: int, entry_name: str, reserved_metadata: os.stat_result
+def _parent_entry_matches_opened_file(
+    parent_descriptor: int, entry_name: str, opened_metadata: os.stat_result
 ) -> bool:
     try:
         observed = os.stat(
@@ -705,74 +705,60 @@ def _parent_entry_matches_reservation(
     except OSError:
         return False
     return (
-        stat.S_ISDIR(observed.st_mode)
+        stat.S_ISREG(observed.st_mode)
         and not stat.S_ISLNK(observed.st_mode)
-        and observed.st_dev == reserved_metadata.st_dev
-        and observed.st_ino == reserved_metadata.st_ino
+        and observed.st_dev == opened_metadata.st_dev
+        and observed.st_ino == opened_metadata.st_ino
     )
 
 
-def _reserve_and_write_output(root: Path, encoded: bytes) -> None:
+def _create_and_write_output(output_path: Path, encoded: bytes) -> None:
     no_follow = _required_open_flag("O_NOFOLLOW")
     directory = _required_open_flag("O_DIRECTORY")
     close_on_exec = getattr(os, "O_CLOEXEC", 0)
-    root.parent.mkdir(parents=True, exist_ok=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     parent_descriptor: int | None = None
-    reserved_descriptor: int | None = None
     output_descriptor: int | None = None
     try:
         parent_descriptor = os.open(
-            root.parent,
+            output_path.parent,
             os.O_RDONLY | directory | no_follow | close_on_exec,
         )
         try:
-            os.mkdir(root.name, dir_fd=parent_descriptor)
+            output_descriptor = os.open(
+                output_path.name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow | close_on_exec,
+                0o644,
+                dir_fd=parent_descriptor,
+            )
         except FileExistsError as exc:
             raise ValidationError(
                 "source composability output already exists"
             ) from exc
-        reserved_descriptor = os.open(
-            root.name,
-            os.O_RDONLY | directory | no_follow | close_on_exec,
-            dir_fd=parent_descriptor,
-        )
-        reserved_metadata = os.fstat(reserved_descriptor)
-        if not stat.S_ISDIR(reserved_metadata.st_mode):
+        opened_metadata = os.fstat(output_descriptor)
+        if not stat.S_ISREG(opened_metadata.st_mode):
             raise ValidationError(
-                "source composability reserved output is not a directory"
+                "source composability atomically created output is not a regular file"
             )
-        os.fsync(parent_descriptor)
-
-        output_descriptor = os.open(
-            "source-composability-evaluation.json",
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow | close_on_exec,
-            0o644,
-            dir_fd=reserved_descriptor,
-        )
         _write_output_file(output_descriptor, encoded)
-        os.close(output_descriptor)
-        output_descriptor = None
-        os.fsync(reserved_descriptor)
         os.fsync(parent_descriptor)
 
-        if not _parent_entry_matches_reservation(
-            parent_descriptor, root.name, reserved_metadata
+        if not _parent_entry_matches_opened_file(
+            parent_descriptor, output_path.name, opened_metadata
         ):
             raise ValidationError(
                 "source composability output parent entry no longer names the "
-                "reserved non-symlink directory"
+                "atomically created regular file"
             )
     except ValidationError:
         raise
     except OSError as exc:
         raise ValidationError(
-            "source composability output write failed after fail-closed reservation"
+            "source composability output write failed after atomic creation"
         ) from exc
     finally:
         if output_descriptor is not None:
             os.close(output_descriptor)
-        if reserved_descriptor is not None:
-            os.close(reserved_descriptor)
         if parent_descriptor is not None:
             os.close(parent_descriptor)
 
@@ -799,7 +785,7 @@ def create_source_composability_evaluation(
     evaluation = _evaluate(contract, digest, receipts)
     validate_source_composability_boundary(evaluation, source_artifact_root)
 
-    root = Path(os.path.abspath(os.fspath(output.expanduser())))
+    output_path = Path(os.path.abspath(os.fspath(output.expanduser())))
     encoded = (
         json.dumps(
             evaluation,
@@ -810,9 +796,9 @@ def create_source_composability_evaluation(
         )
         + "\n"
     ).encode("utf-8")
-    _reserve_and_write_output(root, encoded)
+    _create_and_write_output(output_path, encoded)
     return {
-        "path": str(root),
+        "path": str(output_path),
         "evaluation_sha256": hashlib.sha256(encoded).hexdigest(),
         **evaluation,
     }

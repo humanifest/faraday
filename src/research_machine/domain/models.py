@@ -715,7 +715,7 @@ class SourceComposabilityArrow(Serializable):
 
 @dataclass(frozen=True)
 class SourceComposabilityContract(Serializable):
-    """Prospective public-development contract for a source dependency graph."""
+    """Prospective v2 public-development contract for a source dependency graph."""
 
     contract_version: int
     contract_id: str
