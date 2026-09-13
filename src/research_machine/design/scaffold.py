@@ -45,6 +45,24 @@ _VALIDITY_EVIDENCE_TYPES = {
     "criterion", "convergent", "discriminant", "known_groups", "test_retest",
     "inter_rater", "content", "calibration", "other",
 }
+_ALIAS_PROXY_COMMITMENT_FIELDS = {
+    "commitment_id",
+    "concealment_scope",
+    "public_label",
+    "private_mapping_sha256",
+    "construct_validity_rationale",
+    "limitations",
+    "reveal_conditions",
+    "proxy_construct",
+}
+_ALIAS_PROXY_SCOPES = {
+    "registered_target_alias",
+    "observable_alias",
+    "input_condition_alias",
+    "data_column_alias",
+    "value_domain_alias",
+    "proxy_measurement",
+}
 _CLAIM_LEVELS = {level.value for level in ClaimLevel}
 _CANARY_TARGET_PLAN_FIELDS = {
     "plan_id",
@@ -95,7 +113,7 @@ DESIGN_BRIEF_FIELDS = {
     "outcome_data_column",
     "preprocessing_pipeline", "preprocessing_conformance_gate_id",
     "sensor_requirements", "clock_accuracy_requirement", "control_windows",
-    "measurement_validity_checks",
+    "measurement_validity_checks", "alias_proxy_commitment",
     "secondary_measurements",
     "control_measurements",
     "causal_measurements",
@@ -340,6 +358,131 @@ def _is_canonical_sha256(value: str) -> bool:
     return bool(_SHA256.fullmatch(value))
 
 
+def _optional_alias_proxy_commitment(
+    value: Any,
+    *,
+    field: str,
+    expected_labels: dict[str, set[str]],
+) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"{field} must be an object")
+    if set(value) != _ALIAS_PROXY_COMMITMENT_FIELDS:
+        raise ValueError(
+            f"{field} must contain exactly the documented alias/proxy commitment fields"
+        )
+    for text_field in (
+        "commitment_id",
+        "concealment_scope",
+        "public_label",
+        "private_mapping_sha256",
+        "construct_validity_rationale",
+        "reveal_conditions",
+        "proxy_construct",
+    ):
+        if not isinstance(value[text_field], str):
+            raise ValueError(f"{field}.{text_field} must be text")
+    if any(
+        not value[text_field].strip()
+        for text_field in (
+            "commitment_id",
+            "concealment_scope",
+            "public_label",
+            "private_mapping_sha256",
+            "construct_validity_rationale",
+            "reveal_conditions",
+        )
+    ):
+        raise ValueError(f"{field} required text fields must be non-blank")
+    if any(
+        value[text_field] != value[text_field].strip()
+        for text_field in (
+            "commitment_id",
+            "concealment_scope",
+            "public_label",
+            "private_mapping_sha256",
+            "construct_validity_rationale",
+            "reveal_conditions",
+            "proxy_construct",
+        )
+    ):
+        raise ValueError(f"{field} text fields must not contain surrounding whitespace")
+    if value["concealment_scope"] not in _ALIAS_PROXY_SCOPES:
+        raise ValueError(f"{field}.concealment_scope is unsupported")
+    if not _is_canonical_sha256(value["private_mapping_sha256"]):
+        raise ValueError(f"{field}.private_mapping_sha256 must be a lowercase SHA-256")
+    for text_field in (
+        "construct_validity_rationale",
+        "reveal_conditions",
+        "proxy_construct",
+    ):
+        if value[text_field] and _REPORT_OVERCLAIM.search(value[text_field]):
+            raise ValueError(
+                f"{field}.{text_field} uses report-prohibited overclaiming language"
+            )
+    limitations = value["limitations"]
+    if (
+        not isinstance(limitations, list)
+        or not limitations
+        or any(not isinstance(item, str) or not item.strip() for item in limitations)
+    ):
+        raise ValueError(f"{field}.limitations must be a non-empty array of non-blank text")
+    if any(item != item.strip() for item in limitations):
+        raise ValueError(f"{field}.limitations must not contain surrounding whitespace")
+    normalized_limitations = [item.casefold() for item in limitations]
+    if len(set(normalized_limitations)) != len(normalized_limitations):
+        raise ValueError(f"{field}.limitations must be unique")
+    scope = value["concealment_scope"]
+    if value["public_label"] not in expected_labels[scope]:
+        raise ValueError(
+            f"{field}.public_label must match the declared public measurement field"
+        )
+    if scope == "data_column_alias" and not expected_labels[scope]:
+        raise ValueError(f"{field}.data_column_alias requires an executable data column")
+    if scope == "value_domain_alias" and not expected_labels[scope]:
+        raise ValueError(f"{field}.value_domain_alias requires an observed value domain")
+    if scope == "proxy_measurement" and not value["proxy_construct"]:
+        raise ValueError(
+            f"{field}.proxy_construct must identify the hidden construct for proxy_measurement"
+        )
+    if scope != "proxy_measurement" and value["proxy_construct"]:
+        raise ValueError(f"{field}.proxy_construct is reserved for proxy_measurement")
+    return dict(value)
+
+
+def _measurement_alias_expected_labels(
+    measurement: dict[str, Any],
+    target_key: str,
+) -> dict[str, set[str]]:
+    data_column = measurement.get("data_column", "")
+    return {
+        "registered_target_alias": {measurement[target_key]},
+        "observable_alias": {measurement["observable"]},
+        "input_condition_alias": {measurement["input_condition"]},
+        "data_column_alias": {data_column} if data_column else set(),
+        "value_domain_alias": set(measurement["admissible_values"]),
+        "proxy_measurement": {measurement["observable"]},
+    }
+
+
+def _primary_alias_expected_labels(brief: dict[str, Any]) -> dict[str, set[str]]:
+    outcome_data_column = brief.get("outcome_data_column", "")
+    measurement_observable = brief.get("measurement_observable", "")
+    return {
+        "registered_target_alias": {brief["outcome"]},
+        "observable_alias": {measurement_observable} if measurement_observable else set(),
+        "input_condition_alias": (
+            {brief["measurement_input_condition"]}
+            if brief.get("measurement_input_condition")
+            else set()
+        ),
+        "data_column_alias": {outcome_data_column} if outcome_data_column else set(),
+        "value_domain_alias": set(_text_list(brief, "outcome_admissible_values")),
+        "proxy_measurement": {measurement_observable} if measurement_observable else set(),
+    }
+
+
 def _canonical_json_bytes(value: Any) -> bytes:
     return json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
@@ -560,7 +703,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     unknown = set(brief) - DESIGN_BRIEF_FIELDS
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "claim_boundaries", "causal_identification", "canary_target_plan", "controlled_acceptance_scenarios", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "claim_boundaries", "causal_identification", "canary_target_plan", "controlled_acceptance_scenarios", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "alias_proxy_commitment", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -626,11 +769,19 @@ def validate_brief(brief: dict[str, Any]) -> None:
             raise ValueError(f"measurement_validity_checks[{index}] fields must be non-blank text")
         if check["evidence_type"] not in _VALIDITY_EVIDENCE_TYPES:
             raise ValueError(f"measurement_validity_checks[{index}].evidence_type is unsupported")
+    _optional_alias_proxy_commitment(
+        brief.get("alias_proxy_commitment"),
+        field="alias_proxy_commitment",
+        expected_labels=_primary_alias_expected_labels(brief),
+    )
     secondary_measurements = brief.get("secondary_measurements", [])
     if not isinstance(secondary_measurements, list):
         raise ValueError("secondary_measurements must be an array")
     for index, measurement in enumerate(secondary_measurements):
-        if not isinstance(measurement, dict) or set(measurement) != _SECONDARY_MEASUREMENT_FIELDS:
+        if not isinstance(measurement, dict) or not (
+            set(measurement) == _SECONDARY_MEASUREMENT_FIELDS
+            or set(measurement) == _SECONDARY_MEASUREMENT_FIELDS | {"alias_proxy_commitment"}
+        ):
             raise ValueError(
                 f"secondary_measurements[{index}] must contain exactly the documented measurement fields"
             )
@@ -660,11 +811,19 @@ def validate_brief(brief: dict[str, Any]) -> None:
                 or not math.isfinite(float(value))
             ):
                 raise ValueError(f"secondary_measurements[{index}].{field} must be finite or null")
+        _optional_alias_proxy_commitment(
+            measurement.get("alias_proxy_commitment"),
+            field=f"secondary_measurements[{index}].alias_proxy_commitment",
+            expected_labels=_measurement_alias_expected_labels(measurement, "outcome"),
+        )
     control_measurements = brief.get("control_measurements", [])
     if not isinstance(control_measurements, list):
         raise ValueError("control_measurements must be an array")
     for index, measurement in enumerate(control_measurements):
-        if not isinstance(measurement, dict) or set(measurement) != _CONTROL_MEASUREMENT_FIELDS:
+        if not isinstance(measurement, dict) or not (
+            set(measurement) == _CONTROL_MEASUREMENT_FIELDS
+            or set(measurement) == _CONTROL_MEASUREMENT_FIELDS | {"alias_proxy_commitment"}
+        ):
             raise ValueError(
                 f"control_measurements[{index}] must contain exactly the documented measurement fields"
             )
@@ -697,11 +856,19 @@ def validate_brief(brief: dict[str, Any]) -> None:
                 or not math.isfinite(float(value))
             ):
                 raise ValueError(f"control_measurements[{index}].{field} must be finite or null")
+        _optional_alias_proxy_commitment(
+            measurement.get("alias_proxy_commitment"),
+            field=f"control_measurements[{index}].alias_proxy_commitment",
+            expected_labels=_measurement_alias_expected_labels(measurement, "control"),
+        )
     causal_measurements = brief.get("causal_measurements", [])
     if not isinstance(causal_measurements, list):
         raise ValueError("causal_measurements must be an array")
     for index, measurement in enumerate(causal_measurements):
-        if not isinstance(measurement, dict) or set(measurement) != _CAUSAL_MEASUREMENT_FIELDS:
+        if not isinstance(measurement, dict) or not (
+            set(measurement) == _CAUSAL_MEASUREMENT_FIELDS
+            or set(measurement) == _CAUSAL_MEASUREMENT_FIELDS | {"alias_proxy_commitment"}
+        ):
             raise ValueError(
                 f"causal_measurements[{index}] must contain exactly the documented measurement fields"
             )
@@ -731,6 +898,11 @@ def validate_brief(brief: dict[str, Any]) -> None:
                 or not math.isfinite(float(value))
             ):
                 raise ValueError(f"causal_measurements[{index}].{field} must be finite or null")
+        _optional_alias_proxy_commitment(
+            measurement.get("alias_proxy_commitment"),
+            field=f"causal_measurements[{index}].alias_proxy_commitment",
+            expected_labels=_measurement_alias_expected_labels(measurement, "variable"),
+        )
     for key in ("outcome_valid_min", "outcome_valid_max"):
         if key in brief and brief[key] is not None and (
             isinstance(brief[key], bool)
@@ -1089,6 +1261,22 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
             "error",
             "The primary measurement value domain contains encodings with surrounding whitespace.",
             "Record observed-value and missing-value encodings exactly as they appear in source data, without padding.",
+        )
+    primary_alias_proxy_commitment = _optional_alias_proxy_commitment(
+        brief.get("alias_proxy_commitment"),
+        field="alias_proxy_commitment",
+        expected_labels=_primary_alias_expected_labels(brief),
+    )
+    if (
+        primary_alias_proxy_commitment is not None
+        and primary_alias_proxy_commitment["concealment_scope"] == "proxy_measurement"
+        and not brief.get("measurement_validity_checks")
+    ):
+        add(
+            "ALIAS_PROXY_VALIDITY_PLAN_MISSING",
+            "error",
+            "The primary measurement is a proxy for a hidden construct without a prospective validity-check plan.",
+            "Declare at least one measurement_validity_checks entry that states how the proxy-to-construct claim will be assessed before analysis.",
         )
 
     secondary_outcomes = _text_list(brief, "secondary_outcomes")
@@ -2055,6 +2243,38 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         if isinstance(brief.get("canary_target_plan"), dict)
         else None
     )
+    primary_alias_proxy_commitment = _optional_alias_proxy_commitment(
+        brief.get("alias_proxy_commitment"),
+        field="alias_proxy_commitment",
+        expected_labels=_primary_alias_expected_labels(brief),
+    )
+    alias_proxy_commitments: list[dict[str, Any]] = []
+    if primary_alias_proxy_commitment is not None:
+        alias_proxy_commitments.append(
+            {
+                "measurement_id": "[REVIEW REQUIRED] stable primary measurement ID",
+                "role": "primary",
+                "registered_target": brief["outcome"],
+                "commitment": primary_alias_proxy_commitment,
+            }
+        )
+    for role, target_key, measurements in (
+        ("secondary", "outcome", brief.get("secondary_measurements", [])),
+        ("control", "control", brief.get("control_measurements", [])),
+        ("causal", "variable", brief.get("causal_measurements", [])),
+    ):
+        for index, item in enumerate(measurements, start=1):
+            commitment = item.get("alias_proxy_commitment")
+            if commitment is None:
+                continue
+            alias_proxy_commitments.append(
+                {
+                    "measurement_id": f"[REVIEW REQUIRED] stable {role} measurement ID {index}",
+                    "role": role,
+                    "registered_target": item[target_key],
+                    "commitment": dict(commitment),
+                }
+            )
     causal_audit = (
         audit_causal_identification(brief["causal_identification"])
         if isinstance(brief.get("causal_identification"), dict) else None
@@ -2504,7 +2724,24 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                 "valid_max": brief.get("outcome_valid_max"),
                 "missing_value_codes": _text_list(brief, "outcome_missing_value_codes"),
                 "analysis_family": brief.get("primary_analysis_family", "[REVIEW REQUIRED]"),
+                "alias_proxy_commitment": primary_alias_proxy_commitment,
                 "notice": "Review and complete the full measurement contract before protocol freeze; this draft does not establish validity or authorize numeric coding of categories.",
+            },
+            "alias-proxy-commitments-draft.json": {
+                "status": (
+                    "review_required"
+                    if alias_proxy_commitments
+                    else "unresolved"
+                ),
+                "commitments": alias_proxy_commitments,
+                "commitment_count": len(alias_proxy_commitments),
+                "required_follow_up": (
+                    "Before collection, copy each commitment into the frozen measurement definition and later record private mapping custody with research measurement record-alias-mapping."
+                    if alias_proxy_commitments
+                    else "No alias/proxy commitment was supplied in the guided design brief."
+                ),
+                "scientific_evidence_eligible": False,
+                "notice": "These are review-only alias/proxy commitments. They bind public labels to private mapping hashes and reveal rules, but do not reveal hidden entities, prove proxy validity, authenticate private custody, satisfy ethics review, or authorize evidence.",
             },
             "measurement-validity-plan-draft.json": {
                 "status": "review_required",

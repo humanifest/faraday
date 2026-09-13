@@ -1045,6 +1045,17 @@ columns, admissible observed values, and missing-value codes before draft
 artifacts are treated as review-ready. The provider-free interview no longer
 pre-trims those free-text, semicolon-list boundary, and parameter-binding
 commitments before this audit.
+Guided alias/proxy delivery: design briefs now accept the canonical
+`alias_proxy_commitment` shape on the primary measurement and on secondary,
+control, or causal measurement entries. The scaffold validates concealment
+scope, public-label binding, private mapping SHA-256, bounded rationale,
+limitations, reveal conditions, and proxy-construct rules before emitting a
+review-only `alias-proxy-commitments-draft.json` artifact. A proxy primary
+measurement also requires at least one prospective measurement-validity check,
+so the hidden construct cannot enter design review as an unexplained substitute
+for the public observable. The artifact retains hashes and public labels only;
+it does not reveal hidden entities, prove proxy validity, authenticate private
+custody, satisfy ethics review, or authorize evidence.
 Alias/proxy measurement commitment delivery: frozen measurement definitions can
 now carry a prospective `alias_proxy_commitment` for blinded labels, redacted
 targets, or proxy measurements. Canonical freeze validates the concealment

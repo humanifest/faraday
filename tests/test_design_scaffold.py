@@ -61,6 +61,28 @@ def _validity_check(check_id: str = "primary-validity", gate_id: str = "primary-
     }
 
 
+def _alias_proxy_commitment(**overrides):
+    value = {
+        "commitment_id": "masked-primary-target",
+        "concealment_scope": "proxy_measurement",
+        "public_label": "Public proxy score",
+        "private_mapping_sha256": "a" * 64,
+        "construct_validity_rationale": (
+            "The proxy is prospectively compared with a retained reference subset "
+            "before the analysis can be interpreted."
+        ),
+        "limitations": [
+            "The private mapping hash preserves identity only; it does not prove construct validity."
+        ],
+        "reveal_conditions": (
+            "Reveal only to authorized reviewers after the primary analysis artifact "
+            "is sealed, or keep sealed for the redacted replication package."
+        ),
+        "proxy_construct": "The hidden construct identified by the private mapping.",
+    }
+    return {**value, **overrides}
+
+
 def _controlled_scenario(scenario_id: str = "planted-signal-recovery", **overrides):
     value = {
         "scenario_id": scenario_id,
@@ -2362,6 +2384,102 @@ def test_complete_nonhuman_scaffold_remains_review_only(tmp_path: Path, capsys) 
     }
     assert "CAUSAL_GRAPH_UNRESOLVED" in {item["code"] for item in payload["findings"]}
     assert payload["artifacts"]["causal-identification-audit.json"]["status"] == "unresolved"
+
+
+def test_guided_design_preserves_alias_proxy_commitment_in_review_artifacts() -> None:
+    commitment = _alias_proxy_commitment()
+    result = scaffold_design({
+        "title": "Masked proxy fixture",
+        "question": "Can a masked proxy be reviewed without revealing the target?",
+        "decision": "Decide whether the blinded collection plan is reviewable.",
+        "outcome": "Hidden construct alias",
+        "outcome_unit": "points",
+        "outcome_scale": "interval",
+        "outcome_valid_min": 0.0,
+        "outcome_valid_max": 100.0,
+        "outcome_missing_value_codes": ["<blank>"],
+        "unit_of_observation": "independent artifact",
+        "human_participants": False,
+        "measurement_observable": "Public proxy score",
+        "measurement_input_condition": "All eligible artifacts at the frozen endpoint.",
+        "measurement_parameter_values": {"version": "masked-v1"},
+        "measurement_evaluation_point": "Frozen endpoint",
+        "measurement_convention": "Higher scores indicate more of the public proxy.",
+        "measurement_aggregation": "One score per independent artifact.",
+        "measurement_tolerance": "Exact parsed score",
+        "measurement_expected_behavior": "Report the proxy regardless of direction.",
+        "measurement_temporal_role": "not_applicable",
+        "outcome_data_column": "proxy_score",
+        "primary_analysis_family": "descriptive",
+        "measurement_validity": "Compare the public proxy with a sealed reference subset.",
+        "measurement_validity_checks": [_validity_check()],
+        "alias_proxy_commitment": commitment,
+    })
+
+    assert result["status"] == "review_required"
+    measurement = result["artifacts"]["measurement-definition-draft.json"]
+    assert measurement["alias_proxy_commitment"] == commitment
+    alias_artifact = result["artifacts"]["alias-proxy-commitments-draft.json"]
+    assert alias_artifact["status"] == "review_required"
+    assert alias_artifact["commitment_count"] == 1
+    assert alias_artifact["commitments"][0]["commitment"] == commitment
+    assert alias_artifact["scientific_evidence_eligible"] is False
+    assert "do not reveal hidden entities" in alias_artifact["notice"]
+    assert "ALIAS_PROXY_VALIDITY_PLAN_MISSING" not in {
+        item["code"] for item in result["findings"]
+    }
+
+
+def test_guided_design_blocks_proxy_without_validity_plan() -> None:
+    result = scaffold_design({
+        "title": "Masked proxy without validity",
+        "question": "Can a masked proxy skip validity planning?",
+        "decision": "Decide whether to collect masked data.",
+        "outcome": "Hidden construct alias",
+        "unit_of_observation": "independent artifact",
+        "human_participants": False,
+        "measurement_observable": "Public proxy score",
+        "measurement_input_condition": "All eligible artifacts at the frozen endpoint.",
+        "measurement_parameter_values": {"version": "masked-v1"},
+        "measurement_evaluation_point": "Frozen endpoint",
+        "measurement_convention": "Higher scores indicate more of the public proxy.",
+        "measurement_aggregation": "One score per independent artifact.",
+        "measurement_tolerance": "Exact parsed score",
+        "measurement_expected_behavior": "Report the proxy regardless of direction.",
+        "measurement_temporal_role": "not_applicable",
+        "outcome_data_column": "proxy_score",
+        "alias_proxy_commitment": _alias_proxy_commitment(),
+    })
+
+    assert result["status"] == "blocked"
+    assert "ALIAS_PROXY_VALIDITY_PLAN_MISSING" in {
+        item["code"] for item in result["findings"]
+    }
+
+
+def test_guided_design_rejects_unbound_alias_proxy_commitment() -> None:
+    with pytest.raises(ValueError, match="public_label must match"):
+        scaffold_design({
+            "title": "Bad masked proxy",
+            "question": "Can a masked proxy bind the wrong public label?",
+            "decision": "Decide whether to collect masked data.",
+            "outcome": "Hidden construct alias",
+            "unit_of_observation": "independent artifact",
+            "human_participants": False,
+            "measurement_observable": "Public proxy score",
+            "measurement_input_condition": "All eligible artifacts at the frozen endpoint.",
+            "measurement_parameter_values": {"version": "masked-v1"},
+            "measurement_evaluation_point": "Frozen endpoint",
+            "measurement_convention": "Higher scores indicate more of the public proxy.",
+            "measurement_aggregation": "One score per independent artifact.",
+            "measurement_tolerance": "Exact parsed score",
+            "measurement_expected_behavior": "Report the proxy regardless of direction.",
+            "measurement_temporal_role": "not_applicable",
+            "outcome_data_column": "proxy_score",
+            "alias_proxy_commitment": _alias_proxy_commitment(
+                public_label="Different public score"
+            ),
+        })
 
 
 def test_causal_scaffold_blocks_open_backdoor_and_carries_passing_audit() -> None:
