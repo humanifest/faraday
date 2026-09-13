@@ -142,6 +142,10 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
     assert context["claims"][0]["claim_id"] == claim.claim_id
     assert context["evidence"] == []
     assert context["datasets"] == []
+    assert context["dataset_inventory"]["registered_dataset_count"] == 0
+    assert "Draft data-source mentions" in context["dataset_inventory"][
+        "empty_inventory_notice"
+    ]
     assert context["protocols"] == []
     assert context["runs"] == []
     assert context["context_reference_index"] == [
@@ -153,6 +157,48 @@ def test_collaborator_context_is_read_only_and_preserves_scientific_boundaries(
         {"ref": f"claim:{claim.claim_id}", "kind": "claim"},
     ]
     assert any("causality" in item for item in context["scientific_constraints"])
+
+
+def test_collaborator_context_includes_bounded_dataset_inventory(tmp_path) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    inquiry = service.create_inquiry(
+        CreateInquiry("Dataset review", "What data are available?", "dataset")
+    )
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="context-dataset",
+            name="Context dataset",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[
+                DatasetArtifact(
+                    "context.csv",
+                    hashlib.sha256(b"unit,outcome\nu1,1\n").hexdigest(),
+                    18,
+                    "text/csv",
+                )
+            ],
+            synthetic=True,
+            quality_attestations=["Synthetic collaborator-context fixture."],
+        ),
+        inquiry.inquiry_id,
+    )
+
+    context = service.collaborator_context(
+        inquiry.inquiry_id,
+        purpose="Review dataset availability.",
+    )
+
+    assert context["datasets"][0]["dataset_id"] == "context-dataset"
+    inventory = context["dataset_inventory"]
+    assert inventory["registered_dataset_count"] == 1
+    assert inventory["role_counts"] == {"exploratory": 1}
+    row = inventory["datasets"][0]
+    assert row["dataset_id"] == "context-dataset"
+    assert row["observation_access"]["status"] == "synthetic_fixture"
+    assert row["readiness"]["status"] == "not_protected_evidence_dataset"
+    assert row["operational_roots_redacted"] is True
+    assert str(tmp_path.resolve()) not in json.dumps(context)
 
 
 def test_collaborator_context_exposes_acquisition_timing_as_non_authority(

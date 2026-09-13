@@ -1446,6 +1446,7 @@ class ResearchService:
             )
         state = self.show_inquiry(inquiry_id)
         redacted_state = redact_operational_context(state)
+        dataset_inventory = self.dataset_inventory(inquiry_id)
         open_questions = [
             question
             for question in redacted_state["questions"]
@@ -1522,6 +1523,7 @@ class ResearchService:
             "evidence": redacted_state["evidence"],
             "evidence_status_events": redacted_state["evidence_status_events"],
             "datasets": redacted_state["datasets"],
+            "dataset_inventory": dataset_inventory,
             "protocols": redacted_state["protocols"],
             "runs": redacted_state["runs"],
             "recommendations": redacted_state["recommendations"],

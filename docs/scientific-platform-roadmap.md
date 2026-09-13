@@ -1473,7 +1473,12 @@ withdrawal, and retraction events are independently citable alongside the
 evidence records they qualify. The collaborator context redacts operational
 artifact roots and attestation-schema paths while retaining IDs, hashes, status
 history, and review-event handles, keeping provider-neutral review separate from
-local custody access. Freezing or later validating a collaborator context now
+local custody access. It also carries the structured dataset inventory used by
+the CLI and synthesis, so provider-neutral reviewers can see registered dataset
+counts, roles, synthetic/protected status, observation access, custody, ethics
+state, rigor findings, and readiness while the same boundary states that draft
+data-source mentions, plugin access, and design briefs are not registered
+datasets. Freezing or later validating a collaborator context now
 fails closed if those operational roots or attestation-schema paths remain
 unredacted or use any marker other than Faraday's exact
 `[redacted: retained in canonical store]` value. The published context schema

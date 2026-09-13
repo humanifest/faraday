@@ -14,6 +14,7 @@
     "evidence",
     "evidence_status_events",
     "datasets",
+    "dataset_inventory",
     "protocols",
     "runs",
     "recommendations",
@@ -62,6 +63,7 @@
       "type": "array",
       "items": {"$ref": "#/$defs/dataset"}
     },
+    "dataset_inventory": {"$ref": "#/$defs/datasetInventory"},
     "protocols": {
       "type": "array",
       "items": {"$ref": "#/$defs/protocol"}
@@ -287,6 +289,225 @@
         "dataset_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
       },
       "additionalProperties": true
+    },
+    "datasetInventory": {
+      "type": "object",
+      "required": [
+        "registered_dataset_count",
+        "role_counts",
+        "synthetic_count",
+        "non_synthetic_count",
+        "datasets_with_rigor_errors",
+        "empty_inventory_notice",
+        "interpretation_limit",
+        "datasets"
+      ],
+      "properties": {
+        "registered_dataset_count": {"type": "integer", "minimum": 0},
+        "role_counts": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "calibration",
+              "exploratory",
+              "training",
+              "confirmatory",
+              "replication"
+            ]
+          },
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "synthetic_count": {"type": "integer", "minimum": 0},
+        "non_synthetic_count": {"type": "integer", "minimum": 0},
+        "datasets_with_rigor_errors": {"type": "integer", "minimum": 0},
+        "empty_inventory_notice": {"type": "string"},
+        "interpretation_limit": {"$ref": "#/$defs/canonicalNonEmptyText"},
+        "datasets": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/datasetInventoryRow"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "datasetInventoryRow": {
+      "type": "object",
+      "required": [
+        "dataset_id",
+        "name",
+        "role",
+        "synthetic",
+        "protocol_id",
+        "protocol_present",
+        "artifact_count",
+        "media_types",
+        "source_dataset_ids",
+        "payload_commitment",
+        "observation_access",
+        "measurement_custody",
+        "ethics",
+        "rigor_findings",
+        "readiness",
+        "operational_roots_redacted"
+      ],
+      "properties": {
+        "dataset_id": {"$ref": "#/$defs/canonicalNonEmptyText"},
+        "name": {"$ref": "#/$defs/canonicalNonEmptyText"},
+        "role": {
+          "enum": [
+            "calibration",
+            "exploratory",
+            "training",
+            "confirmatory",
+            "replication"
+          ]
+        },
+        "synthetic": {"type": "boolean"},
+        "protocol_id": {"type": ["string", "null"]},
+        "protocol_present": {"type": "boolean"},
+        "artifact_count": {"type": "integer", "minimum": 0},
+        "media_types": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/canonicalNonEmptyText"}
+        },
+        "source_dataset_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/canonicalNonEmptyText"}
+        },
+        "payload_commitment": {"$ref": "#/$defs/datasetPayloadCommitment"},
+        "observation_access": {"$ref": "#/$defs/datasetObservationAccess"},
+        "measurement_custody": {"$ref": "#/$defs/datasetMeasurementCustody"},
+        "ethics": {"$ref": "#/$defs/datasetEthics"},
+        "rigor_findings": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/datasetRigorFinding"}
+        },
+        "readiness": {"$ref": "#/$defs/datasetReadiness"},
+        "operational_roots_redacted": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "datasetPayloadCommitment": {
+      "type": "object",
+      "required": ["sealed", "sha256", "summary"],
+      "properties": {
+        "sealed": {"type": "boolean"},
+        "sha256": {
+          "anyOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        },
+        "summary": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": false
+    },
+    "datasetObservationAccess": {
+      "type": "object",
+      "required": ["status", "service_verified", "summary"],
+      "properties": {
+        "status": {
+          "enum": [
+            "synthetic_fixture",
+            "protected_observation_bytes_service_verified",
+            "protected_observation_bytes_missing_service_verification",
+            "declared_hashes_only"
+          ]
+        },
+        "service_verified": {"type": "boolean"},
+        "summary": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": false
+    },
+    "datasetMeasurementCustody": {
+      "type": "object",
+      "required": [
+        "status",
+        "required_by_protocol",
+        "service_verified",
+        "summary"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "service_verified",
+            "required_missing_service_verification",
+            "described_not_service_verified",
+            "not_recorded"
+          ]
+        },
+        "required_by_protocol": {"type": "boolean"},
+        "service_verified": {"type": "boolean"},
+        "summary": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": false
+    },
+    "datasetEthics": {
+      "type": "object",
+      "required": [
+        "status",
+        "human_subject_protocol",
+        "service_checked",
+        "conditions_service_verified",
+        "summary"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "protocol_missing",
+            "not_bound_to_protocol",
+            "not_human_subject_protocol",
+            "active_service_check",
+            "missing_active_service_check",
+            "active_service_check_with_conditions_verified",
+            "missing_required_ethics_service_verification"
+          ]
+        },
+        "human_subject_protocol": {"type": "boolean"},
+        "service_checked": {"type": "boolean"},
+        "conditions_service_verified": {"type": "boolean"},
+        "summary": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": false
+    },
+    "datasetRigorFinding": {
+      "type": "object",
+      "required": ["code", "severity", "message", "remediation"],
+      "properties": {
+        "code": {"$ref": "#/$defs/canonicalNonEmptyText"},
+        "severity": {"enum": ["error", "warning", "info"]},
+        "message": {"$ref": "#/$defs/canonicalNonEmptyText"},
+        "remediation": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "datasetReadiness": {
+      "type": "object",
+      "required": [
+        "status",
+        "blocking_finding_codes",
+        "warning_finding_codes",
+        "summary"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "not_protected_evidence_dataset",
+            "protected_use_blocked_by_rigor",
+            "protected_use_has_rigor_warnings",
+            "protected_no_dataset_rigor_blockers_detected"
+          ]
+        },
+        "blocking_finding_codes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/canonicalNonEmptyText"}
+        },
+        "warning_finding_codes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/canonicalNonEmptyText"}
+        },
+        "summary": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": false
     },
     "protocol": {
       "type": "object",
