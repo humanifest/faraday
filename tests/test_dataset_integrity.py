@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from research_machine.application.commands import CreateProtocol, RecordRun, RegisterDataset
+from research_machine.application.commands import (
+    CreateProtocol,
+    RecordEvidence,
+    RecordRun,
+    RegisterDataset,
+)
 from research_machine.application.dataset_integrity import (
     dataset_payload_sha256,
     reverify_dataset_artifacts,
@@ -13,6 +18,9 @@ from research_machine.application.dataset_integrity import (
     verify_dataset_artifacts,
 )
 from research_machine.application.dataset_inventory import build_dataset_inventory
+from research_machine.application.evidence_admission import (
+    validate_evidence_admission_receipts,
+)
 from research_machine.application.rigor import audit_research_state
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
@@ -20,17 +28,19 @@ from research_machine.domain.models import (
     DatasetArtifact,
     DatasetManifest,
     DatasetRole,
+    EvidenceDirection,
     ExperimentProtocol,
     Inquiry,
     ProtocolKind,
     ProtocolStatus,
     QualityGateResult,
     QualityGateStatus,
+    ValidationTag,
 )
 from research_machine.interfaces.cli import main
 from research_machine.reporting.synthesis import build_synthesis
 from test_ethics_gate import _human_protocol
-from test_execution import prepared_service
+from test_execution import frozen_formal_protocol, prepared_service, run_command
 
 
 def _protected_protocol(tmp_path: Path):
@@ -598,6 +608,159 @@ def test_run_intake_replays_dataset_source_authority_lineage(
                 }
             },
         ))
+
+
+def test_evidence_admission_replays_dataset_source_authority(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    dataset = service.register_dataset(RegisterDataset(
+        dataset_id="source-authority-evidence-dataset",
+        name="Source authority evidence dataset",
+        role=DatasetRole.EXPLORATORY,
+        artifacts=[DatasetArtifact("evidence.csv", "f" * 64)],
+        synthetic=True,
+        metadata={
+            "source_authority": {
+                "source_type": "synthetic_fixture",
+                "source_name": "Synthetic source-authority evidence fixture",
+            }
+        },
+    ))
+    dataset_path = (
+        tmp_path
+        / "inquiries"
+        / "formal"
+        / "datasets"
+        / f"{dataset.dataset_id}.json"
+    )
+    record = json.loads(dataset_path.read_text(encoding="utf-8"))
+    record["metadata"]["source_authority"]["source_truth_verified"] = True
+    record["metadata"].pop("dataset_payload_sha256", None)
+    record["metadata"]["dataset_payload_sha256"] = dataset_payload_sha256(
+        DatasetManifest.from_dict(record)
+    )
+    dataset_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="source_truth_verified must be false",
+    ):
+        service.record_evidence(RecordEvidence(
+            hypothesis_id=hypothesis_id,
+            direction=EvidenceDirection.INCONCLUSIVE,
+            summary="The synthetic fixture remains inconclusive.",
+            dataset_id=dataset.dataset_id,
+            analysis_id="source-authority-evidence-analysis",
+            uncertainty="Synthetic fixture only.",
+            scope="Synthetic fixture only.",
+            higher_level_conclusions_unsupported=[
+                "Source truth, custody, and evidence eligibility remain unverified."
+            ],
+            validation_tags=[ValidationTag.CALIBRATION],
+            exploratory=True,
+        ))
+
+
+def test_scientific_evidence_replay_checks_dataset_source_authority(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    protocol = frozen_formal_protocol(service, hypothesis_id)
+    observations = tmp_path / "observations.csv"
+    observations.write_text("unit,outcome\nu1,1\n", encoding="utf-8")
+    dataset = service.register_dataset(RegisterDataset(
+        dataset_id="source-authority-scientific-dataset",
+        name="Source authority scientific dataset",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[_artifact(observations)],
+        protocol_id=protocol.protocol_id,
+        artifact_root=str(tmp_path),
+        metadata={
+            "source_authority": {
+                "source_type": "registered_experiment",
+                "source_name": "Registered source-authority replay fixture",
+            }
+        },
+    ))
+    output = tmp_path / "proof-output.json"
+    output.write_text('{"checker":"passed"}\n', encoding="utf-8")
+    output_sha256 = hashlib.sha256(output.read_bytes()).hexdigest()
+    run = service.record_run(run_command(
+        protocol.protocol_id,
+        QualityGateStatus.PASSED,
+        dataset_ids=[dataset.dataset_id],
+        artifact_root=str(tmp_path),
+        output_artifacts=[
+            DatasetArtifact(
+                output.name,
+                output_sha256,
+                output.stat().st_size,
+                "application/json",
+            )
+        ],
+        quality_gates=[
+            QualityGateResult(
+                "proof-check",
+                QualityGateStatus.PASSED,
+                "Independent proof-checker result.",
+                details={"evidence_sha256": output_sha256},
+            )
+        ],
+    ))
+    evidence = service.record_evidence(RecordEvidence(
+        hypothesis_id=hypothesis_id,
+        direction=EvidenceDirection.SUPPORTS,
+        summary="The registered checker accepted the proof object.",
+        analysis_id="",
+        run_id=run.run_id,
+        dataset_id=dataset.dataset_id,
+        uncertainty="Bounded to the pinned formal system and checker implementation.",
+        scope="The registered invariant in the frozen bounded proof system.",
+        controls_passed=["Replay a deliberately invalid derivation."],
+        higher_level_conclusions_unsupported=[
+            "The candidate is empirically correct.",
+            "The result has been independently replicated.",
+        ],
+        validation_tags=[
+            ValidationTag.INTERNAL_CONSISTENCY,
+            ValidationTag.CONTROLLED_BENCHMARK,
+        ],
+        exploratory=False,
+    ))
+    dataset_path = (
+        tmp_path
+        / "inquiries"
+        / "formal"
+        / "datasets"
+        / f"{dataset.dataset_id}.json"
+    )
+    record = json.loads(dataset_path.read_text(encoding="utf-8"))
+    record["metadata"]["source_authority"]["source_truth_verified"] = True
+    record["metadata"].pop("dataset_payload_sha256", None)
+    record["metadata"]["dataset_payload_sha256"] = dataset_payload_sha256(
+        DatasetManifest.from_dict(record)
+    )
+    dataset_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="source_truth_verified must be false",
+    ):
+        validate_evidence_admission_receipts(
+            [evidence],
+            [],
+            [run],
+            [protocol],
+            service.repository.list_datasets("formal"),
+            [],
+        )
 
 
 @pytest.mark.parametrize(

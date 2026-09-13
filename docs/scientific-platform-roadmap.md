@@ -2399,9 +2399,10 @@ source-route contract for registered experiments, acquisition add-ons,
 scientific connectors, manual imports, external attestations, or synthetic
 fixtures. Registration normalizes it, rejects overclaiming source text or any
 attempt to mark source truth, custody, or evidence eligibility as conferred, and
-authoritative reads and run intake replay the same validation from the sealed
-dataset payload. Run intake also checks protected lineage ancestors, so a
-derived dataset cannot launder a rewritten source route into execution.
+authoritative reads, run intake, and evidence admission replay the same
+validation from the sealed dataset payload. Run intake and scientific-evidence
+admission replay also check protected lineage ancestors, so a derived dataset
+cannot launder a rewritten source route into execution or evidence.
 
 Instrument-adapter foundation: validated add-on manifests may now register
 bounded inspectors with stable IDs, supported media types, and explicit config

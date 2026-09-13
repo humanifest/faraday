@@ -6803,6 +6803,21 @@ class ResearchService:
             dataset = self.repository.find_dataset(resolved, command.dataset_id)
             datasets = [dataset]
 
+        if dataset is not None:
+            from research_machine.application.dataset_integrity import (
+                validate_dataset_payload_commitment,
+            )
+            from research_machine.application.dataset_source_authority import (
+                validate_dataset_source_authority,
+            )
+
+            validate_dataset_payload_commitment(dataset)
+            if "source_authority" in dataset.metadata:
+                validate_dataset_source_authority(
+                    dataset.metadata["source_authority"],
+                    synthetic=dataset.synthetic,
+                )
+
         if command.exploratory:
             if run and run.analysis_mode is not AnalysisMode.EXPLORATORY:
                 raise ValidationError(

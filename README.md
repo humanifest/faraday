@@ -2328,7 +2328,9 @@ gate evidence.
   manual import, external attestation, or synthetic fixture, and the service
   rejects attempts to treat that route as verified truth, custody, or evidence
   eligibility. Run intake replays the same source-authority boundary for every
-  selected dataset and protected lineage ancestor before a dataset can be used.
+  selected dataset and protected lineage ancestor before a dataset can be used,
+  and evidence admission replays the cited dataset boundary before accepting or
+  replaying dataset-backed evidence.
   Empty inventories explicitly say that draft data-source mentions, plugin
   access, and design briefs are not registered datasets. The published schema at
   `schemas/dataset-inventory.schema.json` lets provider-neutral clients

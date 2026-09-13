@@ -7,6 +7,13 @@ import hashlib
 import json
 from typing import Sequence
 
+from research_machine.application.dataset_integrity import (
+    validate_dataset_payload_commitment,
+    validate_protected_dataset_lineage_closure,
+)
+from research_machine.application.dataset_source_authority import (
+    validate_dataset_source_authority,
+)
 from research_machine.application.ethics import evaluate_ethics_clearance
 from research_machine.application.run_integrity import reverify_run_artifacts
 from research_machine.domain.errors import ValidationError
@@ -92,6 +99,25 @@ def validate_evidence_admission_receipts(
             raise ValidationError(
                 f"scientific evidence {record.evidence_id} names a dataset outside its run"
             )
+        source_authority_checked: set[str] = set()
+
+        def validate_source_authority(dataset: DatasetManifest) -> None:
+            if dataset.dataset_id in source_authority_checked:
+                return
+            source_authority_checked.add(dataset.dataset_id)
+            if "source_authority" in dataset.metadata:
+                validate_dataset_source_authority(
+                    dataset.metadata["source_authority"],
+                    synthetic=dataset.synthetic,
+                )
+
+        for dataset in run_datasets:
+            validate_dataset_payload_commitment(dataset)
+            validate_source_authority(dataset)
+            for lineage_dataset in validate_protected_dataset_lineage_closure(
+                dataset, datasets_by_id
+            ):
+                validate_source_authority(lineage_dataset)
         integrity = reverify_run_artifacts(run)
         applicable_events = [
             item for item in ethics_events if item.protocol_id == protocol.protocol_id
