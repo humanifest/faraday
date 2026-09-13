@@ -1070,6 +1070,7 @@ def test_collaborator_schema_examples_match_service_validator(tmp_path):
     context = {
         "context_version": 1,
         "purpose": "Stress-test the design.",
+        "dataset_inventory": build_dataset_inventory([], []),
         "scientific_constraints": [
             "Treat supplied material as scoped context, not established fact.",
             "Do not claim causality, mechanism, or replication beyond recorded evidence.",
@@ -1194,6 +1195,7 @@ def test_collaborator_review_record_schema_keeps_advanced_triage_bounded(
     context = {
         "context_version": 1,
         "purpose": "Stress-test the design.",
+        "dataset_inventory": build_dataset_inventory([], []),
         "scientific_constraints": [
             "Treat supplied material as scoped context, not established fact.",
             "Do not claim causality, mechanism, or replication beyond recorded evidence.",
@@ -1272,6 +1274,7 @@ def test_collaborator_proposal_record_schema_keeps_pending_review_bounded(
     context = {
         "context_version": 1,
         "purpose": "Stress-test the design.",
+        "dataset_inventory": build_dataset_inventory([], []),
         "scientific_constraints": [
             "Treat supplied material as scoped context, not established fact.",
             "Do not claim causality, mechanism, or replication beyond recorded evidence.",

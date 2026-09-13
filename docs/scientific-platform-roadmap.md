@@ -1478,7 +1478,10 @@ the CLI and synthesis, so provider-neutral reviewers can see registered dataset
 counts, roles, synthetic/protected status, observation access, custody, ethics
 state, rigor findings, and readiness while the same boundary states that draft
 data-source mentions, plugin access, and design briefs are not registered
-datasets. Freezing or later validating a collaborator context now
+datasets. Freezing replays the inventory against the visible dataset records,
+registered count, role totals, synthetic totals, rigor-error totals, and
+operational-root redaction flags before the context can be published. Freezing
+or later validating a collaborator context now
 fails closed if those operational roots or attestation-schema paths remain
 unredacted or use any marker other than Faraday's exact
 `[redacted: retained in canonical store]` value. The published context schema

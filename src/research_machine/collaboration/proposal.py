@@ -213,6 +213,13 @@ _CONTEXT_RECORD_COLLECTIONS = {
     "runs": ("run:", "run_id"),
     "ethics_review_events": ("ethics_review_event:", "event_id"),
 }
+_DATASET_INVENTORY_ROLES = {
+    "calibration",
+    "exploratory",
+    "training",
+    "confirmatory",
+    "replication",
+}
 def _duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -642,6 +649,119 @@ def _validate_context_operational_redaction(value: Any, path: str) -> None:
             _validate_context_operational_redaction(item, f"{path}[{index}]")
 
 
+def _validate_context_dataset_inventory(context: dict[str, Any]) -> None:
+    inventory = context.get("dataset_inventory")
+    if not isinstance(inventory, dict):
+        raise ValidationError("collaborator context dataset_inventory must be an object")
+    datasets = context.get("datasets", [])
+    if not isinstance(datasets, list):
+        raise ValidationError("collaborator context datasets must be an array")
+    visible_ids: list[str] = []
+    for index, item in enumerate(datasets):
+        if not isinstance(item, dict):
+            raise ValidationError(f"collaborator context datasets[{index}] must be an object")
+        dataset_id = item.get("dataset_id")
+        if not isinstance(dataset_id, str) or not dataset_id.strip():
+            raise ValidationError(
+                f"collaborator context datasets[{index}].dataset_id must be non-empty text"
+            )
+        if dataset_id != dataset_id.strip():
+            raise ValidationError(
+                f"collaborator context datasets[{index}].dataset_id must be canonical without surrounding whitespace"
+            )
+        visible_ids.append(dataset_id)
+    rows = inventory.get("datasets")
+    if not isinstance(rows, list):
+        raise ValidationError(
+            "collaborator context dataset_inventory.datasets must be an array"
+        )
+    row_ids: list[str] = []
+    role_counts: dict[str, int] = {}
+    synthetic_count = 0
+    datasets_with_errors = 0
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise ValidationError(
+                f"collaborator context dataset_inventory.datasets[{index}] must be an object"
+            )
+        dataset_id = _canonical_text(
+            row.get("dataset_id", ""),
+            f"dataset_inventory.datasets[{index}].dataset_id",
+        )
+        if dataset_id in row_ids:
+            raise ValidationError(
+                f"duplicate collaborator context dataset_inventory dataset_id: {dataset_id}"
+            )
+        row_ids.append(dataset_id)
+        role = row.get("role")
+        if role not in _DATASET_INVENTORY_ROLES:
+            raise ValidationError(
+                f"collaborator context dataset_inventory.datasets[{index}].role is unsupported"
+            )
+        role_counts[role] = role_counts.get(role, 0) + 1
+        synthetic = row.get("synthetic")
+        if not isinstance(synthetic, bool):
+            raise ValidationError(
+                f"collaborator context dataset_inventory.datasets[{index}].synthetic must be boolean"
+            )
+        if synthetic:
+            synthetic_count += 1
+        if row.get("operational_roots_redacted") is not True:
+            raise ValidationError(
+                "collaborator context dataset_inventory rows must redact operational roots"
+            )
+        findings = row.get("rigor_findings", [])
+        if not isinstance(findings, list):
+            raise ValidationError(
+                f"collaborator context dataset_inventory.datasets[{index}].rigor_findings must be an array"
+            )
+        if any(
+            isinstance(finding, dict) and finding.get("severity") == "error"
+            for finding in findings
+        ):
+            datasets_with_errors += 1
+    if sorted(row_ids) != sorted(visible_ids):
+        raise ValidationError(
+            "collaborator context dataset_inventory must exactly cover visible dataset records"
+        )
+    expected_count = len(row_ids)
+    if inventory.get("registered_dataset_count") != expected_count:
+        raise ValidationError(
+            "collaborator context dataset_inventory registered_dataset_count disagrees with visible datasets"
+        )
+    if inventory.get("synthetic_count") != synthetic_count:
+        raise ValidationError(
+            "collaborator context dataset_inventory synthetic_count disagrees with inventory rows"
+        )
+    if inventory.get("non_synthetic_count") != expected_count - synthetic_count:
+        raise ValidationError(
+            "collaborator context dataset_inventory non_synthetic_count disagrees with inventory rows"
+        )
+    if inventory.get("datasets_with_rigor_errors") != datasets_with_errors:
+        raise ValidationError(
+            "collaborator context dataset_inventory datasets_with_rigor_errors disagrees with inventory rows"
+        )
+    if inventory.get("role_counts") != {
+        role: role_counts[role] for role in sorted(role_counts)
+    }:
+        raise ValidationError(
+            "collaborator context dataset_inventory role_counts disagree with inventory rows"
+        )
+    notice = inventory.get("empty_inventory_notice")
+    if not isinstance(notice, str):
+        raise ValidationError(
+            "collaborator context dataset_inventory empty_inventory_notice must be text"
+        )
+    if expected_count == 0 and not notice:
+        raise ValidationError(
+            "collaborator context dataset_inventory must explain empty inventories"
+        )
+    if expected_count > 0 and notice:
+        raise ValidationError(
+            "collaborator context dataset_inventory empty_inventory_notice must be blank when datasets are present"
+        )
+
+
 def _validate_context_snapshot(context: dict[str, Any]) -> list[str]:
     if context.get("context_version") != 1:
         raise ValidationError("collaborator context_version must be 1")
@@ -662,6 +782,7 @@ def _validate_context_snapshot(context: dict[str, Any]) -> list[str]:
             "collaborator context body records are missing from context_reference_index: "
             + ", ".join(missing_from_index)
         )
+    _validate_context_dataset_inventory(context)
     return _context_scientific_constraints(context)
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -48,6 +49,23 @@ _CANONICAL_CHANGES_REQUIRE = [
     "research inquiry/question/claim/hypothesis/protocol/dataset/run/evidence commands",
     "applicable human review and protocol-freeze gates",
 ]
+_EMPTY_DATASET_INVENTORY = {
+    "registered_dataset_count": 0,
+    "role_counts": {},
+    "synthetic_count": 0,
+    "non_synthetic_count": 0,
+    "datasets_with_rigor_errors": 0,
+    "empty_inventory_notice": (
+        "No datasets are registered in canonical workspace state. Draft data-source "
+        "mentions, external plugin access, and design briefs are not counted as "
+        "datasets until they are registered through the service."
+    ),
+    "interpretation_limit": (
+        "This is a manifest/provenance inventory, not proof of source truth, "
+        "consent truth, measurement validity, or analysis adequacy."
+    ),
+    "datasets": [],
+}
 
 
 def _context(
@@ -59,6 +77,7 @@ def _context(
     context = {
         "context_version": 1,
         "purpose": purpose,
+        "dataset_inventory": copy.deepcopy(_EMPTY_DATASET_INVENTORY),
         "scientific_constraints": list(
             _SCIENTIFIC_CONSTRAINTS
             if scientific_constraints is None
@@ -199,6 +218,70 @@ def test_collaborator_context_includes_bounded_dataset_inventory(tmp_path) -> No
     assert row["readiness"]["status"] == "not_protected_evidence_dataset"
     assert row["operational_roots_redacted"] is True
     assert str(tmp_path.resolve()) not in json.dumps(context)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda context: context["dataset_inventory"].update({"datasets": []}),
+            "dataset_inventory must exactly cover visible dataset records",
+        ),
+        (
+            lambda context: context["dataset_inventory"].update(
+                {"registered_dataset_count": 0}
+            ),
+            "registered_dataset_count disagrees",
+        ),
+        (
+            lambda context: context["dataset_inventory"]["datasets"][0].update(
+                {"operational_roots_redacted": False}
+            ),
+            "rows must redact operational roots",
+        ),
+        (
+            lambda context: context["dataset_inventory"].update(
+                {"role_counts": {"confirmatory": 1}}
+            ),
+            "role_counts disagree",
+        ),
+    ],
+)
+def test_context_snapshot_replays_dataset_inventory_consistency(
+    tmp_path: Path, mutation, message: str
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    inquiry = service.create_inquiry(
+        CreateInquiry("Dataset review", "What data are available?", "dataset")
+    )
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="context-dataset",
+            name="Context dataset",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[
+                DatasetArtifact(
+                    "context.csv",
+                    hashlib.sha256(b"unit,outcome\nu1,1\n").hexdigest(),
+                    18,
+                    "text/csv",
+                )
+            ],
+            synthetic=True,
+            quality_attestations=["Synthetic collaborator-context fixture."],
+        ),
+        inquiry.inquiry_id,
+    )
+    context = service.collaborator_context(
+        inquiry.inquiry_id,
+        purpose="Review dataset availability.",
+    )
+    mutation(context)
+
+    with pytest.raises(ValidationError, match=message):
+        create_context_snapshot(context, tmp_path / "context")
+    assert not (tmp_path / "context").exists()
 
 
 def test_collaborator_context_exposes_acquisition_timing_as_non_authority(

@@ -1159,7 +1159,9 @@ the same structured dataset inventory used by `dataset inventory` and
 deterministic synthesis, so optional reviewers see registered dataset counts,
 roles, synthetic/protected status, observation access, custody, ethics state,
 rigor blockers, and readiness without treating draft data-source mentions or
-plugin access as datasets. The frozen write boundary must
+plugin access as datasets. Context freezing replays that inventory against the
+visible dataset records, counts, role totals, rigor-error totals, and redaction
+flags before publishing it. The frozen write boundary must
 also be exact: read-only, provider-free, and explicit about the canonical
 commands and review gates required for real changes. Validation replays those constraints and the
 write boundary from the trusted context bytes, and proposal/review records retain
