@@ -26,6 +26,7 @@ _CLAIM_LEVEL_ORDER = {
     ClaimLevel.MECHANISM: 5,
     ClaimLevel.ADAPTATION: 6,
     ClaimLevel.ATTRIBUTION_INTENT: 7,
+    ClaimLevel.LEGAL_CHARACTERIZATION: 8,
 }
 
 

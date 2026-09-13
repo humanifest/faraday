@@ -346,7 +346,8 @@ def build_synthesis(
         f"**Inquiry:** {inquiry.initial_statement}",
         "",
         "This report is derived from structured state. It does not promote evidence "
-        "between claim levels or infer mechanism, adaptation, attribution, or intent.",
+        "between claim levels or infer mechanism, adaptation, attribution, intent, "
+        "or legal characterization.",
         "",
         "## Decision context",
         "",

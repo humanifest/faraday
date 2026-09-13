@@ -813,12 +813,13 @@ def validate_validation_tag_context(
             ClaimLevel.MECHANISM,
             ClaimLevel.ADAPTATION,
             ClaimLevel.ATTRIBUTION_INTENT,
+            ClaimLevel.LEGAL_CHARACTERIZATION,
         }
     ):
         raise ValidationError(
-            "supporting evidence cannot target mechanism, adaptation, or "
-            "attribution-intent claims under the current validation-tag "
-            "capability model"
+            "supporting evidence cannot target mechanism, adaptation, "
+            "attribution-intent, or legal-characterization claims under the "
+            "current validation-tag capability model"
         )
 
     if (

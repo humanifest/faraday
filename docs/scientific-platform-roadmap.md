@@ -454,11 +454,12 @@ Changing a claim’s scope, wording, level, or parents after admission therefore
 fails closed rather than broadening a conclusion through a stable identifier.
 Validation-tag claim-ceiling delivery: the shared validation-tag policy now
 rejects supporting evidence attached to mechanism, adaptation, or
-attribution/intent claims because the current machine-validated evidence
-capabilities do not establish those explanatory levels. Inconclusive, weakening,
-and refuting records can still be preserved when ordinary evidence requirements
-are satisfied, keeping disconfirming material visible without promoting lower
-level observations into mechanism, adaptation, attribution, or intent.
+attribution/intent/legal-characterization claims because the current
+machine-validated evidence capabilities do not establish those explanatory or
+legal levels. Inconclusive, weakening, and refuting records can still be
+preserved when ordinary evidence requirements are satisfied, keeping
+disconfirming material visible without promoting lower level observations into
+mechanism, adaptation, attribution, intent, or legal characterization.
 
 Post-discovery evidence-status delivery: evidence records remain immutable, but
 `research evidence record-status` appends a locally artifact-verified `active`,
@@ -651,9 +652,9 @@ execution-backed `supports` evidence with an exact claim. The current ladder is
 conservative: `computation_only` supports no scientific claim, `descriptive`
 supports only measurement-validity claims, `association` supports at most
 statistical association, and `design_conditional_effect` supports at most causal
-direction. Robustness, mechanism, adaptation, attribution, and intent remain
-outside add-on method authority until Faraday has dedicated gates for those
-levels.
+direction. Robustness, mechanism, adaptation, attribution, intent, and legal
+characterization remain outside add-on method authority until Faraday has
+dedicated gates for those levels.
 Protocol-bound execution now passes the resolved method ceiling into the
 canonical design validator before analysis. A causal primary analysis requires
 `design_conditional_effect`; the decision and both levels are recorded in a

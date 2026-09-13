@@ -650,8 +650,23 @@ def test_evidence_unsupported_conclusion_ceiling_rejects_report_overclaim(
         )
 
 
+@pytest.mark.parametrize(
+    ("claim_level", "statement", "match"),
+    [
+        (
+            ClaimLevel.MECHANISM,
+            "The proposed mechanism explains the observed process.",
+            "cannot target mechanism",
+        ),
+        (
+            ClaimLevel.LEGAL_CHARACTERIZATION,
+            "The observed process establishes legal responsibility.",
+            "legal-characterization",
+        ),
+    ],
+)
 def test_supporting_evidence_cannot_promote_to_explanatory_claim_levels(
-    tmp_path: Path,
+    tmp_path: Path, claim_level: ClaimLevel, statement: str, match: str
 ) -> None:
     service = make_service(tmp_path)
     service.init_workspace()
@@ -674,8 +689,8 @@ def test_supporting_evidence_cannot_promote_to_explanatory_claim_levels(
     service.activate_hypothesis(hypothesis.hypothesis_id)
     claim = service.add_claim(
         AddClaim(
-            statement="The proposed mechanism explains the observed process.",
-            level=ClaimLevel.MECHANISM,
+            statement=statement,
+            level=claim_level,
         )
     )
     service.register_dataset(
@@ -687,7 +702,7 @@ def test_supporting_evidence_cannot_promote_to_explanatory_claim_levels(
         )
     )
 
-    with pytest.raises(ValidationError, match="cannot target mechanism"):
+    with pytest.raises(ValidationError, match=match):
         service.record_evidence(
             RecordEvidence(
                 hypothesis_id=hypothesis.hypothesis_id,

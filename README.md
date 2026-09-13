@@ -449,7 +449,9 @@ maps the typed method level to the strongest claim level it may support:
 `computation_only` supports no scientific claim, `descriptive` reaches only
 `measurement_validity`, `association` reaches `statistical_association`, and
 `design_conditional_effect` reaches `causal_direction`. Stronger claims require
-future dedicated authority instead of borrowing the method's numerical result.
+future dedicated authority instead of borrowing the method's numerical result;
+legal characterization is a separate claim level and remains outside method
+authority.
 Even the highest method level is conditional on the design and assumptions; it
 does not authorize mechanism, generalization beyond scope, or causal proof.
 For protocol-bound execution, the resolved add-on supplies this level directly
@@ -2316,7 +2318,8 @@ gate evidence.
 - State the practical decision an inquiry should support, its minimum evidence,
   decision owner, and observations that would change the decision.
 - Record and answer clarifying questions.
-- Build a claim hierarchy from measurement validity through attribution/intent.
+- Build a claim hierarchy from measurement validity through attribution/intent
+  and legal characterization.
 - Scientific claim dependencies across known hierarchy levels must flow from
   lower or same inference levels toward stronger conclusions; a lower-level
   claim cannot depend on a higher-inference parent. Rigor flags legacy or
@@ -3033,10 +3036,11 @@ Evidence is classified by what it actually tests: `source_assessment`,
 `independent_replication`, `known_result_reproduction`, `novel_prediction`,
 `empirical_test`, or `causal_estimate`. Higher tags have enforceable
 prerequisites. In particular,
-supporting evidence cannot target mechanism, adaptation, or attribution/intent
-claims under the current validation-tag capability model; record lower-level
-support and keep those explanatory conclusions explicitly unsupported until a
-future reviewed authority path exists. Inconclusive, weakening, and refuting
+supporting evidence cannot target mechanism, adaptation, attribution/intent, or
+legal-characterization claims under the current validation-tag capability model;
+record lower-level support and keep those explanatory or legal conclusions
+explicitly unsupported until a future reviewed authority path exists.
+Inconclusive, weakening, and refuting
 records remain admissible when their ordinary evidence requirements are met, so
 disconfirming material is preserved rather than promoted. Each record must name
 at least one distinct unsupported higher-level conclusion; duplicates are

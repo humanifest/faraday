@@ -26,6 +26,7 @@ class ClaimLevel(StrEnum):
     MECHANISM = "mechanism"
     ADAPTATION = "adaptation"
     ATTRIBUTION_INTENT = "attribution_intent"
+    LEGAL_CHARACTERIZATION = "legal_characterization"
     OTHER = "other"
 
 

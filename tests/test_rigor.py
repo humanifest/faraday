@@ -434,8 +434,26 @@ def test_rigor_flags_inverted_claim_dependency_levels(tmp_path: Path) -> None:
     assert causal.claim_id in finding.message
 
 
+@pytest.mark.parametrize(
+    ("claim_level", "statement", "message_fragment"),
+    [
+        (
+            ClaimLevel.MECHANISM,
+            "The proposed mechanism explains the observed pattern.",
+            "supporting evidence cannot target mechanism",
+        ),
+        (
+            ClaimLevel.LEGAL_CHARACTERIZATION,
+            "The observed pattern establishes legal responsibility.",
+            "legal-characterization",
+        ),
+    ],
+)
 def test_rigor_flags_legacy_support_for_explanatory_claim_levels(
     tmp_path: Path,
+    claim_level: ClaimLevel,
+    statement: str,
+    message_fragment: str,
 ) -> None:
     service = _service(tmp_path)
     service.init_workspace()
@@ -458,8 +476,8 @@ def test_rigor_flags_legacy_support_for_explanatory_claim_levels(
     hypothesis = service.activate_hypothesis(hypothesis.hypothesis_id)
     claim = service.add_claim(
         AddClaim(
-            statement="The proposed mechanism explains the observed pattern.",
-            level=ClaimLevel.MECHANISM,
+            statement=statement,
+            level=claim_level,
         )
     )
     dataset = DatasetManifest(
@@ -501,7 +519,7 @@ def test_rigor_flags_legacy_support_for_explanatory_claim_levels(
         if item.code == "VALIDATION_TAG_UNSUPPORTED"
     )
     assert finding.entity_id == evidence.evidence_id
-    assert "supporting evidence cannot target mechanism" in finding.message
+    assert message_fragment in finding.message
 
 
 def test_rigor_replays_execution_method_inference_ceiling_for_legacy_evidence(
