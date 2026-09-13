@@ -6283,8 +6283,15 @@ class ResearchService:
         lessons = self.repository.list_cross_lane_lessons(inquiry_id)
         verified: list[CrossLaneLesson] = []
         for lesson in lessons:
-            self.repository.verify_cross_lane_lesson_integrity(inquiry_id, lesson)
-            commitment = validate_cross_lane_lesson_payload_commitment(lesson)
+            integrity = self.repository.verify_cross_lane_lesson_integrity(
+                inquiry_id, lesson
+            )
+            commitment = validate_cross_lane_lesson_payload_commitment(
+                lesson,
+                allow_ledger_verified_legacy_origin_custody_omission=(
+                    integrity.get("legacy_origin_custody_omission_verified") is True
+                ),
+            )
             validation = {
                 "origin_lane_id": lesson.origin_lane_id,
                 "target_lane_ids": lesson.target_lane_ids,

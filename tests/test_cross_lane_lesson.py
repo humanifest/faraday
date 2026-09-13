@@ -157,6 +157,59 @@ def test_legacy_cross_lane_lessons_without_payload_commitment_remain_readable(
     )
 
 
+def test_ledger_bound_pre_origin_custody_lesson_commitment_remains_readable(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    lesson = CrossLaneLesson(
+        lesson_id="lesson-live-shaped-pre-origin-custody",
+        created_at="2026-09-11T18:08:55Z",
+        created_by="historical-runtime",
+        **asdict(valid_command(origin_integrity_status="verified_elsewhere")),
+    )
+    payload = lesson.to_dict()
+    payload.pop("lesson_payload_sha256")
+    payload.pop("origin_artifact_root")
+    payload.pop("origin_artifact_integrity")
+    payload["lesson_payload_sha256"] = hashlib.sha256(
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    lesson_file = (
+        tmp_path
+        / "inquiries"
+        / "dogfood"
+        / "cross_lane_lessons"
+        / f"{lesson.lesson_id}.json"
+    )
+    lesson_file.parent.mkdir(parents=True, exist_ok=True)
+    lesson_file.write_text(json.dumps(payload), encoding="utf-8")
+    service.repository.append_event(
+        "dogfood",
+        timestamp=lesson.created_at,
+        actor=lesson.created_by,
+        command="cross-lane-lesson.record",
+        aggregate_type="cross_lane_lesson",
+        aggregate_id=lesson.lesson_id,
+        payload=payload,
+    )
+
+    restored = service.list_cross_lane_lessons()[0]
+    integrity = service.repository.verify_cross_lane_lesson_integrity(
+        "dogfood", restored
+    )
+
+    assert restored.lesson_payload_sha256 == payload["lesson_payload_sha256"]
+    assert restored.origin_artifact_root == ""
+    assert restored.origin_artifact_integrity == {}
+    assert restored.current_transfer_authority is True
+    assert integrity["legacy_origin_custody_omission_verified"] is True
+
+
 @pytest.mark.parametrize("committed", [False, True])
 def test_ledger_bound_historical_report_prose_is_readable_but_not_authoritative(
     tmp_path: Path, committed: bool
@@ -220,6 +273,31 @@ def test_removed_current_commitment_cannot_claim_legacy_status(tmp_path: Path) -
     lesson_file.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(IntegrityError, match="differs from its record event"):
+        service.list_cross_lane_lessons()
+
+
+def test_current_lesson_cannot_use_pre_origin_custody_commitment_projection(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    service.record_cross_lane_lesson(
+        valid_command(origin_integrity_status="verified_elsewhere")
+    )
+    lesson_file = next(tmp_path.rglob("cross_lane_lessons/*.json"))
+    payload = json.loads(lesson_file.read_text(encoding="utf-8"))
+    payload.pop("origin_artifact_root")
+    payload.pop("origin_artifact_integrity")
+    lesson_file.write_text(json.dumps(payload), encoding="utf-8")
+    ledger = tmp_path / "inquiries" / "dogfood" / "ledger.jsonl"
+    events = [json.loads(line) for line in ledger.read_text().splitlines()]
+    events[-1]["payload"] = payload
+    body = {key: value for key, value in events[-1].items() if key != "event_hash"}
+    events[-1]["event_hash"] = hashlib.sha256(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    ledger.write_text("\n".join(json.dumps(item) for item in events) + "\n")
+
+    with pytest.raises(IntegrityError, match="payload no longer matches"):
         service.list_cross_lane_lessons()
 
 

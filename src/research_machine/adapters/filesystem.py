@@ -445,6 +445,7 @@ class FileSystemRepository:
                 f"cross-lane lesson {lesson.lesson_id} differs from its record event"
             )
         retained = payload.get("lesson_payload_sha256", "")
+        legacy_origin_custody_omission_verified = False
         if retained:
             if not isinstance(retained, str) or not re.fullmatch(
                 r"[0-9a-f]{64}", retained
@@ -462,6 +463,12 @@ class FileSystemRepository:
                     f"cross-lane lesson {lesson.lesson_id} payload no longer "
                     "matches its service-generated commitment"
                 )
+            legacy_origin_custody_omission_verified = (
+                "origin_artifact_root" not in payload
+                and "origin_artifact_integrity" not in payload
+                and lesson.origin_artifact_root == ""
+                and lesson.origin_artifact_integrity == {}
+            )
         return {
             "status": (
                 "ledger_bound_with_payload_commitment"
@@ -470,6 +477,9 @@ class FileSystemRepository:
             ),
             "lesson_id": lesson.lesson_id,
             "payload_commitment_present": bool(retained),
+            "legacy_origin_custody_omission_verified": (
+                legacy_origin_custody_omission_verified
+            ),
         }
 
     def save_ethics_review_event(
