@@ -17,6 +17,9 @@ from research_machine.application.audit_prerequisite import (
 from research_machine.application.dataset_source_authority import (
     validate_dataset_source_authority,
 )
+from research_machine.application.dataset_inventory import (
+    dataset_workflow_materialization_status,
+)
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.domain.models import (
     AnalysisMode,
@@ -756,6 +759,30 @@ def audit_research_state(
     dataset_by_id = {item.dataset_id: item for item in datasets}
     protected_dataset_roles = {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
     for dataset in datasets:
+        if (
+            "workflow_materialization" in dataset.metadata
+            or "workflow_materialization_verification" in dataset.metadata
+        ):
+            try:
+                dataset_workflow_materialization_status(dataset)
+            except ResearchMachineError as exc:
+                add(
+                    "DATASET_WORKFLOW_MATERIALIZATION_INVALID",
+                    RigorSeverity.ERROR,
+                    (
+                        "Dataset workflow-materialization metadata no longer "
+                        "satisfies the bounded local byte-chain contract."
+                    ),
+                    entity_type="dataset",
+                    entity_id=dataset.dataset_id,
+                    remediation=(
+                        "Do not use this materialized workflow dataset for "
+                        "scientific interpretation until the canonical service can "
+                        "replay its local byte-chain contract without upgrading it "
+                        f"to evidence eligibility, chronology authentication, "
+                        f"executor independence, or source-data truth: {exc}"
+                    ),
+                )
         if "source_authority" in dataset.metadata:
             try:
                 validate_dataset_source_authority(

@@ -126,7 +126,10 @@ retains that same boundary across redacted exports: packaged workflow
 materialization metadata must keep its exact non-evidence, non-interpretive
 scope, match one packaged dataset artifact, preserve the source receipt and
 p-value-selector hashes, and continue carrying the explicit local-byte-chain
-limitations.
+limitations. The rigor audit also rejects malformed or overclaiming
+workflow-materialization metadata, so a local byte chain cannot silently become
+evidence eligibility, scientific interpretation, chronology authentication,
+executor independence, or source-data truth.
 
 Executable measurement definitions now freeze canonical measurement IDs,
 registered targets, observable semantics, parameter bindings, temporal roles,
@@ -2347,9 +2350,10 @@ gate evidence.
   such as a registered experiment, acquisition add-on, scientific connector,
   manual import, external attestation, or synthetic fixture, and the service
   rejects attempts to treat that route as verified truth, custody, or evidence
-  eligibility. The rigor audit flags malformed source-authority metadata as an
-  error and warns when a non-synthetic protected dataset lacks a typed source
-  route, so connector or experiment provenance gaps remain visible even when
+  eligibility. The rigor audit flags malformed source-authority metadata and
+  malformed or overclaiming workflow-materialization metadata as errors, and it
+  warns when a non-synthetic protected dataset lacks a typed source route, so
+  connector, experiment, or workflow provenance gaps remain visible even when
   other byte-level checks pass. Run intake replays the same source-authority
   boundary for every selected dataset and protected lineage ancestor before a
   dataset can be used, and evidence admission replays the cited dataset or every

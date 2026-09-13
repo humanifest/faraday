@@ -146,7 +146,9 @@ def _sha256(value: object, field_name: str) -> str:
     return value
 
 
-def _workflow_materialization(dataset: DatasetManifest) -> dict[str, Any]:
+def dataset_workflow_materialization_status(
+    dataset: DatasetManifest,
+) -> dict[str, Any]:
     if "workflow_materialization" in dataset.metadata:
         raise ValidationError(
             f"dataset {dataset.dataset_id} retains raw workflow_materialization input"
@@ -455,7 +457,9 @@ def build_dataset_inventory(
                 "payload_commitment": _payload_commitment(dataset),
                 "observation_access": _observation_access(dataset),
                 "measurement_custody": _measurement_custody(dataset, protocol),
-                "workflow_materialization": _workflow_materialization(dataset),
+                "workflow_materialization": dataset_workflow_materialization_status(
+                    dataset
+                ),
                 "ethics": _ethics_context(dataset, protocol),
                 "rigor_findings": [
                     _finding_summary(finding) for finding in current_findings

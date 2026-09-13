@@ -773,7 +773,10 @@ layers. Replication-package verification now replays the exported
 it must stay non-evidentiary and non-interpretive, match one packaged dataset
 artifact, retain source receipt and p-value-selector hashes, and preserve the
 local-byte-chain limitation notice rather than becoming a scientific-success
-claim.
+claim. Rigor audit rejects malformed or overclaiming materialization metadata,
+so this bounded local-byte-chain path cannot silently become evidence
+eligibility, scientific interpretation, chronology authentication, executor
+independence, or source-data truth.
 Canonical run drafting and intake now understand confirmatory-test and
 multiplicity receipts. Intake revalidates the frozen step and local bytes, then
 requires exact agreement among the handoff, submitted protocol, sole dataset,
@@ -2863,9 +2866,10 @@ set of datasets Faraday has actually registered. Connector, add-on,
 experiment, import, or attestation source routes remain provenance labels only:
 they do not verify source truth, consent, custody, calibration, measurement
 validity, or evidence eligibility. Rigor audit now reports malformed
-source-authority metadata as an error and warns when a non-synthetic protected
-dataset lacks a typed source route, keeping connector or experiment provenance
-gaps visible instead of letting byte-level checks imply source authority. This
+source-authority metadata and malformed or overclaiming workflow-materialization
+metadata as errors and warns when a non-synthetic protected dataset lacks a
+typed source route, keeping connector, experiment, or workflow provenance gaps
+visible instead of letting byte-level checks imply source authority. This
 makes routine "what data do we have?"
 questions answerable from canonical state without promoting manifest
 declarations into proof of current access, source truth, consent truth,

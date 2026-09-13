@@ -1638,6 +1638,71 @@ def test_audit_flags_invalid_dataset_source_authority() -> None:
     assert "source_truth_verified must be false" in finding.remediation
 
 
+def test_audit_flags_invalid_workflow_materialization_metadata() -> None:
+    dataset = DatasetManifest(
+        dataset_id="invalid-workflow-materialization",
+        name="Invalid workflow materialization",
+        role=DatasetRole.EXPLORATORY,
+        created_at="2026-09-02T12:00:00Z",
+        artifacts=[DatasetArtifact("holm-family.csv", "a" * 64)],
+        synthetic=False,
+        metadata={
+            "workflow_materialization_verification": {
+                "verification_version": 1,
+                "verified_at": "2026-09-02T12:00:00Z",
+                "verified_by": "faraday-fixture",
+                "status": "workflow_materialization_verified",
+                "protocol_id": "protocol-1",
+                "protocol_hash": "b" * 64,
+                "family_step_id": "holm-family",
+                "family_id": "confirmatory-family",
+                "dependency_manifest": {},
+                "materialization": {},
+                "output": {
+                    "path": "holm-family.csv",
+                    "sha256": "a" * 64,
+                    "row_count": 1,
+                },
+                "verified_sources": [{"source_step_id": "test-1"}],
+                "scope": (
+                    "Holm-family materialization from pinned source execution "
+                    "receipts and registered p-value selectors"
+                ),
+                "scientific_evidence_eligible": True,
+                "scientific_interpretation_verified": False,
+                "notice": (
+                    "Verifies local source receipt/result bytes and registered "
+                    "p-value selectors; it does not authenticate chronology, "
+                    "executors, scientific gates, or source data truth."
+                ),
+            },
+        },
+    )
+    inquiry = Inquiry(
+        "i1",
+        "Workflow materialization audit",
+        "Synthetic fixture, no scientific claim.",
+        "2026-09-02T12:00:00Z",
+    )
+
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[dataset],
+        protocols=[],
+        runs=[],
+    )
+    finding = next(
+        item for item in audit.findings
+        if item.code == "DATASET_WORKFLOW_MATERIALIZATION_INVALID"
+    )
+    assert finding.severity is RigorSeverity.ERROR
+    assert finding.entity_id == dataset.dataset_id
+    assert "must remain non-evidentiary" in finding.remediation
+
+
 def test_audit_flags_missing_human_subject_dataset_ethics_checks() -> None:
     from test_ethics_gate import _human_protocol
 
