@@ -503,6 +503,103 @@ def test_dataset_source_authority_rejects_overclaim_and_resealed_drift(
         service.list_datasets()
 
 
+def test_run_intake_replays_dataset_source_authority_lineage(
+    tmp_path: Path,
+) -> None:
+    service, hypothesis_id = prepared_service(tmp_path)
+    draft = service.create_protocol(CreateProtocol(
+        experiment_id="source-authority-run-test",
+        title="Source authority run test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[hypothesis_id],
+        primary_outcome="Outcome",
+        protocol_kind=ProtocolKind.FORMAL,
+        methodology="Replay a synthetic source-authority fixture.",
+        quality_requirements=["gate"],
+        controls=["control"],
+        expected_outputs=["result"],
+        success_conditions=["quality gate passes"],
+        environment_requirements=["deterministic fixture"],
+        sample_size_or_stopping_rule="one synthetic fixture",
+        failure_conditions=["quality gate fails"],
+        safety_constraints=["synthetic fixture only"],
+        analysis_code_hash="a" * 64,
+    ))
+    protocol = service.freeze_protocol(draft.protocol_id)
+    source = service.register_dataset(RegisterDataset(
+        dataset_id="source-authority-source",
+        name="Source authority source",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("source.csv", "c" * 64)],
+        protocol_id=protocol.protocol_id,
+        synthetic=True,
+        metadata={
+            "source_authority": {
+                "source_type": "synthetic_fixture",
+                "source_name": "Synthetic source-authority fixture",
+            }
+        },
+    ))
+    derived = service.register_dataset(RegisterDataset(
+        dataset_id="source-authority-derived",
+        name="Source authority derived",
+        role=DatasetRole.CONFIRMATORY,
+        artifacts=[DatasetArtifact("derived.csv", "d" * 64)],
+        source_dataset_ids=[source.dataset_id],
+        protocol_id=protocol.protocol_id,
+        synthetic=True,
+    ))
+    source_path = (
+        tmp_path
+        / "inquiries"
+        / "formal"
+        / "datasets"
+        / f"{source.dataset_id}.json"
+    )
+    record = json.loads(source_path.read_text(encoding="utf-8"))
+    record["metadata"]["source_authority"]["source_truth_verified"] = True
+    record["metadata"].pop("dataset_payload_sha256", None)
+    record["metadata"]["dataset_payload_sha256"] = dataset_payload_sha256(
+        DatasetManifest.from_dict(record)
+    )
+    source_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="source_truth_verified must be false",
+    ):
+        service.record_run(RecordRun(
+            protocol_id=protocol.protocol_id,
+            started_at="2026-09-02T12:01:00Z",
+            completed_at="2026-09-02T12:02:00Z",
+            analysis_code_hash="a" * 64,
+            environment_hash="b" * 64,
+            dataset_ids=[derived.dataset_id],
+            output_artifacts=[
+                DatasetArtifact("result.json", "e" * 64, media_type="application/json")
+            ],
+            quality_gates=[
+                QualityGateResult(
+                    "gate",
+                    QualityGateStatus.PASSED,
+                    "Synthetic fixture gate.",
+                    details={"evidence_sha256": "e" * 64},
+                )
+            ],
+            summary="Synthetic source-authority fixture.",
+            synthetic=True,
+            metadata={
+                "protocol_deviation_disclosure": {
+                    "status": "no_deviations_declared",
+                    "deviations": [],
+                }
+            },
+        ))
+
+
 @pytest.mark.parametrize(
     ("datasets", "root_id", "message"),
     [

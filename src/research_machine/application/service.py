@@ -7444,11 +7444,30 @@ class ResearchService:
             validate_dataset_payload_commitment,
             validate_protected_dataset_lineage_closure,
         )
+        from research_machine.application.dataset_source_authority import (
+            validate_dataset_source_authority,
+        )
         dataset_scope = all_datasets if all_datasets is not None else datasets
         datasets_by_id = {dataset.dataset_id: dataset for dataset in dataset_scope}
+        source_authority_checked: set[str] = set()
+
+        def validate_source_authority(dataset: DatasetManifest) -> None:
+            if dataset.dataset_id in source_authority_checked:
+                return
+            source_authority_checked.add(dataset.dataset_id)
+            if "source_authority" in dataset.metadata:
+                validate_dataset_source_authority(
+                    dataset.metadata["source_authority"],
+                    synthetic=dataset.synthetic,
+                )
+
         for dataset in datasets:
             validate_dataset_payload_commitment(dataset)
-            validate_protected_dataset_lineage_closure(dataset, datasets_by_id)
+            validate_source_authority(dataset)
+            for lineage_dataset in validate_protected_dataset_lineage_closure(
+                dataset, datasets_by_id
+            ):
+                validate_source_authority(lineage_dataset)
         if any(
             dataset.protocol_id and dataset.protocol_id != protocol.protocol_id
             for dataset in datasets

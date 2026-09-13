@@ -2327,12 +2327,14 @@ gate evidence.
   such as a registered experiment, acquisition add-on, scientific connector,
   manual import, external attestation, or synthetic fixture, and the service
   rejects attempts to treat that route as verified truth, custody, or evidence
-  eligibility. Empty inventories explicitly say that draft data-source mentions,
-  plugin access, and design briefs are not registered datasets. The published
-  schema at `schemas/dataset-inventory.schema.json` lets provider-neutral
-  clients validate the structured CLI payload. The payload redacts operational
-  roots and keeps the inventory as provenance visibility, not proof of source
-  truth, consent truth, measurement validity, or analysis adequacy.
+  eligibility. Run intake replays the same source-authority boundary for every
+  selected dataset and protected lineage ancestor before a dataset can be used.
+  Empty inventories explicitly say that draft data-source mentions, plugin
+  access, and design briefs are not registered datasets. The published schema at
+  `schemas/dataset-inventory.schema.json` lets provider-neutral clients
+  validate the structured CLI payload. The payload redacts operational roots and
+  keeps the inventory as provenance visibility, not proof of source truth,
+  consent truth, measurement validity, or analysis adequacy.
 - Draft, amend, and hash-freeze observational, experimental, computational,
   formal, literature, and synthesis protocols.
 - Bind each frozen protocol to the complete scientific content of every tested
