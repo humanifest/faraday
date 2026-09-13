@@ -1977,6 +1977,12 @@ def test_general_addon_manifest_matches_published_schema():
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(unsafe, schema)
     unsafe = MANIFEST.describe()
+    unsafe["methods"][0][
+        "maximum_claim_ceiling"
+    ] = "This method confirmed the target mechanism."
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(unsafe, schema)
+    unsafe = MANIFEST.describe()
     unsafe["methods"][0]["randomness_control"] = "ambient_rng"
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(unsafe, schema)

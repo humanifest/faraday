@@ -15,6 +15,7 @@ from research_machine.addons.models import (
     INFERENCE_LEVELS,
     RANDOMNESS_CONTROLS,
 )
+from research_machine.application.policies import require_canonical_bounded_report_text
 from research_machine.domain.errors import NotFoundError, ValidationError
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
@@ -156,10 +157,9 @@ class AddonRegistry:
                     f"specification fields: {method.method_id}: "
                     + ", ".join(unsupported)
                 )
-            _canonical_text(
+            require_canonical_bounded_report_text(
                 method.maximum_claim_ceiling,
                 "method maximum_claim_ceiling",
-                method.method_id,
             )
             if method.maximum_inference_level not in INFERENCE_LEVELS:
                 raise ValidationError(

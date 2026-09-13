@@ -1979,7 +1979,10 @@ exports redact the operational root.
 
 Instrument add-ons may expose bounded `InstrumentAdapter` inspectors. Add-on
 registry validation rejects padded manifest, method, adapter, documentation, and
-method claim-ceiling text before an extension can expose executable authority.
+method claim-ceiling text before an extension can expose executable authority;
+method claim ceilings also reject report-prohibited overclaiming language, so a
+domain add-on cannot put proof, confirmation, validation, or explanation claims
+into receipt-facing authority text.
 Run one
 with `measurement inspect-source --adapter ADAPTER_ID --source-file FILE
 --media-type TYPE --config-file CONFIG --output DIRECTORY`. Faraday requires the

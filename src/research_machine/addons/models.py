@@ -19,7 +19,7 @@ class AnalysisMethod:
     description: str
     required_spec_fields: tuple[str, ...]
     runner: AnalysisRunner = field(repr=False, compare=False)
-    maximum_claim_ceiling: str = "Execution establishes only the returned calculation on the hashed input under the declared method; it does not validate a scientific claim."
+    maximum_claim_ceiling: str = "Execution establishes only the returned calculation on the hashed input under the declared method; it does not support a scientific claim."
     maximum_inference_level: str = "computation_only"
     randomness_control: str = "deterministic"
 

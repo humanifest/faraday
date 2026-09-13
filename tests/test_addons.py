@@ -380,6 +380,22 @@ def test_registry_rejects_unknown_machine_readable_inference_ceiling() -> None:
         )
 
 
+def test_registry_rejects_overclaiming_method_claim_ceiling() -> None:
+    registry = AddonRegistry()
+    method = AnalysisMethod(
+        "unsafe",
+        "Unsafe",
+        "Fixture",
+        (),
+        lambda spec, rows: {},
+        maximum_claim_ceiling="This method proved the proposed mechanism.",
+    )
+    with pytest.raises(ValidationError, match="report-prohibited overclaiming"):
+        registry.register(
+            AddonManifest("unsafe", "Unsafe", "1", "test", "Fixture", methods=(method,))
+        )
+
+
 def test_registry_rejects_unknown_or_unseeded_randomness_control() -> None:
     registry = AddonRegistry()
     with pytest.raises(ValidationError, match="randomness_control"):

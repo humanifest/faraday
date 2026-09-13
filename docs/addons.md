@@ -24,7 +24,9 @@ cannot widen the method maximum. Every add-on method exposes its maximum in the
 manifest; undeclared local methods receive a conservative calculation-only
 default. Successful execution still creates no canonical evidence by itself.
 Registry validation rejects blank or non-text method ceilings, and the published
-add-on manifest schema requires the same field. An add-on cannot enter the
+add-on manifest schema requires the same field. Method ceilings also reject
+report-prohibited overclaiming language, so the receipt-facing method maximum
+cannot claim proof, confirmation, validation, or explanation. An add-on cannot enter the
 execution registry with an omitted conclusion bound. Pinned execution handoff
 verification now also closes the result-contract envelope: `analysis-result.json`
 must retain the exact version-2 top-level fields, supported typed inference
