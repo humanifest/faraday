@@ -387,6 +387,14 @@ def test_committed_v1_information_score_replays_without_retroactive_rewrite(
     uncommitted_payload = recommendation.to_dict()
     uncommitted_payload.pop("score_contract_version")
     uncommitted_payload.pop("recommendation_payload_sha256")
+    uncommitted_payload["weights"].pop("duration")
+    for item in uncommitted_payload["candidates"]:
+        item.pop("duration")
+        item.pop("audit_prerequisite_contract")
+        item.pop("audit_prerequisite_receipt")
+    for score in uncommitted_payload["ranked_scores"]:
+        score["weighted_components"].pop("duration_penalty")
+        score["utility"] = round(sum(score["weighted_components"].values()), 8)
     commitment = hashlib.sha256(
         json.dumps(
             uncommitted_payload,
@@ -445,6 +453,10 @@ def test_committed_v1_information_score_replays_without_retroactive_rewrite(
 
     assert restored[0].score_contract_version == 1
     assert restored[0].candidates[0].expected_discrimination == 0.8
+    assert restored[0].candidates[0].duration == 0.0
+    assert restored[0].candidates[0].audit_prerequisite_contract is None
+    assert restored[0].candidates[0].audit_prerequisite_receipt == {}
+    assert "duration_penalty" not in restored[0].ranked_scores[0].weighted_components
 
     tampered = dict(payload)
     tampered["rationale"] = "A retrospectively rewritten rationale."

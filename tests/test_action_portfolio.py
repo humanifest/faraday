@@ -20,12 +20,16 @@ from research_machine.domain.models import (
     ActionCandidate,
     ActionAuditClass,
     ActionLane,
+    ActionRecommendation,
     AuditPrerequisiteArtifact,
     AuditPrerequisiteContract,
     AuditPrerequisiteSupportingArtifact,
     AuditPrerequisiteSubject,
     HypothesisDiscriminationTarget,
     SelectionWeights,
+)
+from research_machine.selection.recommendation import (
+    validate_recommendation_payload_commitment,
 )
 
 
@@ -756,6 +760,35 @@ def test_current_recommendation_without_duration_component_rejects(
 
     with pytest.raises(ValidationError, match="ranked scores do not replay"):
         service.list_recommendations()
+
+
+def test_current_recommendation_cannot_use_legacy_audit_field_omission(
+    tmp_path: Path,
+) -> None:
+    service = prepared_service(tmp_path)
+    recommendation = service.recommend_action_portfolio(
+        RecommendActionPortfolio(
+            lanes=[ActionLane("machine", "Machine")],
+            candidates=[candidate("current-audit-contract", "machine", 0.8)],
+        )
+    )
+    payload = recommendation.to_dict()
+    payload.pop("recommendation_payload_sha256")
+    for item in payload["candidates"]:
+        item.pop("audit_prerequisite_contract")
+        item.pop("audit_prerequisite_receipt")
+    payload["recommendation_payload_sha256"] = hashlib.sha256(
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    reconstructed = ActionRecommendation.from_dict(payload)
+
+    with pytest.raises(ValidationError, match="payload no longer matches"):
+        validate_recommendation_payload_commitment(reconstructed)
 
 
 def test_recommendation_reads_replay_ranked_score_components(

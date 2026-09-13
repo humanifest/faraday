@@ -662,6 +662,7 @@ def _recommendation_payload(
     include_hypothesis_workflow_states: bool = True,
     include_eligibility_basis: bool = True,
     include_duration: bool = True,
+    include_audit_prerequisite: bool = True,
     include_score_contract_version: bool = True,
 ) -> dict[str, object]:
     payload = recommendation.to_dict()
@@ -677,6 +678,11 @@ def _recommendation_payload(
             if isinstance(candidate, dict):
                 candidate.pop("prerequisite_evidence_refs", None)
                 candidate.pop("safety_review_refs", None)
+    if not include_audit_prerequisite:
+        for candidate in payload.get("candidates", []):
+            if isinstance(candidate, dict):
+                candidate.pop("audit_prerequisite_contract", None)
+                candidate.pop("audit_prerequisite_receipt", None)
     if not include_duration:
         for candidate in payload.get("candidates", []):
             if isinstance(candidate, dict):
@@ -748,6 +754,21 @@ def _recommendation_has_legacy_missing_duration(
     )
 
 
+def _recommendation_has_legacy_missing_audit_prerequisite(
+    recommendation: ActionRecommendation,
+) -> bool:
+    return (
+        not isinstance(recommendation.score_contract_version, bool)
+        and recommendation.score_contract_version in {1, 2}
+        and bool(recommendation.candidates)
+        and all(
+            candidate.audit_prerequisite_contract is None
+            and candidate.audit_prerequisite_receipt == {}
+            for candidate in recommendation.candidates
+        )
+    )
+
+
 def _allowed_legacy_recommendation_payload_digests(
     recommendation: ActionRecommendation,
     *,
@@ -762,6 +783,9 @@ def _allowed_legacy_recommendation_payload_digests(
             _recommendation_has_legacy_missing_eligibility_basis(recommendation)
         ),
         "duration": _recommendation_has_legacy_missing_duration(recommendation),
+        "audit_prerequisite": (
+            _recommendation_has_legacy_missing_audit_prerequisite(recommendation)
+        ),
         "score_contract_version": recommendation.score_contract_version == 1,
     }
     names = tuple(omission_conditions)
@@ -783,6 +807,9 @@ def _allowed_legacy_recommendation_payload_digests(
                     ),
                     include_eligibility_basis="eligibility_basis" not in omissions,
                     include_duration="duration" not in omissions,
+                    include_audit_prerequisite=(
+                        "audit_prerequisite" not in omissions
+                    ),
                     include_score_contract_version=(
                         "score_contract_version" not in omissions
                     ),
