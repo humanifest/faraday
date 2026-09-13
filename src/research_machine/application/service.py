@@ -2310,9 +2310,11 @@ class ResearchService:
         from research_machine.application.dataset_inventory import (
             build_dataset_inventory,
         )
+        audit = self._rigor_audit_for_current_state(resolved)
         return build_dataset_inventory(
             self.repository.list_datasets(resolved),
             self.repository.list_protocols(resolved),
+            audit.findings,
         )
 
     def export_replication_package(
@@ -5887,6 +5889,21 @@ class ResearchService:
         contributing, _ = currently_contributing_evidence(evidence, events)
         return contributing, events
 
+    def _rigor_audit_for_current_state(self, inquiry_id: str) -> RigorAudit:
+        evidence, _ = self._currently_contributing_evidence(
+            inquiry_id, self.repository.list_evidence(inquiry_id)
+        )
+        return audit_research_state(
+            inquiry=self.repository.load_inquiry(inquiry_id),
+            questions=self.repository.load_questions(inquiry_id),
+            claims=self.repository.load_claims(inquiry_id),
+            hypotheses=self.repository.list_hypotheses(inquiry_id),
+            evidence=evidence,
+            datasets=self.repository.list_datasets(inquiry_id),
+            protocols=self.repository.list_protocols(inquiry_id),
+            runs=self.repository.list_runs(inquiry_id),
+        )
+
     def build_synthesis(self, inquiry_id: str | None = None) -> dict[str, Any]:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         self.show_inquiry(resolved)
@@ -5900,16 +5917,7 @@ class ResearchService:
         datasets = self.repository.list_datasets(resolved)
         protocols = self.repository.list_protocols(resolved)
         runs = self.repository.list_runs(resolved)
-        rigor_audit = audit_research_state(
-            inquiry=inquiry,
-            questions=self.repository.load_questions(resolved),
-            claims=claims,
-            hypotheses=hypotheses,
-            evidence=currently_contributing_evidence,
-            datasets=datasets,
-            protocols=protocols,
-            runs=runs,
-        )
+        rigor_audit = self._rigor_audit_for_current_state(resolved)
         content = build_synthesis(
             inquiry,
             self.repository.load_questions(resolved),
@@ -5944,19 +5952,7 @@ class ResearchService:
     ) -> RigorAudit:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         self.show_inquiry(resolved)
-        evidence, _ = self._currently_contributing_evidence(
-            resolved, self.repository.list_evidence(resolved)
-        )
-        audit = audit_research_state(
-            inquiry=self.repository.load_inquiry(resolved),
-            questions=self.repository.load_questions(resolved),
-            claims=self.repository.load_claims(resolved),
-            hypotheses=self.repository.list_hypotheses(resolved),
-            evidence=evidence,
-            datasets=self.repository.list_datasets(resolved),
-            protocols=self.repository.list_protocols(resolved),
-            runs=self.repository.list_runs(resolved),
-        )
+        audit = self._rigor_audit_for_current_state(resolved)
         if fail_on not in {"never", "error", "warning"}:
             raise ValidationError("fail_on must be never, error, or warning")
         severities = {finding.severity for finding in audit.findings}

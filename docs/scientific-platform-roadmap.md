@@ -2649,12 +2649,13 @@ inventory, and deterministic synthesis renders the same payload rather than
 maintaining a parallel prose interpretation. It counts roles and synthetic
 status, lists each registered manifest's artifact/media shape, protocol binding,
 lineage sources, payload seal, observation-byte access/readiness, custody state,
-and ethics context, while redacting retained local roots. An empty inventory
-explicitly excludes draft data-source mentions, plugin access, and design briefs
-from the set of datasets Faraday has actually registered. This makes routine
-"what data do we have?" questions answerable from canonical state without
-promoting manifest declarations into proof of current access, source truth,
-consent truth, measurement validity, or analysis adequacy.
+ethics context, and dataset-scoped rigor blockers, while redacting retained
+local roots. An empty inventory explicitly excludes draft data-source mentions,
+plugin access, and design briefs from the set of datasets Faraday has actually
+registered. This makes routine "what data do we have?" questions answerable
+from canonical state without promoting manifest declarations into proof of
+current access, source truth, consent truth, measurement validity, or analysis
+adequacy.
 Literature synthesis-plan freezing now requires canonical plan IDs, reviewer
 text, questions, outcomes, effect measures, contrast definitions, subgroup and
 sensitivity entries, retained limitations, policy prose, conclusion rules,

@@ -7,6 +7,8 @@ from research_machine.domain.models import (
     DatasetManifest,
     DatasetRole,
     ExperimentProtocol,
+    RigorFinding,
+    RigorSeverity,
 )
 
 
@@ -192,15 +194,90 @@ def _ethics_context(
     }
 
 
+def _finding_summary(finding: RigorFinding) -> dict[str, str]:
+    return {
+        "code": finding.code,
+        "severity": finding.severity.value,
+        "message": finding.message,
+        "remediation": finding.remediation,
+    }
+
+
+def _readiness_summary(
+    dataset: DatasetManifest, findings: list[RigorFinding]
+) -> dict[str, Any]:
+    if dataset.role not in {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}:
+        return {
+            "status": "not_protected_evidence_dataset",
+            "blocking_finding_codes": [],
+            "warning_finding_codes": [
+                finding.code
+                for finding in findings
+                if finding.severity is RigorSeverity.WARNING
+            ],
+            "summary": (
+                "This dataset is not a protected confirmatory or replication "
+                "evidence dataset."
+            ),
+        }
+    blocking = [
+        finding.code for finding in findings
+        if finding.severity is RigorSeverity.ERROR
+    ]
+    warnings = [
+        finding.code for finding in findings
+        if finding.severity is RigorSeverity.WARNING
+    ]
+    if blocking:
+        return {
+            "status": "protected_use_blocked_by_rigor",
+            "blocking_finding_codes": blocking,
+            "warning_finding_codes": warnings,
+            "summary": (
+                "Treat this protected dataset as unusable for protected analysis "
+                "until its dataset-scoped rigor errors are resolved."
+            ),
+        }
+    if warnings:
+        return {
+            "status": "protected_use_has_rigor_warnings",
+            "blocking_finding_codes": [],
+            "warning_finding_codes": warnings,
+            "summary": (
+                "No dataset-scoped rigor errors were detected, but warnings remain; "
+                "this is not proof of scientific adequacy."
+            ),
+        }
+    return {
+        "status": "protected_no_dataset_rigor_blockers_detected",
+        "blocking_finding_codes": [],
+        "warning_finding_codes": [],
+        "summary": (
+            "No dataset-scoped rigor blockers were detected by the current audit; "
+            "this is not proof of source truth, consent truth, measurement "
+            "validity, or analysis adequacy."
+        ),
+    }
+
+
 def build_dataset_inventory(
     datasets: list[DatasetManifest],
     protocols: list[ExperimentProtocol],
+    findings: list[RigorFinding] | None = None,
 ) -> dict[str, Any]:
     protocols_by_id = {protocol.protocol_id: protocol for protocol in protocols}
+    dataset_findings: dict[str, list[RigorFinding]] = {}
+    for finding in findings or []:
+        if finding.entity_type == "dataset" and finding.entity_id:
+            dataset_findings.setdefault(finding.entity_id, []).append(finding)
     counts = Counter(dataset.role.value for dataset in datasets)
     rows: list[dict[str, Any]] = []
     for dataset in sorted(datasets, key=lambda item: item.dataset_id):
         protocol = protocols_by_id.get(dataset.protocol_id or "")
+        current_findings = sorted(
+            dataset_findings.get(dataset.dataset_id, []),
+            key=lambda item: (item.severity.value, item.code),
+        )
         media_types = sorted(
             {
                 artifact.media_type.strip() or "unknown media type"
@@ -222,15 +299,28 @@ def build_dataset_inventory(
                 "observation_access": _observation_access(dataset),
                 "measurement_custody": _measurement_custody(dataset, protocol),
                 "ethics": _ethics_context(dataset, protocol),
+                "rigor_findings": [
+                    _finding_summary(finding) for finding in current_findings
+                ],
+                "readiness": _readiness_summary(dataset, current_findings),
                 "operational_roots_redacted": True,
             }
         )
     synthetic_count = sum(1 for dataset in datasets if dataset.synthetic)
+    datasets_with_errors = {
+        finding.entity_id for finding in findings or []
+        if (
+            finding.entity_type == "dataset"
+            and finding.entity_id
+            and finding.severity is RigorSeverity.ERROR
+        )
+    }
     return {
         "registered_dataset_count": len(datasets),
         "role_counts": {role: counts[role] for role in sorted(counts)},
         "synthetic_count": synthetic_count,
         "non_synthetic_count": len(datasets) - synthetic_count,
+        "datasets_with_rigor_errors": len(datasets_with_errors),
         "empty_inventory_notice": EMPTY_INVENTORY_NOTICE if not datasets else "",
         "interpretation_limit": INTERPRETATION_LIMIT,
         "datasets": rows,

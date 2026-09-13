@@ -195,9 +195,15 @@ def _dataset_inventory_lines(inventory: dict[str, object]) -> list[str]:
         observation = dataset.get("observation_access", {})
         custody = dataset.get("measurement_custody", {})
         ethics = dataset.get("ethics", {})
+        readiness = dataset.get("readiness", {})
         protocol_label = (
             f"`{dataset['protocol_id']}`" if dataset.get("protocol_id") else "unbound"
         )
+        blockers = []
+        if isinstance(readiness, dict) and isinstance(
+            readiness.get("blocking_finding_codes"), list
+        ):
+            blockers = [str(item) for item in readiness["blocking_finding_codes"]]
         lines.append(
             f"- Dataset `{dataset.get('dataset_id')}` [{dataset.get('role')}; "
             f"{'synthetic' if dataset.get('synthetic') else 'non-synthetic'}; "
@@ -207,7 +213,14 @@ def _dataset_inventory_lines(inventory: dict[str, object]) -> list[str]:
             "access/readiness: "
             f"{observation.get('summary') if isinstance(observation, dict) else 'unavailable'}; "
             f"{custody.get('summary') if isinstance(custody, dict) else 'custody status unavailable'}; "
-            f"{ethics.get('summary') if isinstance(ethics, dict) else 'ethics status unavailable'}."
+            f"{ethics.get('summary') if isinstance(ethics, dict) else 'ethics status unavailable'}; "
+            "rigor readiness: "
+            f"{readiness.get('summary') if isinstance(readiness, dict) else 'unavailable'}"
+            + (
+                f" Blocking findings: {', '.join(blockers)}."
+                if blockers
+                else "."
+            )
         )
     return lines
 
@@ -475,7 +488,9 @@ def build_synthesis(
     invalid_runs = [run for run in runs if not run.scientific_evidence_eligible]
     datasets_by_id = {dataset.dataset_id: dataset for dataset in datasets}
     protocols_by_id = {protocol.protocol_id: protocol for protocol in protocols}
-    dataset_inventory = build_dataset_inventory(datasets, protocols)
+    dataset_inventory = build_dataset_inventory(
+        datasets, protocols, rigor_audit.findings
+    )
     lines.extend(
         [
             "",

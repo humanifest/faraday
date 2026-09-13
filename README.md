@@ -2223,11 +2223,12 @@ gate evidence.
 - `dataset inventory` and synthesis now expose a registered dataset inventory
   that reports role counts, synthetic/non-synthetic status, artifact media,
   protocol binding, lineage sources, payload sealing, observation-byte
-  access/readiness, custody, and ethics-check state. Empty inventories explicitly
-  say that draft data-source mentions, plugin access, and design briefs are not
-  registered datasets. The structured CLI payload redacts operational roots and
-  keeps the inventory as provenance visibility, not proof of source truth,
-  consent truth, measurement validity, or analysis adequacy.
+  access/readiness, custody, ethics-check state, and dataset-scoped rigor
+  blockers. Empty inventories explicitly say that draft data-source mentions,
+  plugin access, and design briefs are not registered datasets. The structured
+  CLI payload redacts operational roots and keeps the inventory as provenance
+  visibility, not proof of source truth, consent truth, measurement validity, or
+  analysis adequacy.
 - Draft, amend, and hash-freeze observational, experimental, computational,
   formal, literature, and synthesis protocols.
 - Bind each frozen protocol to the complete scientific content of every tested
