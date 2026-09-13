@@ -760,9 +760,15 @@ manifest step IDs, and writes the exact family CSV plus a receipt.
 Protocol-bound Holm execution verifies its frozen step, family order and ID,
 alpha, implementation,
 specification, and registered input bytes. The
-materialization output hash connects those receipts into a local byte chain;
-independent chronology anchoring, executor authentication, and scientific-gate
-adjudication remain separate enforcement layers.
+materialization output hash connects those receipts into a local byte chain.
+When the materialized family is registered with service-verified
+`workflow_materialization` metadata, Holm execution now replays the dependency
+manifest, source receipts, source result bytes, selected p-values,
+materialization receipt, and family CSV before recording its dependency status
+as source-receipts replayed. Datasets without that retained verification remain
+explicitly declared-only. Independent chronology anchoring, executor
+authentication, and scientific-gate adjudication remain separate enforcement
+layers.
 Canonical run drafting and intake now understand confirmatory-test and
 multiplicity receipts. Intake revalidates the frozen step and local bytes, then
 requires exact agreement among the handoff, submitted protocol, sole dataset,

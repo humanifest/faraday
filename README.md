@@ -114,11 +114,14 @@ and one-to-one family mapping. `research analysis materialize-holm` verifies
 pinned upstream receipt and result bytes, rechecks each registered p-value
 selector, rejects missing or substituted source steps, rejects noncanonical
 manifest step IDs, and writes the exact family CSV plus a provenance receipt.
-Protocol-bound Holm execution then accepts only the frozen Holm
-specification, implementation, ordered family, family ID, alpha, and registered
-input bytes. The paired materialization and execution receipts establish a local
-byte chain; they do not authenticate chronology, executors, scientific gates, or
-the truth of source observations.
+When the registered Holm-family dataset retains a service-generated
+`workflow_materialization_verification`, protocol-bound Holm execution replays
+the dependency manifest, source execution receipts, result bytes, selected
+p-values, materialization receipt, and registered family CSV before accepting the
+input. Otherwise it remains explicit that dependencies are declared but not
+execution-verified. The paired materialization and execution receipts establish
+a local byte chain; they do not authenticate chronology, executors, scientific
+gates, or the truth of source observations.
 
 Executable measurement definitions now freeze canonical measurement IDs,
 registered targets, observable semantics, parameter bindings, temporal roles,

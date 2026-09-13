@@ -747,3 +747,146 @@ def materialize_holm_family(
         (staging / "family-materialization.json").write_bytes(receipt_bytes)
         os.replace(staging, output_dir)
     return {"output_directory": str(output_dir), "materialization": materialization}
+
+
+def verify_holm_materialization(
+    service: ResearchService,
+    protocol_id: str,
+    manifest_path: Path,
+    expected_manifest_sha256: str,
+    materialization_dir: Path,
+    expected_receipt_sha256: str,
+    inquiry_id: str | None = None,
+) -> dict[str, Any]:
+    """Replay a Holm-family materialization from pinned source receipts."""
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise ValidationError("workflow dependency manifest must be a regular non-symlink file")
+    expected_manifest_sha256 = _require_sha256(
+        expected_manifest_sha256, "dependency manifest expected_manifest_sha256"
+    )
+    raw_manifest = manifest_path.read_bytes()
+    manifest_sha256 = hashlib.sha256(raw_manifest).hexdigest()
+    if manifest_sha256 != expected_manifest_sha256:
+        raise ValidationError("workflow dependency manifest does not match the trusted hash")
+    try:
+        manifest = json.loads(
+            raw_manifest, object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_nonfinite,
+        )
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise ValidationError(f"invalid workflow dependency manifest: {exc}") from exc
+    if not isinstance(manifest, dict) or set(manifest) != {"family_step_id", "sources"}:
+        raise ValidationError("workflow dependency manifest requires only family_step_id and sources")
+    family_step_id = _require_canonical_manifest_id(manifest["family_step_id"], "family_step_id")
+    sources = manifest["sources"]
+    if not isinstance(sources, list) or not sources:
+        raise ValidationError("workflow dependency sources must be a non-empty array")
+    allowed_source_fields = {"source_step_id", "execution_directory", "receipt_sha256"}
+    if any(not isinstance(item, dict) or set(item) != allowed_source_fields for item in sources):
+        raise ValidationError("each workflow source requires exactly source_step_id, execution_directory, and receipt_sha256")
+
+    protocol = service.get_protocol(protocol_id, inquiry_id)
+    if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
+        raise ValidationError("workflow materialization verification requires a frozen protocol")
+    if _protocol_commitment(protocol) != protocol.protocol_hash:
+        raise ValidationError("frozen protocol content no longer matches its hash commitment")
+    family_steps = [
+        step for step in protocol.analysis_steps
+        if step.step_id == family_step_id and step.role == "multiplicity"
+        and step.method == "holm_adjustment"
+    ]
+    if len(family_steps) != 1:
+        raise ValidationError("family_step_id does not name one frozen Holm step")
+    family_step = family_steps[0]
+    sources_by_id: dict[str, dict[str, Any]] = {}
+    for source in sources:
+        source_step_id = _require_canonical_manifest_id(source["source_step_id"], "source_step_id")
+        if source_step_id in sources_by_id:
+            raise ValidationError("workflow source_step_id values must be unique non-blank strings")
+        directory_value = source["execution_directory"]
+        receipt_sha256 = _require_sha256(source["receipt_sha256"], "receipt_sha256")
+        if not isinstance(directory_value, str) or not directory_value.strip():
+            raise ValidationError("workflow execution_directory must be non-blank")
+        directory = Path(directory_value)
+        if not directory.is_absolute():
+            directory = manifest_path.parent / directory
+        sources_by_id[source_step_id] = verify_execution_output(directory, receipt_sha256)
+    expected_sources = {member.source_step_id for member in family_step.family_members}
+    if set(sources_by_id) != expected_sources:
+        raise ValidationError("workflow sources must exactly cover the frozen Holm dependencies")
+
+    expected_verified_sources: list[dict[str, Any]] = []
+    for member in family_step.family_members:
+        verified = sources_by_id[member.source_step_id]
+        receipt = verified["receipt"]
+        binding = receipt.get("protocol_design_check")
+        selection = receipt.get("registered_workflow_selection")
+        source_steps = [
+            step for step in protocol.analysis_steps if step.step_id == member.source_step_id
+        ]
+        if len(source_steps) != 1:
+            raise ValidationError("frozen Holm member references an unavailable source step")
+        source_step = source_steps[0]
+        if (
+            not isinstance(binding, dict)
+            or binding.get("protocol_id") != protocol.protocol_id
+            or binding.get("protocol_hash") != protocol.protocol_hash
+            or binding.get("analysis_step_contract") != source_step.to_dict()
+        ):
+            raise ValidationError("workflow source receipt does not match its frozen source step")
+        if (
+            not isinstance(selection, dict)
+            or selection.get("step_id") != source_step.step_id
+            or isinstance(selection.get("p_value"), bool)
+            or not isinstance(selection.get("p_value"), (int, float))
+        ):
+            raise ValidationError("workflow source receipt lacks its registered p-value selection")
+        expected_verified_sources.append({
+            "source_step_id": source_step.step_id,
+            "receipt_sha256": verified["receipt_sha256"],
+            "result_sha256": receipt["output"]["sha256"],
+            "p_value_path": selection["p_value_path"],
+            "p_value_sha256": selection["p_value_sha256"],
+        })
+
+    materialization, materialization_raw = _read_pinned_json(
+        materialization_dir / "family-materialization.json",
+        expected_receipt_sha256,
+        "family materialization receipt",
+    )
+    family_csv = materialization_dir / "holm-family.csv"
+    if family_csv.is_symlink() or not family_csv.is_file():
+        raise ValidationError("materialized Holm family must be a regular non-symlink file")
+    family_bytes = family_csv.read_bytes()
+    materialized_output = materialization.get("output")
+    if (
+        materialization.get("materialization_version") != 1
+        or materialization.get("status") != "completed"
+        or materialization.get("scientific_evidence_eligible") is not False
+        or materialization.get("protocol_id") != protocol.protocol_id
+        or materialization.get("protocol_hash") != protocol.protocol_hash
+        or materialization.get("family_step_contract") != family_step.to_dict()
+        or materialization.get("dependency_manifest", {}).get("sha256") != manifest_sha256
+        or materialization.get("verified_sources") != expected_verified_sources
+        or not isinstance(materialized_output, dict)
+        or materialized_output.get("locator") != "holm-family.csv"
+        or materialized_output.get("sha256") != hashlib.sha256(family_bytes).hexdigest()
+        or materialized_output.get("size_bytes") != len(family_bytes)
+        or materialized_output.get("row_count") != len(family_step.family_members)
+    ):
+        raise ValidationError("family materialization does not match the verified workflow sources")
+    return {
+        "status": "workflow_materialization_verified",
+        "protocol_id": protocol.protocol_id,
+        "protocol_hash": protocol.protocol_hash,
+        "family_step_id": family_step.step_id,
+        "family_id": family_step.family_id,
+        "dependency_manifest_sha256": manifest_sha256,
+        "materialization_receipt_sha256": hashlib.sha256(materialization_raw).hexdigest(),
+        "output_sha256": materialized_output["sha256"],
+        "output_size_bytes": materialized_output["size_bytes"],
+        "row_count": materialized_output["row_count"],
+        "verified_sources": expected_verified_sources,
+        "scientific_evidence_eligible": False,
+        "notice": materialization["notice"],
+    }

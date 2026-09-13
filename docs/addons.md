@@ -126,9 +126,14 @@ The command verifies every pinned source receipt and result, recomputes its
 registered p-value selection, rejects missing/substituted sources, and emits
 `holm-family.csv` with `family-materialization.json`. Holm execution verifies its
 own frozen step, ordered member IDs, family ID, alpha, implementation,
-specification, and registered input bytes. The two receipts connect through the
-family CSV hash. This proves local byte identity, not chronology, executor
-independence, scientific-gate success, or validity of the underlying tests.
+specification, and registered input bytes. If the Holm-family dataset was
+registered with `workflow_materialization` metadata, the service stores a
+`workflow_materialization_verification` receipt and Holm execution replays the
+dependency manifest, source execution receipts, selected p-values,
+materialization receipt, and family CSV from current local bytes. Without that
+receipt, execution keeps the dependency status visibly declared-only. Either
+path proves local byte identity, not chronology, executor independence,
+scientific-gate success, or validity of the underlying tests.
 
 `analysis run-draft` and canonical run intake accept these frozen workflow-step
 receipts through the same verified handoff boundary used for primary estimates.

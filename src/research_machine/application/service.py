@@ -2244,6 +2244,129 @@ class ResearchService:
         validate_hypothesis_retirement_boundary(hypothesis)
         return hypothesis
 
+    def _verify_dataset_workflow_materialization(
+        self,
+        *,
+        protocol: ExperimentProtocol | None,
+        metadata_value: object,
+        artifacts: list[DatasetArtifact],
+        inquiry_id: str | None,
+    ) -> dict[str, Any]:
+        if protocol is None:
+            raise ValidationError(
+                "workflow_materialization metadata requires a protocol-bound dataset"
+            )
+        if not isinstance(metadata_value, dict):
+            raise ValidationError("workflow_materialization metadata must be an object")
+        if set(metadata_value) != {"dependency_manifest", "materialization"}:
+            raise ValidationError(
+                "workflow_materialization metadata must contain dependency_manifest and materialization"
+            )
+        dependency_manifest = metadata_value["dependency_manifest"]
+        materialization = metadata_value["materialization"]
+        if not isinstance(dependency_manifest, dict) or set(dependency_manifest) != {
+            "artifact_root",
+            "locator",
+            "sha256",
+        }:
+            raise ValidationError(
+                "workflow_materialization dependency_manifest fields are invalid"
+            )
+        if not isinstance(materialization, dict) or set(materialization) != {
+            "artifact_root",
+            "receipt_sha256",
+        }:
+            raise ValidationError(
+                "workflow_materialization materialization fields are invalid"
+            )
+        manifest_root = Path(
+            require_canonical_text(
+                dependency_manifest["artifact_root"],
+                "workflow_materialization dependency_manifest.artifact_root",
+            )
+        ).expanduser().resolve()
+        manifest_locator = require_canonical_text(
+            dependency_manifest["locator"],
+            "workflow_materialization dependency_manifest.locator",
+        )
+        locator_path = Path(manifest_locator)
+        if locator_path.is_absolute() or ".." in locator_path.parts:
+            raise ValidationError(
+                "workflow_materialization dependency_manifest.locator must be a safe relative path"
+            )
+        materialization_root = Path(
+            require_canonical_text(
+                materialization["artifact_root"],
+                "workflow_materialization materialization.artifact_root",
+            )
+        ).expanduser().resolve()
+        from research_machine.addons.workflow import verify_holm_materialization
+
+        verified = verify_holm_materialization(
+            self,
+            protocol.protocol_id,
+            manifest_root / locator_path,
+            require_sha256(
+                dependency_manifest["sha256"],
+                "workflow_materialization dependency_manifest.sha256",
+            ),
+            materialization_root,
+            require_sha256(
+                materialization["receipt_sha256"],
+                "workflow_materialization materialization.receipt_sha256",
+            ),
+            inquiry_id,
+        )
+        matching_artifacts = [
+            artifact for artifact in artifacts
+            if artifact.sha256 == verified["output_sha256"]
+        ]
+        if len(matching_artifacts) != 1:
+            raise ValidationError(
+                "workflow materialization output must match exactly one registered dataset artifact"
+            )
+        artifact = matching_artifacts[0]
+        if (
+            artifact.size_bytes is not None
+            and artifact.size_bytes != verified["output_size_bytes"]
+        ):
+            raise ValidationError(
+                "workflow materialization output size does not match the registered dataset artifact"
+            )
+        return {
+            "verification_version": 1,
+            "verified_at": self.clock(),
+            "verified_by": self.actor,
+            "status": verified["status"],
+            "protocol_id": verified["protocol_id"],
+            "protocol_hash": verified["protocol_hash"],
+            "family_step_id": verified["family_step_id"],
+            "family_id": verified["family_id"],
+            "dependency_manifest": {
+                "artifact_root": str(manifest_root),
+                "locator": manifest_locator,
+                "sha256": verified["dependency_manifest_sha256"],
+            },
+            "materialization": {
+                "artifact_root": str(materialization_root),
+                "receipt_sha256": verified["materialization_receipt_sha256"],
+            },
+            "output": {
+                "locator": artifact.locator,
+                "sha256": verified["output_sha256"],
+                "size_bytes": verified["output_size_bytes"],
+                "row_count": verified["row_count"],
+            },
+            "verified_sources": verified["verified_sources"],
+            "scope": (
+                "Holm-family materialization from pinned source execution "
+                "receipts and registered p-value selectors"
+            ),
+            "scientific_evidence_eligible": False,
+            "scientific_interpretation_verified": False,
+            "notice": verified["notice"],
+        }
+
     def register_dataset(
         self, command: RegisterDataset, inquiry_id: str | None = None
     ) -> DatasetManifest:
@@ -2475,6 +2598,22 @@ class ResearchService:
                 dataset_metadata["source_authority"],
                 synthetic=final_synthetic,
                 allow_service_fields=False,
+            )
+        if "workflow_materialization_verification" in dataset_metadata:
+            raise ValidationError(
+                "workflow_materialization_verification is service-derived"
+            )
+        workflow_materialization = dataset_metadata.pop(
+            "workflow_materialization", None
+        )
+        if workflow_materialization is not None:
+            dataset_metadata["workflow_materialization_verification"] = (
+                self._verify_dataset_workflow_materialization(
+                    protocol=protocol,
+                    metadata_value=workflow_materialization,
+                    artifacts=artifacts,
+                    inquiry_id=resolved,
+                )
             )
 
         dataset_id = command.dataset_id or f"ds-{self.token()}"
@@ -3299,6 +3438,132 @@ class ResearchService:
             raise ValidationError("input_size_bytes must be a non-negative integer")
         if any(item.size_bytes is not None and item.size_bytes != input_size_bytes for item in artifacts):
             raise ValidationError("Holm input size does not match the registered dataset")
+        dependency_status = "declared_not_execution_verified"
+        dependency_notice = (
+            "Source-step identities are frozen, but this receipt does not yet "
+            "verify their result receipts."
+        )
+        dependency_replay: dict[str, Any] | None = None
+        workflow_verification = dataset.metadata.get(
+            "workflow_materialization_verification"
+        )
+        if workflow_verification is not None:
+            if not isinstance(workflow_verification, dict):
+                raise ValidationError(
+                    "workflow_materialization_verification must be an object"
+                )
+            if workflow_verification.get("scientific_evidence_eligible") is not False:
+                raise ValidationError(
+                    "workflow_materialization_verification must remain non-evidentiary"
+                )
+            if workflow_verification.get("scientific_interpretation_verified") is not False:
+                raise ValidationError(
+                    "workflow_materialization_verification must not claim scientific interpretation verification"
+                )
+            dependency_manifest = workflow_verification.get("dependency_manifest")
+            materialization = workflow_verification.get("materialization")
+            if not isinstance(dependency_manifest, dict) or not isinstance(
+                materialization, dict
+            ):
+                raise ValidationError(
+                    "workflow_materialization_verification is missing replay roots"
+                )
+            manifest_root = Path(
+                require_canonical_text(
+                    dependency_manifest.get("artifact_root"),
+                    "workflow_materialization_verification dependency_manifest.artifact_root",
+                )
+            ).expanduser().resolve()
+            manifest_locator = require_canonical_text(
+                dependency_manifest.get("locator"),
+                "workflow_materialization_verification dependency_manifest.locator",
+            )
+            locator_path = Path(manifest_locator)
+            if locator_path.is_absolute() or ".." in locator_path.parts:
+                raise ValidationError(
+                    "workflow_materialization_verification dependency_manifest.locator must be a safe relative path"
+                )
+            materialization_root = Path(
+                require_canonical_text(
+                    materialization.get("artifact_root"),
+                    "workflow_materialization_verification materialization.artifact_root",
+                )
+            ).expanduser().resolve()
+            from research_machine.addons.workflow import verify_holm_materialization
+
+            replay = verify_holm_materialization(
+                self,
+                protocol.protocol_id,
+                manifest_root / locator_path,
+                require_sha256(
+                    dependency_manifest.get("sha256"),
+                    "workflow_materialization_verification dependency_manifest.sha256",
+                ),
+                materialization_root,
+                require_sha256(
+                    materialization.get("receipt_sha256"),
+                    "workflow_materialization_verification materialization.receipt_sha256",
+                ),
+                resolved,
+            )
+            expected_replay = {
+                "status": replay["status"],
+                "protocol_id": replay["protocol_id"],
+                "protocol_hash": replay["protocol_hash"],
+                "family_step_id": replay["family_step_id"],
+                "family_id": replay["family_id"],
+                "dependency_manifest_sha256": replay[
+                    "dependency_manifest_sha256"
+                ],
+                "materialization_receipt_sha256": replay[
+                    "materialization_receipt_sha256"
+                ],
+                "output_sha256": replay["output_sha256"],
+                "output_size_bytes": replay["output_size_bytes"],
+                "row_count": replay["row_count"],
+                "verified_sources": replay["verified_sources"],
+            }
+            retained_replay = {
+                "status": workflow_verification.get("status"),
+                "protocol_id": workflow_verification.get("protocol_id"),
+                "protocol_hash": workflow_verification.get("protocol_hash"),
+                "family_step_id": workflow_verification.get("family_step_id"),
+                "family_id": workflow_verification.get("family_id"),
+                "dependency_manifest_sha256": dependency_manifest.get("sha256"),
+                "materialization_receipt_sha256": materialization.get(
+                    "receipt_sha256"
+                ),
+                "output_sha256": workflow_verification.get("output", {}).get(
+                    "sha256"
+                ) if isinstance(workflow_verification.get("output"), dict) else None,
+                "output_size_bytes": workflow_verification.get("output", {}).get(
+                    "size_bytes"
+                ) if isinstance(workflow_verification.get("output"), dict) else None,
+                "row_count": workflow_verification.get("output", {}).get(
+                    "row_count"
+                ) if isinstance(workflow_verification.get("output"), dict) else None,
+                "verified_sources": workflow_verification.get("verified_sources"),
+            }
+            if retained_replay != expected_replay:
+                raise ValidationError(
+                    "workflow materialization verification no longer reproduces exactly"
+                )
+            if replay["family_step_id"] != step.step_id:
+                raise ValidationError(
+                    "workflow materialization verification is for a different Holm step"
+                )
+            if replay["output_sha256"] != digest:
+                raise ValidationError(
+                    "workflow materialization output does not match the Holm input"
+                )
+            dependency_status = "source_receipts_replayed"
+            dependency_notice = (
+                "Source execution receipts, selected p-values, materialization "
+                "receipt, and Holm input bytes replayed from retained local roots; "
+                "this does not authenticate chronology, executors, scientific "
+                "gates, or source data truth."
+            )
+            dependency_replay = expected_replay
         return {
             "protocol_id": protocol.protocol_id,
             "protocol_hash": protocol.protocol_hash,
@@ -3310,8 +3575,13 @@ class ResearchService:
             "dataset_id": dataset.dataset_id,
             "input_sha256": digest,
             "synthetic": dataset.synthetic,
-            "dependency_status": "declared_not_execution_verified",
-            "dependency_notice": "Source-step identities are frozen, but this receipt does not yet verify their result receipts.",
+            "dependency_status": dependency_status,
+            "dependency_notice": dependency_notice,
+            **(
+                {"dependency_replay": dependency_replay}
+                if dependency_replay is not None
+                else {}
+            ),
             "scientific_evidence_eligible": False,
         }
 

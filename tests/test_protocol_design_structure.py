@@ -1386,7 +1386,22 @@ def test_holm_execution_binds_frozen_workflow_family_and_registered_input(tmp_pa
             "holm-family.csv", hashlib.sha256(data.read_bytes()).hexdigest(),
             len(data.read_bytes()), "text/csv",
         )],
+        metadata={"workflow_materialization": {
+            "dependency_manifest": {
+                "artifact_root": str(manifest_path.parent),
+                "locator": manifest_path.name,
+                "sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+            },
+            "materialization": {
+                "artifact_root": str(tmp_path / "materialized-family"),
+                "receipt_sha256": materialization_receipt_hash,
+            },
+        }},
     ))
+    verification = dataset.metadata["workflow_materialization_verification"]
+    assert verification["status"] == "workflow_materialization_verified"
+    assert verification["output"]["sha256"] == dataset.artifacts[0].sha256
+    assert len(verification["verified_sources"]) == 2
     spec_path = tmp_path / "holm.json"
     spec_path.write_bytes(holm_spec_bytes)
     execution = execute_analysis(
@@ -1401,7 +1416,16 @@ def test_holm_execution_binds_frozen_workflow_family_and_registered_input(tmp_pa
     assert check["status"] == "passed"
     assert check["analysis_step_contract"]["family_id"] == "confirmatory-family"
     assert check["input_sha256"] == dataset.artifacts[0].sha256
-    assert check["dependency_status"] == "declared_not_execution_verified"
+    assert check["dependency_status"] == "source_receipts_replayed"
+    assert check["dependency_replay"]["output_sha256"] == dataset.artifacts[0].sha256
+    source_result.write_text("{}")
+    with pytest.raises(ValidationError, match="result does not match receipt"):
+        service.validate_analysis_execution(
+            frozen.protocol_id, json.loads(holm_spec_bytes), {}, holm_hash,
+            hashlib.sha256(holm_spec_bytes).hexdigest(), dataset.dataset_id,
+            dataset.artifacts[0].sha256, len(data.read_bytes()), "descriptive",
+        )
+    source_result.write_bytes(original_source_result)
     assert execution["receipt"]["measurement_value_check"] is None
     holm_receipt_hash = hashlib.sha256(
         (tmp_path / "holm-output" / "execution-receipt.json").read_bytes()
