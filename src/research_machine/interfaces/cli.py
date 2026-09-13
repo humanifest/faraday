@@ -1241,6 +1241,21 @@ def build_parser() -> argparse.ArgumentParser:
     literature_deviations.add_argument("--expected-plan-sha256", required=True)
     literature_deviations.add_argument("--disclosure-file", type=Path, required=True)
     literature_deviations.add_argument("--output", type=Path, required=True)
+    literature_composability = literature_commands.add_parser(
+        "evaluate-composability",
+        help="Evaluate a typed source-composability chain in public-development scope",
+    )
+    literature_composability.add_argument("--spec-file", type=Path, required=True)
+    literature_composability.add_argument("--expected-spec-sha256", required=True)
+    literature_composability.add_argument("--output", type=Path, required=True)
+    literature_verify_composability = literature_commands.add_parser(
+        "verify-composability",
+        help="Replay a source-composability evaluation from retained artifacts",
+    )
+    literature_verify_composability.add_argument("--spec-file", type=Path, required=True)
+    literature_verify_composability.add_argument("--expected-spec-sha256", required=True)
+    literature_verify_composability.add_argument("--evaluation-file", type=Path, required=True)
+    literature_verify_composability.add_argument("--expected-evaluation-sha256", required=True)
     return parser
 
 
@@ -2740,6 +2755,27 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
         return verify_collaborator_review_record(
             args.review_record_file,
             args.expected_review_record_sha256,
+        )
+
+    if args.group == "literature" and args.action == "evaluate-composability":
+        from research_machine.literature.composability import (
+            create_source_composability_evaluation,
+        )
+        return create_source_composability_evaluation(
+            args.spec_file,
+            args.expected_spec_sha256,
+            args.output,
+        )
+
+    if args.group == "literature" and args.action == "verify-composability":
+        from research_machine.literature.composability import (
+            verify_source_composability_evaluation,
+        )
+        return verify_source_composability_evaluation(
+            args.spec_file,
+            args.expected_spec_sha256,
+            args.evaluation_file,
+            args.expected_evaluation_sha256,
         )
 
     if args.group == "literature" and args.action == "screen":

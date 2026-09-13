@@ -42,6 +42,22 @@ def test_published_schema_is_well_formed(path):
     jsonschema.Draft202012Validator.check_schema(json.loads(path.read_text()))
 
 
+def test_source_composability_example_matches_published_schema_and_status_model():
+    from research_machine.domain.models import SourceComposabilityStatus
+
+    schema = json.loads((SCHEMAS / "source-composability.schema.json").read_text())
+    example = json.loads((EXAMPLES / "source-composability.json").read_text())
+    jsonschema.validate(example, schema)
+    assert set(schema["$defs"]["status"]["enum"]) == {
+        status.value for status in SourceComposabilityStatus
+    }
+
+    missing_scope = deepcopy(example)
+    missing_scope["required_arrows"][0]["scope"].pop("carrier")
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(missing_scope, schema)
+
+
 def test_protocol_schema_accepts_typed_runtime_and_freeze_bundle_requirements():
     from test_ethics_gate import _human_protocol
     from research_machine.interfaces.cli import _PROTOCOL_FIELDS, _protocol_command

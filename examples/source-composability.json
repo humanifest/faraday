@@ -1,0 +1,87 @@
+{
+  "contract_version": 1,
+  "contract_id": "synthetic-source-chain-v1",
+  "development_scope": "exposed_evaluator_development",
+  "target_scope": {
+    "signature": "declared signature fixture",
+    "dimension": "four-dimensional fixture",
+    "carrier": "finite cell-complex fixture",
+    "domain": "connected bounded-domain fixture"
+  },
+  "bounded_search_source_ref": "search-record",
+  "target_node_ids": [
+    "local-object",
+    "assembled-object"
+  ],
+  "required_arrow_ids": [
+    "local-to-assembled"
+  ],
+  "source_references": [
+    {
+      "source_ref": "primary-local",
+      "source_kind": "primary_source",
+      "canonical_citation": "Synthetic primary source fixture, section 2",
+      "locator": "fixtures/primary-local.txt#section-2",
+      "record_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "source_ref": "primary-assembled",
+      "source_kind": "primary_source",
+      "canonical_citation": "Synthetic adjacent-source fixture, proposition 4",
+      "locator": "fixtures/primary-assembled.txt#proposition-4",
+      "record_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "source_ref": "search-record",
+      "source_kind": "bounded_search_record",
+      "canonical_citation": "Synthetic bounded-search record fixture, version 1",
+      "locator": "fixtures/bounded-search.json",
+      "record_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "local-object",
+      "statement": "The local object has the declared signed construction.",
+      "scope": {
+        "signature": "declared signature fixture",
+        "dimension": "four-dimensional fixture",
+        "carrier": "one finite cell",
+        "domain": "local cell fixture"
+      },
+      "status": "exact_support",
+      "source_refs": ["primary-local"],
+      "assessment": "The cited primary fixture states this exact local construction."
+    },
+    {
+      "node_id": "assembled-object",
+      "statement": "The assembled object has the declared boundary construction.",
+      "scope": {
+        "signature": "declared signature fixture",
+        "dimension": "four-dimensional fixture",
+        "carrier": "assembled finite cell complex",
+        "domain": "connected bounded-domain fixture"
+      },
+      "status": "adjacent_ingredient",
+      "source_refs": ["primary-assembled"],
+      "assessment": "The cited primary fixture supplies an adjacent boundary ingredient, not the exact assembled target."
+    }
+  ],
+  "required_arrows": [
+    {
+      "arrow_id": "local-to-assembled",
+      "source_node_id": "local-object",
+      "target_node_id": "assembled-object",
+      "compatibility_requirement": "Construct the declared assembly map while preserving the target scope.",
+      "scope": {
+        "signature": "declared signature fixture",
+        "dimension": "four-dimensional fixture",
+        "carrier": "directed local-to-assembled map",
+        "domain": "connected bounded-domain fixture"
+      },
+      "status": "not_found_in_bounded_search",
+      "source_refs": ["search-record"],
+      "assessment": "The exact required arrow was not found within the cited bounded-search record."
+    }
+  ]
+}

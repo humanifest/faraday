@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://faraday.local/schemas/source-composability.schema.json",
+  "title": "Faraday source-composability public-development contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "contract_id",
+    "development_scope",
+    "target_scope",
+    "bounded_search_source_ref",
+    "target_node_ids",
+    "required_arrow_ids",
+    "source_references",
+    "nodes",
+    "required_arrows"
+  ],
+  "properties": {
+    "contract_version": {"const": 1},
+    "contract_id": {"$ref": "#/$defs/text"},
+    "development_scope": {"const": "exposed_evaluator_development"},
+    "target_scope": {"$ref": "#/$defs/scope"},
+    "bounded_search_source_ref": {"$ref": "#/$defs/text"},
+    "target_node_ids": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/text"}
+    },
+    "required_arrow_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/text"}
+    },
+    "source_references": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/source"}
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "required_arrows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/arrow"}
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?:\\S|\\S(?:.*\\S)?)$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signature", "dimension", "carrier", "domain"],
+      "properties": {
+        "signature": {"$ref": "#/$defs/text"},
+        "dimension": {"$ref": "#/$defs/text"},
+        "carrier": {"$ref": "#/$defs/text"},
+        "domain": {"$ref": "#/$defs/text"}
+      }
+    },
+    "status": {
+      "enum": [
+        "exact_support",
+        "adjacent_ingredient",
+        "direct_limitation",
+        "not_found_in_bounded_search"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_ref",
+        "source_kind",
+        "canonical_citation",
+        "locator",
+        "record_sha256"
+      ],
+      "properties": {
+        "source_ref": {"$ref": "#/$defs/text"},
+        "source_kind": {
+          "enum": ["primary_source", "secondary_source", "bounded_search_record"]
+        },
+        "canonical_citation": {"$ref": "#/$defs/text"},
+        "locator": {"$ref": "#/$defs/text"},
+        "record_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "statement", "scope", "status", "source_refs", "assessment"],
+      "properties": {
+        "node_id": {"$ref": "#/$defs/text"},
+        "statement": {"$ref": "#/$defs/text"},
+        "scope": {"$ref": "#/$defs/scope"},
+        "status": {"$ref": "#/$defs/status"},
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/text"}
+        },
+        "assessment": {"$ref": "#/$defs/text"}
+      }
+    },
+    "arrow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "arrow_id",
+        "source_node_id",
+        "target_node_id",
+        "compatibility_requirement",
+        "scope",
+        "status",
+        "source_refs",
+        "assessment"
+      ],
+      "properties": {
+        "arrow_id": {"$ref": "#/$defs/text"},
+        "source_node_id": {"$ref": "#/$defs/text"},
+        "target_node_id": {"$ref": "#/$defs/text"},
+        "compatibility_requirement": {"$ref": "#/$defs/text"},
+        "scope": {"$ref": "#/$defs/scope"},
+        "status": {"$ref": "#/$defs/status"},
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/text"}
+        },
+        "assessment": {"$ref": "#/$defs/text"}
+      }
+    }
+  }
+}

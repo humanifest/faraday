@@ -1305,6 +1305,14 @@ reviewed-suggestion citations cannot be treated as upgraded provenance.
 
 ## Literature snapshots
 
+For prospective analysis of whether separately sourced objects form a complete
+directed compatibility chain, use the public-development
+[source-composability evaluator](docs/source-composability.md). It retains exact
+local support, names the first unclosed required arrow deterministically, binds
+all declarations to canonical byte-hashed source records and full mathematical
+scope, and grants no scientific, evidence, replication, candidate-advancement,
+or runtime-promotion authority.
+
 Capture a reproducible local record of a literature search without trusting a
 search tool as evidence authority:
 

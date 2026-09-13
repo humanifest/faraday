@@ -649,6 +649,121 @@ class BoundedNegativeSearchContract(Serializable):
     evaluation_gate_id: str
 
 
+class SourceComposabilityStatus(StrEnum):
+    """Declared source relationship to one exact composability requirement."""
+
+    EXACT_SUPPORT = "exact_support"
+    ADJACENT_INGREDIENT = "adjacent_ingredient"
+    DIRECT_LIMITATION = "direct_limitation"
+    NOT_FOUND_IN_BOUNDED_SEARCH = "not_found_in_bounded_search"
+
+
+class SourceComposabilitySourceKind(StrEnum):
+    """Custody role for a source cited by a composability assessment."""
+
+    PRIMARY_SOURCE = "primary_source"
+    SECONDARY_SOURCE = "secondary_source"
+    BOUNDED_SEARCH_RECORD = "bounded_search_record"
+
+
+@dataclass(frozen=True)
+class SourceComposabilityScope(Serializable):
+    """Mathematical scope that prevents unlike ingredients from being merged."""
+
+    signature: str
+    dimension: str
+    carrier: str
+    domain: str
+
+
+@dataclass(frozen=True)
+class SourceComposabilitySourceReference(Serializable):
+    """Canonical and byte-addressed source used by a declared assessment."""
+
+    source_ref: str
+    source_kind: SourceComposabilitySourceKind
+    canonical_citation: str
+    locator: str
+    record_sha256: str
+
+
+@dataclass(frozen=True)
+class SourceComposabilityNode(Serializable):
+    """One exact target object whose local support must remain visible."""
+
+    node_id: str
+    statement: str
+    scope: SourceComposabilityScope
+    status: SourceComposabilityStatus
+    source_refs: list[str]
+    assessment: str
+
+
+@dataclass(frozen=True)
+class SourceComposabilityArrow(Serializable):
+    """One required directed compatibility relation between exact target nodes."""
+
+    arrow_id: str
+    source_node_id: str
+    target_node_id: str
+    compatibility_requirement: str
+    scope: SourceComposabilityScope
+    status: SourceComposabilityStatus
+    source_refs: list[str]
+    assessment: str
+
+
+@dataclass(frozen=True)
+class SourceComposabilityContract(Serializable):
+    """Prospective, public-development contract for a source-composability chain."""
+
+    contract_version: int
+    contract_id: str
+    development_scope: str
+    target_scope: SourceComposabilityScope
+    bounded_search_source_ref: str
+    target_node_ids: list[str]
+    required_arrow_ids: list[str]
+    source_references: list[SourceComposabilitySourceReference]
+    nodes: list[SourceComposabilityNode]
+    required_arrows: list[SourceComposabilityArrow]
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "SourceComposabilityContract":
+        copied = dict(value)
+        copied["target_scope"] = SourceComposabilityScope(**copied["target_scope"])
+        copied["source_references"] = [
+            SourceComposabilitySourceReference(
+                **{
+                    **item,
+                    "source_kind": SourceComposabilitySourceKind(item["source_kind"]),
+                }
+            )
+            for item in copied["source_references"]
+        ]
+        copied["nodes"] = [
+            SourceComposabilityNode(
+                **{
+                    **item,
+                    "scope": SourceComposabilityScope(**item["scope"]),
+                    "status": SourceComposabilityStatus(item["status"]),
+                }
+            )
+            for item in copied["nodes"]
+        ]
+        copied["required_arrows"] = [
+            SourceComposabilityArrow(
+                **{
+                    **item,
+                    "scope": SourceComposabilityScope(**item["scope"]),
+                    "status": SourceComposabilityStatus(item["status"]),
+                }
+            )
+            for item in copied["required_arrows"]
+        ]
+        return cls(**copied)
+
+
 @dataclass(frozen=True)
 class ControlWitnessContract(Serializable):
     """Prospective shape for one artifact-selected scalar control comparison."""
