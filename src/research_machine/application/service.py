@@ -2304,6 +2304,17 @@ class ResearchService:
         self.show_inquiry(resolved)
         return self.repository.list_datasets(resolved)
 
+    def dataset_inventory(self, inquiry_id: str | None = None) -> dict[str, Any]:
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        self.show_inquiry(resolved)
+        from research_machine.application.dataset_inventory import (
+            build_dataset_inventory,
+        )
+        return build_dataset_inventory(
+            self.repository.list_datasets(resolved),
+            self.repository.list_protocols(resolved),
+        )
+
     def export_replication_package(
         self,
         protocol_id: str,

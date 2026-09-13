@@ -2644,9 +2644,10 @@ now recursively walks protected ancestors during inquiry display, execution
 binding, run intake, and evidence admission; resealed records with missing,
 duplicated, cyclic, or cross-role/cross-protocol ancestry fail before scientific
 use.
-Deterministic synthesis now also emits a general registered-dataset inventory,
-not only the protected-lineage section. It counts roles and synthetic status,
-lists each registered manifest's artifact/media shape, protocol binding,
+The canonical service and CLI now expose a structured registered-dataset
+inventory, and deterministic synthesis renders the same payload rather than
+maintaining a parallel prose interpretation. It counts roles and synthetic
+status, lists each registered manifest's artifact/media shape, protocol binding,
 lineage sources, payload seal, observation-byte access/readiness, custody state,
 and ethics context, while redacting retained local roots. An empty inventory
 explicitly excludes draft data-source mentions, plugin access, and design briefs

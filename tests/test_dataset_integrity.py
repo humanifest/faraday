@@ -26,6 +26,7 @@ from research_machine.domain.models import (
     QualityGateResult,
     QualityGateStatus,
 )
+from research_machine.interfaces.cli import main
 from research_machine.reporting.synthesis import build_synthesis
 from test_ethics_gate import _human_protocol
 from test_execution import prepared_service
@@ -247,7 +248,7 @@ def test_synthesis_reports_registered_dataset_inventory_without_overclaiming() -
     ) in synthesis
     assert "registered observation bytes service-verified under retained local custody" in synthesis
     assert (
-        "not a claim that source truth, consent truth, measurement validity, "
+        "not proof of source truth, consent truth, measurement validity, "
         "or analysis adequacy"
     ) in synthesis
     assert "/tmp/private-observations" not in synthesis
@@ -289,6 +290,58 @@ def test_synthesis_dataset_inventory_explicitly_excludes_unregistered_sources() 
     assert "No datasets are registered in canonical workspace state" in synthesis
     assert "external plugin access" in synthesis
     assert "design briefs are not counted as datasets" in synthesis
+
+
+def test_cli_reports_structured_dataset_inventory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace = tmp_path / "workspace"
+    common = ["--workspace", str(workspace), "--json"]
+    assert main([*common, "workspace", "init"]) == 0
+    capsys.readouterr()
+    assert main([
+        *common,
+        "inquiry",
+        "create",
+        "--id",
+        "inventory",
+        "--title",
+        "Inventory",
+        "--statement",
+        "What datasets are registered?",
+    ]) == 0
+    capsys.readouterr()
+
+    observations = tmp_path / "observations.csv"
+    observations.write_text("unit,outcome\nu1,1\n", encoding="utf-8")
+    assert main([
+        *common,
+        "dataset",
+        "register",
+        "--id",
+        "cli-dataset",
+        "--name",
+        "CLI dataset",
+        "--role",
+        "exploratory",
+        "--file",
+        str(observations),
+        "--synthetic",
+        "--inquiry",
+        "inventory",
+    ]) == 0
+    capsys.readouterr()
+
+    assert main([*common, "dataset", "inventory", "--inquiry", "inventory"]) == 0
+    result = json.loads(capsys.readouterr().out)["result"]
+
+    assert result["registered_dataset_count"] == 1
+    assert result["role_counts"] == {"exploratory": 1}
+    row = result["datasets"][0]
+    assert row["dataset_id"] == "cli-dataset"
+    assert row["observation_access"]["status"] == "synthetic_fixture"
+    assert row["operational_roots_redacted"] is True
+    assert str(tmp_path) not in json.dumps(result)
 
 
 @pytest.mark.parametrize(
@@ -508,6 +561,16 @@ def test_real_protected_dataset_requires_current_registered_bytes(tmp_path: Path
     assert receipt["protocol_hash"] == protocol.protocol_hash
     service.show_inquiry()
     service._validate_run_datasets(protocol, [dataset])
+    inventory = service.dataset_inventory()
+    assert inventory["registered_dataset_count"] == 1
+    row = inventory["datasets"][0]
+    assert row["dataset_id"] == dataset.dataset_id
+    assert row["observation_access"]["status"] == (
+        "protected_observation_bytes_service_verified"
+    )
+    assert row["payload_commitment"]["sealed"] is True
+    assert row["operational_roots_redacted"] is True
+    assert str(tmp_path.resolve()) not in json.dumps(inventory)
 
     dataset_path = (
         tmp_path
