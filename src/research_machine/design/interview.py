@@ -15,6 +15,16 @@ from research_machine.domain.models import (
 )
 
 
+_ALIAS_PROXY_SCOPES = (
+    "registered_target_alias",
+    "observable_alias",
+    "input_condition_alias",
+    "data_column_alias",
+    "value_domain_alias",
+    "proxy_measurement",
+)
+
+
 def _split_semicolon_answer(raw: str) -> list[str]:
     parts = raw.split(";")
     last = len(parts) - 1
@@ -85,6 +95,72 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             if 0.8 <= parsed < 1:
                 brief[key] = parsed
                 return
+
+    def optional_alias_proxy_commitment(
+        *,
+        target_label: str,
+        context: str,
+    ) -> dict[str, Any] | None:
+        answer(
+            "_alias_proxy_enter",
+            f"Add an alias/proxy commitment for {context} '{target_label}'?",
+            choices=("yes", "no"),
+        )
+        if brief.pop("_alias_proxy_enter", "no") != "yes":
+            return None
+        answer(
+            "_alias_proxy_scope",
+            f"What concealment scope applies to {context} '{target_label}'?",
+            required=True,
+            choices=_ALIAS_PROXY_SCOPES,
+        )
+        answer(
+            "_alias_proxy_public_label",
+            f"What exact public label is visible for {context} '{target_label}' under that scope?",
+            required=True,
+        )
+        answer(
+            "_alias_proxy_mapping_sha256",
+            f"What lowercase SHA-256 commits to the private mapping for {context} '{target_label}'?",
+            required=True,
+        )
+        answer(
+            "_alias_proxy_rationale",
+            f"What bounded construct-validity rationale supports the alias/proxy for {context} '{target_label}'?",
+            required=True,
+        )
+        raw_limitations = ask(
+            f"What limitations apply to this alias/proxy commitment for {context} '{target_label}'? Separate exact limitations with semicolons [required]"
+        )
+        limitations = _split_semicolon_answer(raw_limitations)
+        while not limitations:
+            raw_limitations = ask(
+                f"What limitations apply to this alias/proxy commitment for {context} '{target_label}'? Separate exact limitations with semicolons [required]"
+            )
+            limitations = _split_semicolon_answer(raw_limitations)
+        answer(
+            "_alias_proxy_reveal",
+            f"When may the private mapping for {context} '{target_label}' be disclosed, partially disclosed, or kept sealed?",
+            required=True,
+        )
+        proxy_construct = ""
+        if brief.get("_alias_proxy_scope") == "proxy_measurement":
+            answer(
+                "_alias_proxy_construct",
+                f"What hidden construct does the public proxy for {context} '{target_label}' stand in for?",
+                required=True,
+            )
+            proxy_construct = brief.pop("_alias_proxy_construct")
+        return {
+            "commitment_id": f"{context.replace(' ', '-')}-{target_label.replace(' ', '-')}-alias-proxy",
+            "concealment_scope": brief.pop("_alias_proxy_scope"),
+            "public_label": brief.pop("_alias_proxy_public_label"),
+            "private_mapping_sha256": brief.pop("_alias_proxy_mapping_sha256"),
+            "construct_validity_rationale": brief.pop("_alias_proxy_rationale"),
+            "limitations": limitations,
+            "reveal_conditions": brief.pop("_alias_proxy_reveal"),
+            "proxy_construct": proxy_construct,
+        }
 
     for key, prompt in (
         ("title", "What is the study's working title?"),
@@ -547,6 +623,12 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             validity_checks.append(draft)
     if validity_checks:
         brief["measurement_validity_checks"] = validity_checks
+    primary_alias_proxy = optional_alias_proxy_commitment(
+        target_label=brief["outcome"],
+        context="primary measurement",
+    )
+    if primary_alias_proxy is not None:
+        brief["alias_proxy_commitment"] = primary_alias_proxy
     secondary_measurements = []
     for outcome in brief["secondary_outcomes"]:
         draft: dict[str, Any] = {"outcome": outcome}
@@ -605,6 +687,12 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             ))
             and (draft["scale_type"] not in {"binary", "nominal", "ordinal"} or draft["admissible_values"])
         ):
+            commitment = optional_alias_proxy_commitment(
+                target_label=outcome,
+                context="secondary measurement",
+            )
+            if commitment is not None:
+                draft["alias_proxy_commitment"] = commitment
             secondary_measurements.append(draft)
     if secondary_measurements:
         brief["secondary_measurements"] = secondary_measurements
@@ -678,6 +766,12 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
                 ))
                 and (draft["scale_type"] not in {"binary", "nominal", "ordinal"} or draft["admissible_values"])
             ):
+                commitment = optional_alias_proxy_commitment(
+                    target_label=variable,
+                    context=f"causal {role} measurement",
+                )
+                if commitment is not None:
+                    draft["alias_proxy_commitment"] = commitment
                 causal_measurements.append(draft)
     if causal_measurements:
         brief["causal_measurements"] = causal_measurements
@@ -737,6 +831,12 @@ def interview_design(ask: Callable[[str], str]) -> dict[str, Any]:
             "evaluation_point", "convention", "aggregation", "tolerance",
             "expected_behavior", "temporal_role",
         )):
+            commitment = optional_alias_proxy_commitment(
+                target_label=control,
+                context="control measurement",
+            )
+            if commitment is not None:
+                draft["alias_proxy_commitment"] = commitment
             control_measurements.append(draft)
     if control_measurements:
         brief["control_measurements"] = control_measurements

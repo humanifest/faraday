@@ -10,7 +10,7 @@ def test_interview_emits_reviewable_control_definitions(complete):
     answers = iter(["Fixture", "Question", "Decision", "Height", "pot", "exploratory", "no"]
         + [""] * 29 + ["Blank sample", ""]
         + (["negative", "Detect background signal", "No signal"] if complete else ["", "", ""])
-        + [""] * 48)
+        + [""] * 49)
     result = interview_design(lambda prompt: next(answers))
     draft = result["scaffold"]["artifacts"]["protocol-draft.json"]
     definition = draft["control_definitions"][0]
@@ -56,7 +56,7 @@ def test_interview_cli_creates_review_only_experiment_without_json(tmp_path, mon
             "readings must agree within 2 mm",
             "retain all valid measurements regardless of direction",
             "post_exposure",
-            *( [""] * 27 ),
+            *( [""] * 28 ),
             "A reviewed result that clears the support rule.",
             "Stop if the registered falsifier appears; continue if validity is consistent",
             "greenhouse-owner",
@@ -278,6 +278,60 @@ def test_interview_collects_prospective_measurement_validity_check() -> None:
     protocol = result["scaffold"]["artifacts"]["protocol-draft.json"]
     assert "reference-agreement-assessed" in protocol["quality_requirements"]
     assert "MEASUREMENT_VALIDITY_PLAN_INCOMPLETE" not in {
+        item["code"] for item in result["scaffold"]["findings"]
+    }
+
+
+def test_interview_collects_primary_alias_proxy_commitment() -> None:
+    mapping_sha256 = "a" * 64
+
+    def ask(prompt: str) -> str:
+        responses = {
+            "What is the study's working title?": "Masked interview",
+            "What question do you want to investigate?": "Can a public proxy be reviewed without revealing the target?",
+            "What practical decision would the findings inform?": "Decide whether the masked design is reviewable.",
+            "What exactly will you measure as the primary outcome?": "Hidden construct alias",
+            "What does one data row represent, such as one pot-day?": "artifact",
+            "What kind of claim are you investigating?": "exploratory",
+            "Does this involve people or data about people?": "no",
+            "What units or measurement scale will the outcome use?": "points",
+            "What exact dataset column will contain the primary outcome?": "proxy_score",
+            "What exact observable or recorded quantity defines the primary outcome?": "Public proxy score",
+            "Under what exact input condition or dataset slice is the primary measurement defined?": "All eligible artifacts",
+            "List fixed measurement parameters as name=value pairs": "version=masked-v1",
+            "At what exact time, location, scale point, or processing stage is the measurement evaluated?": "Frozen endpoint",
+            "What sign, coding, normalization, or ordering convention defines the recorded value?": "Higher means more proxy signal",
+            "How are repeated readings reduced to the primary reported value?": "One value per artifact",
+            "What fixed measurement tolerance or acceptance bound applies?": "Exact parsed score",
+            "What behavior is prospectively expected from this outcome measurement?": "Report regardless of direction",
+            "When is the primary measurement taken relative to exposure?": "not_applicable",
+            "Name prospective primary-measurement validity checks": "proxy-reference-check",
+            "What evidence type will validity check 'proxy-reference-check' use?": "criterion",
+            "What exact aspect of validity does check 'proxy-reference-check' address?": "The public proxy is compared with a retained reference subset.",
+            "How will validity check 'proxy-reference-check' be assessed before interpreting the primary result?": "Compare the proxy with the reference subset before analysis unlock.",
+            "What prospective result will count as acceptable for validity check 'proxy-reference-check'?": "Agreement clears the frozen bound.",
+            "What will happen if validity check 'proxy-reference-check' fails or is inconclusive?": "Stop primary interpretation.",
+            "What dedicated required gate ID will record validity check 'proxy-reference-check'?": "proxy-reference-assessed",
+            "Add an alias/proxy commitment for primary measurement 'Hidden construct alias'?": "yes",
+            "What concealment scope applies to primary measurement 'Hidden construct alias'?": "proxy_measurement",
+            "What exact public label is visible for primary measurement 'Hidden construct alias' under that scope?": "Public proxy score",
+            "What lowercase SHA-256 commits to the private mapping for primary measurement 'Hidden construct alias'?": mapping_sha256,
+            "What bounded construct-validity rationale supports the alias/proxy for primary measurement 'Hidden construct alias'?": "The proxy is checked against the retained reference subset before interpretation.",
+            "What limitations apply to this alias/proxy commitment for primary measurement 'Hidden construct alias'?": "The mapping hash does not prove proxy validity",
+            "When may the private mapping for primary measurement 'Hidden construct alias' be disclosed, partially disclosed, or kept sealed?": "Reveal only to authorized reviewers after analysis lock.",
+            "What hidden construct does the public proxy for primary measurement 'Hidden construct alias' stand in for?": "Concealed construct identified by the private mapping.",
+        }
+        return next((value for key, value in responses.items() if prompt.startswith(key)), "")
+
+    result = interview_design(ask)
+    commitment = result["brief"]["alias_proxy_commitment"]
+    assert commitment["concealment_scope"] == "proxy_measurement"
+    assert commitment["public_label"] == "Public proxy score"
+    assert commitment["private_mapping_sha256"] == mapping_sha256
+    assert commitment["proxy_construct"].startswith("Concealed construct")
+    alias_draft = result["scaffold"]["artifacts"]["alias-proxy-commitments-draft.json"]
+    assert alias_draft["commitments"][0]["commitment"] == commitment
+    assert "ALIAS_PROXY_VALIDITY_PLAN_MISSING" not in {
         item["code"] for item in result["scaffold"]["findings"]
     }
 
@@ -826,7 +880,7 @@ def test_provider_free_interview_collects_auditable_causal_design() -> None:
 
 def test_human_interview_retains_hold_and_retries_invalid_choice():
     answers = iter(["Fixture", "Question", "Decision", "Score", "participant-day",
-                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 46)
+                    "invalid choice", "causal", "yes"] + [""] * 40 + ["no"] + [""] * 47)
     result = interview_design(lambda prompt: next(answers))
     codes = {item["code"] for item in result["scaffold"]["findings"]}
     assert result["brief"]["study_type"] == "causal"

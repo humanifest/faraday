@@ -769,12 +769,12 @@ review drafts, so later exact protocol commitments do not inherit a handle that
 was only apparently valid after trimming. The provider-free interview preserves
 free-text, semicolon-list boundary padding, and `name=value` binding padding for
 this audit instead of silently normalizing it away.
-Guided briefs can now carry an `alias_proxy_commitment` for the primary
-measurement, and the same field on secondary, control, or causal measurement
-drafts. The scaffold validates the supported concealment scope, public label,
-private mapping SHA-256, bounded construct rationale, limitations, reveal
-conditions, and proxy construct before emitting
-`alias-proxy-commitments-draft.json`. A proxy primary measurement without a
+Guided JSON briefs and the provider-free interview can now carry an
+`alias_proxy_commitment` for the primary measurement, and the same field on
+secondary, control, or causal measurement drafts. The scaffold validates the
+supported concealment scope, public label, private mapping SHA-256, bounded
+construct rationale, limitations, reveal conditions, and proxy construct before
+emitting `alias-proxy-commitments-draft.json`. A proxy primary measurement without a
 prospective measurement-validity check blocks the scaffold. The draft preserves
 only public labels and hashes; it does not reveal hidden entities, prove proxy
 validity, authenticate private custody, satisfy ethics review, or authorize
