@@ -48,10 +48,18 @@
             "scope": "Exact checker bytes and the declared bounded proof-checking role.",
             "auditor_identity": "<auditor-identity-as-declared>",
             "audited_at": "2026-09-12T12:00:00Z",
-            "limitations": ["Identity and independence remain unauthenticated by this artifact."]
+            "limitations": ["Identity and independence remain unauthenticated by this artifact."],
+            "supporting_artifacts": [
+              {
+                "artifact_role": "detailed_adversarial_audit_report",
+                "artifact_locator": "audits/checker-audit-report.md",
+                "artifact_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+              }
+            ]
           }
         ],
         "evaluator_exposure_statement": "",
+        "nonadvancing_information_statement": "",
         "limitations": ["A favorable audit permits workflow selection only."],
         "conclusion_ceiling": "Workflow eligibility only; does not establish audit truth, auditor identity or independence, scientific validity, or evidence eligibility."
       }

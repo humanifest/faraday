@@ -1,16 +1,20 @@
 # Action audit prerequisites
 
-Faraday version-3 recommendations distinguish two kinds of proposed work:
+Faraday version-3 recommendations distinguish three kinds of proposed work:
 
 - `candidate_advancing` changes which candidate or implementation is permitted
   to advance in the research workflow.
 - `exposed_evaluator_development` develops or exercises an evaluator in public
   view without advancing a candidate, claiming hypothesis discrimination, or
   becoming scientific evidence.
+- `nonadvancing_information` performs ordinary bounded information work—such as
+  literature/source search or infrastructure audit—without advancing candidate
+  or implementation bytes, claiming hypothesis discrimination, or becoming
+  scientific evidence.
 
 Every new action must carry an `audit_prerequisite_contract`. This removes the
-ambiguous state in which evaluator development can be mistaken for candidate
-admission after a favorable output is seen.
+ambiguous states in which evaluator development can be mistaken for candidate
+admission, or ordinary research is falsely classified as evaluator development.
 
 ## Candidate-advancing actions
 
@@ -25,21 +29,26 @@ cover every subject. Each audit declaration binds:
 - exact scope;
 - auditor identity as declared in the artifact;
 - timezone-aware audit time; and
-- explicit limitations.
+- explicit limitations; and
+- at least one supporting artifact with its exact role, safe relative locator,
+  and SHA-256.
 
 The audit file is strict JSON containing those audit fields, excluding only its
-own locator and byte hash. At recommendation creation Faraday verifies the
-current subject bytes, the current audit bytes, and exact agreement between the
-audit JSON and the prospective contract. It then retains a service-generated
-receipt. Authoritative reads repeat the byte checks and require the recomputed
-receipt to equal the retained receipt.
+own locator and byte hash. Its `supporting_artifacts` member binds the detailed
+audit report or equivalent review material behind the machine-readable
+disposition; the disposition JSON cannot stand in for an unbound report. At
+recommendation creation Faraday verifies the current subject, audit JSON, and
+supporting-artifact bytes, plus exact agreement between the audit JSON and the
+prospective contract. It then retains a service-generated receipt. Authoritative
+reads repeat every byte check and require the recomputed receipt to equal the
+retained receipt.
 
 Only a candidate-advancing contract whose required audits all retain
 `favorable` verdicts is workflow-selectable. Pending and adverse audits remain
 visible in the recommendation candidate set but are ineligible. A missing root,
-missing file, symlink, path escape, changed subject, changed audit, malformed
-JSON, changed scope or identity, or audit scoped to other subject bytes fails
-closed before selection.
+missing file, symlink, path escape, changed subject, changed audit or supporting
+report, malformed JSON, changed scope or identity, or audit scoped to other
+subject bytes fails closed before selection.
 
 Use the artifact root option when any candidate-advancing action is present:
 
@@ -56,13 +65,25 @@ not enter a protocol or run replication package and cannot authorize evidence;
 a scientific replication must still use Faraday's protocol, dataset, run,
 evidence, and replication-package contracts.
 
+## Non-advancing information
+
+A non-advancing information contract has no audited subjects or audit-coverage
+claim. It requires its own canonical `nonadvancing_information_statement`, an
+empty evaluator-exposure statement, and explicit limitations. It can select
+bounded literature/source search, catalog work, or infrastructure audit without
+mislabeling that work as evaluator development. It must name no hypothesis
+distinction and must keep `expected_discrimination` at zero.
+
 ## Exposed evaluator development
 
 An exposed evaluator-development contract has no audited subjects or audit
-coverage claim. It requires an explicit exposure statement and limitations. It
-may be selected as information-gathering work, but it must name no hypothesis
-distinction and must keep `expected_discrimination` at zero. Its receipt always
-sets `candidate_advancement_eligible`, `scientific_validity_established`, and
+coverage claim. It requires an explicit evaluator-exposure statement, an empty
+non-advancing-information statement, and limitations. It may be selected to
+develop or exercise an evaluator, but it must name no hypothesis distinction and
+must keep `expected_discrimination` at zero.
+
+Receipts for both non-advancing classes always set
+`candidate_advancement_eligible`, `scientific_validity_established`, and
 `scientific_evidence_eligible` to false. Every receipt also sets
 `replication_authority_established` to false; only the separate scientific
 replication contracts can support a replication result.
@@ -74,10 +95,10 @@ Every contract uses the exact ceiling:
 > Workflow eligibility only; does not establish audit truth, auditor identity
 > or independence, scientific validity, or evidence eligibility.
 
-The byte checks establish provenance and workflow eligibility under the
-declared rule. They do not authenticate the named auditor, establish auditor
-qualifications or independence, prove the audit judgment correct, validate the
-candidate, or support any scientific conclusion.
+The byte checks establish provenance and workflow eligibility under the declared
+rule. Even a bound detailed report does not authenticate the named auditor,
+establish auditor qualifications or independence, prove the audit judgment
+correct, validate the candidate, or support any scientific conclusion.
 
 Version-1 and version-2 recommendations remain readable under their historical
 score contracts. They do not acquire this new audit-prerequisite authority; a

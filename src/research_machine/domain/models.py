@@ -175,6 +175,7 @@ class CrossLaneTransferAuthorityStatus(StrEnum):
 class ActionAuditClass(StrEnum):
     CANDIDATE_ADVANCING = "candidate_advancing"
     EXPOSED_EVALUATOR_DEVELOPMENT = "exposed_evaluator_development"
+    NONADVANCING_INFORMATION = "nonadvancing_information"
 
 
 def _jsonable(value: Any) -> Any:
@@ -1250,6 +1251,15 @@ class AuditPrerequisiteSubject(Serializable):
 
 
 @dataclass(frozen=True)
+class AuditPrerequisiteSupportingArtifact(Serializable):
+    """One exact detailed artifact supporting an audit disposition."""
+
+    artifact_role: str
+    artifact_locator: str
+    artifact_sha256: str
+
+
+@dataclass(frozen=True)
 class AuditPrerequisiteArtifact(Serializable):
     """Expected identity and content of one retained audit artifact."""
 
@@ -1265,17 +1275,30 @@ class AuditPrerequisiteArtifact(Serializable):
     auditor_identity: str
     audited_at: str
     limitations: list[str]
+    supporting_artifacts: list[AuditPrerequisiteSupportingArtifact]
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "AuditPrerequisiteArtifact":
+        copied = dict(value)
+        copied["supporting_artifacts"] = [
+            item
+            if isinstance(item, AuditPrerequisiteSupportingArtifact)
+            else AuditPrerequisiteSupportingArtifact(**item)
+            for item in copied.get("supporting_artifacts", [])
+        ]
+        return cls(**copied)
 
 
 @dataclass(frozen=True)
 class AuditPrerequisiteContract(Serializable):
-    """Prospective boundary between candidate advancement and evaluator work."""
+    """Prospective boundary among advancing and non-advancing action classes."""
 
     contract_version: int
     action_class: ActionAuditClass
     subjects: list[AuditPrerequisiteSubject]
     required_audits: list[AuditPrerequisiteArtifact]
     evaluator_exposure_statement: str
+    nonadvancing_information_statement: str
     limitations: list[str]
     conclusion_ceiling: str
 
@@ -1292,7 +1315,7 @@ class AuditPrerequisiteContract(Serializable):
         copied["required_audits"] = [
             item
             if isinstance(item, AuditPrerequisiteArtifact)
-            else AuditPrerequisiteArtifact(**item)
+            else AuditPrerequisiteArtifact.from_dict(item)
             for item in copied.get("required_audits", [])
         ]
         return cls(**copied)

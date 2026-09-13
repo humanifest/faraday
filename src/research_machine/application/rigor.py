@@ -466,6 +466,20 @@ def audit_research_state(
                     entity_id=candidate.action_id,
                 )
                 continue
+            if receipt.get("action_class") == "nonadvancing_information":
+                add(
+                    "ACTION_NONADVANCING_INFORMATION",
+                    RigorSeverity.INFO,
+                    (
+                        "Action is explicitly non-advancing information work; it "
+                        "may gather bounded source or workflow information but cannot "
+                        "advance candidate or implementation bytes, claim hypothesis "
+                        "discrimination, establish evidence, or create replication authority."
+                    ),
+                    entity_type="action_candidate",
+                    entity_id=candidate.action_id,
+                )
+                continue
             if receipt.get("candidate_advancement_eligible") is not True:
                 add(
                     "ACTION_AUDIT_PREREQUISITE_NOT_ELIGIBLE",

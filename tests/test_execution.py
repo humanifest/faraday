@@ -37,6 +37,7 @@ from research_machine.domain.models import (
     ActionAuditClass,
     AuditPrerequisiteArtifact,
     AuditPrerequisiteContract,
+    AuditPrerequisiteSupportingArtifact,
     AuditPrerequisiteSubject,
     AnalysisMode,
     AnalysisContract,
@@ -64,25 +65,33 @@ SEED_REVEAL = "registered-seed-42"
 SEED_COMMITMENT = hashlib.sha256(SEED_REVEAL.encode("utf-8")).hexdigest()
 AUDIT_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "audit-prerequisite"
 SUBJECT_SHA256 = "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d86389505984"
-AUDIT_SHA256 = "1007b052c7bb6e43ffe8fee59108e64735c6b191c9d644e8868300723d521bf2"
+AUDIT_SHA256 = "eee80863a7ae56790428d8f8c311507123e423bf78c4a46907bbe4cf5ae596f4"
+AUDIT_REPORT_SHA256 = "d0a65fe83d6d7c6aaae5ebc5dd7b508ee255b66d7b77ed93eb766e2cd79ae425"
 
 
 def action_audit_contract(*, candidate_advancing: bool) -> AuditPrerequisiteContract:
     if not candidate_advancing:
         return AuditPrerequisiteContract(
-            1,
-            ActionAuditClass.EXPOSED_EVALUATOR_DEVELOPMENT,
-            [],
-            [],
-            "Evaluator implementation is exposed development and cannot advance a candidate.",
-            ["Synthetic workflow fixture only."],
-            AUDIT_PREREQUISITE_CONCLUSION_CEILING,
+            contract_version=1,
+            action_class=ActionAuditClass.NONADVANCING_INFORMATION,
+            subjects=[],
+            required_audits=[],
+            evaluator_exposure_statement="",
+            nonadvancing_information_statement=(
+                "This bounded workflow inquiry cannot advance candidate or implementation bytes."
+            ),
+            limitations=["Synthetic workflow fixture only."],
+            conclusion_ceiling=AUDIT_PREREQUISITE_CONCLUSION_CEILING,
         )
     return AuditPrerequisiteContract(
-        1,
-        ActionAuditClass.CANDIDATE_ADVANCING,
-        [AuditPrerequisiteSubject("candidate", "fixture-candidate", "subject.txt", SUBJECT_SHA256)],
-        [
+        contract_version=1,
+        action_class=ActionAuditClass.CANDIDATE_ADVANCING,
+        subjects=[
+            AuditPrerequisiteSubject(
+                "candidate", "fixture-candidate", "subject.txt", SUBJECT_SHA256
+            )
+        ],
+        required_audits=[
             AuditPrerequisiteArtifact(
                 "audit-fixture-favorable",
                 "adversarial_candidate_audit",
@@ -96,11 +105,19 @@ def action_audit_contract(*, candidate_advancing: bool) -> AuditPrerequisiteCont
                 "synthetic-test-auditor",
                 "2026-09-12T12:00:00Z",
                 ["Synthetic fixture; does not authenticate the auditor or establish scientific validity."],
+                [
+                    AuditPrerequisiteSupportingArtifact(
+                        "detailed_adversarial_audit_report",
+                        "detailed-audit-report.md",
+                        AUDIT_REPORT_SHA256,
+                    )
+                ],
             )
         ],
-        "",
-        ["Synthetic workflow fixture only."],
-        AUDIT_PREREQUISITE_CONCLUSION_CEILING,
+        evaluator_exposure_statement="",
+        nonadvancing_information_statement="",
+        limitations=["Synthetic workflow fixture only."],
+        conclusion_ceiling=AUDIT_PREREQUISITE_CONCLUSION_CEILING,
     )
 
 

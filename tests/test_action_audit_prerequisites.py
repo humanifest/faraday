@@ -26,6 +26,7 @@ from research_machine.domain.models import (
     ActionLane,
     AuditPrerequisiteArtifact,
     AuditPrerequisiteContract,
+    AuditPrerequisiteSupportingArtifact,
     AuditPrerequisiteSubject,
     HypothesisDiscriminationTarget,
 )
@@ -37,7 +38,17 @@ def _write(path: Path, content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def _audit_payload(subject_sha256: str, verdict: str = "favorable") -> dict[str, object]:
+_DETAILED_REPORT_BYTES = (
+    b"Synthetic detailed audit report covering exact candidate bytes and adverse review.\n"
+)
+_DETAILED_REPORT_SHA256 = hashlib.sha256(_DETAILED_REPORT_BYTES).hexdigest()
+
+
+def _audit_payload(
+    subject_sha256: str,
+    verdict: str = "favorable",
+    supporting_sha256: str = _DETAILED_REPORT_SHA256,
+) -> dict[str, object]:
     return {
         "audit_id": "audit-candidate-v1",
         "artifact_role": "adversarial_candidate_audit",
@@ -51,6 +62,13 @@ def _audit_payload(subject_sha256: str, verdict: str = "favorable") -> dict[str,
         "limitations": [
             "The record does not authenticate identity, independence, or substantive judgment."
         ],
+        "supporting_artifacts": [
+            {
+                "artifact_role": "detailed_adversarial_audit_report",
+                "artifact_locator": "candidate-audit-report.md",
+                "artifact_sha256": supporting_sha256,
+            }
+        ],
     }
 
 
@@ -60,6 +78,7 @@ def _contract(
     verdict: str = "favorable",
     materialize_subject: bool = True,
     materialize_audit: bool = True,
+    materialize_supporting: bool = True,
     audit_payload: dict[str, object] | None = None,
     contract_audit_payload: dict[str, object] | None = None,
 ) -> AuditPrerequisiteContract:
@@ -67,6 +86,8 @@ def _contract(
     subject_sha256 = hashlib.sha256(subject_bytes).hexdigest()
     if materialize_subject:
         _write(root / "candidate.md", subject_bytes)
+    if materialize_supporting:
+        _write(root / "candidate-audit-report.md", _DETAILED_REPORT_BYTES)
     observed_payload = audit_payload or _audit_payload(subject_sha256, verdict)
     audit_bytes = (
         json.dumps(observed_payload, indent=2, sort_keys=True) + "\n"
@@ -84,13 +105,16 @@ def _contract(
             )
         ],
         required_audits=[
-            AuditPrerequisiteArtifact(
-                artifact_locator="candidate-audit.json",
-                artifact_sha256=audit_sha256,
-                **declared,
+            AuditPrerequisiteArtifact.from_dict(
+                {
+                    "artifact_locator": "candidate-audit.json",
+                    "artifact_sha256": audit_sha256,
+                    **declared,
+                }
             )
         ],
         evaluator_exposure_statement="",
+        nonadvancing_information_statement="",
         limitations=[
             "This contract governs workflow selection, not scientific acceptance."
         ],
@@ -107,7 +131,23 @@ def _exposed_contract() -> AuditPrerequisiteContract:
         evaluator_exposure_statement=(
             "The evaluator is developed in the open and cannot advance a candidate."
         ),
+        nonadvancing_information_statement="",
         limitations=["Successful evaluator execution is software behavior only."],
+        conclusion_ceiling=AUDIT_PREREQUISITE_CONCLUSION_CEILING,
+    )
+
+
+def _information_contract() -> AuditPrerequisiteContract:
+    return AuditPrerequisiteContract(
+        contract_version=1,
+        action_class=ActionAuditClass.NONADVANCING_INFORMATION,
+        subjects=[],
+        required_audits=[],
+        evaluator_exposure_statement="",
+        nonadvancing_information_statement=(
+            "This bounded information search cannot advance candidate or implementation bytes."
+        ),
+        limitations=["The search result is workflow context, not scientific evidence."],
         conclusion_ceiling=AUDIT_PREREQUISITE_CONCLUSION_CEILING,
     )
 
@@ -182,6 +222,11 @@ def test_favorable_exact_audit_makes_candidate_workflow_selectable(tmp_path: Pat
     assert receipt["scientific_evidence_eligible"] is False
     assert receipt["replication_authority_established"] is False
     assert len(receipt["receipt_sha256"]) == 64
+    supporting = receipt["audit_observations"][0][
+        "supporting_artifact_observations"
+    ][0]
+    assert supporting["artifact_role"] == "detailed_adversarial_audit_report"
+    assert supporting["observed_sha256"] == _DETAILED_REPORT_SHA256
     assert service.list_recommendations() == [recommendation]
     synthesis = service.build_synthesis()["content"]
     assert "audit action_class=candidate_advancing" in synthesis
@@ -190,6 +235,7 @@ def test_favorable_exact_audit_makes_candidate_workflow_selectable(tmp_path: Pat
     assert "verdict=favorable" in synthesis
     assert "auditor=declared-auditor-17" in synthesis
     assert "audited_at=2026-09-12T14:00:00Z" in synthesis
+    assert "detailed_adversarial_audit_report@candidate-audit-report.md" in synthesis
     assert AUDIT_PREREQUISITE_CONCLUSION_CEILING in synthesis
     rigor = service.audit_rigor()
     assert any(
@@ -214,7 +260,42 @@ def test_favorable_exact_audit_makes_candidate_workflow_selectable(tmp_path: Pat
         context_receipt["audit_observations"][0]["artifact_sha256"]
         == contract_audit_sha
     )
+    context_supporting = context_receipt["audit_observations"][0][
+        "supporting_artifact_observations"
+    ][0]
+    assert context_supporting["artifact_locator"] == "candidate-audit-report.md"
+    assert context_supporting["observed_sha256"] == _DETAILED_REPORT_SHA256
     assert len(contract_audit_sha) == 64
+
+
+def test_nonadvancing_information_is_selectable_but_has_no_scientific_authority(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path / "workspace", None)
+    candidate = _candidate("bounded-source-search", _information_contract(), score=0.8)
+
+    recommendation = service.recommend_action_portfolio(_portfolio(candidate))
+
+    assert recommendation.selected_action_id == "bounded-source-search"
+    receipt = recommendation.candidates[0].audit_prerequisite_receipt
+    assert receipt["action_class"] == "nonadvancing_information"
+    assert receipt["status"] == "nonadvancing_information"
+    assert receipt["workflow_eligible"] is True
+    assert receipt["candidate_advancement_eligible"] is False
+    assert receipt["scientific_validity_established"] is False
+    assert receipt["scientific_evidence_eligible"] is False
+    assert receipt["replication_authority_established"] is False
+    assert receipt["nonadvancing_information_statement"].startswith(
+        "This bounded information search"
+    )
+    synthesis = service.build_synthesis()["content"]
+    assert "audit action_class=nonadvancing_information" in synthesis
+    assert "candidate_advancement_eligible=False" in synthesis
+    rigor = service.audit_rigor()
+    assert any(
+        finding.code == "ACTION_NONADVANCING_INFORMATION"
+        for finding in rigor.findings
+    )
 
 
 @pytest.mark.parametrize("verdict", ["pending", "adverse"])
@@ -226,20 +307,20 @@ def test_pending_or_adverse_audit_is_retained_but_not_selected(
     blocked = _candidate(
         "candidate-blocked", _contract(artifacts, verdict=verdict), score=1.0
     )
-    fallback = _candidate("evaluator-work", _exposed_contract(), score=0.3)
+    fallback = _candidate("information-work", _information_contract(), score=0.3)
 
     recommendation = service.recommend_action_portfolio(
         _portfolio(blocked, fallback)
     )
 
-    assert recommendation.selected_action_id == "evaluator-work"
+    assert recommendation.selected_action_id == "information-work"
     retained = next(
         item for item in recommendation.candidates if item.action_id == "candidate-blocked"
     )
     assert retained.audit_prerequisite_receipt["status"] == "not_eligible"
     assert retained.audit_prerequisite_receipt["candidate_advancement_eligible"] is False
     selected = next(
-        item for item in recommendation.candidates if item.action_id == "evaluator-work"
+        item for item in recommendation.candidates if item.action_id == "information-work"
     )
     assert selected.audit_prerequisite_receipt["replication_authority_established"] is False
     rigor = service.audit_rigor()
@@ -251,16 +332,23 @@ def test_pending_or_adverse_audit_is_retained_but_not_selected(
 
 
 @pytest.mark.parametrize(
-    ("materialize_subject", "materialize_audit", "message"),
+    (
+        "materialize_subject",
+        "materialize_audit",
+        "materialize_supporting",
+        "message",
+    ),
     [
-        (False, True, "escapes or is missing"),
-        (True, False, "escapes or is missing"),
+        (False, True, True, "escapes or is missing"),
+        (True, False, True, "escapes or is missing"),
+        (True, True, False, "escapes or is missing"),
     ],
 )
 def test_missing_required_bytes_fail_before_recommendation_is_recorded(
     tmp_path: Path,
     materialize_subject: bool,
     materialize_audit: bool,
+    materialize_supporting: bool,
     message: str,
 ) -> None:
     artifacts = tmp_path / "artifacts"
@@ -271,6 +359,7 @@ def test_missing_required_bytes_fail_before_recommendation_is_recorded(
             artifacts,
             materialize_subject=materialize_subject,
             materialize_audit=materialize_audit,
+            materialize_supporting=materialize_supporting,
         ),
         score=0.9,
     )
@@ -294,6 +383,7 @@ def test_candidate_advancement_without_artifact_root_fails_closed(tmp_path: Path
     [
         ("candidate.md", b"changed candidate bytes\n"),
         ("candidate-audit.json", b"{}\n"),
+        ("candidate-audit-report.md", b"changed detailed audit report\n"),
     ],
 )
 def test_hash_mismatched_subject_or_audit_bytes_fail_closed(
@@ -310,7 +400,10 @@ def test_hash_mismatched_subject_or_audit_bytes_fail_closed(
         )
 
 
-@pytest.mark.parametrize("target", ["candidate.md", "candidate-audit.json"])
+@pytest.mark.parametrize(
+    "target",
+    ["candidate.md", "candidate-audit.json", "candidate-audit-report.md"],
+)
 def test_subject_or_audit_symlinks_fail_closed(tmp_path: Path, target: str) -> None:
     artifacts = tmp_path / "artifacts"
     service = _service(tmp_path / "workspace", artifacts)
@@ -329,7 +422,11 @@ def test_subject_or_audit_symlinks_fail_closed(tmp_path: Path, target: str) -> N
 
 @pytest.mark.parametrize(
     ("component", "locator"),
-    [("subject", "../outside.md"), ("audit", "/tmp/outside-audit.json")],
+    [
+        ("subject", "../outside.md"),
+        ("audit", "/tmp/outside-audit.json"),
+        ("supporting", "../outside-report.md"),
+    ],
 )
 def test_subject_or_audit_path_escape_is_rejected(
     tmp_path: Path, component: str, locator: str
@@ -340,9 +437,18 @@ def test_subject_or_audit_path_escape_is_rejected(
     if component == "subject":
         subject = replace(contract.subjects[0], artifact_locator=locator)
         contract = replace(contract, subjects=[subject])
-    else:
+    elif component == "audit":
         audit = replace(contract.required_audits[0], artifact_locator=locator)
         contract = replace(contract, required_audits=[audit])
+    else:
+        audit = contract.required_audits[0]
+        supporting = replace(
+            audit.supporting_artifacts[0], artifact_locator=locator
+        )
+        contract = replace(
+            contract,
+            required_audits=[replace(audit, supporting_artifacts=[supporting])],
+        )
 
     with pytest.raises(ValidationError, match="safe relative path"):
         service.recommend_action_portfolio(
@@ -383,6 +489,16 @@ def test_strict_audit_json_rejects_duplicate_keys_even_with_matching_hash(
         ("auditor_identity", "different-declared-auditor"),
         ("audited_at", "2026-09-12T14:01:00Z"),
         ("limitations", ["Different limitations."]),
+        (
+            "supporting_artifacts",
+            [
+                {
+                    "artifact_role": "different_report_role",
+                    "artifact_locator": "candidate-audit-report.md",
+                    "artifact_sha256": _DETAILED_REPORT_SHA256,
+                }
+            ],
+        ),
     ],
 )
 def test_hash_matching_audit_with_contract_metadata_drift_fails_closed(
@@ -405,6 +521,26 @@ def test_hash_matching_audit_with_contract_metadata_drift_fails_closed(
         )
 
 
+def test_candidate_advancing_audit_requires_a_detailed_supporting_artifact(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    service = _service(tmp_path / "workspace", artifacts)
+    contract = _contract(artifacts)
+    audit = replace(contract.required_audits[0], supporting_artifacts=[])
+
+    with pytest.raises(ValidationError, match="at least one supporting artifact"):
+        service.recommend_action_portfolio(
+            _portfolio(
+                _candidate(
+                    "unbound-disposition",
+                    replace(contract, required_audits=[audit]),
+                    score=0.9,
+                )
+            )
+        )
+
+
 def test_audit_scoped_to_different_declared_subject_hash_is_rejected(tmp_path: Path) -> None:
     artifacts = tmp_path / "artifacts"
     service = _service(tmp_path / "workspace", artifacts)
@@ -418,8 +554,13 @@ def test_audit_scoped_to_different_declared_subject_hash_is_rejected(tmp_path: P
         )
 
 
-def test_exposed_evaluator_development_cannot_claim_hypothesis_discrimination(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    "contract",
+    [_exposed_contract(), _information_contract()],
+    ids=["exposed-evaluator", "nonadvancing-information"],
+)
+def test_nonadvancing_action_cannot_claim_hypothesis_discrimination(
+    tmp_path: Path, contract: AuditPrerequisiteContract
 ) -> None:
     service = _service(tmp_path / "workspace", None)
     hypothesis = service.propose_hypothesis(
@@ -432,7 +573,7 @@ def test_exposed_evaluator_development_cannot_claim_hypothesis_discrimination(
     )
     service.activate_hypothesis(hypothesis.hypothesis_id)
     candidate = replace(
-        _candidate("evaluator-work", _exposed_contract(), score=0.5),
+        _candidate("nonadvancing-work", contract, score=0.5),
         distinguishes_hypotheses=[hypothesis.hypothesis_id],
         hypothesis_discrimination_targets=[
             HypothesisDiscriminationTarget(
@@ -449,18 +590,114 @@ def test_exposed_evaluator_development_cannot_claim_hypothesis_discrimination(
         service.recommend_action_portfolio(_portfolio(candidate))
 
 
+@pytest.mark.parametrize("component", ["subjects", "audits"])
 def test_exposed_evaluator_exemption_cannot_claim_candidate_coverage(
-    tmp_path: Path,
+    tmp_path: Path, component: str
 ) -> None:
     artifacts = tmp_path / "artifacts"
     service = _service(tmp_path / "workspace", artifacts)
     advancing = _contract(artifacts)
-    disguised = replace(_exposed_contract(), subjects=advancing.subjects)
+    disguised = (
+        replace(_exposed_contract(), subjects=advancing.subjects)
+        if component == "subjects"
+        else replace(_exposed_contract(), required_audits=advancing.required_audits)
+    )
 
     with pytest.raises(ValidationError, match="must not claim candidate audit coverage"):
         service.recommend_action_portfolio(
             _portfolio(_candidate("disguised-candidate", disguised, score=0.5))
         )
+
+
+@pytest.mark.parametrize(
+    ("contract", "message"),
+    [
+        (
+            replace(
+                _information_contract(),
+                evaluator_exposure_statement="Mixed evaluator statement.",
+            ),
+            "cannot use the evaluator-development exposure statement",
+        ),
+        (
+            replace(
+                _exposed_contract(),
+                nonadvancing_information_statement="Mixed information statement.",
+            ),
+            "cannot use the nonadvancing information statement",
+        ),
+    ],
+)
+def test_nonadvancing_classes_reject_mixed_statement_fields(
+    tmp_path: Path, contract: AuditPrerequisiteContract, message: str
+) -> None:
+    service = _service(tmp_path / "workspace", None)
+    with pytest.raises(ValidationError, match=message):
+        service.recommend_action_portfolio(
+            _portfolio(_candidate("mixed-classification", contract, score=0.5))
+        )
+
+
+@pytest.mark.parametrize("component", ["subjects", "audits"])
+def test_nonadvancing_information_rejects_candidate_coverage(
+    tmp_path: Path, component: str
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    service = _service(tmp_path / "workspace", artifacts)
+    advancing = _contract(artifacts)
+    disguised = (
+        replace(_information_contract(), subjects=advancing.subjects)
+        if component == "subjects"
+        else replace(
+            _information_contract(), required_audits=advancing.required_audits
+        )
+    )
+
+    with pytest.raises(ValidationError, match="must not claim candidate audit coverage"):
+        service.recommend_action_portfolio(
+            _portfolio(_candidate("mixed-information", disguised, score=0.5))
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        (
+            "evaluator_exposure_statement",
+            "Wrong evaluator-development statement.",
+            "cannot use the evaluator-development exemption",
+        ),
+        (
+            "nonadvancing_information_statement",
+            "Wrong non-advancing statement.",
+            "cannot use the nonadvancing-information classification",
+        ),
+    ],
+)
+def test_candidate_advancing_rejects_nonadvancing_statement_fields(
+    tmp_path: Path, field: str, value: str, message: str
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    service = _service(tmp_path / "workspace", artifacts)
+    contract = replace(_contract(artifacts), **{field: value})
+
+    with pytest.raises(ValidationError, match=message):
+        service.recommend_action_portfolio(
+            _portfolio(_candidate("mixed-candidate", contract, score=0.5))
+        )
+
+
+def test_nonadvancing_information_rejects_nonzero_expected_discrimination(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path / "workspace", None)
+    candidate = replace(
+        _candidate("information-work", _information_contract(), score=0.5),
+        expected_discrimination=0.2,
+    )
+
+    with pytest.raises(ValidationError, match="expected_discrimination must be 0"):
+        service.recommend_action_portfolio(_portfolio(candidate))
 
 
 def test_missing_contract_and_caller_supplied_receipt_are_rejected(tmp_path: Path) -> None:
@@ -477,16 +714,27 @@ def test_missing_contract_and_caller_supplied_receipt_are_rejected(tmp_path: Pat
         service.recommend_action_portfolio(_portfolio(smuggled))
 
 
+@pytest.mark.parametrize(
+    ("target", "changed", "message"),
+    [
+        ("candidate-audit.json", "{}\n", "hash mismatch"),
+        (
+            "candidate-audit-report.md",
+            "changed retained bytes\n",
+            "hash mismatch",
+        ),
+    ],
+)
 def test_current_recommendation_replay_rehashes_retained_audit_bytes(
-    tmp_path: Path,
+    tmp_path: Path, target: str, changed: str, message: str
 ) -> None:
     artifacts = tmp_path / "artifacts"
     service = _service(tmp_path / "workspace", artifacts)
     candidate = _candidate("advance-v1", _contract(artifacts), score=0.9)
     service.recommend_action_portfolio(_portfolio(candidate))
 
-    (artifacts / "candidate-audit.json").write_text("{}\n", encoding="utf-8")
-    with pytest.raises(IntegrityError, match="hash mismatch"):
+    (artifacts / target).write_text(changed, encoding="utf-8")
+    with pytest.raises(IntegrityError, match=message):
         service.list_recommendations()
 
 

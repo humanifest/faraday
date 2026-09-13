@@ -77,12 +77,13 @@ burden, and decision context.
 Represent proposed work as candidate next actions. Exclude any action whose
 prerequisites are unmet or whose safety/ethics approval is absent. Treat the
 utility score as an auditable decision aid, not a substitute for human judgment.
-Also classify each action prospectively as candidate-advancing or exposed
-evaluator development. Candidate advancement requires exact hash-pinned subject
-and favorable audit artifacts under `--audit-artifact-root`; evaluator
-development must remain explicitly non-advancing even when its output looks
-favorable. A passing audit-prerequisite receipt establishes workflow eligibility
-only, not scientific validity or evidence.
+Also classify each action prospectively as candidate-advancing, exposed
+evaluator development, or ordinary non-advancing information work. Candidate
+advancement requires exact hash-pinned subject, audit disposition, and detailed
+supporting-report artifacts under `--audit-artifact-root`. The two non-advancing
+classes use distinct canonical statements and must remain non-advancing even
+when their output looks favorable. A passing audit-prerequisite receipt
+establishes workflow eligibility only, not scientific validity or evidence.
 
 ## 5. Freeze before protected execution
 

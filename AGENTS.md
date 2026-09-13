@@ -325,14 +325,18 @@ canonical write path.
   multiple named controls. This strengthens observable custody and
   inspectability; it cannot prove that producing code was not hardcoded.
 - Require every new recommended action to declare whether it advances exact
-  candidate/implementation bytes or is exposed evaluator development. A
-  candidate-advancing action must bind current subject bytes and exact retained
-  audit JSON for role, hash, subject ID/hash, verdict, scope, declared auditor,
-  audit time, and limitations. Pending, adverse, missing, changed, or differently
-  scoped audits fail closed. Exposed evaluator development may exercise software
-  but must claim no hypothesis discrimination or candidate advancement. Treat a
-  passing receipt as workflow eligibility only, never audit truth, authenticated
-  identity or independence, scientific validity, evidence, or replication.
+  candidate/implementation bytes, is exposed evaluator development, or is
+  ordinary non-advancing information work. A candidate-advancing action must
+  bind current subject bytes, exact retained audit JSON for role, hash, subject
+  ID/hash, verdict, scope, declared auditor, audit time, and limitations, plus at
+  least one typed, hash-pinned supporting audit report. Pending, adverse,
+  missing, changed, symlinked, path-escaping, or differently scoped audit
+  material fails closed. The two non-advancing classes require distinct,
+  mutually exclusive canonical statements; neither may claim hypothesis
+  discrimination, nonzero expected discrimination, candidate advancement,
+  scientific validity, evidence, or replication. Treat any passing receipt as
+  workflow eligibility only, never audit truth or authenticated identity or
+  independence.
 - Bind every cross-lane lesson projection to exactly one hash-verified
   `cross-lane-lesson.record` event before it can influence a read, and replay its
   payload commitment when present. Preserve an event-identical historical lesson

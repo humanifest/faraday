@@ -1,4 +1,5 @@
 """Published schema syntax and representative synthetic command compatibility."""
+from copy import deepcopy
 import json
 from pathlib import Path
 
@@ -685,6 +686,139 @@ def test_next_action_examples_match_published_schemas(schema_name, example_name)
     jsonschema.validate(example, schema)
 
 
+_AUDIT_PREREQUISITE_CEILING = (
+    "Workflow eligibility only; does not establish audit truth, auditor identity "
+    "or independence, scientific validity, or evidence eligibility."
+)
+
+
+def _schema_candidate_advancing_contract() -> dict:
+    return {
+        "contract_version": 1,
+        "action_class": "candidate_advancing",
+        "subjects": [
+            {
+                "subject_role": "candidate",
+                "subject_id": "candidate-v1",
+                "artifact_locator": "candidate.md",
+                "artifact_sha256": "a" * 64,
+            }
+        ],
+        "required_audits": [
+            {
+                "audit_id": "audit-v1",
+                "artifact_role": "adversarial_candidate_audit",
+                "artifact_locator": "audit.json",
+                "artifact_sha256": "b" * 64,
+                "audited_subject_role": "candidate",
+                "audited_subject_id": "candidate-v1",
+                "audited_subject_sha256": "a" * 64,
+                "verdict": "favorable",
+                "scope": "Exact candidate bytes.",
+                "auditor_identity": "declared-auditor",
+                "audited_at": "2026-09-12T12:00:00Z",
+                "limitations": ["Declared workflow audit only."],
+                "supporting_artifacts": [
+                    {
+                        "artifact_role": "detailed_audit_report",
+                        "artifact_locator": "audit-report.md",
+                        "artifact_sha256": "c" * 64,
+                    }
+                ],
+            }
+        ],
+        "evaluator_exposure_statement": "",
+        "nonadvancing_information_statement": "",
+        "limitations": ["Workflow eligibility only."],
+        "conclusion_ceiling": _AUDIT_PREREQUISITE_CEILING,
+    }
+
+
+def _schema_nonadvancing_contract(action_class: str) -> dict:
+    evaluator = action_class == "exposed_evaluator_development"
+    return {
+        "contract_version": 1,
+        "action_class": action_class,
+        "subjects": [],
+        "required_audits": [],
+        "evaluator_exposure_statement": (
+            "Exposed evaluator development only." if evaluator else ""
+        ),
+        "nonadvancing_information_statement": (
+            "Bounded information work only." if not evaluator else ""
+        ),
+        "limitations": ["No candidate or scientific authority."],
+        "conclusion_ceiling": _AUDIT_PREREQUISITE_CEILING,
+    }
+
+
+@pytest.mark.parametrize(
+    "schema_name",
+    ["next-action.schema.json", "next-action-portfolio.schema.json"],
+)
+def test_next_action_schema_distinguishes_both_nonadvancing_classes_and_audit_custody(
+    schema_name,
+):
+    schema = json.loads((SCHEMAS / schema_name).read_text())
+    candidate = {
+        "action_id": "bounded-information",
+        "title": "Bounded information",
+        "distinguishes_hypotheses": [],
+        "information_targets": ["source:coverage"],
+        "expected_discrimination": 0.0,
+        "uncertainty_reduction": 0.7,
+        "cost": 0.2,
+        "duration": 0.1,
+        "burden": 0.1,
+        "safety_risk": 0.0,
+        "ambiguity_risk": 0.1,
+        "rationale": "Gather bounded source information.",
+        "prerequisite_evidence_refs": ["design-review:bounded-information"],
+        "safety_review_refs": ["safety-review:bounded-information"],
+        "lane_id": "science",
+        "audit_prerequisite_contract": _schema_nonadvancing_contract(
+            "nonadvancing_information"
+        ),
+    }
+    command = {"candidates": [candidate]}
+    if schema_name == "next-action-portfolio.schema.json":
+        command["lanes"] = [{"lane_id": "science", "title": "Science"}]
+    jsonschema.validate(command, schema)
+
+    exposed = deepcopy(command)
+    exposed["candidates"][0]["audit_prerequisite_contract"] = (
+        _schema_nonadvancing_contract("exposed_evaluator_development")
+    )
+    jsonschema.validate(exposed, schema)
+
+    mixed = deepcopy(command)
+    mixed_contract = mixed["candidates"][0]["audit_prerequisite_contract"]
+    mixed_contract["evaluator_exposure_statement"] = "Wrong mixed statement."
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(mixed, schema)
+
+    claiming = deepcopy(command)
+    claiming_contract = claiming["candidates"][0]["audit_prerequisite_contract"]
+    claiming_contract["subjects"] = _schema_candidate_advancing_contract()["subjects"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(claiming, schema)
+
+    discriminating = deepcopy(command)
+    discriminating["candidates"][0]["expected_discrimination"] = 0.2
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(discriminating, schema)
+
+    unbound_audit = deepcopy(command)
+    unbound_audit["candidates"][0]["audit_prerequisite_contract"] = (
+        _schema_candidate_advancing_contract()
+    )
+    del unbound_audit["candidates"][0]["audit_prerequisite_contract"][
+        "required_audits"
+    ][0]["supporting_artifacts"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(unbound_audit, schema)
+
+
 @pytest.mark.parametrize(
     "schema_name",
     ["next-action.schema.json", "next-action-portfolio.schema.json"],
@@ -699,6 +833,7 @@ def test_next_action_schema_requires_discrimination_targets(schema_name):
         "expected_discrimination": 0.8,
         "uncertainty_reduction": 0.7,
         "cost": 0.2,
+        "duration": 0.1,
         "burden": 0.1,
         "safety_risk": 0.0,
         "ambiguity_risk": 0.1,
@@ -706,6 +841,7 @@ def test_next_action_schema_requires_discrimination_targets(schema_name):
         "prerequisite_evidence_refs": ["design-review:hypothesis-target"],
         "safety_review_refs": ["safety-review:hypothesis-target"],
         "lane_id": "science",
+        "audit_prerequisite_contract": _schema_candidate_advancing_contract(),
     }
     command = {"candidates": [candidate]}
     if schema_name == "next-action-portfolio.schema.json":
@@ -738,6 +874,7 @@ def test_next_action_schema_rejects_service_derived_workflow_states(schema_name)
         "expected_discrimination": 0.8,
         "uncertainty_reduction": 0.7,
         "cost": 0.2,
+        "duration": 0.1,
         "burden": 0.1,
         "safety_risk": 0.0,
         "ambiguity_risk": 0.1,
@@ -745,6 +882,7 @@ def test_next_action_schema_rejects_service_derived_workflow_states(schema_name)
         "prerequisite_evidence_refs": ["design-review:hypothesis-target"],
         "safety_review_refs": ["safety-review:hypothesis-target"],
         "lane_id": "science",
+        "audit_prerequisite_contract": _schema_candidate_advancing_contract(),
     }
     command = {"candidates": [candidate]}
     if schema_name == "next-action-portfolio.schema.json":
@@ -811,6 +949,7 @@ def test_next_action_schema_rejects_single_action_dependencies():
                 "expected_discrimination": 0.8,
                 "uncertainty_reduction": 0.7,
                 "cost": 0.2,
+                "duration": 0.1,
                 "burden": 0.1,
                 "safety_risk": 0.0,
                 "ambiguity_risk": 0.1,
@@ -818,6 +957,7 @@ def test_next_action_schema_rejects_single_action_dependencies():
                 "prerequisite_evidence_refs": ["design-review:dependent-action"],
                 "safety_review_refs": ["safety-review:dependent-action"],
                 "depends_on": ["previous-action"],
+                "audit_prerequisite_contract": _schema_candidate_advancing_contract(),
             }
         ]
     }

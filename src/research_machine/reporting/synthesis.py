@@ -1729,7 +1729,22 @@ def _action_eligibility_summary(candidate: ActionCandidate) -> str:
             + "; audit action_class=exposed_evaluator_development; "
             + f"workflow_eligible={receipt.get('workflow_eligible')}; "
             + "candidate_advancement_eligible=False; exposure="
-            + contract.evaluator_exposure_statement
+            + receipt.get("evaluator_exposure_statement", "")
+            + "; replication_authority_established=False"
+            + "; limitations="
+            + " | ".join(contract.limitations)
+            + "; ceiling="
+            + contract.conclusion_ceiling
+        )
+    if contract.action_class.value == "nonadvancing_information":
+        return (
+            ordinary
+            + "; audit action_class=nonadvancing_information; "
+            + f"workflow_eligible={receipt.get('workflow_eligible')}; "
+            + "candidate_advancement_eligible=False; statement="
+            + receipt.get("nonadvancing_information_statement", "")
+            + "; scientific_validity_established=False"
+            + "; scientific_evidence_eligible=False"
             + "; replication_authority_established=False"
             + "; limitations="
             + " | ".join(contract.limitations)
@@ -1747,7 +1762,12 @@ def _action_eligibility_summary(candidate: ActionCandidate) -> str:
         f"{item.audited_subject_id}@{item.audited_subject_sha256}; "
         f"verdict={item.verdict}; scope={item.scope}; "
         f"auditor={item.auditor_identity}; audited_at={item.audited_at}; "
-        f"limitations={' | '.join(item.limitations)}"
+        f"limitations={' | '.join(item.limitations)}; supporting="
+        + ", ".join(
+            f"{supporting.artifact_role}@{supporting.artifact_locator}"
+            f"#{supporting.artifact_sha256}"
+            for supporting in item.supporting_artifacts
+        )
         for item in contract.required_audits
     )
     return (

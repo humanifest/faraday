@@ -10,21 +10,23 @@ from research_machine.interfaces.cli import main
 
 AUDIT_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "audit-prerequisite"
 SUBJECT_SHA256 = "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d86389505984"
-AUDIT_SHA256 = "1007b052c7bb6e43ffe8fee59108e64735c6b191c9d644e8868300723d521bf2"
+AUDIT_SHA256 = "eee80863a7ae56790428d8f8c311507123e423bf78c4a46907bbe4cf5ae596f4"
+AUDIT_REPORT_SHA256 = "d0a65fe83d6d7c6aaae5ebc5dd7b508ee255b66d7b77ed93eb766e2cd79ae425"
 AUDIT_CEILING = (
     "Workflow eligibility only; does not establish audit truth, auditor identity "
     "or independence, scientific validity, or evidence eligibility."
 )
 
 
-def exposed_evaluator_contract() -> dict[str, object]:
+def nonadvancing_information_contract() -> dict[str, object]:
     return {
         "contract_version": 1,
-        "action_class": "exposed_evaluator_development",
+        "action_class": "nonadvancing_information",
         "subjects": [],
         "required_audits": [],
-        "evaluator_exposure_statement": (
-            "Evaluator implementation is exposed development and cannot advance a candidate."
+        "evaluator_exposure_statement": "",
+        "nonadvancing_information_statement": (
+            "This bounded workflow inquiry cannot advance candidate or implementation bytes."
         ),
         "limitations": ["Synthetic workflow fixture only."],
         "conclusion_ceiling": AUDIT_CEILING,
@@ -59,9 +61,17 @@ def candidate_advancement_contract() -> dict[str, object]:
                 "limitations": [
                     "Synthetic fixture; does not authenticate the auditor or establish scientific validity."
                 ],
+                "supporting_artifacts": [
+                    {
+                        "artifact_role": "detailed_adversarial_audit_report",
+                        "artifact_locator": "detailed-audit-report.md",
+                        "artifact_sha256": AUDIT_REPORT_SHA256,
+                    }
+                ],
             }
         ],
         "evaluator_exposure_statement": "",
+        "nonadvancing_information_statement": "",
         "limitations": ["Synthetic workflow fixture only."],
         "conclusion_ceiling": AUDIT_CEILING,
     }
@@ -159,7 +169,7 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
                         "safety_review_refs": ["safety-review:machine-audit"],
                         "rationale": "Probe a machine invariant.",
                         "lane_id": "machine",
-                        "audit_prerequisite_contract": exposed_evaluator_contract(),
+                        "audit_prerequisite_contract": nonadvancing_information_contract(),
                     },
                     {
                         "action_id": "science-falsifier",
@@ -178,7 +188,7 @@ def test_json_cli_records_balanced_action_portfolio(tmp_path: Path, capsys) -> N
                         "safety_review_refs": ["safety-review:science-falsifier"],
                         "rationale": "Probe the cheapest scientific failure.",
                         "lane_id": "science",
-                        "audit_prerequisite_contract": exposed_evaluator_contract(),
+                        "audit_prerequisite_contract": nonadvancing_information_contract(),
                     },
                 ],
             }

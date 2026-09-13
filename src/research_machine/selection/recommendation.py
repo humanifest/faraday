@@ -530,7 +530,7 @@ def _rank_actions_by_lane(
         if not eligible:
             raise ValidationError(
                 f"active lane {lane.lane_id} has no safe, dependency-complete action "
-                "with a favorable audit prerequisite"
+                "with a workflow-eligible action prerequisite"
             )
         rankings[lane.lane_id] = _rank_actions(
             eligible,

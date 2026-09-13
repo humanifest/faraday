@@ -2627,13 +2627,16 @@ Every new candidate must additionally carry a typed
 `audit_prerequisite_contract`. `candidate_advancing` actions bind the current
 bytes of each named candidate or implementation and exact retained audit JSON
 for artifact role/hash, audited subject ID/hash, verdict, scope, declared auditor
-identity and time, and limitations. Supply `--audit-artifact-root` so Faraday can
-verify those files before ranking. Missing, changed, pending, adverse, or
-differently scoped audit material fails closed; pending and adverse records may
-remain visible but cannot be selected. `exposed_evaluator_development` is a
-separate non-advancing class with no audit-coverage claim: it may reduce workflow
-uncertainty but cannot name hypothesis discrimination or acquire candidate
-admission from a favorable development result. See
+identity and time, limitations, and at least one exact supporting report or
+equivalent artifact. Supply `--audit-artifact-root` so Faraday can verify all of
+those files before ranking. Missing, changed, pending, adverse, or differently
+scoped audit material fails closed; pending and adverse records may remain
+visible but cannot be selected. `exposed_evaluator_development` is a separate
+non-advancing class for public evaluator work. `nonadvancing_information` covers
+ordinary bounded source, literature, and infrastructure inquiries without
+falsely calling them evaluator development. Both require their own canonical
+statement, must leave the other statement empty, and cannot name hypothesis
+discrimination or acquire candidate admission from a favorable result. See
 [`docs/action-audit-prerequisites.md`](docs/action-audit-prerequisites.md).
 The single `next-action recommend` path has no completed-action graph, so it
 rejects candidates with `depends_on`; dependent actions must use portfolio

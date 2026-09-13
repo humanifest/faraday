@@ -22,6 +22,7 @@ from research_machine.domain.models import (
     ActionLane,
     AuditPrerequisiteArtifact,
     AuditPrerequisiteContract,
+    AuditPrerequisiteSupportingArtifact,
     AuditPrerequisiteSubject,
     HypothesisDiscriminationTarget,
     SelectionWeights,
@@ -30,18 +31,20 @@ from research_machine.domain.models import (
 
 AUDIT_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "audit-prerequisite"
 SUBJECT_SHA256 = "962db3ccf52bd2e7cb2f1c1c6f377fcb7c7b777d66ba3b1b5433d86389505984"
-AUDIT_SHA256 = "1007b052c7bb6e43ffe8fee59108e64735c6b191c9d644e8868300723d521bf2"
+AUDIT_SHA256 = "eee80863a7ae56790428d8f8c311507123e423bf78c4a46907bbe4cf5ae596f4"
+AUDIT_REPORT_SHA256 = "d0a65fe83d6d7c6aaae5ebc5dd7b508ee255b66d7b77ed93eb766e2cd79ae425"
 
 
 def audit_contract(*, candidate_advancing: bool) -> AuditPrerequisiteContract:
     if not candidate_advancing:
         return AuditPrerequisiteContract(
             contract_version=1,
-            action_class=ActionAuditClass.EXPOSED_EVALUATOR_DEVELOPMENT,
+            action_class=ActionAuditClass.NONADVANCING_INFORMATION,
             subjects=[],
             required_audits=[],
-            evaluator_exposure_statement=(
-                "Evaluator implementation is exposed development and cannot advance a candidate."
+            evaluator_exposure_statement="",
+            nonadvancing_information_statement=(
+                "This bounded workflow inquiry cannot advance candidate or implementation bytes."
             ),
             limitations=["Synthetic workflow fixture only."],
             conclusion_ceiling=AUDIT_PREREQUISITE_CONCLUSION_CEILING,
@@ -73,9 +76,17 @@ def audit_contract(*, candidate_advancing: bool) -> AuditPrerequisiteContract:
                 limitations=[
                     "Synthetic fixture; does not authenticate the auditor or establish scientific validity."
                 ],
+                supporting_artifacts=[
+                    AuditPrerequisiteSupportingArtifact(
+                        artifact_role="detailed_adversarial_audit_report",
+                        artifact_locator="detailed-audit-report.md",
+                        artifact_sha256=AUDIT_REPORT_SHA256,
+                    )
+                ],
             )
         ],
         evaluator_exposure_statement="",
+        nonadvancing_information_statement="",
         limitations=["Synthetic workflow fixture only."],
         conclusion_ceiling=AUDIT_PREREQUISITE_CONCLUSION_CEILING,
     )

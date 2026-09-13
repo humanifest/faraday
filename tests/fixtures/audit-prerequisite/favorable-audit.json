@@ -10,5 +10,12 @@
     "Synthetic fixture; does not authenticate the auditor or establish scientific validity."
   ],
   "scope": "Exact synthetic candidate artifact bytes for workflow-gate testing only.",
+  "supporting_artifacts": [
+    {
+      "artifact_locator": "detailed-audit-report.md",
+      "artifact_role": "detailed_adversarial_audit_report",
+      "artifact_sha256": "d0a65fe83d6d7c6aaae5ebc5dd7b508ee255b66d7b77ed93eb766e2cd79ae425"
+    }
+  ],
   "verdict": "favorable"
 }

@@ -19,6 +19,7 @@ from research_machine.domain.models import (
     ActionCandidate,
     AuditPrerequisiteArtifact,
     AuditPrerequisiteContract,
+    AuditPrerequisiteSupportingArtifact,
     AuditPrerequisiteSubject,
 )
 
@@ -98,6 +99,27 @@ def _normalize_subject(subject: AuditPrerequisiteSubject) -> AuditPrerequisiteSu
     )
 
 
+def _normalize_supporting_artifact(
+    artifact: AuditPrerequisiteSupportingArtifact,
+) -> AuditPrerequisiteSupportingArtifact:
+    if not isinstance(artifact, AuditPrerequisiteSupportingArtifact):
+        raise ValidationError(
+            "audit supporting_artifacts must contain "
+            "AuditPrerequisiteSupportingArtifact values"
+        )
+    return AuditPrerequisiteSupportingArtifact(
+        artifact_role=_canonical_text(
+            artifact.artifact_role, "audit supporting artifact role"
+        ),
+        artifact_locator=_safe_locator(
+            artifact.artifact_locator, "audit supporting artifact locator"
+        ),
+        artifact_sha256=_sha256(
+            artifact.artifact_sha256, "audit supporting artifact sha256"
+        ),
+    )
+
+
 def _normalize_audit(audit: AuditPrerequisiteArtifact) -> AuditPrerequisiteArtifact:
     if not isinstance(audit, AuditPrerequisiteArtifact):
         raise ValidationError(
@@ -115,6 +137,22 @@ def _normalize_audit(audit: AuditPrerequisiteArtifact) -> AuditPrerequisiteArtif
         raise ValidationError(
             "audit artifact verdict must be favorable, pending, or adverse"
         )
+    if isinstance(audit.supporting_artifacts, (str, bytes)) or not isinstance(
+        audit.supporting_artifacts, Sequence
+    ):
+        raise ValidationError("audit supporting_artifacts must be a list")
+    supporting_artifacts = [
+        _normalize_supporting_artifact(item) for item in audit.supporting_artifacts
+    ]
+    if not supporting_artifacts:
+        raise ValidationError(
+            "candidate-advancing audits require at least one supporting artifact"
+        )
+    supporting_locators = [
+        item.artifact_locator for item in supporting_artifacts
+    ]
+    if len(set(supporting_locators)) != len(supporting_locators):
+        raise ValidationError("audit supporting artifact locators must be unique")
     return AuditPrerequisiteArtifact(
         audit_id=_canonical_text(audit.audit_id, "audit id"),
         artifact_role=_canonical_text(audit.artifact_role, "audit artifact role"),
@@ -143,6 +181,7 @@ def _normalize_audit(audit: AuditPrerequisiteArtifact) -> AuditPrerequisiteArtif
         limitations=_canonical_list(
             audit.limitations, "audit artifact limitations", required=True
         ),
+        supporting_artifacts=supporting_artifacts,
     )
 
 
@@ -164,8 +203,8 @@ def validate_audit_prerequisite_contract(
         action_class = ActionAuditClass(contract.action_class)
     except (TypeError, ValueError) as exc:
         raise ValidationError(
-            "audit prerequisite action_class must be candidate_advancing or "
-            "exposed_evaluator_development"
+            "audit prerequisite action_class must be candidate_advancing, "
+            "exposed_evaluator_development, or nonadvancing_information"
         ) from exc
     if isinstance(contract.subjects, (str, bytes)) or not isinstance(
         contract.subjects, Sequence
@@ -180,6 +219,11 @@ def validate_audit_prerequisite_contract(
     exposure = _canonical_text(
         contract.evaluator_exposure_statement,
         "evaluator exposure statement",
+        allow_empty=True,
+    )
+    information_statement = _canonical_text(
+        contract.nonadvancing_information_statement,
+        "nonadvancing information statement",
         allow_empty=True,
     )
     limitations = _canonical_list(
@@ -207,6 +251,16 @@ def validate_audit_prerequisite_contract(
         raise ValidationError("audit prerequisite audit locators must be unique")
     if set(subject_locators) & set(audit_locators):
         raise ValidationError("audit and audited-subject artifacts must use distinct locators")
+    supporting_locators = [
+        supporting.artifact_locator
+        for audit in audits
+        for supporting in audit.supporting_artifacts
+    ]
+    if set(supporting_locators) & (set(subject_locators) | set(audit_locators)):
+        raise ValidationError(
+            "audit supporting artifacts must use locators distinct from audit and "
+            "audited-subject artifacts"
+        )
 
     if action_class is ActionAuditClass.EXPOSED_EVALUATOR_DEVELOPMENT:
         if subjects or audits:
@@ -216,6 +270,25 @@ def validate_audit_prerequisite_contract(
         if not exposure:
             raise ValidationError(
                 "exposed evaluator development requires an evaluator exposure statement"
+            )
+        if information_statement:
+            raise ValidationError(
+                "exposed evaluator development cannot use the nonadvancing "
+                "information statement"
+            )
+    elif action_class is ActionAuditClass.NONADVANCING_INFORMATION:
+        if subjects or audits:
+            raise ValidationError(
+                "nonadvancing information work must not claim candidate audit coverage"
+            )
+        if exposure:
+            raise ValidationError(
+                "nonadvancing information work cannot use the evaluator-development "
+                "exposure statement"
+            )
+        if not information_statement:
+            raise ValidationError(
+                "nonadvancing information work requires a dedicated canonical statement"
             )
     else:
         if not subjects:
@@ -229,6 +302,11 @@ def validate_audit_prerequisite_contract(
         if exposure:
             raise ValidationError(
                 "candidate-advancing actions cannot use the evaluator-development exemption"
+            )
+        if information_statement:
+            raise ValidationError(
+                "candidate-advancing actions cannot use the nonadvancing-information "
+                "classification"
             )
         subject_by_key = {
             (item.subject_role, item.subject_id): item for item in subjects
@@ -263,6 +341,7 @@ def validate_audit_prerequisite_contract(
         subjects=subjects,
         required_audits=audits,
         evaluator_exposure_statement=exposure,
+        nonadvancing_information_statement=information_statement,
         limitations=limitations,
         conclusion_ceiling=ceiling,
     )
@@ -358,11 +437,18 @@ def _build_receipt(
     contract: AuditPrerequisiteContract,
     artifact_root: str | Path | None,
 ) -> dict[str, Any]:
-    if contract.action_class is ActionAuditClass.EXPOSED_EVALUATOR_DEVELOPMENT:
+    if contract.action_class is not ActionAuditClass.CANDIDATE_ADVANCING:
+        is_evaluator = (
+            contract.action_class is ActionAuditClass.EXPOSED_EVALUATOR_DEVELOPMENT
+        )
         payload: dict[str, Any] = {
             "contract_version": 1,
             "action_class": contract.action_class.value,
-            "status": "exposed_evaluator_development_nonadvancing",
+            "status": (
+                "exposed_evaluator_development_nonadvancing"
+                if is_evaluator
+                else "nonadvancing_information"
+            ),
             "workflow_eligible": True,
             "candidate_advancement_eligible": False,
             "artifact_root": "",
@@ -376,6 +462,14 @@ def _build_receipt(
             "scientific_evidence_eligible": False,
             "replication_authority_established": False,
         }
+        if is_evaluator:
+            payload["evaluator_exposure_statement"] = (
+                contract.evaluator_exposure_statement
+            )
+        else:
+            payload["nonadvancing_information_statement"] = (
+                contract.nonadvancing_information_statement
+            )
         payload["receipt_sha256"] = _canonical_json_sha256(payload)
         return payload
 
@@ -418,12 +512,32 @@ def _build_receipt(
             raise IntegrityError(
                 f"audit artifact {audit.audit_id} content does not match its typed contract"
             )
+        supporting_observations: list[dict[str, Any]] = []
+        for supporting in audit.supporting_artifacts:
+            supporting_path = _resolve_artifact(root, supporting.artifact_locator)
+            supporting_content = supporting_path.read_bytes()
+            supporting_observed = hashlib.sha256(supporting_content).hexdigest()
+            if supporting_observed != supporting.artifact_sha256:
+                raise IntegrityError(
+                    f"audit supporting artifact hash mismatch for {audit.audit_id} "
+                    f"role {supporting.artifact_role}: expected "
+                    f"{supporting.artifact_sha256}, observed {supporting_observed}"
+                )
+            supporting_observations.append(
+                {
+                    **supporting.to_dict(),
+                    "observed_sha256": supporting_observed,
+                    "size_bytes": len(supporting_content),
+                    "status": "matched",
+                }
+            )
         audit_observations.append(
             {
                 **audit.to_dict(),
                 "observed_sha256": observed,
                 "size_bytes": len(content),
                 "selected_payload_sha256": _canonical_json_sha256(value),
+                "supporting_artifact_observations": supporting_observations,
                 "status": "matched",
             }
         )
@@ -467,14 +581,7 @@ def bind_action_audit_prerequisites(
         contract = validate_audit_prerequisite_contract(
             candidate.audit_prerequisite_contract
         )
-        if (
-            contract.action_class is ActionAuditClass.EXPOSED_EVALUATOR_DEVELOPMENT
-            and candidate.distinguishes_hypotheses
-        ):
-            raise ValidationError(
-                f"action {candidate.action_id} is exposed evaluator development and "
-                "cannot claim hypothesis discrimination or candidate advancement"
-            )
+        _validate_nonadvancing_candidate_claims(candidate, contract)
         receipt = _build_receipt(contract, artifact_root)
         bound.append(
             replace(
@@ -486,6 +593,24 @@ def bind_action_audit_prerequisites(
     return bound
 
 
+def _validate_nonadvancing_candidate_claims(
+    candidate: ActionCandidate,
+    contract: AuditPrerequisiteContract,
+) -> None:
+    if (
+        contract.action_class is not ActionAuditClass.CANDIDATE_ADVANCING
+        and (
+            candidate.distinguishes_hypotheses
+            or candidate.expected_discrimination != 0
+        )
+    ):
+        raise ValidationError(
+            f"action {candidate.action_id} is {contract.action_class.value} and "
+            "cannot claim hypothesis discrimination, nonzero expected_discrimination, "
+            "or candidate advancement"
+        )
+
+
 def verify_action_audit_prerequisite(candidate: ActionCandidate) -> dict[str, Any]:
     if candidate.audit_prerequisite_contract is None:
         raise ValidationError(
@@ -494,6 +619,7 @@ def verify_action_audit_prerequisite(candidate: ActionCandidate) -> dict[str, An
     contract = validate_audit_prerequisite_contract(
         candidate.audit_prerequisite_contract
     )
+    _validate_nonadvancing_candidate_claims(candidate, contract)
     retained = candidate.audit_prerequisite_receipt
     if not isinstance(retained, dict) or not retained:
         raise IntegrityError(

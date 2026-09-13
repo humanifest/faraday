@@ -45,13 +45,16 @@ methods without changing its epistemic rules or canonical state.
   `audit_prerequisite_contract`. Candidate-advancing actions bind exact current
   candidate/implementation bytes and strict audit JSON, including role, hash,
   audited subject ID/hash, verdict, scope, declared auditor identity/time, and
-  limitations. Current-byte and receipt replay fail closed on absence, drift,
-  pending or adverse verdicts, or different subject scope. Exposed evaluator
-  development is explicitly non-advancing and cannot claim hypothesis
-  discrimination. The ceiling is workflow eligibility only; audit truth,
-  identity, independence, scientific validity, evidence, and replication remain
-  unestablished. Historical version-1 and version-2 recommendations remain
-  readable without acquiring current advancement authority.
+  limitations. Each disposition also binds at least one typed, hash-pinned
+  supporting report. Current-byte and receipt replay fail closed on absence,
+  drift, pending or adverse verdicts, or different subject scope. Exposed
+  evaluator development and ordinary `nonadvancing_information` are distinct,
+  explicitly non-advancing classes with dedicated, mutually exclusive statement
+  fields; neither can claim hypothesis discrimination. The ceiling is workflow
+  eligibility only; audit truth, identity, independence, scientific validity,
+  evidence, and replication remain unestablished. Historical version-1 and
+  version-2 recommendations remain readable without acquiring current
+  advancement authority.
   Hypothesis-discriminating candidates also retain service-derived workflow
   states for every cited target, so `pending_review` proposals remain visibly
   unapproved in recommendations and synthesis. Callers cannot supply that

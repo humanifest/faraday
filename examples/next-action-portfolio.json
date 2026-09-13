@@ -28,10 +28,11 @@
       "lane_id": "machine",
       "audit_prerequisite_contract": {
         "contract_version": 1,
-        "action_class": "exposed_evaluator_development",
+        "action_class": "nonadvancing_information",
         "subjects": [],
         "required_audits": [],
-        "evaluator_exposure_statement": "This develops an exposed evaluator and cannot advance a candidate or claim hypothesis discrimination.",
+        "evaluator_exposure_statement": "",
+        "nonadvancing_information_statement": "This bounded infrastructure audit gathers workflow information and cannot advance candidate or implementation bytes.",
         "limitations": ["Successful development establishes software behavior only."],
         "conclusion_ceiling": "Workflow eligibility only; does not establish audit truth, auditor identity or independence, scientific validity, or evidence eligibility."
       }
@@ -87,10 +88,18 @@
             "scope": "Exact candidate bytes and the bounded proposed falsifier.",
             "auditor_identity": "<auditor-identity-as-declared>",
             "audited_at": "2026-09-12T12:00:00Z",
-            "limitations": ["Identity and independence remain unauthenticated by this artifact."]
+            "limitations": ["Identity and independence remain unauthenticated by this artifact."],
+            "supporting_artifacts": [
+              {
+                "artifact_role": "detailed_adversarial_audit_report",
+                "artifact_locator": "audits/candidate-audit-report.md",
+                "artifact_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+              }
+            ]
           }
         ],
         "evaluator_exposure_statement": "",
+        "nonadvancing_information_statement": "",
         "limitations": ["A favorable audit permits workflow selection only."],
         "conclusion_ceiling": "Workflow eligibility only; does not establish audit truth, auditor identity or independence, scientific validity, or evidence eligibility."
       }
