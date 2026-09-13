@@ -432,6 +432,48 @@ class AliasProxyCommitment(Serializable):
 
 
 @dataclass(frozen=True)
+class AliasProxyMappingEntry(Serializable):
+    """Verified private mapping bytes for one frozen alias/proxy commitment."""
+
+    measurement_id: str
+    commitment_id: str
+    mapping_locator: str
+    mapping_sha256: str
+    mapping_size_bytes: int
+    media_type: str = "application/json"
+
+
+@dataclass(frozen=True)
+class AliasProxyMappingRecord(Serializable):
+    """Canonical custody receipt for private alias/proxy mapping material."""
+
+    record_id: str
+    protocol_id: str
+    protocol_hash: str
+    created_at: str
+    created_by: str
+    mapping_artifact_root: str
+    mappings: list[AliasProxyMappingEntry]
+    mapping_set_sha256: str
+    access_control_statement: str
+    reveal_policy_statement: str
+    limitations: list[str]
+    conclusion_ceiling: str
+    scientific_interpretation_verified: bool = False
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "AliasProxyMappingRecord":
+        copied = dict(value)
+        copied["mappings"] = [
+            item
+            if isinstance(item, AliasProxyMappingEntry)
+            else AliasProxyMappingEntry(**item)
+            for item in copied.get("mappings", [])
+        ]
+        return cls(**copied)
+
+
+@dataclass(frozen=True)
 class MeasurementDefinition(Serializable):
     measurement_id: str
     role: MeasurementRole

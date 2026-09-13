@@ -20,10 +20,16 @@ from research_machine.application.dataset_source_authority import (
 from research_machine.application.dataset_inventory import (
     dataset_workflow_materialization_status,
 )
+from research_machine.application.alias_proxy_mapping import (
+    alias_proxy_commitments,
+    protocol_requires_alias_proxy_mapping,
+    validate_alias_proxy_mapping_record,
+)
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.domain.models import (
     AnalysisMode,
     ActionRecommendation,
+    AliasProxyMappingRecord,
     Claim,
     ClaimDisposition,
     ClaimEpistemicLayer,
@@ -334,6 +340,7 @@ def audit_research_state(
     datasets: list[DatasetManifest],
     protocols: list[ExperimentProtocol],
     runs: list[ResearchRun],
+    alias_proxy_mapping_records: list[AliasProxyMappingRecord] | None = None,
     cross_lane_lessons: list[CrossLaneLesson] | None = None,
     questions: list[Question] | None = None,
     recommendations: list[ActionRecommendation] | None = None,
@@ -757,7 +764,73 @@ def audit_research_state(
     protocol_by_id = {item.protocol_id: item for item in protocols}
     run_by_id = {item.run_id: item for item in runs}
     dataset_by_id = {item.dataset_id: item for item in datasets}
+    alias_records_by_protocol: dict[str, list[AliasProxyMappingRecord]] = {}
+    for record in alias_proxy_mapping_records or []:
+        alias_records_by_protocol.setdefault(record.protocol_id, []).append(record)
     protected_dataset_roles = {DatasetRole.CONFIRMATORY, DatasetRole.REPLICATION}
+    for protocol in protocols:
+        if not protocol_requires_alias_proxy_mapping(protocol):
+            continue
+        records = alias_records_by_protocol.get(protocol.protocol_id, [])
+        severity = (
+            RigorSeverity.ERROR
+            if _protected_empirical(protocol)
+            else RigorSeverity.WARNING
+        )
+        if not records:
+            commitments = ", ".join(
+                f"{definition.measurement_id}:{commitment.commitment_id}"
+                for definition, commitment in alias_proxy_commitments(protocol)
+            )
+            add(
+                "ALIAS_PROXY_MAPPING_CUSTODY_MISSING",
+                severity,
+                (
+                    "Protocol uses blinded aliases or proxy measurements but has "
+                    "no verified private mapping custody record; the frozen hash "
+                    "commitment remains a design commitment only."
+                ),
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "Record the private mapping through the canonical alias/proxy "
+                    "custody command before treating runs as strong evidence. "
+                    "Missing commitments: "
+                    + commitments
+                ),
+            )
+            continue
+        for record in records:
+            try:
+                validate_alias_proxy_mapping_record(protocol, record)
+            except ResearchMachineError as exc:
+                add(
+                    "ALIAS_PROXY_MAPPING_CUSTODY_INVALID",
+                    RigorSeverity.ERROR,
+                    (
+                        "Alias/proxy private mapping custody no longer replays "
+                        f"against current local bytes and frozen commitments: {exc}"
+                    ),
+                    entity_type="alias_proxy_mapping_record",
+                    entity_id=record.record_id,
+                    remediation=(
+                        "Restore the exact private mapping artifact bytes/root or "
+                        "treat all runs under this aliased protocol as "
+                        "non-evidentiary; never rewrite the frozen mapping hash."
+                    ),
+                )
+            else:
+                add(
+                    "ALIAS_PROXY_MAPPING_CUSTODY_RECORDED",
+                    RigorSeverity.INFO,
+                    (
+                        "Alias/proxy private mapping bytes replay against the "
+                        "frozen protocol commitment. This preserves auditability "
+                        "without proving proxy validity or revealing the mapping."
+                    ),
+                    entity_type="alias_proxy_mapping_record",
+                    entity_id=record.record_id,
+                )
     for dataset in datasets:
         if (
             "workflow_materialization" in dataset.metadata

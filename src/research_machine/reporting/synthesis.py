@@ -11,6 +11,7 @@ from research_machine.domain.models import (
     ActionCandidate,
     ActionRecommendation,
     ActionScore,
+    AliasProxyMappingRecord,
     Claim,
     CrossLaneLesson,
     DatasetManifest,
@@ -319,6 +320,7 @@ def build_synthesis(
     cross_lane_lessons: list[CrossLaneLesson],
     rigor_audit: RigorAudit,
     evidence_status_events: list[EvidenceStatusEvent],
+    alias_proxy_mapping_records: list[AliasProxyMappingRecord] | None = None,
 ) -> str:
     latest_status: dict[str, EvidenceStatusEvent] = {}
     for event in sorted(evidence_status_events, key=lambda item: (item.evidence_id, item.sequence)):
@@ -516,6 +518,9 @@ def build_synthesis(
     invalid_runs = [run for run in runs if run.run_id not in valid_run_ids]
     datasets_by_id = {dataset.dataset_id: dataset for dataset in datasets}
     protocols_by_id = {protocol.protocol_id: protocol for protocol in protocols}
+    alias_records_by_protocol: dict[str, list[AliasProxyMappingRecord]] = defaultdict(list)
+    for record in alias_proxy_mapping_records or []:
+        alias_records_by_protocol[record.protocol_id].append(record)
     dataset_inventory = build_dataset_inventory(
         datasets, protocols, rigor_audit.findings
     )
@@ -588,6 +593,49 @@ def build_synthesis(
                 "This is prospective acquisition provenance, not proof of sensor "
                 "custody, calibration, synchronization, or clock accuracy."
             )
+    alias_protocols = [
+        protocol
+        for protocol in protocols
+        if any(
+            definition.alias_proxy_commitment is not None
+            for definition in protocol.measurement_definitions
+        )
+    ]
+    if alias_protocols:
+        lines.extend(["", "### Alias/proxy custody", ""])
+        for protocol in sorted(alias_protocols, key=lambda item: item.protocol_id):
+            commitments = [
+                (
+                    definition.measurement_id,
+                    definition.alias_proxy_commitment,
+                )
+                for definition in protocol.measurement_definitions
+                if definition.alias_proxy_commitment is not None
+            ]
+            records = alias_records_by_protocol.get(protocol.protocol_id, [])
+            record_text = (
+                ", ".join(f"`{record.record_id}`" for record in records)
+                if records
+                else "none recorded"
+            )
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}` uses "
+                f"{len(commitments)} alias/proxy commitment(s); mapping custody "
+                f"records: {record_text}. These records bind private mapping "
+                "bytes to frozen hashes without revealing the mapping; they do "
+                "not prove proxy validity, ethics compliance, or scientific truth."
+            )
+            for measurement_id, commitment in commitments:
+                if commitment is None:
+                    continue
+                lines.append(
+                    f"  - Measurement `{measurement_id}` commitment "
+                    f"`{commitment.commitment_id}`: scope "
+                    f"`{commitment.concealment_scope}`; public label "
+                    f"`{commitment.public_label}`; mapping "
+                    f"`{commitment.private_mapping_sha256}`; reveal rule: "
+                    f"{_text(commitment.reveal_conditions)}"
+                )
     planned_runs = [
         run for run in runs
         if isinstance(run.metadata.get("sample_size_plan_check"), dict)

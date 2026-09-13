@@ -121,7 +121,7 @@
     },
     "contextRef": {
       "type": "string",
-      "pattern": "^(inquiry|question|claim|hypothesis|evidence|dataset|protocol|run|evidence_status_event|ethics_review_event):(?:\\S|\\S.*\\S)$"
+      "pattern": "^(inquiry|question|claim|hypothesis|evidence|dataset|protocol|alias_proxy_mapping_record|run|evidence_status_event|ethics_review_event):(?:\\S|\\S.*\\S)$"
     },
     "groundedClaim": {
       "anyOf": [

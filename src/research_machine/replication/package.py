@@ -13,6 +13,7 @@ from research_machine.domain.models import (
     AnalysisMode,
     DatasetManifest,
     DatasetArtifact,
+    AliasProxyMappingRecord,
     EthicsReviewEvent,
     ExperimentProtocol,
     ProtocolStatus,
@@ -45,6 +46,10 @@ from research_machine.application.policies import (
     validate_quality_gates,
 )
 from research_machine.application.protocol_integrity import protocol_commitment
+from research_machine.application.alias_proxy_mapping import (
+    ALIAS_PROXY_MAPPING_CONCLUSION_CEILING,
+    alias_proxy_commitments,
+)
 from research_machine.application.dataset_integrity import (
     validate_dataset_payload_commitment,
     validate_protected_dataset_lineage_closure,
@@ -2973,6 +2978,8 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
         expected_files = {"protocol.json", "datasets.json", "runs.json", "INSTRUCTIONS.md"}
         if manifest["package_version"] == 2:
             expected_files.add("ethics-review-events.json")
+            if "alias_proxy_mapping_record_ids" in manifest:
+                expected_files.add("alias-proxy-mapping-records.json")
         if {path.name for path in root.iterdir()} != expected_files | {"package-manifest.json"}:
             raise ValidationError("package contains missing or unexpected files")
         for name in expected_files:
@@ -2999,6 +3006,8 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 "latest_recorded_ethics_status", "replication_ethics_authorized",
                 "files", "limitations",
             }
+            if "alias_proxy_mapping_record_ids" in manifest:
+                required_v2.add("alias_proxy_mapping_record_ids")
             if set(manifest) != required_v2:
                 raise ValidationError("version-2 package manifest fields do not match the contract")
             if manifest.get("privacy_mode") != "metadata_only":
@@ -3101,6 +3110,107 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                 raise ValidationError("package latest ethics status disagrees with the event chain")
             if manifest.get("replication_ethics_authorized") is not False:
                 raise ValidationError("replication package must not authorize replication ethics")
+            alias_records: list[AliasProxyMappingRecord] = []
+            if "alias_proxy_mapping_record_ids" in manifest:
+                alias_value = _strict_json_bytes(
+                    (root / "alias-proxy-mapping-records.json").read_bytes(),
+                    "alias-proxy-mapping-records.json",
+                )
+                if not isinstance(alias_value, list):
+                    raise ValidationError(
+                        "alias-proxy-mapping-records.json must contain an array"
+                    )
+                alias_records = [
+                    AliasProxyMappingRecord.from_dict(item)
+                    for item in alias_value
+                ]
+                alias_ids = _validate_package_identity_list(
+                    [item.record_id for item in alias_records],
+                    "package alias/proxy mapping record IDs",
+                )
+                manifest_alias_ids = _validate_package_identity_list(
+                    manifest.get("alias_proxy_mapping_record_ids"),
+                    "version-2 package manifest alias_proxy_mapping_record_ids",
+                )
+                if manifest_alias_ids != alias_ids:
+                    raise ValidationError(
+                        "package alias/proxy mapping record IDs disagree with records"
+                    )
+                commitments = {
+                    (
+                        definition.measurement_id,
+                        commitment.commitment_id,
+                    ): commitment
+                    for definition, commitment in alias_proxy_commitments(protocol)
+                }
+                for record in alias_records:
+                    if (
+                        record.protocol_id != protocol.protocol_id
+                        or record.protocol_hash != protocol.protocol_hash
+                    ):
+                        raise ValidationError(
+                            "package alias/proxy mapping record does not match protocol"
+                        )
+                    _validate_packaged_root(
+                        record.mapping_artifact_root,
+                        "package alias/proxy mapping artifact root",
+                        manifest["artifact_locator_policy"],
+                    )
+                    require_sha256(
+                        record.mapping_set_sha256,
+                        "package alias/proxy mapping_set_sha256",
+                    )
+                    require_canonical_bounded_report_text(
+                        record.access_control_statement,
+                        "package alias/proxy access_control_statement",
+                    )
+                    require_canonical_bounded_report_text(
+                        record.reveal_policy_statement,
+                        "package alias/proxy reveal_policy_statement",
+                    )
+                    if record.conclusion_ceiling != ALIAS_PROXY_MAPPING_CONCLUSION_CEILING:
+                        raise ValidationError(
+                            "package alias/proxy conclusion ceiling changed"
+                        )
+                    if record.scientific_interpretation_verified is not False:
+                        raise ValidationError(
+                            "package alias/proxy mapping cannot verify scientific interpretation"
+                        )
+                    seen: set[tuple[str, str]] = set()
+                    for entry in record.mappings:
+                        key = (entry.measurement_id, entry.commitment_id)
+                        if key in seen:
+                            raise ValidationError(
+                                "package alias/proxy mapping repeats a commitment"
+                            )
+                        seen.add(key)
+                        commitment = commitments.get(key)
+                        if commitment is None:
+                            raise ValidationError(
+                                "package alias/proxy mapping references an unknown commitment"
+                            )
+                        if entry.mapping_sha256 != commitment.private_mapping_sha256:
+                            raise ValidationError(
+                                "package alias/proxy mapping hash no longer matches protocol"
+                            )
+                        _validate_packaged_root(
+                            entry.mapping_locator,
+                            "package alias/proxy mapping locator",
+                            manifest["artifact_locator_policy"],
+                        )
+                        if (
+                            isinstance(entry.mapping_size_bytes, bool)
+                            or not isinstance(entry.mapping_size_bytes, int)
+                            or entry.mapping_size_bytes < 0
+                        ):
+                            raise ValidationError(
+                                "package alias/proxy mapping size is invalid"
+                            )
+                    if seen != set(commitments):
+                        raise ValidationError(
+                            "package alias/proxy mapping record does not cover every frozen commitment"
+                        )
+            alias_mapping_required = bool(alias_proxy_commitments(protocol))
             dataset_value = _strict_json_bytes(
                 (root / "datasets.json").read_bytes(), "datasets.json"
             )
@@ -3499,6 +3609,19 @@ def verify_replication_package(root: Path, expected_manifest_sha256: str) -> dic
                         not protocol.sample_size_plan
                         or sample_size_plan_check.get("status") == "passed"
                     )
+                    and (
+                        not alias_mapping_required
+                        or (
+                            bool(alias_records)
+                            and isinstance(
+                                run.metadata.get("alias_proxy_mapping_verification"),
+                                dict,
+                            )
+                            and run.metadata[
+                                "alias_proxy_mapping_verification"
+                            ].get("status") == "verified"
+                        )
+                    )
                 )
                 if run.scientific_evidence_eligible is not expected_eligible:
                     raise ValidationError(
@@ -3578,6 +3701,7 @@ def export_replication_package(
     output: Path,
     *,
     include_locators: bool = False,
+    alias_proxy_mapping_records: list[AliasProxyMappingRecord] | None = None,
 ) -> dict[str, Any]:
     """Export immutable commitments and lineage, never raw research data."""
     if protocol.status is not ProtocolStatus.FROZEN or not protocol.protocol_hash:
@@ -3620,12 +3744,23 @@ def export_replication_package(
         dataset_records = [dataset.to_dict() for dataset in selected_datasets]
         run_records = [run.to_dict() for run in selected_runs]
         ethics_records = [item.to_dict() for item in selected_ethics_events]
+        alias_records = [
+            item.to_dict()
+            for item in sorted(
+                (
+                    alias_proxy_mapping_records or []
+                ),
+                key=lambda record: record.record_id,
+            )
+            if item.protocol_id == protocol.protocol_id
+        ]
         protocol_record = protocol.to_dict()
         if not include_locators:
             protocol_record = _redact_artifact_locators(protocol_record)
             dataset_records = [_redact_artifact_locators(item) for item in dataset_records]
             run_records = [_redact_artifact_locators(item) for item in run_records]
             ethics_records = [_redact_artifact_locators(item) for item in ethics_records]
+            alias_records = [_redact_artifact_locators(item) for item in alias_records]
         hashes = {
             "protocol.json": _write(staging / "protocol.json", protocol_record),
             "datasets.json": _write(staging / "datasets.json", dataset_records),
@@ -3634,6 +3769,11 @@ def export_replication_package(
                 staging / "ethics-review-events.json", ethics_records
             ),
         }
+        if alias_records:
+            hashes["alias-proxy-mapping-records.json"] = _write(
+                staging / "alias-proxy-mapping-records.json",
+                alias_records,
+            )
         instruction_bytes = _V2_INSTRUCTIONS.encode()
         (staging / "INSTRUCTIONS.md").write_bytes(instruction_bytes)
         hashes["INSTRUCTIONS.md"] = hashlib.sha256(instruction_bytes).hexdigest()
@@ -3651,6 +3791,15 @@ def export_replication_package(
             "ethics_review_event_ids": [
                 item.event_id for item in selected_ethics_events
             ],
+            **(
+                {
+                    "alias_proxy_mapping_record_ids": [
+                        item["record_id"] for item in alias_records
+                    ]
+                }
+                if alias_records
+                else {}
+            ),
             "latest_recorded_ethics_status": (
                 selected_ethics_events[-1].status
                 if selected_ethics_events

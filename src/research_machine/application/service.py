@@ -18,6 +18,7 @@ from research_machine.application.commands import (
     ProposeHypothesis,
     RecommendActionPortfolio,
     RecommendNextAction,
+    RecordAliasProxyMapping,
     RecordCrossLaneLesson,
     RecordEthicsReviewEvent,
     RecordEvidenceStatusEvent,
@@ -33,6 +34,12 @@ from research_machine.collaboration.redaction import redact_collaborator_context
 from research_machine.application.artifact_integrity import verify_run_artifacts
 from research_machine.application.audit_prerequisite import (
     bind_action_audit_prerequisites,
+)
+from research_machine.application.alias_proxy_mapping import (
+    alias_proxy_commitments,
+    build_alias_proxy_mapping_record,
+    protocol_requires_alias_proxy_mapping,
+    validate_alias_proxy_mapping_record,
 )
 from research_machine.application.policies import (
     declares_legacy_pre_registration_result_exposure,
@@ -1410,6 +1417,9 @@ class ResearchService:
         ethics_events = self._validated_ethics_review_events(resolved)
         datasets = self.repository.list_datasets(resolved)
         protocols = self.repository.list_protocols(resolved)
+        alias_mapping_records = self.repository.list_alias_proxy_mapping_records(
+            resolved
+        )
         runs = self.repository.list_runs(resolved)
         evidence = self.repository.list_evidence(resolved)
         hypotheses = self.repository.list_hypotheses(resolved)
@@ -1454,6 +1464,17 @@ class ResearchService:
                     self.repository.verify_legacy_protocol_integrity(
                         resolved, protocol
                     )
+        alias_mapping_records_by_protocol: dict[str, list[Any]] = {}
+        for record in alias_mapping_records:
+            protocol = protocols_by_id.get(record.protocol_id)
+            if protocol is None:
+                raise ValidationError(
+                    f"alias/proxy mapping record {record.record_id} references an unknown protocol"
+                )
+            validate_alias_proxy_mapping_record(protocol, record)
+            alias_mapping_records_by_protocol.setdefault(
+                record.protocol_id, []
+            ).append(record)
         from research_machine.application.ethics import (
             reverify_ethics_condition_discharge,
         )
@@ -1537,6 +1558,16 @@ class ResearchService:
                 raise ValidationError(
                     f"evidence-eligible run {run.run_id} no longer matches its frozen protocol"
                 )
+            if protocol_requires_alias_proxy_mapping(protocol):
+                records = alias_mapping_records_by_protocol.get(
+                    protocol.protocol_id, []
+                )
+                if not records:
+                    raise ValidationError(
+                        f"evidence-eligible run {run.run_id} lacks alias/proxy mapping custody"
+                    )
+                for record in records:
+                    validate_alias_proxy_mapping_record(protocol, record)
             run_datasets = [
                 self.repository.find_dataset(resolved, dataset_id)
                 for dataset_id in run.dataset_ids
@@ -1581,6 +1612,9 @@ class ResearchService:
             ],
             "protocols": [
                 item.to_dict() for item in protocols
+            ],
+            "alias_proxy_mapping_records": [
+                item.to_dict() for item in alias_mapping_records
             ],
             "runs": [item.to_dict() for item in runs],
             "recommendations": [
@@ -1704,6 +1738,13 @@ class ResearchService:
                 for item in redacted_state["protocols"]
             ],
             *[
+                {
+                    "ref": f"alias_proxy_mapping_record:{item['record_id']}",
+                    "kind": "alias_proxy_mapping_record",
+                }
+                for item in redacted_state.get("alias_proxy_mapping_records", [])
+            ],
+            *[
                 {"ref": f"run:{item['run_id']}", "kind": "run"}
                 for item in redacted_state["runs"]
             ],
@@ -1734,6 +1775,9 @@ class ResearchService:
             "datasets": redacted_state["datasets"],
             "dataset_inventory": dataset_inventory,
             "protocols": redacted_state["protocols"],
+            "alias_proxy_mapping_records": redacted_state.get(
+                "alias_proxy_mapping_records", []
+            ),
             "runs": redacted_state["runs"],
             "recommendations": redacted_state["recommendations"],
             "cross_lane_lessons": redacted_state["cross_lane_lessons"],
@@ -1748,6 +1792,7 @@ class ResearchService:
                 "eligibility, or replication authority.",
                 "Treat sensor, stream, clock, and control-window commitments as design provenance, "
                 "not proof of custody, calibration, synchronization, or timing validity.",
+                "Treat alias/proxy mapping custody as private byte-commitment provenance only; it does not reveal the mapping, prove proxy validity, or authorize evidence by itself.",
                 "Generated hypotheses remain unreviewed until a human explicitly activates them.",
                 "Do not authorize human-subject collection, protocol freeze, data registration, or evidence recording.",
                 "Treat the latest append-only ethics review event as controlling; suspended, withdrawn, or expired clearance blocks downstream work.",
@@ -2681,6 +2726,71 @@ class ResearchService:
             audit.findings,
         )
 
+    def _alias_proxy_mapping_status(
+        self,
+        inquiry_id: str,
+        protocol: ExperimentProtocol,
+    ) -> dict[str, Any] | None:
+        commitments = alias_proxy_commitments(protocol)
+        if not commitments:
+            return None
+        records = self.repository.list_alias_proxy_mapping_records(
+            inquiry_id,
+            protocol.protocol_id,
+        )
+        if not records:
+            return {
+                "status": "missing",
+                "protocol_id": protocol.protocol_id,
+                "protocol_hash": protocol.protocol_hash,
+                "required_commitments": [
+                    {
+                        "measurement_id": definition.measurement_id,
+                        "commitment_id": commitment.commitment_id,
+                        "concealment_scope": commitment.concealment_scope,
+                        "public_label": commitment.public_label,
+                        "private_mapping_sha256": commitment.private_mapping_sha256,
+                    }
+                    for definition, commitment in commitments
+                ],
+                "scientific_evidence_eligible": False,
+                "scientific_interpretation_verified": False,
+                "conclusion_ceiling": (
+                    "Alias/proxy mapping custody has not been recorded; the "
+                    "protocol can remain a design artifact, but runs under it "
+                    "cannot be treated as strong scientific evidence."
+                ),
+            }
+        validated = [
+            validate_alias_proxy_mapping_record(protocol, record)
+            for record in records
+        ]
+        return {
+            "status": "verified",
+            "protocol_id": protocol.protocol_id,
+            "protocol_hash": protocol.protocol_hash,
+            "record_ids": [record.record_id for record in validated],
+            "mapping_set_sha256": [
+                record.mapping_set_sha256 for record in validated
+            ],
+            "verified_commitments": [
+                {
+                    "measurement_id": entry.measurement_id,
+                    "commitment_id": entry.commitment_id,
+                    "mapping_sha256": entry.mapping_sha256,
+                }
+                for record in validated
+                for entry in record.mappings
+            ],
+            "scientific_evidence_eligible": True,
+            "scientific_interpretation_verified": False,
+            "conclusion_ceiling": (
+                "Private mapping bytes match the frozen alias/proxy commitments; "
+                "this does not prove proxy validity, ethics compliance, or the "
+                "truth of any scientific result."
+            ),
+        }
+
     def export_replication_package(
         self,
         protocol_id: str,
@@ -2698,7 +2808,49 @@ class ResearchService:
             self.repository.list_ethics_review_events(resolved, protocol_id),
             Path(output),
             include_locators=include_locators,
+            alias_proxy_mapping_records=(
+                self.repository.list_alias_proxy_mapping_records(
+                    resolved, protocol_id
+                )
+            ),
         )
+
+    def record_alias_proxy_mapping(
+        self,
+        command: RecordAliasProxyMapping,
+        inquiry_id: str | None = None,
+    ):
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        protocol = self.repository.find_protocol(resolved, command.protocol_id)
+        if not protocol_requires_alias_proxy_mapping(protocol):
+            raise ValidationError("protocol has no alias/proxy commitments")
+        existing = self.repository.list_alias_proxy_mapping_records(
+            resolved, protocol.protocol_id
+        )
+        if existing:
+            raise ConflictError(
+                f"protocol {protocol.protocol_id} already has an alias/proxy mapping record"
+            )
+        record = build_alias_proxy_mapping_record(
+            protocol=protocol,
+            record_id=command.record_id or f"alias-map-{self.token()}",
+            created_at=self.clock(),
+            created_by=self.actor,
+            mapping_artifact_root=command.mapping_artifact_root,
+            mappings=command.mappings,
+            access_control_statement=command.access_control_statement,
+            reveal_policy_statement=command.reveal_policy_statement,
+            limitations=command.limitations,
+        )
+        self.repository.save_alias_proxy_mapping_record(resolved, record)
+        self._event(
+            resolved,
+            "alias_proxy_mapping.record",
+            "alias_proxy_mapping_record",
+            record.record_id,
+            record.to_dict(),
+        )
+        return record
 
     def create_protocol(
         self, command: CreateProtocol, inquiry_id: str | None = None
@@ -3760,6 +3912,7 @@ class ResearchService:
             "artifact_integrity_missing_for_evidence",
             "run_payload_sha256",
             "sample_size_plan_check",
+            "alias_proxy_mapping_verification",
         ):
             if reserved in command.metadata:
                 raise ValidationError(f"metadata.{reserved} is reserved for machine verification")
@@ -3848,6 +4001,14 @@ class ResearchService:
             protocol,
             datasets,
             all_datasets=self.repository.list_datasets(resolved),
+        )
+        alias_proxy_mapping_verification = self._alias_proxy_mapping_status(
+            resolved,
+            protocol,
+        )
+        alias_proxy_mapping_allows_evidence = (
+            alias_proxy_mapping_verification is None
+            or alias_proxy_mapping_verification["status"] == "verified"
         )
         from research_machine.application.ethics import (
             evaluate_ethics_clearance,
@@ -5532,6 +5693,7 @@ class ResearchService:
                 and artifact_integrity is not None
                 and artifact_integrity.status == "passed"
                 and sample_size_plan_allows_evidence
+                and alias_proxy_mapping_allows_evidence
             ),
             summary=require_bounded_report_text(
                 command.summary, "run summary", allow_empty=True
@@ -5543,6 +5705,15 @@ class ResearchService:
                 "result_exposure_disclosure": result_exposure_disclosure,
                 "protocol_chronology": protocol_chronology,
                 "sample_size_plan_check": sample_size_plan_check,
+                **(
+                    {
+                        "alias_proxy_mapping_verification": (
+                            alias_proxy_mapping_verification
+                        )
+                    }
+                    if alias_proxy_mapping_verification is not None
+                    else {}
+                ),
                 **(
                     {"ethics_review_status_check": ethics_review_status_check}
                     if ethics_review_status_check
@@ -7612,6 +7783,9 @@ class ResearchService:
             datasets=self.repository.list_datasets(inquiry_id),
             protocols=self.repository.list_protocols(inquiry_id),
             runs=self.repository.list_runs(inquiry_id),
+            alias_proxy_mapping_records=(
+                self.repository.list_alias_proxy_mapping_records(inquiry_id)
+            ),
             cross_lane_lessons=cross_lane_lessons,
             recommendations=recommendations,
         )
@@ -7629,6 +7803,9 @@ class ResearchService:
         datasets = self.repository.list_datasets(resolved)
         protocols = self.repository.list_protocols(resolved)
         runs = self.repository.list_runs(resolved)
+        alias_proxy_mapping_records = self.repository.list_alias_proxy_mapping_records(
+            resolved
+        )
         cross_lane_lessons = self._verified_cross_lane_lessons(resolved)
         recommendations = self._verified_recommendations(resolved)
         rigor_audit = self._rigor_audit_for_current_state(
@@ -7649,6 +7826,7 @@ class ResearchService:
             cross_lane_lessons,
             rigor_audit,
             evidence_status_events,
+            alias_proxy_mapping_records,
         )
         path = self.repository.write_report(resolved, "current-synthesis.md", content)
         updated = replace(inquiry, current_synthesis_path=path)

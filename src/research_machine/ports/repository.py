@@ -4,6 +4,7 @@ from typing import Any, Protocol
 
 from research_machine.domain.models import (
     ActionRecommendation,
+    AliasProxyMappingRecord,
     Claim,
     CrossLaneLesson,
     DatasetManifest,
@@ -81,6 +82,14 @@ class WorkspaceRepository(Protocol):
     ) -> None: ...
 
     def list_protocols(self, inquiry_id: str) -> list[ExperimentProtocol]: ...
+
+    def save_alias_proxy_mapping_record(
+        self, inquiry_id: str, record: AliasProxyMappingRecord
+    ) -> None: ...
+
+    def list_alias_proxy_mapping_records(
+        self, inquiry_id: str, protocol_id: str | None = None
+    ) -> list[AliasProxyMappingRecord]: ...
 
     def save_run(self, inquiry_id: str, run: ResearchRun) -> None: ...
 

@@ -776,6 +776,15 @@ rationale, limitations, reveal conditions, and optional hidden proxy construct
 into the protocol hash. This supports secrecy and blinding without letting the
 real target or proxy meaning drift after freeze; it remains provenance and
 custody evidence, not proof that the proxy measures the hidden construct.
+After freeze, `research measurement record-alias-mapping` can publish a
+canonical private-mapping custody record. The service verifies the current local
+mapping bytes under the supplied artifact root against each frozen
+`private_mapping_sha256`, stores only hashes, locators, access/reveal policy
+text, and limitations, and replays the bytes on authoritative reads. Runs under
+an alias/proxy protocol remain recordable but are not scientific-evidence
+eligible until that mapping custody replays successfully. Collaborator context
+and metadata-only replication packages redact the operational mapping root and
+mapping locators while preserving the commitment hashes.
 Confirmatory work must also define at least one structured prospective validity
 check with its evidence type, validity claim, assessment procedure, acceptance
 criterion, failure response, and dedicated quality gate. These checks are

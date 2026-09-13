@@ -67,6 +67,10 @@
       "type": "array",
       "items": {"$ref": "#/$defs/protocol"}
     },
+    "alias_proxy_mapping_records": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/aliasProxyMappingRecord"}
+    },
     "runs": {
       "type": "array",
       "items": {"$ref": "#/$defs/run"}
@@ -160,6 +164,7 @@
           "evidence_status_events": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
           "datasets": {"items": {"$ref": "#/$defs/datasetV2"}},
           "protocols": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
+          "alias_proxy_mapping_records": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
           "runs": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
           "recommendations": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
           "cross_lane_lessons": {"items": {"$ref": "#/$defs/redactedOperationalFieldsV2"}},
@@ -199,6 +204,7 @@
             },
             "evidence_artifact_root": {"const": "[redacted: retained in canonical store]"},
             "interpreter_path": {"const": "[redacted: retained in canonical store]"},
+            "mapping_artifact_root": {"const": "[redacted: retained in canonical store]"},
             "origin_artifact_root": {"const": "[redacted: retained in canonical store]"}
           },
           "additionalProperties": true
@@ -207,7 +213,7 @@
     },
     "contextRef": {
       "type": "string",
-      "pattern": "^(inquiry|question|claim|hypothesis|evidence|dataset|protocol|run|evidence_status_event|ethics_review_event):(?:\\S|\\S.*\\S)$"
+      "pattern": "^(inquiry|question|claim|hypothesis|evidence|dataset|protocol|alias_proxy_mapping_record|run|evidence_status_event|ethics_review_event):(?:\\S|\\S.*\\S)$"
     },
     "contextKind": {
       "enum": [
@@ -220,6 +226,7 @@
         "evidence_status_event",
         "dataset",
         "protocol",
+        "alias_proxy_mapping_record",
         "run",
         "ethics_review_event"
       ]
@@ -267,6 +274,10 @@
         {
           "if": {"properties": {"kind": {"const": "protocol"}}, "required": ["kind"]},
           "then": {"properties": {"ref": {"pattern": "^protocol:(?:\\S|\\S.*\\S)$"}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "alias_proxy_mapping_record"}}, "required": ["kind"]},
+          "then": {"properties": {"ref": {"pattern": "^alias_proxy_mapping_record:(?:\\S|\\S.*\\S)$"}}}
         },
         {
           "if": {"properties": {"kind": {"const": "run"}}, "required": ["kind"]},
@@ -716,6 +727,16 @@
       "required": ["protocol_id"],
       "properties": {
         "protocol_id": {"$ref": "#/$defs/canonicalNonEmptyText"}
+      },
+      "additionalProperties": true
+    },
+    "aliasProxyMappingRecord": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/redactedOperationalFieldsV2"}],
+      "required": ["record_id", "mapping_artifact_root"],
+      "properties": {
+        "record_id": {"$ref": "#/$defs/canonicalNonEmptyText"},
+        "mapping_artifact_root": {"const": "[redacted: retained in canonical store]"}
       },
       "additionalProperties": true
     },

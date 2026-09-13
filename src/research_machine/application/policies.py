@@ -5540,6 +5540,7 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
     identifiers: set[str] = set()
     data_columns: dict[str, str] = {}
     observed_targets: list[tuple[MeasurementRole, str]] = []
+    alias_proxy_commitment_keys: set[tuple[str, str]] = set()
     for index, definition in enumerate(definitions):
         prefix = f"measurement_definitions[{index}]"
         measurement_id = require_canonical_text(
@@ -5576,6 +5577,16 @@ def validate_measurement_contract(protocol: ExperimentProtocol) -> None:
             require_canonical_text(name, f"{prefix}.parameter_values key")
             require_canonical_text(value, f"{prefix}.parameter_values[{name!r}]")
         _validate_alias_proxy_commitment(definition=definition, prefix=prefix)
+        if definition.alias_proxy_commitment is not None:
+            commitment_key = (
+                measurement_id,
+                definition.alias_proxy_commitment.commitment_id,
+            )
+            if commitment_key in alias_proxy_commitment_keys:
+                raise ValidationError(
+                    "alias_proxy_commitment commitment_id must be unique per measurement"
+                )
+            alias_proxy_commitment_keys.add(commitment_key)
         if (
             definition.temporal_role
             and definition.temporal_role not in MEASUREMENT_TEMPORAL_ROLES

@@ -25,6 +25,7 @@ OPERATIONAL_CONTEXT_KEYS = LEGACY_OPERATIONAL_CONTEXT_KEYS | {
     "current_synthesis_path",
     "evidence_artifact_root",
     "interpreter_path",
+    "mapping_artifact_root",
 }
 
 JSON_SELECTOR_KEYS = {

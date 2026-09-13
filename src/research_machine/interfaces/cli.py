@@ -24,6 +24,7 @@ from research_machine.application.commands import (
     RecordCrossLaneLesson,
     RecordEthicsReviewEvent,
     RecordEvidenceStatusEvent,
+    RecordAliasProxyMapping,
     RecordEvidence,
     ExportSherlockEvidence,
     RecordRun,
@@ -1000,6 +1001,15 @@ def build_parser() -> argparse.ArgumentParser:
     measurement_record.add_argument("--expected-receipt-sha256", required=True)
     measurement_record.add_argument("--artifact-root", type=Path, required=True)
     measurement_record.add_argument("--output", type=Path, required=True)
+    measurement_alias_record = measurement_commands.add_parser(
+        "record-alias-mapping",
+        help="Record private alias/proxy mapping custody against a frozen protocol",
+    )
+    measurement_alias_record.add_argument("--protocol", required=True)
+    measurement_alias_record.add_argument("--mapping-file", type=Path, required=True)
+    measurement_alias_record.add_argument("--artifact-root", type=Path, required=True)
+    measurement_alias_record.add_argument("--record-id")
+    _add_inquiry_option(measurement_alias_record)
     measurement_verify_record = measurement_commands.add_parser(
         "verify-record", help="Recompute a custody record from trusted hashes and local bytes"
     )
@@ -2634,6 +2644,42 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             args.output,
             actor=args.actor,
         )
+
+    if args.group == "measurement" and args.action == "record-alias-mapping":
+        spec = _read_json_object(
+            args.mapping_file,
+            allowed_fields={
+                "mappings",
+                "access_control_statement",
+                "reveal_policy_statement",
+                "limitations",
+            },
+            label="alias/proxy mapping custody",
+        )
+        mappings = spec.get("mappings")
+        if not isinstance(mappings, list) or any(
+            not isinstance(item, dict) for item in mappings
+        ):
+            raise ValueError("alias/proxy mappings must be an array of objects")
+        for field_name in (
+            "access_control_statement",
+            "reveal_policy_statement",
+            "limitations",
+        ):
+            if field_name not in spec:
+                raise ValueError(f"alias/proxy mapping custody lacks {field_name}")
+        return service.record_alias_proxy_mapping(
+            RecordAliasProxyMapping(
+                protocol_id=args.protocol,
+                mappings=mappings,
+                mapping_artifact_root=str(args.artifact_root),
+                access_control_statement=spec["access_control_statement"],
+                reveal_policy_statement=spec["reveal_policy_statement"],
+                limitations=spec["limitations"],
+                record_id=args.record_id,
+            ),
+            args.inquiry,
+        ).to_dict()
 
     if args.group == "measurement" and args.action == "verify-record":
         service.measurement_custody_template(args.protocol, args.inquiry)

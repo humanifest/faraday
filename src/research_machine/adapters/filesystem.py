@@ -17,6 +17,7 @@ from research_machine.domain.errors import (
 )
 from research_machine.domain.models import (
     ActionRecommendation,
+    AliasProxyMappingRecord,
     Claim,
     CrossLaneLesson,
     DatasetManifest,
@@ -98,6 +99,7 @@ class FileSystemRepository:
             "cross_lane_lessons",
             "evidence",
             "ethics_review_events",
+            "alias_proxy_mapping_records",
             "evidence_status_events",
             "reports",
         ):
@@ -332,6 +334,33 @@ class FileSystemRepository:
             protocols,
             key=lambda item: (item.protocol_family_id, item.version),
         )
+
+    def save_alias_proxy_mapping_record(
+        self, inquiry_id: str, record: AliasProxyMappingRecord
+    ) -> None:
+        self._validate_id(record.record_id, "alias proxy mapping record_id")
+        directory = self._inquiry_dir(inquiry_id) / "alias_proxy_mapping_records"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{record.record_id}.json"
+        if path.exists():
+            raise ConflictError(
+                f"alias/proxy mapping record {record.record_id} already exists"
+            )
+        self._atomic_json(path, record.to_dict())
+
+    def list_alias_proxy_mapping_records(
+        self, inquiry_id: str, protocol_id: str | None = None
+    ) -> list[AliasProxyMappingRecord]:
+        directory = self._inquiry_dir(inquiry_id) / "alias_proxy_mapping_records"
+        if not directory.is_dir():
+            return []
+        records = [
+            AliasProxyMappingRecord.from_dict(self._read_json(path))
+            for path in sorted(directory.glob("*.json"))
+        ]
+        if protocol_id is not None:
+            records = [item for item in records if item.protocol_id == protocol_id]
+        return sorted(records, key=lambda item: (item.protocol_id, item.record_id))
 
     def save_run(self, inquiry_id: str, run: ResearchRun) -> None:
         self._validate_id(run.run_id, "run_id")

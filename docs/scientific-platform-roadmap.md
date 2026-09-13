@@ -1055,6 +1055,17 @@ and rejects unsupported scopes or overclaiming rationale. The published protocol
 schema exposes the same shape for provider-neutral clients. This allows a study
 to protect the real target while preventing post-freeze remapping; it does not
 prove proxy validity or authenticate the private mapping source.
+Alias/proxy mapping-custody delivery: the canonical service now records a
+write-once `AliasProxyMappingRecord` through `research measurement
+record-alias-mapping`. It verifies each private mapping file under a local
+artifact root against the frozen `private_mapping_sha256`, binds the receipt to
+the exact frozen protocol hash, records access-control and reveal-policy text
+plus limitations, and replays current bytes on authoritative reads. Runs under a
+protocol with alias/proxy commitments remain non-evidence-eligible until a
+matching private mapping record replays; rigor and synthesis expose missing,
+invalid, or recorded custody without revealing the private mapping. Collaborator
+context and metadata-only replication packages redact the operational mapping
+root and mapping locators while retaining hashes and public labels.
 Prospective measurement-validity delivery: confirmatory guided designs now
 require at least one structured validity check with a stable ID, evidence type,
 specific validity claim, assessment procedure, acceptance criterion, failure

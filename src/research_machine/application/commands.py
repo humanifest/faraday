@@ -37,6 +37,17 @@ from research_machine.domain.models import (
 
 
 @dataclass(frozen=True)
+class RecordAliasProxyMapping:
+    protocol_id: str
+    mappings: list[dict[str, object]]
+    mapping_artifact_root: str
+    access_control_statement: str
+    reveal_policy_statement: str
+    limitations: list[str]
+    record_id: str | None = None
+
+
+@dataclass(frozen=True)
 class RecordEthicsReviewEvent:
     protocol_id: str
     status: str

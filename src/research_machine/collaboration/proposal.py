@@ -227,6 +227,7 @@ _CONTEXT_REFERENCE_PREFIXES = {
     "evidence": "evidence:",
     "dataset": "dataset:",
     "protocol": "protocol:",
+    "alias_proxy_mapping_record": "alias_proxy_mapping_record:",
     "run": "run:",
     "evidence_status_event": "evidence_status_event:",
     "ethics_review_event": "ethics_review_event:",
@@ -237,6 +238,7 @@ _CONTEXT_RECORD_COLLECTIONS = {
     "evidence_status_events": ("evidence_status_event:", "event_id"),
     "datasets": ("dataset:", "dataset_id"),
     "protocols": ("protocol:", "protocol_id"),
+    "alias_proxy_mapping_records": ("alias_proxy_mapping_record:", "record_id"),
     "runs": ("run:", "run_id"),
     "ethics_review_events": ("ethics_review_event:", "event_id"),
 }
