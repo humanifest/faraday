@@ -401,9 +401,38 @@ def test_dataset_inventory_schema_accepts_builder_payloads():
     populated_inventory = build_dataset_inventory(
         [exploratory, protected], [protocol], [finding]
     )
+    invalid_metadata = deepcopy(protected.metadata)
+    invalid_metadata["workflow_materialization_verification"][
+        "scientific_evidence_eligible"
+    ] = True
+    invalid_workflow = DatasetManifest(
+        dataset_id="invalid-workflow-schema-fixture",
+        name="Invalid workflow schema fixture",
+        role=DatasetRole.CONFIRMATORY,
+        created_at="2026-09-13T00:00:00Z",
+        artifacts=[DatasetArtifact("observations.csv", "d" * 64, 13, "text/csv")],
+        protocol_id=protocol.protocol_id,
+        synthetic=False,
+        metadata=invalid_metadata,
+    )
+    invalid_inventory = build_dataset_inventory(
+        [invalid_workflow],
+        [protocol],
+        [
+            RigorFinding(
+                code="DATASET_WORKFLOW_MATERIALIZATION_INVALID",
+                severity=RigorSeverity.ERROR,
+                message="Invalid workflow materialization fixture.",
+                entity_type="dataset",
+                entity_id=invalid_workflow.dataset_id,
+                remediation="Do not trust the materialized workflow byte chain.",
+            )
+        ],
+    )
 
     jsonschema.validate(empty_inventory, schema)
     jsonschema.validate(populated_inventory, schema)
+    jsonschema.validate(invalid_inventory, schema)
     protected_row = next(
         row for row in populated_inventory["datasets"]
         if row["dataset_id"] == protected.dataset_id
@@ -414,6 +443,9 @@ def test_dataset_inventory_schema_accepts_builder_payloads():
     assert workflow["status"] == "source_receipts_replayed"
     assert workflow["source_count"] == 2
     assert workflow["scientific_evidence_eligible"] is False
+    invalid_workflow_row = invalid_inventory["datasets"][0]["workflow_materialization"]
+    assert invalid_workflow_row["status"] == "invalid_metadata"
+    assert invalid_workflow_row["scientific_evidence_eligible"] is False
 
 
 def test_dataset_inventory_schema_requires_operational_root_redaction():

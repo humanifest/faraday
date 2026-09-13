@@ -618,7 +618,9 @@
         "summary"
       ],
       "properties": {
-        "status": {"enum": ["not_recorded", "source_receipts_replayed"]},
+        "status": {
+          "enum": ["not_recorded", "source_receipts_replayed", "invalid_metadata"]
+        },
         "service_verified": {"type": "boolean"},
         "source_receipts_replayed": {"type": "boolean"},
         "scientific_evidence_eligible": {"const": false},

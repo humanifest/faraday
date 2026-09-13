@@ -13,7 +13,7 @@ from research_machine.domain.models import (
 from research_machine.application.dataset_source_authority import (
     dataset_source_authority_status,
 )
-from research_machine.domain.errors import ValidationError
+from research_machine.domain.errors import ResearchMachineError, ValidationError
 
 
 INTERPRETATION_LIMIT = (
@@ -29,6 +29,10 @@ WORKFLOW_MATERIALIZATION_LIMIT = (
     "Local Holm-family byte-chain replay only; not evidence eligibility, "
     "scientific interpretation, chronology authentication, executor "
     "independence, gate success, or source-data truth."
+)
+INVALID_WORKFLOW_MATERIALIZATION_SUMMARY = (
+    "workflow materialization metadata invalid; local byte-chain not trusted "
+    "until the dataset rigor finding is resolved"
 )
 _WORKFLOW_MATERIALIZATION_SCOPE = (
     "Holm-family materialization from pinned source execution receipts and "
@@ -276,6 +280,22 @@ def dataset_workflow_materialization_status(
     }
 
 
+def _invalid_workflow_materialization() -> dict[str, Any]:
+    return {
+        "status": "invalid_metadata",
+        "service_verified": False,
+        "source_receipts_replayed": False,
+        "scientific_evidence_eligible": False,
+        "scientific_interpretation_verified": False,
+        "family_step_id": "",
+        "family_id": "",
+        "source_count": 0,
+        "output_sha256": None,
+        "row_count": 0,
+        "summary": INVALID_WORKFLOW_MATERIALIZATION_SUMMARY,
+    }
+
+
 def _ethics_context(
     dataset: DatasetManifest, protocol: ExperimentProtocol | None
 ) -> dict[str, Any]:
@@ -442,6 +462,12 @@ def build_dataset_inventory(
                 for artifact in dataset.artifacts
             }
         )
+        try:
+            workflow_materialization = dataset_workflow_materialization_status(
+                dataset
+            )
+        except ResearchMachineError:
+            workflow_materialization = _invalid_workflow_materialization()
         rows.append(
             {
                 "dataset_id": dataset.dataset_id,
@@ -457,9 +483,7 @@ def build_dataset_inventory(
                 "payload_commitment": _payload_commitment(dataset),
                 "observation_access": _observation_access(dataset),
                 "measurement_custody": _measurement_custody(dataset, protocol),
-                "workflow_materialization": dataset_workflow_materialization_status(
-                    dataset
-                ),
+                "workflow_materialization": workflow_materialization,
                 "ethics": _ethics_context(dataset, protocol),
                 "rigor_findings": [
                     _finding_summary(finding) for finding in current_findings

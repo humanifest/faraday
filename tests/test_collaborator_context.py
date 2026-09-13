@@ -894,6 +894,82 @@ def test_context_snapshot_replays_dataset_inventory_consistency(
     assert not (tmp_path / "context").exists()
 
 
+def test_context_snapshot_accepts_invalid_workflow_materialization_boundary(
+    tmp_path: Path,
+) -> None:
+    service = ResearchService(FileSystemRepository(tmp_path), actor="test")
+    service.init_workspace()
+    inquiry = service.create_inquiry(
+        CreateInquiry(
+            "Workflow review",
+            "Can invalid workflow provenance be reviewed?",
+            "dataset",
+        )
+    )
+    service.register_dataset(
+        RegisterDataset(
+            dataset_id="context-dataset",
+            name="Context dataset",
+            role=DatasetRole.EXPLORATORY,
+            artifacts=[
+                DatasetArtifact(
+                    "context.csv",
+                    hashlib.sha256(b"unit,outcome\nu1,1\n").hexdigest(),
+                    18,
+                    "text/csv",
+                )
+            ],
+            synthetic=True,
+            quality_attestations=["Synthetic collaborator-context fixture."],
+        ),
+        inquiry.inquiry_id,
+    )
+    context = service.collaborator_context(
+        inquiry.inquiry_id,
+        purpose="Review workflow provenance boundaries.",
+    )
+    workflow = context["dataset_inventory"]["datasets"][0][
+        "workflow_materialization"
+    ]
+    workflow.update(
+        {
+            "status": "invalid_metadata",
+            "service_verified": False,
+            "source_receipts_replayed": False,
+            "scientific_evidence_eligible": False,
+            "scientific_interpretation_verified": False,
+            "family_step_id": "",
+            "family_id": "",
+            "source_count": 0,
+            "output_sha256": None,
+            "row_count": 0,
+            "summary": (
+                "workflow materialization metadata invalid; local byte-chain "
+                "not trusted until the dataset rigor finding is resolved"
+            ),
+        }
+    )
+
+    snapshot = create_context_snapshot(context, tmp_path / "context")
+    frozen = json.loads(Path(snapshot["context_file"]).read_text(encoding="utf-8"))
+    frozen_workflow = frozen["dataset_inventory"]["datasets"][0][
+        "workflow_materialization"
+    ]
+    assert frozen_workflow["status"] == "invalid_metadata"
+    assert frozen_workflow["service_verified"] is False
+    assert frozen_workflow["source_receipts_replayed"] is False
+    assert frozen_workflow["scientific_evidence_eligible"] is False
+
+    tampered = copy.deepcopy(context)
+    tampered["dataset_inventory"]["datasets"][0]["workflow_materialization"][
+        "source_receipts_replayed"
+    ] = True
+    with pytest.raises(
+        ValidationError, match="must not claim workflow verification when not trusted"
+    ):
+        create_context_snapshot(tampered, tmp_path / "tampered-context")
+
+
 def test_context_snapshot_replays_typed_source_authority_boundary(
     tmp_path: Path,
 ) -> None:

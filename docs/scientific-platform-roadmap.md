@@ -776,7 +776,11 @@ local-byte-chain limitation notice rather than becoming a scientific-success
 claim. Rigor audit rejects malformed or overclaiming materialization metadata,
 so this bounded local-byte-chain path cannot silently become evidence
 eligibility, scientific interpretation, chronology authentication, executor
-independence, or source-data truth.
+independence, or source-data truth. Dataset inventory, synthesis, and
+collaborator contexts preserve malformed workflow materialization as an
+explicit `invalid_metadata` status with all authority flags false, so the
+dataset-scoped rigor blocker remains visible instead of crashing reports or
+trusting the receipt.
 Canonical run drafting and intake now understand confirmatory-test and
 multiplicity receipts. Intake revalidates the frozen step and local bytes, then
 requires exact agreement among the handoff, submitted protocol, sole dataset,
@@ -2869,7 +2873,10 @@ validity, or evidence eligibility. Rigor audit now reports malformed
 source-authority metadata and malformed or overclaiming workflow-materialization
 metadata as errors and warns when a non-synthetic protected dataset lacks a
 typed source route, keeping connector, experiment, or workflow provenance gaps
-visible instead of letting byte-level checks imply source authority. This
+visible instead of letting byte-level checks imply source authority. Inventory,
+synthesis, and collaborator context reports render invalid workflow
+materialization as an untrusted `invalid_metadata` state rather than suppressing
+the row or accepting the byte chain. This
 makes routine "what data do we have?"
 questions answerable from canonical state without promoting manifest
 declarations into proof of current access, source truth, consent truth,

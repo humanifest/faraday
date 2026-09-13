@@ -274,6 +274,10 @@ _NOT_RECORDED_SOURCE_AUTHORITY_SUMMARY = (
 _NOT_RECORDED_WORKFLOW_MATERIALIZATION_SUMMARY = (
     "no workflow materialization verification recorded"
 )
+_INVALID_WORKFLOW_MATERIALIZATION_SUMMARY = (
+    "workflow materialization metadata invalid; local byte-chain not trusted "
+    "until the dataset rigor finding is resolved"
+)
 _WORKFLOW_MATERIALIZATION_LIMIT = (
     "Local Holm-family byte-chain replay only; not evidence eligibility, "
     "scientific interpretation, chronology authentication, executor "
@@ -1003,7 +1007,11 @@ def _validate_dataset_inventory_workflow_materialization(
         f"collaborator context {path}",
     )
     status = _canonical_text(value["status"], f"{path}.status")
-    if status not in {"not_recorded", "source_receipts_replayed"}:
+    if status not in {
+        "not_recorded",
+        "source_receipts_replayed",
+        "invalid_metadata",
+    }:
         raise ValidationError(f"collaborator context {path}.status is unsupported")
     for field in (
         "service_verified",
@@ -1034,26 +1042,31 @@ def _validate_dataset_inventory_workflow_materialization(
         raise ValidationError(
             f"collaborator context {path} source_count and row_count must be non-negative integers"
         )
-    if status == "not_recorded":
+    if status in {"not_recorded", "invalid_metadata"}:
         if value["service_verified"] is not False or value["source_receipts_replayed"] is not False:
             raise ValidationError(
-                f"collaborator context {path} must not claim workflow verification when not recorded"
+                f"collaborator context {path} must not claim workflow verification when not trusted"
             )
         if value["family_step_id"] != "" or value["family_id"] != "":
             raise ValidationError(
-                f"collaborator context {path} identifiers must be blank when not recorded"
+                f"collaborator context {path} identifiers must be blank when not trusted"
             )
         if value["output_sha256"] is not None:
             raise ValidationError(
-                f"collaborator context {path}.output_sha256 must be null when not recorded"
+                f"collaborator context {path}.output_sha256 must be null when not trusted"
             )
         if source_count != 0 or row_count != 0:
             raise ValidationError(
-                f"collaborator context {path} counts must be zero when not recorded"
+                f"collaborator context {path} counts must be zero when not trusted"
             )
-        if value["summary"] != _NOT_RECORDED_WORKFLOW_MATERIALIZATION_SUMMARY:
+        expected_summary = (
+            _NOT_RECORDED_WORKFLOW_MATERIALIZATION_SUMMARY
+            if status == "not_recorded"
+            else _INVALID_WORKFLOW_MATERIALIZATION_SUMMARY
+        )
+        if value["summary"] != expected_summary:
             raise ValidationError(
-                f"collaborator context {path}.summary must preserve the not-recorded workflow boundary"
+                f"collaborator context {path}.summary must preserve the untrusted workflow boundary"
             )
         return
     if value["service_verified"] is not True or value["source_receipts_replayed"] is not True:

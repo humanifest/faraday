@@ -341,6 +341,133 @@ def test_synthesis_reports_registered_dataset_inventory_without_overclaiming() -
     assert "/tmp/private-materialization" not in synthesis
 
 
+def test_dataset_inventory_exposes_invalid_workflow_materialization() -> None:
+    inquiry = Inquiry(
+        inquiry_id="invalid-workflow-inventory",
+        title="Invalid workflow inventory",
+        initial_statement=(
+            "Can malformed workflow materialization hide a rigor blocker?"
+        ),
+        created_at="2026-09-10T00:00:00Z",
+    )
+    protocol = ExperimentProtocol(
+        protocol_id="protocol-v1",
+        protocol_family_id="protocol",
+        version=1,
+        experiment_id="inventory-test",
+        title="Inventory test",
+        analysis_mode=AnalysisMode.CONFIRMATORY,
+        hypotheses_tested=[],
+        primary_outcome="Outcome",
+        created_at="2026-09-10T00:00:00Z",
+        created_by="test",
+        protocol_kind=ProtocolKind.OBSERVATIONAL,
+        quality_requirements=["gate"],
+        controls=["control"],
+        sample_size_or_stopping_rule="synthetic fixture",
+        status=ProtocolStatus.FROZEN,
+        protocol_hash="c" * 64,
+    )
+    dataset = DatasetManifest(
+        dataset_id="invalid-workflow-register",
+        name="Invalid workflow register",
+        role=DatasetRole.CONFIRMATORY,
+        created_at="2026-09-10T00:00:00Z",
+        artifacts=[DatasetArtifact("observations.csv", "b" * 64, 12, "text/csv")],
+        protocol_id=protocol.protocol_id,
+        synthetic=False,
+        metadata={
+            "dataset_payload_sha256": "e" * 64,
+            "source_authority": {
+                "source_type": "registered_experiment",
+                "source_name": "Inventory fixture experiment",
+                "source_record_id": "inventory-fixture-1",
+                "retrieved_or_collected_at": "2026-09-10T00:00:00Z",
+                "limitations": ["Synthetic software fixture only."],
+            },
+            "dataset_artifact_verification": {
+                "artifact_integrity": {
+                    "status": "passed",
+                    "all_artifacts_match": True,
+                },
+            },
+            "workflow_materialization_verification": {
+                "verification_version": 1,
+                "verified_at": "2026-09-10T00:00:00Z",
+                "verified_by": "test",
+                "status": "workflow_materialization_verified",
+                "protocol_id": protocol.protocol_id,
+                "protocol_hash": protocol.protocol_hash,
+                "family_step_id": "holm-family",
+                "family_id": "confirmatory-family",
+                "dependency_manifest": {},
+                "materialization": {},
+                "output": {
+                    "locator": "observations.csv",
+                    "sha256": "b" * 64,
+                    "size_bytes": 12,
+                    "row_count": 1,
+                },
+                "verified_sources": [{"source_step_id": "test-a"}],
+                "scope": (
+                    "Holm-family materialization from pinned source execution receipts "
+                    "and registered p-value selectors"
+                ),
+                "scientific_evidence_eligible": True,
+                "scientific_interpretation_verified": False,
+                "notice": (
+                    "Verifies local source receipt/result bytes and registered p-value selectors; "
+                    "it does not authenticate chronology, executors, scientific gates, or "
+                    "source data truth."
+                ),
+            },
+        },
+    )
+    audit = audit_research_state(
+        inquiry=inquiry,
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[dataset],
+        protocols=[protocol],
+        runs=[],
+    )
+
+    inventory = build_dataset_inventory([dataset], [protocol], audit.findings)
+    row = inventory["datasets"][0]
+
+    assert "DATASET_WORKFLOW_MATERIALIZATION_INVALID" in {
+        finding.code for finding in audit.findings
+    }
+    assert row["workflow_materialization"]["status"] == "invalid_metadata"
+    assert row["workflow_materialization"]["service_verified"] is False
+    assert row["workflow_materialization"]["source_receipts_replayed"] is False
+    assert row["workflow_materialization"]["scientific_evidence_eligible"] is False
+    assert row["workflow_materialization"]["output_sha256"] is None
+    assert row["readiness"]["status"] == "protected_use_blocked_by_rigor"
+    assert "DATASET_WORKFLOW_MATERIALIZATION_INVALID" in row["readiness"][
+        "blocking_finding_codes"
+    ]
+
+    synthesis = build_synthesis(
+        inquiry,
+        questions=[],
+        claims=[],
+        hypotheses=[],
+        evidence=[],
+        datasets=[dataset],
+        protocols=[protocol],
+        runs=[],
+        recommendations=[],
+        cross_lane_lessons=[],
+        rigor_audit=audit,
+        evidence_status_events=[],
+    )
+    assert "workflow materialization metadata invalid" in synthesis
+    assert "DATASET_WORKFLOW_MATERIALIZATION_INVALID" in synthesis
+    assert "local byte-chain not trusted" in synthesis
+
+
 def test_synthesis_dataset_inventory_explicitly_excludes_unregistered_sources() -> None:
     inquiry = Inquiry(
         inquiry_id="empty-inventory",

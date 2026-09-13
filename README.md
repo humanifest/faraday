@@ -129,7 +129,10 @@ p-value-selector hashes, and continue carrying the explicit local-byte-chain
 limitations. The rigor audit also rejects malformed or overclaiming
 workflow-materialization metadata, so a local byte chain cannot silently become
 evidence eligibility, scientific interpretation, chronology authentication,
-executor independence, or source-data truth.
+executor independence, or source-data truth. Dataset inventory, deterministic
+synthesis, and collaborator contexts carry malformed workflow materialization as
+an explicit `invalid_metadata` status with all authority flags false, preserving
+the rigor blocker instead of trusting or suppressing the receipt.
 
 Executable measurement definitions now freeze canonical measurement IDs,
 registered targets, observable semantics, parameter bindings, temporal roles,
@@ -2352,9 +2355,12 @@ gate evidence.
   rejects attempts to treat that route as verified truth, custody, or evidence
   eligibility. The rigor audit flags malformed source-authority metadata and
   malformed or overclaiming workflow-materialization metadata as errors, and it
-  warns when a non-synthetic protected dataset lacks a typed source route, so
-  connector, experiment, or workflow provenance gaps remain visible even when
-  other byte-level checks pass. Run intake replays the same source-authority
+  warns when a non-synthetic protected dataset lacks a typed source route. The
+  inventory and synthesis paths render invalid workflow materialization as an
+  untrusted `invalid_metadata` status rather than raising or treating the byte
+  chain as verified, so connector, experiment, or workflow provenance gaps
+  remain visible even when other byte-level checks pass. Run intake replays the
+  same source-authority
   boundary for every selected dataset and protected lineage ancestor before a
   dataset can be used, and evidence admission replays the cited dataset or every
   run dataset before accepting or replaying dataset-backed evidence.
