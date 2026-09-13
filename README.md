@@ -1226,7 +1226,9 @@ The explicit identity keys
 `home`, `home_dir`, `host`, `host_id`, `host_name`, `hostname`, `machine_name`,
 `user_id`, `user_name`, and `username` are redacted when nonempty. Ordinary
 scientific prose is not interpreted as a filesystem path, so identifiers such as
-`X:12345` remain byte-for-byte. JSON
+`X:12345` remain byte-for-byte. Artifact-metadata property names containing C0
+or DEL controls fail closed in projection, runtime freezing, and the schema;
+ordinary scientific values are not scanned or rewritten. JSON
 result selectors are selectors, not filesystem paths, and remain intact. The
 published schema and runtime enforce the same closed artifact shape and recursive
 metadata rules. Other context record types remain intentionally extensible;

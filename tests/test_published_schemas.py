@@ -8,6 +8,13 @@ import pytest
 jsonschema = pytest.importorskip("jsonschema")
 SCHEMAS = Path(__file__).resolve().parents[1] / "schemas"
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
+_CONTROL_CHARACTERS = [chr(codepoint) for codepoint in range(0x20)] + [chr(0x7F)]
+_CONTROL_KEY_TEMPLATES = [
+    "{control}_path",
+    "{control}source_path",
+    "source{control}_path",
+    "source_path{control}",
+]
 from research_machine.addons.general_science import MANIFEST
 from research_machine.application.dataset_inventory import build_dataset_inventory
 from research_machine.domain.models import (
@@ -1259,6 +1266,57 @@ def test_collaborator_context_v2_schema_recurses_typed_artifact_metadata():
     ] = "[redacted: retained in canonical store]"
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(artifact_extension, schema)
+
+
+@pytest.mark.parametrize(
+    "control",
+    _CONTROL_CHARACTERS,
+    ids=lambda value: f"U+{ord(value):04X}",
+)
+@pytest.mark.parametrize(
+    "key_template",
+    _CONTROL_KEY_TEMPLATES,
+    ids=["minimal-leading", "leading", "embedded", "trailing"],
+)
+def test_collaborator_context_v2_schema_rejects_control_bearing_metadata_keys(
+    control: str, key_template: str
+) -> None:
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    context["datasets"] = [{
+        "dataset_id": "metadata-control-fixture",
+        "artifacts": [{
+            "locator": "[redacted: retained in canonical store]",
+            "sha256": "a" * 64,
+            "metadata": {key_template.format(control=control): "scientific value"},
+        }],
+    }]
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(context, schema)
+
+
+def test_collaborator_context_v2_schema_preserves_controls_in_values_and_selectors():
+    schema = json.loads((SCHEMAS / "collaborator-context.schema.json").read_text())
+    context = json.loads((EXAMPLES / "collaborator-context.json").read_text())
+    scientific_value = "measurement:" + "".join(_CONTROL_CHARACTERS)
+    selector = {
+        "source\n_path": scientific_value,
+        "pointer": "/results/effect/estimate",
+    }
+    context["datasets"] = [{
+        "dataset_id": "metadata-value-control-fixture",
+        "artifacts": [{
+            "locator": "[redacted: retained in canonical store]",
+            "sha256": "a" * 64,
+            "metadata": {
+                "note": scientific_value,
+                "effect_estimate_path": selector,
+            },
+        }],
+    }]
+
+    jsonschema.validate(context, schema)
 
 
 def test_collaborator_context_schema_keeps_v1_local_locator_shape_replayable():

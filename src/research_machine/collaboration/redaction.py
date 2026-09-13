@@ -6,6 +6,8 @@ import re
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
+from research_machine.domain.errors import ValidationError
+
 COLLABORATOR_CONTEXT_REDACTION_MARKER = "[redacted: retained in canonical store]"
 
 # Version 1 replay is immutable. Keep its original exact operational-key set.
@@ -151,6 +153,11 @@ def redact_collaborator_context(
 
     projected: dict[str, Any] = {}
     for key, item in value.items():
+        if _dataset_artifact and _metadata and contains_forbidden_control(key):
+            raise ValidationError(
+                "collaborator dataset artifact metadata property names must not "
+                "contain C0 or DEL control characters"
+            )
         if key in OPERATIONAL_CONTEXT_KEYS:
             if _dataset_artifact and _metadata and is_typed_metadata_location_key(key):
                 projected[key] = COLLABORATOR_CONTEXT_REDACTION_MARKER

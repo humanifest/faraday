@@ -22,6 +22,7 @@ from research_machine.collaboration.redaction import (
     JSON_SELECTOR_KEYS,
     LEGACY_OPERATIONAL_CONTEXT_KEYS,
     OPERATIONAL_CONTEXT_KEYS,
+    contains_forbidden_control,
     is_safe_logical_locator,
     is_typed_metadata_location_key,
 )
@@ -692,6 +693,11 @@ def _validate_context_operational_redaction(
     if isinstance(value, dict):
         for key, item in value.items():
             child_path = f"{path}.{key}" if path else key
+            if dataset_artifact and metadata and contains_forbidden_control(key):
+                raise ValidationError(
+                    "collaborator context dataset artifact metadata property name "
+                    f"at {child_path!r} must not contain C0 or DEL control characters"
+                )
             operational_keys = (
                 LEGACY_OPERATIONAL_CONTEXT_KEYS
                 if context_version == 1

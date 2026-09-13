@@ -1588,6 +1588,8 @@ tilde/backslash, percent-encoded, and control-bearing forms. Ordinary prose is
 not scanned for path-like substrings, and JSON result selectors remain intact.
 The explicit identity-key set is `home`, `home_dir`, `host`, `host_id`,
 `host_name`, `hostname`, `machine_name`, `user_id`, `user_name`, and `username`.
+Artifact-metadata property names containing C0 or DEL controls fail closed at
+projection, runtime freeze, and schema validation; ordinary values remain exact.
 Schema and runtime close the artifact surface identically; other context record
 types remain intentionally open, with runtime validation covering typed extension
 fields. This projection never rewrites the canonical dataset manifest, while

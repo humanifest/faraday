@@ -457,6 +457,8 @@ canonical write path.
   path/locator fields may retain only strict logical relative values. Redact the
   explicit identity keys `home`, `home_dir`, `host`, `host_id`, `host_name`,
   `hostname`, `machine_name`, `user_id`, `user_name`, and `username`.
+  Reject C0 and DEL controls in artifact-metadata property names; do not scan or
+  rewrite ordinary scientific values.
   Do not scan ordinary scientific prose for path-like substrings, reinterpret JSON
   selectors as filesystem paths, substitute a basename as provenance, or rewrite
   canonical dataset state. Preserve exact historical version-1 replay semantics.

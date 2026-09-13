@@ -14,7 +14,10 @@ from research_machine.collaboration.proposal import (
     verify_collaborator_proposal_record,
     verify_collaborator_review_record,
 )
-from research_machine.collaboration.redaction import COLLABORATOR_CONTEXT_REDACTION_MARKER
+from research_machine.collaboration.redaction import (
+    COLLABORATOR_CONTEXT_REDACTION_MARKER,
+    redact_collaborator_context,
+)
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import (
     AddClaim,
@@ -67,6 +70,13 @@ _EMPTY_DATASET_INVENTORY = {
     ),
     "datasets": [],
 }
+_CONTROL_CHARACTERS = [chr(codepoint) for codepoint in range(0x20)] + [chr(0x7F)]
+_CONTROL_KEY_TEMPLATES = [
+    "{control}_path",
+    "{control}source_path",
+    "source{control}_path",
+    "source_path{control}",
+]
 
 
 def _context(
@@ -138,6 +148,35 @@ def _context(
                 context.setdefault("ethics_review_events", []).append(
                     {"event_id": ref.removeprefix("ethics_review_event:")}
                 )
+    return context
+
+
+def _context_with_artifact_metadata(metadata: dict) -> dict:
+    dataset_id = "metadata-key-fixture"
+    context = _context(
+        context_reference_index=[{"ref": f"dataset:{dataset_id}", "kind": "dataset"}]
+    )
+    context["datasets"][0]["artifacts"] = [{
+        "locator": COLLABORATOR_CONTEXT_REDACTION_MARKER,
+        "sha256": "a" * 64,
+        "metadata": metadata,
+    }]
+    context["dataset_inventory"].update({
+        "registered_dataset_count": 1,
+        "role_counts": {"exploratory": 1},
+        "synthetic_count": 1,
+        "empty_inventory_notice": "",
+        "datasets": [{
+            "dataset_id": dataset_id,
+            "role": "exploratory",
+            "synthetic": True,
+            "protocol_id": None,
+            "observation_access": {"status": "synthetic_fixture"},
+            "readiness": {"status": "not_protected_evidence_dataset"},
+            "rigor_error_codes": [],
+            "operational_roots_redacted": True,
+        }],
+    })
     return context
 
 
@@ -430,6 +469,48 @@ def test_v2_dataset_locators_are_always_redacted_and_replay_stable(
     assert verify_collaborator_proposal_record(
         Path(second_record["record_file"]), second_record["record_sha256"]
     )["record_status"] == "pending_human_review"
+
+
+@pytest.mark.parametrize(
+    "control",
+    _CONTROL_CHARACTERS,
+    ids=lambda value: f"U+{ord(value):04X}",
+)
+@pytest.mark.parametrize(
+    "key_template",
+    _CONTROL_KEY_TEMPLATES,
+    ids=["minimal-leading", "leading", "embedded", "trailing"],
+)
+def test_v2_artifact_metadata_control_bearing_keys_fail_closed_everywhere(
+    tmp_path: Path, control: str, key_template: str
+) -> None:
+    key = key_template.format(control=control)
+    context = _context_with_artifact_metadata({key: "scientific value"})
+
+    with pytest.raises(ValidationError, match="metadata property names"):
+        redact_collaborator_context(context)
+    with pytest.raises(ValidationError, match="metadata property name"):
+        create_context_snapshot(context, tmp_path / "context")
+
+
+def test_v2_artifact_metadata_controls_in_values_and_selectors_remain_exact(
+    tmp_path: Path,
+) -> None:
+    scientific_value = "measurement:" + "".join(_CONTROL_CHARACTERS)
+    selector = {
+        "source\n_path": scientific_value,
+        "pointer": "/results/effect/estimate",
+    }
+    context = _context_with_artifact_metadata({
+        "note": scientific_value,
+        "effect_estimate_path": selector,
+    })
+
+    projected = redact_collaborator_context(context)
+    metadata = projected["datasets"][0]["artifacts"][0]["metadata"]
+    assert metadata["note"] == scientific_value
+    assert metadata["effect_estimate_path"] == selector
+    create_context_snapshot(projected, tmp_path / "context")
 
 
 @pytest.mark.parametrize(
