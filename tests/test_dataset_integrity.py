@@ -235,6 +235,58 @@ def test_synthesis_reports_registered_dataset_inventory_without_overclaiming() -
                     "all_artifacts_match": True,
                 },
             },
+            "workflow_materialization_verification": {
+                "verification_version": 1,
+                "verified_at": "2026-09-10T00:00:00Z",
+                "verified_by": "test",
+                "status": "workflow_materialization_verified",
+                "protocol_id": protocol.protocol_id,
+                "protocol_hash": protocol.protocol_hash,
+                "family_step_id": "holm-family",
+                "family_id": "confirmatory-family",
+                "dependency_manifest": {
+                    "artifact_root": "/tmp/private-workflow-sources",
+                    "locator": "dependencies.json",
+                    "sha256": "1" * 64,
+                },
+                "materialization": {
+                    "artifact_root": "/tmp/private-materialization",
+                    "receipt_sha256": "2" * 64,
+                },
+                "output": {
+                    "locator": "observations.csv",
+                    "sha256": "b" * 64,
+                    "size_bytes": 12,
+                    "row_count": 2,
+                },
+                "verified_sources": [
+                    {
+                        "source_step_id": "test-a",
+                        "receipt_sha256": "3" * 64,
+                        "result_sha256": "4" * 64,
+                        "p_value_path": "/p_value",
+                        "p_value_sha256": "5" * 64,
+                    },
+                    {
+                        "source_step_id": "test-b",
+                        "receipt_sha256": "6" * 64,
+                        "result_sha256": "7" * 64,
+                        "p_value_path": "/p_value",
+                        "p_value_sha256": "8" * 64,
+                    },
+                ],
+                "scope": (
+                    "Holm-family materialization from pinned source execution receipts "
+                    "and registered p-value selectors"
+                ),
+                "scientific_evidence_eligible": False,
+                "scientific_interpretation_verified": False,
+                "notice": (
+                    "Verifies local source receipt/result bytes and registered p-value selectors; "
+                    "it does not authenticate chronology, executors, scientific gates, or "
+                    "source data truth."
+                ),
+            },
         },
     )
 
@@ -277,12 +329,16 @@ def test_synthesis_reports_registered_dataset_inventory_without_overclaiming() -
         "protocol `protocol-v1`]"
     ) in synthesis
     assert "registered observation bytes service-verified under retained local custody" in synthesis
+    assert "workflow materialization: Local Holm-family byte-chain replay only" in synthesis
+    assert "not evidence eligibility, scientific interpretation" in synthesis
     assert "No dataset-scoped rigor blockers were detected by the current audit" in synthesis
     assert (
         "not proof of source truth, consent truth, measurement validity, "
         "or analysis adequacy"
     ) in synthesis
     assert "/tmp/private-observations" not in synthesis
+    assert "/tmp/private-workflow-sources" not in synthesis
+    assert "/tmp/private-materialization" not in synthesis
 
 
 def test_synthesis_dataset_inventory_explicitly_excludes_unregistered_sources() -> None:

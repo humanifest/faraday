@@ -199,6 +199,7 @@ def _dataset_inventory_lines(inventory: dict[str, object]) -> list[str]:
         source_authority = dataset.get("source_authority", {})
         observation = dataset.get("observation_access", {})
         custody = dataset.get("measurement_custody", {})
+        workflow = dataset.get("workflow_materialization", {})
         ethics = dataset.get("ethics", {})
         readiness = dataset.get("readiness", {})
         protocol_label = (
@@ -215,6 +216,8 @@ def _dataset_inventory_lines(inventory: dict[str, object]) -> list[str]:
             f"protocol {protocol_label}]: {dataset.get('artifact_count', 0)} "
             f"artifact(s), media {media_text}, sources {source_text}; "
             f"source authority: {source_authority.get('summary') if isinstance(source_authority, dict) else 'unavailable'}; "
+            "workflow materialization: "
+            f"{workflow.get('summary') if isinstance(workflow, dict) else 'unavailable'}; "
             f"{payload.get('summary') if isinstance(payload, dict) else 'payload status unavailable'}; "
             "access/readiness: "
             f"{observation.get('summary') if isinstance(observation, dict) else 'unavailable'}; "
