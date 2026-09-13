@@ -2766,15 +2766,19 @@ distinct-looking provenance behind later whitespace normalization.
 Custody-bearing protocols now freeze quantitative calibration acceptance
 criteria with stable criterion/calibration IDs, quantity, unit, rationale, and
 either at least one finite scalar bound or an exact ordered set of component
-bounds. Dataset registration requires every named calibration, checks its
-numeric observation and unit against those frozen scalar or component bounds,
-and refuses a declared pass that falls outside them. This supports scalar
-acceptance plus first-order multicomponent calibration residual checks; richer
-multivariate policies and device-specific instrument adapters remain missing.
-The published protocol-command schema now exposes those multicomponent
-calibration criteria and preflights canonical criterion/component text,
-finite-bound presence, and the scalar-versus-component boundary for
-provider-neutral clients before the service performs its full freeze checks.
+bounds. A component criterion may also freeze a bounded multivariate policy:
+stable policy ID, exact component order, shared unit, `l1`, `l2`, or `linf`
+norm, finite non-negative upper bound, and rationale. Dataset registration
+requires every named calibration, checks its numeric observation and unit
+against those frozen scalar or component bounds, and recomputes any frozen
+vector norm from the observed components before accepting a declared pass. This
+supports scalar acceptance, first-order multicomponent residual checks, and
+prospective aggregate residual tolerances; device-specific instrument adapters
+remain experiment-driven work. The published protocol-command schema now
+exposes those multicomponent calibration criteria and aggregate policies and
+preflights canonical criterion/component/policy text, finite-bound presence, and
+the scalar-versus-component boundary for provider-neutral clients before the
+service performs its full freeze checks.
 Canonical protected datasets now retain their local custody-artifact root.
 Inquiry display, protocol-bound execution, and run intake replay the complete
 structured custody validator and present-byte verification from the preserved

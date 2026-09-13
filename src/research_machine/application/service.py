@@ -6445,7 +6445,7 @@ class ResearchService:
                 "reference": "<reference artifact or standard>",
                 "performed_at": "<ISO-8601 timestamp with UTC offset>",
                 "result": "<observed calibration result, not the expected result>",
-                "status": "<passed only if every frozen scalar or component bound is met>",
+                "status": "<passed only if every frozen scalar, component, and multivariate bound is met>",
                 "evidence_sha256": "<hash of a listed evidence artifact>",
             }
             if criterion.component_bounds:

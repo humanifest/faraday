@@ -519,6 +519,62 @@ def test_multicomponent_calibration_acceptance_is_hash_bound_at_freeze() -> None
     assert _protocol_commitment(protocol) != _protocol_commitment(altered)
 
 
+def test_multivariate_calibration_policy_is_hash_bound_at_freeze() -> None:
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        measurement_custody_requirements=["field-map-check"],
+        calibration_acceptance_criteria=[
+            CalibrationCriterion(
+                "field-map-residuals",
+                "field-map",
+                "two-axis field-map residual",
+                "milliunit",
+                "The registered vector norm must remain inside tolerance.",
+                component_bounds=[
+                    {
+                        "component_id": "x-axis",
+                        "quantity": "x-axis residual",
+                        "unit": "milliunit",
+                        "lower_bound": -1.0,
+                        "upper_bound": 1.0,
+                    },
+                    {
+                        "component_id": "y-axis",
+                        "quantity": "y-axis residual",
+                        "unit": "milliunit",
+                        "lower_bound": -1.0,
+                        "upper_bound": 1.0,
+                    },
+                ],
+                multivariate_policy={
+                    "policy_id": "field-map-l2-bound",
+                    "norm": "l2",
+                    "component_ids": ["x-axis", "y-axis"],
+                    "unit": "milliunit",
+                    "upper_bound": 0.25,
+                    "rationale": "Aggregate residual energy remains bounded.",
+                },
+            ),
+        ],
+    )
+
+    validate_protocol_freeze(protocol)
+
+    altered = replace(
+        protocol,
+        calibration_acceptance_criteria=[
+            replace(
+                protocol.calibration_acceptance_criteria[0],
+                multivariate_policy={
+                    **protocol.calibration_acceptance_criteria[0].multivariate_policy,
+                    "upper_bound": 0.5,
+                },
+            ),
+        ],
+    )
+    assert _protocol_commitment(protocol) != _protocol_commitment(altered)
+
+
 @pytest.mark.parametrize(
     ("component_bounds", "message"),
     [
@@ -620,6 +676,93 @@ def test_calibration_acceptance_rejects_mixed_scalar_and_component_bounds() -> N
     )
 
     with pytest.raises(ValidationError, match="cannot mix scalar bounds"):
+        validate_protocol_freeze(protocol)
+
+
+@pytest.mark.parametrize(
+    ("policy", "message"),
+    [
+        (
+            {
+                "policy_id": "field-map-l2-bound",
+                "norm": "mahalanobis",
+                "component_ids": ["x-axis", "y-axis"],
+                "unit": "milliunit",
+                "upper_bound": 0.25,
+                "rationale": "Unsupported norm must not freeze.",
+            },
+            "norm is unsupported",
+        ),
+        (
+            {
+                "policy_id": "field-map-l2-bound",
+                "norm": "l2",
+                "component_ids": ["y-axis", "x-axis"],
+                "unit": "milliunit",
+                "upper_bound": 0.25,
+                "rationale": "Reordered components must not freeze.",
+            },
+            "component_ids must match",
+        ),
+        (
+            {
+                "policy_id": "field-map-l2-bound",
+                "norm": "l2",
+                "component_ids": ["x-axis", "y-axis"],
+                "unit": "volt",
+                "upper_bound": 0.25,
+                "rationale": "Unit drift must not freeze.",
+            },
+            "unit must match",
+        ),
+        (
+            {
+                "policy_id": "field-map-l2-bound",
+                "norm": "l2",
+                "component_ids": ["x-axis", "y-axis"],
+                "unit": "milliunit",
+                "upper_bound": -0.25,
+                "rationale": "Negative norm bounds must not freeze.",
+            },
+            "upper_bound must be a finite non-negative number",
+        ),
+    ],
+)
+def test_multivariate_calibration_policy_rejects_invalid_freeze(
+    policy, message
+) -> None:
+    protocol = replace(
+        _human_protocol(human_subjects=False),
+        measurement_custody_requirements=["field-map-check"],
+        calibration_acceptance_criteria=[
+            CalibrationCriterion(
+                "field-map-residuals",
+                "field-map",
+                "two-axis field-map residual",
+                "milliunit",
+                "The registered vector norm must remain inside tolerance.",
+                component_bounds=[
+                    {
+                        "component_id": "x-axis",
+                        "quantity": "x-axis residual",
+                        "unit": "milliunit",
+                        "lower_bound": -1.0,
+                        "upper_bound": 1.0,
+                    },
+                    {
+                        "component_id": "y-axis",
+                        "quantity": "y-axis residual",
+                        "unit": "milliunit",
+                        "lower_bound": -1.0,
+                        "upper_bound": 1.0,
+                    },
+                ],
+                multivariate_policy=policy,
+            ),
+        ],
+    )
+
+    with pytest.raises(ValidationError, match=message):
         validate_protocol_freeze(protocol)
 
 

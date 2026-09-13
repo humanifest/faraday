@@ -17,6 +17,12 @@ it, and exactly reproduces the record from the current three inputs.
 An adapter has no authority to assert
 calibration, pass a quality gate, create custody, register a dataset, or promote
 evidence. Device-specific adapters must preserve that boundary.
+When protocol authors freeze calibration acceptance criteria, add-ons should
+surface raw observations in the shared custody shape rather than inventing
+parallel pass/fail semantics. Core custody now supports scalar bounds, ordered
+component bounds, and one optional aggregate `l1`, `l2`, or `linf` norm policy
+over those components. Passing that policy is numeric custody provenance only,
+not calibration truth, construct validity, or evidence eligibility.
 
 Analysis result contract version 2 separates `declared_claim_ceiling` from the
 method's enforced `claim_ceiling`. Researcher text is retained for audit but

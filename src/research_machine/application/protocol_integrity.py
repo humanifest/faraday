@@ -36,6 +36,8 @@ def protocol_commitment(protocol: ExperimentProtocol) -> str:
     for criterion in payload.get("calibration_acceptance_criteria", []):
         if not criterion.get("component_bounds"):
             criterion.pop("component_bounds", None)
+        if not criterion.get("multivariate_policy"):
+            criterion.pop("multivariate_policy", None)
     if not protocol.analysis_specification_sha256:
         payload.pop("analysis_specification_sha256", None)
     if not protocol.causal_claim:

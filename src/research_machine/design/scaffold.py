@@ -2247,6 +2247,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
             "lower_bound": None,
             "upper_bound": None,
             "component_bounds": [],
+            "multivariate_policy": {},
         }],
         "measurement_custody_requirements": ["[REVIEW REQUIRED] name the custody gate that demonstrates the calibration requirement was met"],
         "preprocessing_pipeline": brief.get("preprocessing_pipeline", ""),

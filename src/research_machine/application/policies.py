@@ -2431,6 +2431,76 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
                     raise ValidationError(
                         "calibration criterion component_bounds lower_bound must not exceed upper_bound"
                     )
+            multivariate_policy = criterion.multivariate_policy
+            if multivariate_policy:
+                if not isinstance(multivariate_policy, dict):
+                    raise ValidationError(
+                        "calibration criterion multivariate_policy must be an object"
+                    )
+                required_policy_fields = {
+                    "policy_id",
+                    "norm",
+                    "component_ids",
+                    "unit",
+                    "upper_bound",
+                    "rationale",
+                }
+                if set(multivariate_policy) != required_policy_fields:
+                    raise ValidationError(
+                        "calibration criterion multivariate_policy fields are invalid"
+                    )
+                for name in ("policy_id", "norm", "unit", "rationale"):
+                    require_canonical_text(
+                        multivariate_policy[name],
+                        f"calibration criterion multivariate_policy.{name}",
+                    )
+                if multivariate_policy["norm"] not in {"l1", "l2", "linf"}:
+                    raise ValidationError(
+                        "calibration criterion multivariate_policy norm is unsupported"
+                    )
+                if (
+                    isinstance(multivariate_policy["upper_bound"], bool)
+                    or not isinstance(multivariate_policy["upper_bound"], (int, float))
+                    or not math.isfinite(float(multivariate_policy["upper_bound"]))
+                    or float(multivariate_policy["upper_bound"]) < 0
+                ):
+                    raise ValidationError(
+                        "calibration criterion multivariate_policy upper_bound must be a finite non-negative number"
+                    )
+                if (
+                    not isinstance(multivariate_policy["component_ids"], list)
+                    or not multivariate_policy["component_ids"]
+                    or any(
+                        not isinstance(value, str)
+                        for value in multivariate_policy["component_ids"]
+                    )
+                ):
+                    raise ValidationError(
+                        "calibration criterion multivariate_policy component_ids must be an array of text"
+                    )
+                policy_component_ids = [
+                    require_canonical_text(
+                        value,
+                        "calibration criterion multivariate_policy.component_ids item",
+                    )
+                    for value in multivariate_policy["component_ids"]
+                ]
+                expected_component_ids = [
+                    component["component_id"] for component in component_bounds
+                ]
+                if policy_component_ids != expected_component_ids:
+                    raise ValidationError(
+                        "calibration criterion multivariate_policy component_ids must match component_bounds order exactly"
+                    )
+                policy_unit = multivariate_policy["unit"]
+                if any(component["unit"] != policy_unit for component in component_bounds):
+                    raise ValidationError(
+                        "calibration criterion multivariate_policy unit must match every component unit"
+                    )
+        elif criterion.multivariate_policy:
+            raise ValidationError(
+                "calibration criterion multivariate_policy requires component_bounds"
+            )
         elif all(value is None for value in bounds):
             raise ValidationError("calibration criterion requires a lower_bound or upper_bound")
         for value in bounds:

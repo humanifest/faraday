@@ -655,6 +655,14 @@ def _protocol_command_with_component_calibration():
                     "upper_bound": 0.5,
                 },
             ],
+            "multivariate_policy": {
+                "policy_id": "field-map-l2-bound",
+                "norm": "l2",
+                "component_ids": ["x-axis", "y-axis"],
+                "unit": "milliunit",
+                "upper_bound": 0.25,
+                "rationale": "The registered vector norm remains inside tolerance.",
+            },
         }
     ]
     return command
@@ -680,6 +688,15 @@ def test_protocol_schema_accepts_component_calibration_bounds():
         lambda command: command["calibration_acceptance_criteria"][0][
             "component_bounds"
         ][0].update({"lower_bound": None, "upper_bound": None}),
+        lambda command: command["calibration_acceptance_criteria"][0][
+            "multivariate_policy"
+        ].update({"norm": "mahalanobis"}),
+        lambda command: command["calibration_acceptance_criteria"][0][
+            "multivariate_policy"
+        ].update({"upper_bound": -0.1}),
+        lambda command: command["calibration_acceptance_criteria"][0][
+            "multivariate_policy"
+        ].update({"policy_id": " field-map-l2-bound "}),
     ],
 )
 def test_protocol_schema_preflights_component_calibration_shape(mutation):

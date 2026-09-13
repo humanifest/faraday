@@ -463,6 +463,40 @@ def _field_map_criterion() -> CalibrationCriterion:
     )
 
 
+def _field_map_vector_criterion() -> CalibrationCriterion:
+    return CalibrationCriterion(
+        "field-map-residuals",
+        "field-map",
+        "two-axis field-map residual vector",
+        "milliunit",
+        "The registered residual vector norm must stay inside tolerance.",
+        component_bounds=[
+            {
+                "component_id": "x-axis",
+                "quantity": "x-axis residual",
+                "unit": "milliunit",
+                "lower_bound": -1.0,
+                "upper_bound": 1.0,
+            },
+            {
+                "component_id": "y-axis",
+                "quantity": "y-axis residual",
+                "unit": "milliunit",
+                "lower_bound": -1.0,
+                "upper_bound": 1.0,
+            },
+        ],
+        multivariate_policy={
+            "policy_id": "field-map-l2-bound",
+            "norm": "l2",
+            "component_ids": ["x-axis", "y-axis"],
+            "unit": "milliunit",
+            "upper_bound": 0.25,
+            "rationale": "Aggregate residual energy must remain prospectively bounded.",
+        },
+    )
+
+
 def _multicomponent_receipt() -> dict:
     receipt = _receipt()
     receipt["calibrations"] = [{
@@ -515,6 +549,67 @@ def test_custody_computes_multicomponent_calibration_acceptance() -> None:
         ["clock-sync"],
         [_field_map_criterion()],
     ) == receipt
+
+
+def test_custody_computes_multivariate_calibration_policy() -> None:
+    receipt = _multicomponent_receipt()
+
+    assert validate_measurement_custody(
+        receipt,
+        ["clock-sync"],
+        [_field_map_vector_criterion()],
+    ) == receipt
+
+    receipt["calibrations"][0]["observed_components"][1]["observed_value"] = 0.24
+    with pytest.raises(ValidationError, match="multivariate norm bound"):
+        validate_measurement_custody(
+            receipt,
+            ["clock-sync"],
+            [_field_map_vector_criterion()],
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda criterion: criterion.multivariate_policy.update(
+                {"norm": "mahalanobis"}
+            ),
+            "norm is unsupported",
+        ),
+        (
+            lambda criterion: criterion.multivariate_policy.update(
+                {"component_ids": ["y-axis", "x-axis"]}
+            ),
+            "component order exactly",
+        ),
+        (
+            lambda criterion: criterion.multivariate_policy.update(
+                {"unit": "volt"}
+            ),
+            "unit must match",
+        ),
+        (
+            lambda criterion: criterion.multivariate_policy.update(
+                {"upper_bound": -0.1}
+            ),
+            "upper_bound must be non-negative",
+        ),
+    ],
+)
+def test_custody_rejects_invalid_multivariate_calibration_policy(
+    mutate, message
+) -> None:
+    criterion = _field_map_vector_criterion()
+    mutate(criterion)
+
+    with pytest.raises(ValidationError, match=message):
+        validate_measurement_custody(
+            _multicomponent_receipt(),
+            ["clock-sync"],
+            [criterion],
+        )
 
 
 @pytest.mark.parametrize(

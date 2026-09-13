@@ -887,6 +887,7 @@ class CalibrationCriterion(Serializable):
     lower_bound: float | None = None
     upper_bound: float | None = None
     component_bounds: list[dict[str, Any]] = field(default_factory=list)
+    multivariate_policy: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

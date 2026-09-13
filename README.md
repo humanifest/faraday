@@ -2237,12 +2237,18 @@ implementation-hashed transformations, passed calibration results, passed
 quality gates, and the exact transformation output behind each derived
 observation. Custody-bearing protocols freeze quantitative calibration criteria
 (criterion and calibration IDs, quantity, unit, rationale, and either scalar
-lower and/or upper bounds or an exact ordered set of component bounds).
-The published protocol-command schema exposes the same component-bound shape and
-rejects padded calibration/component handles or scalar-and-component mixing
-before provider-neutral clients submit the command.
+lower and/or upper bounds or an exact ordered set of component bounds). A
+component criterion may also freeze one aggregate multivariate policy: a stable
+policy ID, `l1`, `l2`, or `linf` norm, exact component order, shared unit,
+finite non-negative upper bound, and rationale. The published protocol-command
+schema exposes the same component-bound and aggregate-policy shape and rejects
+padded calibration/component handles or scalar-and-component mixing before
+provider-neutral clients submit the command.
 Registration checks each observed value and unit against the frozen scalar or
-component contract; a written `passed` status alone is insufficient. A protocol with calibration requirements must name the custody
+component contract and recomputes any frozen vector norm from the observed
+components; a written `passed` status alone is insufficient. These checks bind
+calibration residuals to prospective numeric limits, not instrument truth,
+construct validity, or measurement adequacy. A protocol with calibration requirements must name the custody
 gates that clear registration. Protected registration now also requires
 `--custody-artifact-root`: each transformation names its implementation and
 output locators, and Faraday verifies raw-source, implementation, derived-output,

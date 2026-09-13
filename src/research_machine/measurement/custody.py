@@ -87,6 +87,16 @@ def _nonnegative_int_or_none(value: Any, field: str) -> int | None:
     return value
 
 
+def _calibration_vector_norm(values: list[float], norm: str) -> float:
+    if norm == "l1":
+        return sum(abs(value) for value in values)
+    if norm == "l2":
+        return math.sqrt(sum(value * value for value in values))
+    if norm == "linf":
+        return max(abs(value) for value in values)
+    raise ValidationError("measurement custody multivariate calibration norm is unsupported")
+
+
 def _require_known_fields(item: dict[str, Any], allowed: set[str], label: str) -> None:
     unknown = sorted(set(item) - allowed)
     if unknown:
@@ -341,6 +351,79 @@ def validate_measurement_custody(
                     if upper_bound is not None and observed > upper_bound:
                         raise ValidationError(
                             f"calibration {calibration_id} component {component_id} failed its frozen upper bound"
+                        )
+                multivariate_policy = criterion.multivariate_policy
+                if multivariate_policy:
+                    if not isinstance(multivariate_policy, dict):
+                        raise ValidationError(
+                            f"calibration {calibration_id} multivariate_policy must be an object"
+                        )
+                    required_policy_fields = {
+                        "policy_id",
+                        "norm",
+                        "component_ids",
+                        "unit",
+                        "upper_bound",
+                        "rationale",
+                    }
+                    if set(multivariate_policy) != required_policy_fields:
+                        raise ValidationError(
+                            f"calibration {calibration_id} multivariate_policy fields are invalid"
+                        )
+                    for name in ("policy_id", "norm", "unit", "rationale"):
+                        _canonical_text(
+                            multivariate_policy.get(name),
+                            f"calibration {calibration_id} multivariate_policy.{name}",
+                        )
+                    component_ids = multivariate_policy.get("component_ids")
+                    if (
+                        not isinstance(component_ids, list)
+                        or not component_ids
+                        or any(not isinstance(value, str) for value in component_ids)
+                    ):
+                        raise ValidationError(
+                            f"calibration {calibration_id} multivariate_policy component_ids must be an array of text"
+                        )
+                    policy_component_ids = [
+                        _canonical_text(
+                            value,
+                            f"calibration {calibration_id} multivariate_policy.component_ids item",
+                        )
+                        for value in component_ids
+                    ]
+                    if policy_component_ids != expected_component_ids:
+                        raise ValidationError(
+                            f"calibration {calibration_id} multivariate_policy component_ids must match frozen component order exactly"
+                        )
+                    if any(
+                        frozen_component["unit"] != multivariate_policy["unit"]
+                        for frozen_component in criterion.component_bounds
+                    ):
+                        raise ValidationError(
+                            f"calibration {calibration_id} multivariate_policy unit must match every frozen component unit"
+                        )
+                    upper_bound = _finite_number(
+                        multivariate_policy.get("upper_bound"),
+                        f"calibration {calibration_id} multivariate_policy.upper_bound",
+                    )
+                    if upper_bound < 0:
+                        raise ValidationError(
+                            f"calibration {calibration_id} multivariate_policy upper_bound must be non-negative"
+                        )
+                    observed_values = [
+                        float(component["observed_value"])
+                        for component in observed_components
+                    ]
+                    observed_norm = _calibration_vector_norm(
+                        observed_values,
+                        _canonical_text(
+                            multivariate_policy["norm"],
+                            f"calibration {calibration_id} multivariate_policy.norm",
+                        ),
+                    )
+                    if observed_norm > float(upper_bound):
+                        raise ValidationError(
+                            f"calibration {calibration_id} failed its frozen multivariate norm bound"
                         )
             else:
                 if "observed_components" in item:
