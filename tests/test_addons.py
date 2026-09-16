@@ -169,7 +169,7 @@ def test_connector_fetch_rejects_unbounded_or_malformed_result() -> None:
 
 
 def test_connector_proposal_writer_preserves_byte_receipt(tmp_path: Path) -> None:
-    from research_machine.addons.connector import write_source_proposal
+    from research_machine.addons.connector import verify_source_proposal, write_source_proposal
 
     proposal = {
         "authority": "bounded_source_material_proposal_only",
@@ -181,6 +181,11 @@ def test_connector_proposal_writer_preserves_byte_receipt(tmp_path: Path) -> Non
     assert Path(result["source"]).read_bytes() == b"raw"
     assert receipt["source"] == {"locator": "source.bin", "sha256": hashlib.sha256(b"raw").hexdigest(), "size_bytes": 3}
     assert "bytes" not in receipt["source"]
+    verified = verify_source_proposal(tmp_path / "proposal" / "connector-proposal.json")
+    assert verified["status"] == "verified_source_material_proposal"
+    (tmp_path / "proposal" / "source.bin").write_bytes(b"changed")
+    with pytest.raises(ValidationError, match="do not match"):
+        verify_source_proposal(tmp_path / "proposal" / "connector-proposal.json")
 
 
 def test_pearson_correlation_rejects_duplicate_columns() -> None:

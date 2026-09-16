@@ -103,3 +103,39 @@ def write_source_proposal(
     receipt["source"] = {"locator": source_path.name, "sha256": digest, "size_bytes": len(source_bytes)}
     receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return {"output_dir": str(root), "source": str(source_path), "receipt": str(receipt_path), "source_sha256": digest}
+
+
+def verify_source_proposal(receipt_file: str | Path) -> dict[str, Any]:
+    """Replay a persisted connector proposal from its receipt and current bytes."""
+    receipt_path = Path(receipt_file).expanduser().resolve()
+    if not receipt_path.is_file() or receipt_path.is_symlink():
+        raise ValidationError("connector proposal receipt must be a regular file")
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValidationError("connector proposal receipt is unreadable JSON") from exc
+    if not isinstance(receipt, dict) or receipt.get("authority") != "bounded_source_material_proposal_only":
+        raise ValidationError("connector proposal receipt has an invalid authority boundary")
+    source = receipt.get("source")
+    if not isinstance(source, dict) or set(source) != {"locator", "sha256", "size_bytes"}:
+        raise ValidationError("connector proposal receipt source commitment is invalid")
+    locator = source["locator"]
+    if not isinstance(locator, str) or locator != Path(locator).name or locator in {".", ".."}:
+        raise ValidationError("connector proposal source locator must be a safe relative name")
+    source_path = receipt_path.parent / locator
+    if not source_path.is_file() or source_path.is_symlink():
+        raise ValidationError("connector proposal source must be a regular file")
+    source_bytes = source_path.read_bytes()
+    digest = hashlib.sha256(source_bytes).hexdigest()
+    if source["sha256"] != digest or source["size_bytes"] != len(source_bytes):
+        raise ValidationError("connector proposal source bytes do not match receipt")
+    return {
+        "status": "verified_source_material_proposal",
+        "receipt": str(receipt_path),
+        "source": str(source_path),
+        "source_sha256": digest,
+        "size_bytes": len(source_bytes),
+        "scientific_evidence_eligible": False,
+        "canonical_dataset_registered": False,
+        "custody_cleared": False,
+    }
