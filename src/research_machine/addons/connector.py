@@ -43,7 +43,13 @@ def fetch_source_proposal(
         raise ValidationError("connector metadata must be an object")
     try:
         metadata_bytes = len(
-            json.dumps(result["metadata"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+            json.dumps(
+                result["metadata"],
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+            ).encode()
         )
     except (TypeError, ValueError) as exc:
         raise ValidationError("connector metadata must be JSON-compatible") from exc

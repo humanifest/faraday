@@ -156,6 +156,17 @@ def test_connector_fetch_rejects_unbounded_or_malformed_result() -> None:
     with pytest.raises(ValidationError, match="metadata exceeds"):
         fetch_source_proposal(metadata_manifest, metadata_connector, {}, max_bytes=10)
 
+    nonfinite_connector = ScientificConnector(
+        "nonfinite", "Nonfinite", "Invalid", ("scientific_connector",), (),
+        lambda query: {"bytes": b"ok", "metadata": {"value": float("nan")}},
+    )
+    nonfinite_manifest = AddonManifest(
+        "nonfinite_connector", "Nonfinite", "1", "test", "Fixture",
+        connectors=(nonfinite_connector,),
+    )
+    with pytest.raises(ValidationError, match="JSON-compatible"):
+        fetch_source_proposal(nonfinite_manifest, nonfinite_connector, {})
+
 
 def test_pearson_correlation_rejects_duplicate_columns() -> None:
     """Synthetic fixture: a self-correlation request remains invalid."""
