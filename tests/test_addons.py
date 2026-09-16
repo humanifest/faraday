@@ -115,6 +115,37 @@ def test_connector_rejects_overlapping_query_fields() -> None:
         ))
 
 
+def test_connector_fetch_returns_hash_bound_non_evidentiary_proposal() -> None:
+    from research_machine.addons.connector import fetch_source_proposal
+
+    connector = ScientificConnector(
+        "registry-fixture", "Registry fixture", "Retrieves bounded source material.",
+        ("scientific_connector",), ("record_id",),
+        lambda query: {"bytes": b"source", "metadata": {"record": query["record_id"]}},
+    )
+    manifest = AddonManifest(
+        "connector_fixture", "Connector fixture", "1", "test", "Fixture",
+        connectors=(connector,),
+    )
+    proposal = fetch_source_proposal(manifest, connector, {"record_id": "r1"})
+    assert proposal["source"]["sha256"] == hashlib.sha256(b"source").hexdigest()
+    assert proposal["authority"] == "bounded_source_material_proposal_only"
+    assert proposal["scientific_evidence_eligible"] is False
+    assert proposal["canonical_dataset_registered"] is False
+
+
+def test_connector_fetch_rejects_unbounded_or_malformed_result() -> None:
+    from research_machine.addons.connector import fetch_source_proposal
+
+    connector = ScientificConnector(
+        "bad-fetch", "Bad fetch", "Invalid", ("scientific_connector",), (),
+        lambda query: {"bytes": "mutable", "metadata": {}},
+    )
+    manifest = AddonManifest("bad_fetch", "Bad fetch", "1", "test", "Fixture", connectors=(connector,))
+    with pytest.raises(ValidationError, match="immutable bytes"):
+        fetch_source_proposal(manifest, connector, {})
+
+
 def test_pearson_correlation_rejects_duplicate_columns() -> None:
     """Synthetic fixture: a self-correlation request remains invalid."""
     with pytest.raises(ValidationError, match="distinct x_column and y_column"):
