@@ -590,6 +590,10 @@ The machine is deliberately not a claim-confirmation engine. It keeps competing
 explanations alive, separates levels of inference, records scoped evidence, and
 preserves rejected hypotheses with the conditions under which they should be
 reconsidered.
+The current requirement-by-requirement readiness audit is maintained in
+[`docs/high-confidence-readiness-audit.md`](docs/high-confidence-readiness-audit.md);
+it records why a mature engine is not yet the same thing as campaign-validated
+science.
 New evidence and execution summaries are also kept inside that boundary:
 reportable evidence, run summaries, and quality-gate summaries cannot use
 overclaiming verbs such as `proved`, `confirmed`, `explained`, or `validated`.
