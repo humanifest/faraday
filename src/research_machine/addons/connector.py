@@ -122,13 +122,18 @@ def verify_source_proposal(
     receipt_file: str | Path,
     connector: ScientificConnector | None = None,
     manifest: AddonManifest | None = None,
+    expected_receipt_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Replay a persisted connector proposal from its receipt and current bytes."""
     receipt_path = Path(receipt_file).expanduser().resolve()
     if not receipt_path.is_file() or receipt_path.is_symlink():
         raise ValidationError("connector proposal receipt must be a regular file")
+    receipt_bytes = receipt_path.read_bytes()
+    actual_receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
+    if expected_receipt_sha256 is not None and expected_receipt_sha256 != actual_receipt_sha256:
+        raise ValidationError("connector proposal receipt does not match expected SHA-256")
     try:
-        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt = json.loads(receipt_bytes.decode("utf-8"))
     except (OSError, ValueError) as exc:
         raise ValidationError("connector proposal receipt is unreadable JSON") from exc
     if not isinstance(receipt, dict) or receipt.get("authority") != "bounded_source_material_proposal_only":
@@ -167,6 +172,7 @@ def verify_source_proposal(
     return {
         "status": "verified_source_material_proposal",
         "receipt": str(receipt_path),
+        "receipt_sha256": actual_receipt_sha256,
         "source": str(source_path),
         "source_sha256": digest,
         "size_bytes": len(source_bytes),

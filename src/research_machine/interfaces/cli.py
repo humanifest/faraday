@@ -896,6 +896,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     addon_verify.add_argument("--receipt-file", type=Path, required=True)
     addon_verify.add_argument("--connector")
+    addon_verify.add_argument("--expected-receipt-sha256")
 
     analysis = groups.add_parser(
         "analysis", help="Execute a declared method through the add-on boundary"
@@ -2391,7 +2392,12 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             manifest = None
             if args.connector:
                 manifest, connector = registry.resolve_connector(args.connector)
-            return verify_source_proposal(args.receipt_file, connector, manifest)
+            return verify_source_proposal(
+                args.receipt_file,
+                connector,
+                manifest,
+                args.expected_receipt_sha256,
+            )
         return registry.get(args.addon_id).describe()
 
     if args.group == "analysis" and args.action == "run-draft":

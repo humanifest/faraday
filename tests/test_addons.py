@@ -186,6 +186,18 @@ def test_connector_proposal_writer_preserves_byte_receipt(tmp_path: Path) -> Non
     verified = verify_source_proposal(tmp_path / "proposal" / "connector-proposal.json")
     assert verified["status"] == "verified_source_material_proposal"
     assert verified["implementation_replayed"] is False
+    receipt_hash = hashlib.sha256(
+        (tmp_path / "proposal" / "connector-proposal.json").read_bytes()
+    ).hexdigest()
+    assert verify_source_proposal(
+        tmp_path / "proposal" / "connector-proposal.json",
+        expected_receipt_sha256=receipt_hash,
+    )["receipt_sha256"] == receipt_hash
+    with pytest.raises(ValidationError, match="expected SHA-256"):
+        verify_source_proposal(
+            tmp_path / "proposal" / "connector-proposal.json",
+            expected_receipt_sha256="0" * 64,
+        )
     with pytest.raises(ValidationError, match="identity"):
         verify_source_proposal(
             tmp_path / "proposal" / "connector-proposal.json",
