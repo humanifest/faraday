@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 from typing import Any
 
 from research_machine.addons.models import AddonManifest, ScientificConnector
@@ -74,3 +75,31 @@ def fetch_source_proposal(
         "custody_cleared": False,
         "authorized_actions": ["submit_to_canonical_dataset_intake"],
     }
+
+
+def write_source_proposal(
+    proposal: dict[str, Any], output_dir: str | Path
+) -> dict[str, Any]:
+    """Persist a connector proposal as a byte file plus a replayable receipt."""
+    if not isinstance(proposal, dict) or proposal.get("authority") != "bounded_source_material_proposal_only":
+        raise ValidationError("connector proposal has an invalid authority boundary")
+    source = proposal.get("source")
+    if not isinstance(source, dict) or not isinstance(source.get("bytes"), bytes):
+        raise ValidationError("connector proposal source bytes are missing")
+    root = Path(output_dir).expanduser().resolve()
+    if root.exists() and not root.is_dir():
+        raise ValidationError("connector proposal output must be a directory")
+    root.mkdir(parents=True, exist_ok=True)
+    source_path = root / "source.bin"
+    receipt_path = root / "connector-proposal.json"
+    if source_path.exists() or receipt_path.exists():
+        raise ValidationError("connector proposal output already exists")
+    source_bytes = source["bytes"]
+    digest = hashlib.sha256(source_bytes).hexdigest()
+    if source.get("sha256") != digest or source.get("size_bytes") != len(source_bytes):
+        raise ValidationError("connector proposal source commitment does not match bytes")
+    source_path.write_bytes(source_bytes)
+    receipt = {key: value for key, value in proposal.items() if key != "source"}
+    receipt["source"] = {"locator": source_path.name, "sha256": digest, "size_bytes": len(source_bytes)}
+    receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    return {"output_dir": str(root), "source": str(source_path), "receipt": str(receipt_path), "source_sha256": digest}

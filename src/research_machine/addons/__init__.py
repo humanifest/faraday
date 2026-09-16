@@ -12,7 +12,7 @@ from research_machine.addons.registry import (
     default_registry,
     load_local_addons,
 )
-from research_machine.addons.connector import fetch_source_proposal
+from research_machine.addons.connector import fetch_source_proposal, write_source_proposal
 
 __all__ = [
     "AddonManifest",
@@ -21,6 +21,7 @@ __all__ = [
     "InstrumentAdapter",
     "ScientificConnector",
     "fetch_source_proposal",
+    "write_source_proposal",
     "RANDOMNESS_CONTROLS",
     "default_registry",
     "load_local_addons",
