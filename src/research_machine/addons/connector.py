@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from typing import Any
 
 from research_machine.addons.models import AddonManifest, ScientificConnector
@@ -19,6 +20,8 @@ def fetch_source_proposal(
     max_bytes: int = _MAX_CONNECTOR_OUTPUT_BYTES,
 ) -> dict[str, Any]:
     """Run a connector and return source material for later canonical intake."""
+    if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or max_bytes <= 0:
+        raise ValidationError("connector max_bytes must be a positive integer")
     if not isinstance(query, dict):
         raise ValidationError("connector query must be an object")
     allowed = set(connector.required_query_fields) | set(connector.optional_query_fields)
@@ -38,6 +41,14 @@ def fetch_source_proposal(
         raise ValidationError("connector output exceeds bounded byte limit")
     if not isinstance(result["metadata"], dict):
         raise ValidationError("connector metadata must be an object")
+    try:
+        metadata_bytes = len(
+            json.dumps(result["metadata"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("connector metadata must be JSON-compatible") from exc
+    if metadata_bytes > max_bytes or metadata_bytes > _MAX_CONNECTOR_OUTPUT_BYTES:
+        raise ValidationError("connector metadata exceeds bounded byte limit")
     return {
         "connector": {
             "addon_id": manifest.addon_id,

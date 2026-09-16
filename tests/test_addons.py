@@ -145,6 +145,17 @@ def test_connector_fetch_rejects_unbounded_or_malformed_result() -> None:
     with pytest.raises(ValidationError, match="immutable bytes"):
         fetch_source_proposal(manifest, connector, {})
 
+    metadata_connector = ScientificConnector(
+        "large-metadata", "Large metadata", "Invalid", ("scientific_connector",), (),
+        lambda query: {"bytes": b"ok", "metadata": {"blob": "x" * 20}},
+    )
+    metadata_manifest = AddonManifest(
+        "large_metadata", "Large metadata", "1", "test", "Fixture",
+        connectors=(metadata_connector,),
+    )
+    with pytest.raises(ValidationError, match="metadata exceeds"):
+        fetch_source_proposal(metadata_manifest, metadata_connector, {}, max_bytes=10)
+
 
 def test_pearson_correlation_rejects_duplicate_columns() -> None:
     """Synthetic fixture: a self-correlation request remains invalid."""
