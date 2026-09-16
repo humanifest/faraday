@@ -254,6 +254,18 @@ Research Machine includes:
 Use `research addon list` and `research addon show ADDON_ID` to inspect the
 active capability surface.
 
+## Connector source proposals
+
+An add-on may expose a `ScientificConnector` with bounded query fields. Its
+fetcher returns source bytes and JSON metadata, which Faraday writes as a
+write-once `source.bin` plus `connector-proposal.json`. The receipt commits the
+source bytes, connector and add-on identities, and implementation source hash.
+`research addon verify-fetch` can replay those commitments from a trusted
+receipt hash and loaded connector. The result is still a low-authority source
+proposal: connector access cannot register a dataset, clear custody, establish
+source truth, or authorize evidence. Canonical dataset registration must repeat
+the relevant artifact, custody, ethics, protocol, and readiness checks.
+
 ## Run a bundled analysis
 
 Create a JSON specification from `examples/general-analysis.json`, then run:

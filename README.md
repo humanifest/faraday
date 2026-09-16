@@ -2568,6 +2568,16 @@ be connected without publishing or installing a package by passing
 `research analysis run`; see [scientific add-ons](docs/addons.md)
 and the [scientific platform roadmap](docs/scientific-platform-roadmap.md).
 
+Connector add-ons expose bounded source acquisition without granting scientific
+authority. Use `research addon fetch --connector CONNECTOR --query-file query.json
+--output proposal` to write a source byte file and its receipt. Independently
+pin and replay that receipt with `research addon verify-fetch --connector
+CONNECTOR --receipt-file proposal/connector-proposal.json
+--expected-receipt-sha256 RECEIPT_SHA256`. Verification preserves source and
+implementation identity, but the proposal remains non-evidentiary; submit its
+bytes through `dataset register` and the ordinary custody, protocol, ethics,
+run, review, and evidence gates before scientific use.
+
 An optional domain-neutral notebook executor is included for protected local
 calculations. Unlike `nbconvert`'s default failure path, it atomically writes the
 partially executed notebook and an execution receipt when a later cell raises,
