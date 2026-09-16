@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,17 @@ from research_machine.addons.models import AddonManifest, ScientificConnector
 from research_machine.domain.errors import ValidationError
 
 _MAX_CONNECTOR_OUTPUT_BYTES = 10_000_000
+
+
+def _implementation_commitment(connector: ScientificConnector) -> dict[str, Any]:
+    source_file = inspect.getsourcefile(connector.fetch)
+    if not source_file:
+        raise ValidationError("connector implementation source file is unavailable")
+    path = Path(source_file).expanduser().resolve()
+    if not path.is_file() or path.is_symlink():
+        raise ValidationError("connector implementation source must be a regular file")
+    data = path.read_bytes()
+    return {"locator": path.name, "sha256": hashlib.sha256(data).hexdigest(), "size_bytes": len(data)}
 
 
 def fetch_source_proposal(
@@ -61,6 +73,7 @@ def fetch_source_proposal(
             "addon_id": manifest.addon_id,
             "addon_version": manifest.version,
             "connector_id": connector.connector_id,
+            "implementation": _implementation_commitment(connector),
         },
         "query": query,
         "source": {
@@ -116,6 +129,10 @@ def verify_source_proposal(receipt_file: str | Path) -> dict[str, Any]:
         raise ValidationError("connector proposal receipt is unreadable JSON") from exc
     if not isinstance(receipt, dict) or receipt.get("authority") != "bounded_source_material_proposal_only":
         raise ValidationError("connector proposal receipt has an invalid authority boundary")
+    connector = receipt.get("connector")
+    implementation = connector.get("implementation") if isinstance(connector, dict) else None
+    if not isinstance(implementation, dict) or set(implementation) != {"locator", "sha256", "size_bytes"}:
+        raise ValidationError("connector implementation commitment is missing")
     source = receipt.get("source")
     if not isinstance(source, dict) or set(source) != {"locator", "sha256", "size_bytes"}:
         raise ValidationError("connector proposal receipt source commitment is invalid")
@@ -138,4 +155,5 @@ def verify_source_proposal(receipt_file: str | Path) -> dict[str, Any]:
         "scientific_evidence_eligible": False,
         "canonical_dataset_registered": False,
         "custody_cleared": False,
+        "implementation_replayed": False,
     }

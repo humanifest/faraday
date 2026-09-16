@@ -173,6 +173,7 @@ def test_connector_proposal_writer_preserves_byte_receipt(tmp_path: Path) -> Non
     from research_machine.addons.connector import verify_source_proposal, write_source_proposal
 
     proposal = {
+        "connector": {"addon_id": "fixture", "addon_version": "1", "connector_id": "fixture", "implementation": {"locator": "plugin.py", "sha256": "a" * 64, "size_bytes": 1}},
         "authority": "bounded_source_material_proposal_only",
         "scientific_evidence_eligible": False,
         "source": {"bytes": b"raw", "sha256": hashlib.sha256(b"raw").hexdigest(), "size_bytes": 3},
@@ -184,6 +185,7 @@ def test_connector_proposal_writer_preserves_byte_receipt(tmp_path: Path) -> Non
     assert "bytes" not in receipt["source"]
     verified = verify_source_proposal(tmp_path / "proposal" / "connector-proposal.json")
     assert verified["status"] == "verified_source_material_proposal"
+    assert verified["implementation_replayed"] is False
     (tmp_path / "proposal" / "source.bin").write_bytes(b"changed")
     with pytest.raises(ValidationError, match="do not match"):
         verify_source_proposal(tmp_path / "proposal" / "connector-proposal.json")
