@@ -137,12 +137,20 @@ def write_source_proposal(
     digest = hashlib.sha256(source_bytes).hexdigest()
     if source.get("sha256") != digest or source.get("size_bytes") != len(source_bytes):
         raise ValidationError("connector proposal source commitment does not match bytes")
-    _publish_exclusive(source_path, source_bytes)
     receipt = {key: value for key, value in proposal.items() if key != "source"}
     receipt["source"] = {"locator": source_path.name, "sha256": digest, "size_bytes": len(source_bytes)}
+    try:
+        receipt_bytes = (
+            json.dumps(receipt, sort_keys=True, indent=2) + "\n"
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("connector proposal receipt must be JSON-compatible") from exc
+    if len(receipt_bytes) > _MAX_CONNECTOR_OUTPUT_BYTES:
+        raise ValidationError("connector proposal receipt exceeds bounded byte limit")
+    _publish_exclusive(source_path, source_bytes)
     _publish_exclusive(
         receipt_path,
-        (json.dumps(receipt, sort_keys=True, indent=2) + "\n").encode("utf-8"),
+        receipt_bytes,
     )
     return {"output_dir": str(root), "source": str(source_path), "receipt": str(receipt_path), "source_sha256": digest}
 
