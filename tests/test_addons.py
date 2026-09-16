@@ -201,6 +201,42 @@ def test_connector_cli_commands_are_provider_neutral() -> None:
     assert (verify.group, verify.action) == ("addon", "verify-fetch")
 
 
+def test_connector_cli_fetch_and_verify_local_plugin(tmp_path: Path, capsys) -> None:
+    addon = tmp_path / "connector-addon"
+    addon.mkdir()
+    (addon / "research_addon.py").write_text(
+        """from research_machine.addons import AddonManifest, ScientificConnector
+
+def fetch(query):
+    return {"bytes": ("record:" + query["record_id"]).encode(), "metadata": {"record_id": query["record_id"]}}
+
+MANIFEST = AddonManifest(
+    "connector_domain", "Connector domain", "1.0.0", "test", "Connector fixture",
+    connectors=(ScientificConnector("fixture", "Fixture", "Fetches a record.", ("scientific_connector",), ("record_id",), fetch),),
+)
+""",
+        encoding="utf-8",
+    )
+    query = tmp_path / "query.json"
+    query.write_text(json.dumps({"record_id": "r1"}), encoding="utf-8")
+    output = tmp_path / "proposal"
+    workspace = tmp_path / "workspace"
+    assert main([
+        "--json", "--workspace", str(workspace), "--addon-path", str(addon),
+        "addon", "fetch", "--connector", "fixture", "--query-file", str(query),
+        "--output", str(output),
+    ]) == 0
+    fetched = json.loads(capsys.readouterr().out)
+    assert fetched["ok"] is True
+    assert (output / "source.bin").read_bytes() == b"record:r1"
+    assert main([
+        "--json", "--workspace", str(workspace), "--addon-path", str(addon),
+        "addon", "verify-fetch", "--receipt-file", str(output / "connector-proposal.json"),
+    ]) == 0
+    verified = json.loads(capsys.readouterr().out)
+    assert verified["result"]["scientific_evidence_eligible"] is False
+
+
 def test_pearson_correlation_rejects_duplicate_columns() -> None:
     """Synthetic fixture: a self-correlation request remains invalid."""
     with pytest.raises(ValidationError, match="distinct x_column and y_column"):
