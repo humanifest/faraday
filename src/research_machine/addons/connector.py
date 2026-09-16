@@ -104,7 +104,10 @@ def write_source_proposal(
     source = proposal.get("source")
     if not isinstance(source, dict) or not isinstance(source.get("bytes"), bytes):
         raise ValidationError("connector proposal source bytes are missing")
-    root = Path(output_dir).expanduser().resolve()
+    supplied_root = Path(output_dir).expanduser()
+    if supplied_root.exists() and supplied_root.is_symlink():
+        raise ValidationError("connector proposal output must not be a symlink")
+    root = supplied_root.resolve()
     if root.exists() and not root.is_dir():
         raise ValidationError("connector proposal output must be a directory")
     root.mkdir(parents=True, exist_ok=True)

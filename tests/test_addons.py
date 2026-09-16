@@ -231,6 +231,26 @@ def test_connector_proposal_writer_rejects_authority_upgrade(tmp_path: Path) -> 
         )
 
 
+def test_connector_proposal_writer_rejects_symlinked_output(tmp_path: Path) -> None:
+    from research_machine.addons.connector import write_source_proposal
+
+    target = tmp_path / "target"
+    target.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(target, target_is_directory=True)
+    with pytest.raises(ValidationError, match="must not be a symlink"):
+        write_source_proposal(
+            {
+                "authority": "bounded_source_material_proposal_only",
+                "scientific_evidence_eligible": False,
+                "canonical_dataset_registered": False,
+                "custody_cleared": False,
+                "source": {"bytes": b"x", "sha256": hashlib.sha256(b"x").hexdigest(), "size_bytes": 1},
+            },
+            link,
+        )
+
+
 def test_connector_cli_commands_are_provider_neutral() -> None:
     fetch = build_parser().parse_args([
         "addon", "fetch", "--connector", "fixture", "--query-file", "query.json",
