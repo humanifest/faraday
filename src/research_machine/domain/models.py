@@ -878,6 +878,77 @@ class CanaryTargetPlan(Serializable):
 
 
 @dataclass(frozen=True)
+class HypothesisDisclosureEvent(Serializable):
+    event_id: str
+    audience: str
+    statement_disclosed: str
+    statement_role: str
+    timing_anchor: str
+    timing_description: str
+
+
+@dataclass(frozen=True)
+class CompetingProcessModel(Serializable):
+    model_id: str
+    statement: str
+    observable_prediction: str
+    comparison_rule: str
+    distinguishability: str
+    non_distinguishability_rationale: str = ""
+    linked_hypothesis_ids: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class DecisionLossAssumptions(Serializable):
+    false_reassurance_cost: str
+    precaution_cost: str
+    decision_rule: str
+    notice: str
+
+
+@dataclass(frozen=True)
+class HypothesisReactivityPlan(Serializable):
+    plan_id: str
+    disclosure_schedule: list[HypothesisDisclosureEvent]
+    process_models: list[CompetingProcessModel]
+    likelihood_comparison_rule: str
+    assessment_gate_id: str
+    ethical_disclosure: str
+    limitations: str
+    decision_loss_assumptions: DecisionLossAssumptions | None = None
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "HypothesisReactivityPlan":
+        copied = dict(value)
+        copied["disclosure_schedule"] = [
+            item
+            if isinstance(item, HypothesisDisclosureEvent)
+            else HypothesisDisclosureEvent(**item)
+            for item in copied.get("disclosure_schedule", [])
+        ]
+        copied["process_models"] = [
+            item
+            if isinstance(item, CompetingProcessModel)
+            else CompetingProcessModel(
+                **{
+                    "non_distinguishability_rationale": "",
+                    "linked_hypothesis_ids": [],
+                    **item,
+                }
+            )
+            for item in copied.get("process_models", [])
+        ]
+        assumptions = copied.get("decision_loss_assumptions")
+        if assumptions is not None and not isinstance(
+            assumptions, DecisionLossAssumptions
+        ):
+            copied["decision_loss_assumptions"] = DecisionLossAssumptions(
+                **assumptions
+            )
+        return cls(**copied)
+
+
+@dataclass(frozen=True)
 class CalibrationCriterion(Serializable):
     criterion_id: str
     calibration_id: str
@@ -1069,6 +1140,7 @@ class ExperimentProtocol(Serializable):
     factorial_or_crossover_design: bool = False
     factor_interpretability_plan: str = ""
     canary_target_plan: CanaryTargetPlan | None = None
+    hypothesis_reactivity_plan: HypothesisReactivityPlan | None = None
     randomization_plan: str = ""
     blinding_plan: str = ""
     sampling_unit: str = ""
@@ -1274,6 +1346,12 @@ class ExperimentProtocol(Serializable):
         ):
             copied["canary_target_plan"] = CanaryTargetPlan(
                 **copied["canary_target_plan"]
+            )
+        if copied.get("hypothesis_reactivity_plan") is not None and not isinstance(
+            copied["hypothesis_reactivity_plan"], HypothesisReactivityPlan
+        ):
+            copied["hypothesis_reactivity_plan"] = HypothesisReactivityPlan.from_dict(
+                copied["hypothesis_reactivity_plan"]
             )
         if copied.get("analysis_contract") is not None and not isinstance(copied["analysis_contract"], AnalysisContract):
             copied["analysis_contract"] = AnalysisContract(

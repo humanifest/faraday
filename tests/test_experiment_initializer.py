@@ -80,6 +80,28 @@ def _controlled_scenario(**overrides: object) -> dict[str, object]:
     return scenario
 
 
+def _alias_proxy_commitment(**overrides: object) -> dict[str, object]:
+    commitment: dict[str, object] = {
+        "commitment_id": "masked-primary-target",
+        "concealment_scope": "registered_target_alias",
+        "public_label": "height",
+        "private_mapping_sha256": "a" * 64,
+        "construct_validity_rationale": (
+            "The public target label is a blinded alias whose private mapping "
+            "is retained for authorized review."
+        ),
+        "limitations": [
+            "The mapping hash preserves identity only; it does not prove scientific validity."
+        ],
+        "reveal_conditions": (
+            "Reveal only to authorized reviewers after the protocol review point."
+        ),
+        "proxy_construct": "",
+    }
+    commitment.update(overrides)
+    return commitment
+
+
 def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
     tmp_path: Path, capsys
 ) -> None:
@@ -103,6 +125,11 @@ def test_initializer_creates_isolated_workspace_with_unreviewed_hypothesis(
     assert (
         state["preprocessing_conformance_plan_artifact"]
         == "drafts/preprocessing-conformance-plan-draft.json"
+    )
+    assert state["alias_proxy_commitments_status"] == "absent"
+    assert (
+        state["alias_proxy_commitments_artifact"]
+        == "drafts/alias-proxy-commitments-draft.json"
     )
     assert state["controlled_acceptance_scenarios_status"] == "absent"
     assert (
@@ -322,6 +349,63 @@ def test_initializer_replays_preprocessing_conformance_review_artifact(
     )
 
 
+def test_initializer_replays_alias_proxy_commitments_artifact(
+    tmp_path: Path, capsys
+) -> None:
+    commitment = _alias_proxy_commitment()
+    brief_payload = {
+        **_basic_brief(),
+        "alias_proxy_commitment": commitment,
+    }
+    brief = tmp_path / "brief.json"
+    brief.write_text(json.dumps(brief_payload), encoding="utf-8")
+    destination = tmp_path / "light-trial"
+
+    assert (
+        main(
+            [
+                "--json",
+                "design",
+                "initialize",
+                "--brief-file",
+                str(brief),
+                "--output",
+                str(destination),
+                "--no-git",
+            ]
+        )
+        == 0
+    )
+
+    result = json.loads(capsys.readouterr().out)["result"]
+    assert result["alias_proxy_commitments_status"] == "review_required"
+    state = json.loads((destination / "experiment-machine.json").read_text())
+    assert state["alias_proxy_commitments_status"] == "review_required"
+    assert (
+        state["alias_proxy_commitments_artifact"]
+        == "drafts/alias-proxy-commitments-draft.json"
+    )
+    artifact_names = {entry["name"] for entry in state["review_artifacts"]}
+    assert "alias-proxy-commitments-draft.json" in artifact_names
+    primary = json.loads(
+        (destination / "drafts" / "measurement-definition-draft.json").read_text()
+    )
+    alias_proxy = json.loads(
+        (destination / "drafts" / "alias-proxy-commitments-draft.json").read_text()
+    )
+    assert primary["alias_proxy_commitment"] == commitment
+    assert alias_proxy["commitment_count"] == 1
+    assert alias_proxy["scientific_evidence_eligible"] is False
+    assert alias_proxy["commitments"] == [
+        {
+            "measurement_id": primary["measurement_id"],
+            "role": primary["role"],
+            "registered_target": primary["registered_target"],
+            "commitment": commitment,
+        }
+    ]
+
+
 def test_initializer_rejects_divergent_canary_draft_before_publication(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -362,6 +446,59 @@ def test_initializer_rejects_divergent_canary_draft_before_publication(
     monkeypatch.setattr(initializer, "scaffold_design", divergent_scaffold)
 
     with pytest.raises(ValidationError, match="canary target draft"):
+        initializer.initialize_experiment_repository(
+            brief_payload,
+            tmp_path / "light-trial",
+            actor="test",
+            initialize_git=False,
+        )
+    assert not (tmp_path / "light-trial").exists()
+
+
+def test_initializer_rejects_divergent_alias_proxy_draft_before_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    brief_payload = {
+        **_basic_brief(),
+        "alias_proxy_commitment": _alias_proxy_commitment(),
+    }
+
+    original_scaffold = initializer.scaffold_design
+
+    def divergent_scaffold(brief: dict[str, object]) -> dict[str, object]:
+        scaffold = original_scaffold(brief)
+        alias_artifact = dict(
+            scaffold["artifacts"]["alias-proxy-commitments-draft.json"]
+        )
+        alias_artifact["commitments"] = [
+            {
+                **alias_artifact["commitments"][0],
+                "registered_target": "different-target",
+            }
+        ]
+        scaffold["artifacts"]["alias-proxy-commitments-draft.json"] = alias_artifact
+        manifest = dict(scaffold["artifacts"]["design-scaffold-provenance.json"])
+        entries = [
+            {
+                "name": name,
+                "media_type": "text/markdown" if isinstance(content, str) else "application/json",
+                "content_sha256": scaffold_module._rendered_artifact_sha256(content),
+            }
+            for name, content in sorted(scaffold["artifacts"].items())
+            if name != "design-scaffold-provenance.json"
+        ]
+        manifest["artifact_manifest"] = entries
+        manifest["artifact_manifest_sha256"] = scaffold_module._content_sha256(entries)
+        scaffold["artifacts"]["design-scaffold-provenance.json"] = manifest
+        scaffold["provenance"] = {
+            **scaffold["provenance"],
+            "artifact_manifest_sha256": manifest["artifact_manifest_sha256"],
+        }
+        return scaffold
+
+    monkeypatch.setattr(initializer, "scaffold_design", divergent_scaffold)
+
+    with pytest.raises(ValidationError, match="alias/proxy commitments draft"):
         initializer.initialize_experiment_repository(
             brief_payload,
             tmp_path / "light-trial",

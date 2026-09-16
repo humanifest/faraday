@@ -2197,11 +2197,60 @@ def validate_protocol_freeze(protocol: ExperimentProtocol) -> None:
             require_text(item.assessment_gate_id, "measurement validity assessment_gate_id")
             for item in protocol.measurement_validity_checks
         )
+        if protocol.hypothesis_reactivity_plan is not None:
+            occupied_gate_ids.add(
+                require_canonical_text(
+                    protocol.hypothesis_reactivity_plan.assessment_gate_id,
+                    "hypothesis_reactivity_plan.assessment_gate_id",
+                )
+            )
         occupied_gate_ids.discard("")
         if assessment_gate_id in occupied_gate_ids:
             raise ValidationError(
-                "canary_target_plan assessment gate must be dedicated and cannot be reused for controls, causal assumptions, missingness, or validity checks"
+                "canary_target_plan assessment gate must be dedicated and cannot be reused for controls, causal assumptions, missingness, validity, or reactivity checks"
             )
+    reactivity_plan = protocol.hypothesis_reactivity_plan
+    if reactivity_plan is not None:
+        occupied_gate_ids = {
+            require_text(item.evaluation_gate_id, "control evaluation_gate_id")
+            for item in protocol.control_definitions
+        }
+        if protocol.analysis_contract is not None:
+            occupied_gate_ids.add(
+                require_text(
+                    protocol.analysis_contract.missingness_assessment_gate_id,
+                    "analysis_contract.missingness_assessment_gate_id",
+                )
+            )
+        if protocol.causal_identification:
+            occupied_gate_ids.update(
+                require_text(
+                    item["assessment_gate_id"],
+                    "causal assumption assessment_gate_id",
+                )
+                for item in protocol.causal_identification.get("assumptions", [])
+            )
+        occupied_gate_ids.update(
+            require_text(item.assessment_gate_id, "measurement validity assessment_gate_id")
+            for item in protocol.measurement_validity_checks
+        )
+        if protocol.canary_target_plan is not None:
+            occupied_gate_ids.add(
+                require_canonical_text(
+                    protocol.canary_target_plan.assessment_gate_id,
+                    "canary_target_plan.assessment_gate_id",
+                )
+            )
+        occupied_gate_ids.discard("")
+        from research_machine.application.hypothesis_reactivity import (
+            validate_hypothesis_reactivity_plan_freeze,
+        )
+
+        validate_hypothesis_reactivity_plan_freeze(
+            protocol,
+            quality_requirement_set=quality_requirement_set,
+            occupied_gate_ids=occupied_gate_ids,
+        )
     if protocol.measurement_definitions:
         validate_measurement_contract(protocol)
     if protocol.measurement_validity_checks:

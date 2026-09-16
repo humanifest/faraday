@@ -972,7 +972,10 @@ manifest before publishing the directory, records the review-artifact index, and
 marks controlled acceptance scenarios and the canary-target draft as absent or
 review-required without treating either as approval, authentication of the
 hidden assignment, observed results, or evidence. It also replays the
-preprocessing-conformance draft against the protocol draft: a hash-bound
+alias/proxy commitments draft against the measurement-definition drafts:
+hash-bound private mappings must remain review-required, match the public
+measurement commitments, and stay non-evidentiary. Initialization also replays
+the preprocessing-conformance draft against the protocol draft: a hash-bound
 preprocessing pipeline must remain review-required, carry the same registered
 pipeline digest, and name a required quality gate from the protocol. Pass
 `--no-git` only when Git is not desired for that experiment.

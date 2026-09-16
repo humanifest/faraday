@@ -130,6 +130,7 @@ from research_machine.domain.models import (
     Hypothesis,
     HypothesisWorkflowState,
     Inquiry,
+    QualityGateResult,
     Question,
     QuestionStatus,
     RejectionType,
@@ -512,6 +513,7 @@ def _resolve_json_artifact_location(
 _STRUCTURED_RESULT_DETAIL_KEYS = {
     "bounded_negative_search_results",
     "canary_target_assessment",
+    "hypothesis_reactivity_assessment",
     "causal_assumption_results",
     "duality_reconstruction_results",
     "reconstruction_family_stability_results",
@@ -734,6 +736,27 @@ def _validate_canary_target_assessment_gate(
                 "canary assessment selected_value_sha256 does not match the verified analysis result value"
             )
         assessment["selected_value_sha256"] = selected_value_sha256
+
+
+def _validate_hypothesis_reactivity_assessment_gate(
+    *,
+    protocol: ExperimentProtocol,
+    gate: QualityGateResult,
+    outputs: list[DatasetArtifact],
+    artifact_root: str | None,
+) -> None:
+    from research_machine.application.hypothesis_reactivity import (
+        validate_hypothesis_reactivity_assessment_gate,
+    )
+
+    validate_hypothesis_reactivity_assessment_gate(
+        protocol=protocol,
+        gate=gate,
+        outputs=outputs,
+        artifact_root=artifact_root,
+        resolve_json_location=_resolve_json_artifact_location,
+        result_selection_sha256=_result_selection_sha256,
+    )
 
 
 def _validate_preprocessing_conformance_gate(
@@ -4294,6 +4317,12 @@ class ResearchService:
                 verified_gate_result=verified_gate_result,
                 verified_gate_output_sha256=verified_gate_output_sha256,
             )
+            _validate_hypothesis_reactivity_assessment_gate(
+                protocol=protocol,
+                gate=gate,
+                outputs=outputs,
+                artifact_root=artifact_root,
+            )
         preprocessing_conformance_missing = bool(
             is_canonical_sha256(protocol.preprocessing_pipeline)
             and not any(
@@ -4311,6 +4340,19 @@ class ResearchService:
             ):
                 raise ValidationError(
                     "performed canary assessment gate requires a structured canary_target_assessment result"
+                )
+        if protocol.hypothesis_reactivity_plan is not None:
+            reactivity_gate = gates_by_id.get(
+                protocol.hypothesis_reactivity_plan.assessment_gate_id
+            )
+            if (
+                reactivity_gate is not None
+                and reactivity_gate.status is not QualityGateStatus.SKIPPED
+                and "hypothesis_reactivity_assessment" not in reactivity_gate.details
+            ):
+                raise ValidationError(
+                    "performed reactivity assessment gate requires a structured "
+                    "hypothesis_reactivity_assessment result"
                 )
         controls_by_gate: dict[str, list[Any]] = {}
         for control in protocol.control_definitions:
@@ -5961,6 +6003,7 @@ class ResearchService:
             else None
         )
         canary_plan = protocol.canary_target_plan
+        reactivity_plan = protocol.hypothesis_reactivity_plan
         return {
             "schema_version": 1,
             "template_kind": "research-machine-run-record-v1",
@@ -5995,6 +6038,9 @@ class ResearchService:
             ],
             "canary_target_plan": (
                 canary_plan.to_dict() if canary_plan is not None else None
+            ),
+            "hypothesis_reactivity_plan": (
+                reactivity_plan.to_dict() if reactivity_plan is not None else None
             ),
             "preprocessing_pipeline_commitment_sha256": preprocessing_pipeline_sha256,
             "template_only": True,
@@ -6067,6 +6113,29 @@ class ResearchService:
                             }} if (
                                 canary_plan is not None
                                 and gate_id == canary_plan.assessment_gate_id
+                            ) else {}),
+                            **({"hypothesis_reactivity_assessment": {
+                                "plan_id": reactivity_plan.plan_id,
+                                "assessment_status": "<models_discriminated, compatible_with_multiple, not_distinguishable_by_design, or inconclusive>",
+                                "supported_model_ids": [
+                                    "<frozen distinguishable process model favored under the likelihood rule>"
+                                ],
+                                "not_distinguishable_model_ids": [
+                                    model.model_id
+                                    for model in reactivity_plan.process_models
+                                    if model.distinguishability
+                                    == "not_distinguishable_by_this_design"
+                                ],
+                                "likelihood_comparison": "<cite the frozen likelihood_comparison_rule or plan_id>",
+                                "observed_pattern": "<bounded observation; not a detection finding>",
+                                "interpretation": "<bounded interpretation under frozen models; not adaptation or intent>",
+                                "decision_rationale": "<optional; requires frozen decision_loss_assumptions; precaution is not a finding>",
+                                "evidence_sha256": "<hash of a listed run output artifact>",
+                                "evidence_location": "<exact table, figure, section, record range, or JSON Pointer within that artifact>",
+                                "selected_value_sha256": "<derived hash of the exact selected JSON value when evidence_location is machine-resolvable>",
+                            }} if (
+                                reactivity_plan is not None
+                                and gate_id == reactivity_plan.assessment_gate_id
                             ) else {}),
                             **({"control_results": {
                             control.control_id: {
@@ -6415,6 +6484,7 @@ class ResearchService:
                 "For causal temporal-order gates, cite a stream_timing_assessment record whose inspection and specification hashes replay from current bytes; the assessment verifies timing feasibility without authenticating acquisition or calibration truth.",
                 "For causal temporal-order gates, cite a temporal_order_assessment record whose timing and specification hashes replay from current bytes; the assessment classifies order without proving causality.",
                 "For canary target assessments, reveal the target only from the frozen assignment artifact and report whether the pattern followed the revealed target, a comparator or decoy, no target, mixed targets, or remained inconclusive; this is not proof of adaptation, mechanism, or intent.",
+                "For hypothesis-reactivity assessments, compare observations only under the frozen disclosure schedule and process models; cite the frozen likelihood rule; mark catch-all concealment as not_distinguishable_by_design rather than supported; keep decision rationales bound to loss assumptions and never record detection as a finding.",
                 "Explicitly disclose every departure from the frozen protocol. A declared departure remains recordable but blocks automatic scientific-evidence eligibility.",
                 "Explicitly disclose whether relevant candidate output was seen before registration. Favorable, full, unknown, or omitted exposure blocks automatic scientific-evidence eligibility.",
                 "Run `research run preflight --record-file ...` before `research run record`.",
@@ -8134,6 +8204,7 @@ class ResearchService:
                 "factor_interpretability_plan",
             ),
             canary_target_plan=command.canary_target_plan,
+            hypothesis_reactivity_plan=command.hypothesis_reactivity_plan,
             randomization_plan=normalize_text(
                 command.randomization_plan, "randomization_plan"
             ),

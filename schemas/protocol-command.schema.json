@@ -825,6 +825,90 @@
         "assessment_gate_id": {"type": "string", "pattern": "\\S"}
       }
     },
+    "hypothesisDisclosureEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "audience", "statement_disclosed", "statement_role", "timing_anchor", "timing_description"],
+      "properties": {
+        "event_id": {"$ref": "#/$defs/canonicalText"},
+        "audience": {"$ref": "#/$defs/canonicalText"},
+        "statement_disclosed": {"$ref": "#/$defs/boundedReportText"},
+        "statement_role": {
+          "enum": ["true_hypothesis", "decoy_hypothesis", "cover_story", "withheld", "other"]
+        },
+        "timing_anchor": {
+          "enum": ["pre_exposure", "at_exposure", "post_exposure", "analysis", "other"]
+        },
+        "timing_description": {"$ref": "#/$defs/boundedReportText"}
+      }
+    },
+    "competingProcessModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_id", "statement", "observable_prediction", "comparison_rule", "distinguishability"],
+      "properties": {
+        "model_id": {"$ref": "#/$defs/canonicalText"},
+        "statement": {"$ref": "#/$defs/boundedReportText"},
+        "observable_prediction": {"$ref": "#/$defs/boundedReportText"},
+        "comparison_rule": {"$ref": "#/$defs/boundedReportText"},
+        "distinguishability": {
+          "enum": ["distinguishable", "not_distinguishable_by_this_design"]
+        },
+        "non_distinguishability_rationale": {"type": "string"},
+        "linked_hypothesis_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/canonicalText"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "decisionLossAssumptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["false_reassurance_cost", "precaution_cost", "decision_rule", "notice"],
+      "properties": {
+        "false_reassurance_cost": {"$ref": "#/$defs/boundedReportText"},
+        "precaution_cost": {"$ref": "#/$defs/boundedReportText"},
+        "decision_rule": {"$ref": "#/$defs/boundedReportText"},
+        "notice": {"$ref": "#/$defs/boundedReportText"}
+      }
+    },
+    "hypothesisReactivityPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_id",
+        "disclosure_schedule",
+        "process_models",
+        "likelihood_comparison_rule",
+        "assessment_gate_id",
+        "ethical_disclosure",
+        "limitations"
+      ],
+      "properties": {
+        "plan_id": {"$ref": "#/$defs/canonicalText"},
+        "disclosure_schedule": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/hypothesisDisclosureEvent"}
+        },
+        "process_models": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/competingProcessModel"}
+        },
+        "likelihood_comparison_rule": {"$ref": "#/$defs/boundedReportText"},
+        "assessment_gate_id": {"$ref": "#/$defs/canonicalText"},
+        "ethical_disclosure": {"$ref": "#/$defs/boundedReportText"},
+        "limitations": {"$ref": "#/$defs/boundedReportText"},
+        "decision_loss_assumptions": {
+          "anyOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/decisionLossAssumptions"}
+          ]
+        }
+      }
+    },
     "analysisContract": {
       "type": "object", "additionalProperties": false,
       "required": ["primary_hypothesis_id", "primary_measurement_id", "method", "outcome_column", "group_column", "groups", "estimand", "contrast_definition", "contrast_groups", "missing_data_policy", "assignment_type", "effect_estimate_path", "uncertainty_path", "null_value", "support_rule", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "missingness_assumption", "missingness_assessment_plan", "missingness_failure_response", "missingness_assessment_kind", "missingness_assessment_gate_id"],
@@ -1056,6 +1140,12 @@
       "anyOf": [
         {"type": "null"},
         {"$ref": "#/$defs/canaryTargetPlan"}
+      ]
+    },
+    "hypothesis_reactivity_plan": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/hypothesisReactivityPlan"}
       ]
     },
     "control_definitions": {"type": "array", "items": {"$ref": "#/$defs/controlDefinition"}},

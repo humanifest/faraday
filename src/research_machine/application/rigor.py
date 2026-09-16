@@ -1424,6 +1424,38 @@ def audit_research_state(
                     "it does not establish adaptation, mechanism, attribution, or intent."
                 ),
             )
+        if protocol.hypothesis_reactivity_plan is not None:
+            plan = protocol.hypothesis_reactivity_plan
+            distinguishable = [
+                model.model_id
+                for model in plan.process_models
+                if model.distinguishability == "distinguishable"
+            ]
+            add(
+                "PROTOCOL_HYPOTHESIS_REACTIVITY_PLAN_DECLARED",
+                RigorSeverity.INFO,
+                "Frozen protocol declares a hypothesis-disclosure reactivity plan with competing process models.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "Treat disclosure schedule and process models as prospective design "
+                    "provenance. Observation, model compatibility, and decision loss remain "
+                    "separate; non-distinguishable models are not independently supported."
+                ),
+            )
+            if not distinguishable:
+                add(
+                    "PROTOCOL_HYPOTHESIS_REACTIVITY_NO_DISTINGUISHABLE_MODEL",
+                    RigorSeverity.WARNING,
+                    "Hypothesis-reactivity plan marks every process model as not distinguishable by this design.",
+                    entity_type="protocol",
+                    entity_id=protocol.protocol_id,
+                    remediation=(
+                        "Report design non-discrimination explicitly. Do not treat quiet "
+                        "results or catch-all concealment as support for an unobserved "
+                        "explanation."
+                    ),
+                )
         if (
             protocol.analysis_mode
             in {AnalysisMode.CONFIRMATORY, AnalysisMode.REPLICATION}
@@ -1679,6 +1711,33 @@ def audit_research_state(
                     "In the next run, attach the canary-target assessment to the frozen canary gate; do not infer target-following, adaptation, mechanism, attribution, or intent from the masked plan alone."
                 ),
             )
+        reactivity_plan = protocol.hypothesis_reactivity_plan
+        if (
+            _protected_empirical(protocol)
+            and reactivity_plan is not None
+            and runs_by_protocol[protocol.protocol_id] > 0
+            and not any(
+                _has_structured_gate_detail_for_gate_ids(
+                    run,
+                    "hypothesis_reactivity_assessment",
+                    {reactivity_plan.assessment_gate_id},
+                )
+                for run in runs
+                if run.protocol_id == protocol.protocol_id
+            )
+        ):
+            add(
+                "PROTECTED_EMPIRICAL_HYPOTHESIS_REACTIVITY_UNASSESSED",
+                RigorSeverity.WARNING,
+                "Protected empirical protocol has a frozen hypothesis-reactivity assessment gate, but recorded runs expose no structured hypothesis-reactivity assessment for that gate.",
+                entity_type="protocol",
+                entity_id=protocol.protocol_id,
+                remediation=(
+                    "In the next run, attach the reactivity assessment to the frozen gate; "
+                    "do not infer detection, adaptation, or intent from the disclosure "
+                    "schedule alone, and do not treat non-distinguishable models as supported."
+                ),
+            )
         if runs_by_protocol[protocol.protocol_id] == 0:
             add(
                 "FROZEN_PROTOCOL_NOT_EXECUTED",
@@ -1843,6 +1902,56 @@ def audit_research_state(
                         "The pass classifies order under timing uncertainty and does not prove causality.",
                         entity_type="run",
                         entity_id=run.run_id,
+                    )
+            reactivity = gate.details.get("hypothesis_reactivity_assessment")
+            if isinstance(reactivity, dict):
+                reactivity_status = reactivity.get("assessment_status")
+                if reactivity_status == "models_discriminated":
+                    add(
+                        "RUN_HYPOTHESIS_REACTIVITY_MODELS_DISCRIMINATED",
+                        RigorSeverity.INFO,
+                        "Run reactivity assessment reported discrimination among frozen distinguishable process models under the registered likelihood comparison.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Keep the result bounded to the frozen model set. Do not promote "
+                            "it to adaptation, detection, or intent."
+                        ),
+                    )
+                elif reactivity_status == "compatible_with_multiple":
+                    add(
+                        "RUN_HYPOTHESIS_REACTIVITY_COMPATIBLE_WITH_MULTIPLE",
+                        RigorSeverity.WARNING,
+                        "Run reactivity assessment left multiple frozen process models compatible under the registered likelihood comparison.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Report non-discrimination for this contrast. Do not treat a quiet "
+                            "result as safety or as support for an unobserved explanation."
+                        ),
+                    )
+                elif reactivity_status == "not_distinguishable_by_design":
+                    add(
+                        "RUN_HYPOTHESIS_REACTIVITY_NOT_DISTINGUISHABLE",
+                        RigorSeverity.WARNING,
+                        "Run reactivity assessment reported that the design cannot distinguish the relevant process models.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Mark catch-all concealment as not distinguishable by this design; "
+                            "do not treat it as an independently supported explanation."
+                        ),
+                    )
+                elif reactivity_status == "inconclusive":
+                    add(
+                        "RUN_HYPOTHESIS_REACTIVITY_INCONCLUSIVE",
+                        RigorSeverity.WARNING,
+                        "Run reactivity assessment remained inconclusive under the frozen disclosure and process-model plan.",
+                        entity_type="run",
+                        entity_id=run.run_id,
+                        remediation=(
+                            "Disclose the inconclusive result and avoid detection, adaptation, or intent claims."
+                        ),
                     )
             canary = gate.details.get("canary_target_assessment")
             if not isinstance(canary, dict):

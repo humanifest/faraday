@@ -869,6 +869,64 @@ def build_synthesis(
                         "Interpretation: "
                         f"{_text(str(assessment.get('interpretation', '')))}"
                     )
+    reactivity_protocols = [
+        protocol
+        for protocol in protocols
+        if protocol.hypothesis_reactivity_plan is not None
+    ]
+    if reactivity_protocols:
+        lines.extend(["", "### Hypothesis reactivity provenance", ""])
+        for protocol in sorted(reactivity_protocols, key=lambda item: item.protocol_id):
+            plan = protocol.hypothesis_reactivity_plan
+            if plan is None:
+                continue
+            distinguishable = sum(
+                1
+                for model in plan.process_models
+                if model.distinguishability == "distinguishable"
+            )
+            lines.append(
+                f"- Protocol `{protocol.protocol_id}` plan `{plan.plan_id}`: "
+                f"{len(plan.disclosure_schedule)} disclosure event(s); "
+                f"{len(plan.process_models)} process models "
+                f"({distinguishable} distinguishable); gate "
+                f"`{plan.assessment_gate_id}`. Observation, model compatibility, "
+                "and decision loss remain separate. Non-distinguishable models are "
+                "design limits, not independently supported explanations. This is "
+                "not proof of detection, adaptation, mechanism, attribution, or intent."
+            )
+            for run in sorted(
+                (item for item in runs if item.protocol_id == protocol.protocol_id),
+                key=lambda item: item.run_id,
+            ):
+                for gate in run.quality_gates:
+                    assessment = gate.details.get("hypothesis_reactivity_assessment")
+                    if not isinstance(assessment, dict):
+                        continue
+                    lines.append(
+                        f"  - Run `{run.run_id}`: gate `{gate.gate_id}` "
+                        f"{gate.status.value}; status "
+                        f"{assessment.get('assessment_status', 'unclassified')}; "
+                        f"supported {assessment.get('supported_model_ids', [])}; "
+                        "not-distinguishable "
+                        f"{assessment.get('not_distinguishable_model_ids', [])}; "
+                        f"artifact `{assessment.get('evidence_sha256', 'unavailable')}` at "
+                        f"`{assessment.get('evidence_location', 'unavailable')}`; "
+                        f"selected value `{assessment.get('selected_value_sha256', 'unavailable')}`."
+                    )
+                    lines.append(
+                        "    - Likelihood comparison: "
+                        f"{_text(str(assessment.get('likelihood_comparison', '')))} "
+                        "Observed pattern: "
+                        f"{_text(str(assessment.get('observed_pattern', '')))} "
+                        "Interpretation: "
+                        f"{_text(str(assessment.get('interpretation', '')))}"
+                    )
+                    if assessment.get("decision_rationale"):
+                        lines.append(
+                            "    - Decision rationale (not a finding): "
+                            f"{_text(str(assessment.get('decision_rationale', '')))}"
+                        )
     if evidence_status_events:
         lines.extend(["", "### Evidence correction and retraction history", ""])
         for event in sorted(evidence_status_events, key=lambda item: (item.evidence_id, item.sequence)):

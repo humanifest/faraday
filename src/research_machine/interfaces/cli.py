@@ -82,6 +82,7 @@ from research_machine.domain.models import (
     DatasetRole,
     DualityReconstructionContract,
     EvidenceDirection,
+    HypothesisReactivityPlan,
     HypothesisWorkflowState,
     MathematicalPredicateContract,
     MeasurementDefinition,
@@ -174,6 +175,7 @@ _PROTOCOL_FIELDS = {
     "factorial_or_crossover_design",
     "factor_interpretability_plan",
     "canary_target_plan",
+    "hypothesis_reactivity_plan",
     "randomization_plan",
     "blinding_plan",
     "sampling_unit",
@@ -1507,6 +1509,18 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
             raise ValueError(f"invalid canary target plan: {exc}") from exc
     else:
         canary_plan = None
+    reactivity_value = spec.get("hypothesis_reactivity_plan")
+    if reactivity_value is not None:
+        from research_machine.application.hypothesis_reactivity import (
+            parse_hypothesis_reactivity_plan,
+        )
+
+        try:
+            reactivity_plan = parse_hypothesis_reactivity_plan(reactivity_value)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+    else:
+        reactivity_plan = None
     runtime_requirement_value = spec.get("runtime_preflight_requirement")
     if runtime_requirement_value is not None:
         if not isinstance(runtime_requirement_value, dict):
@@ -2099,6 +2113,7 @@ def _protocol_command(spec: dict[str, Any]) -> CreateProtocol:
                 "factor_interpretability_plan", ""
             ),
             canary_target_plan=canary_plan,
+            hypothesis_reactivity_plan=reactivity_plan,
             randomization_plan=spec.get("randomization_plan", ""),
             blinding_plan=spec.get("blinding_plan", ""),
             sampling_unit=spec.get("sampling_unit", ""),

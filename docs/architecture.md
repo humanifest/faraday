@@ -96,6 +96,13 @@ These are intentionally orthogonal:
   `inconclusive`.
 - Replication: `untested`, `pending`, `replicated`, `failed`, `mixed`.
 
+When a protocol freezes a `hypothesis_reactivity_plan`, three further objects
+stay separate: modeled system state (named process models and predictions),
+epistemic assessment (what observations do under a frozen likelihood rule), and
+decision state (optional loss assumptions). None licenses recording “currently
+detected.” Catch-all concealment that fits every outcome is marked
+`not_distinguishable_by_this_design`, not independently supported.
+
 A hypothesis may leave the active model set for many reasons that are not
 empirical refutation: it may be redundant, out of scope, unidentifiable,
 insufficiently measured, currently untestable, or ethically prohibited. The

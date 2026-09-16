@@ -1,0 +1,60 @@
+{
+  "plan_id": "disclosure-reactivity-example",
+  "disclosure_schedule": [
+    {
+      "event_id": "cover-pre",
+      "audience": "participants",
+      "statement_disclosed": "A cover story about routine equipment checks.",
+      "statement_role": "cover_story",
+      "timing_anchor": "pre_exposure",
+      "timing_description": "Told before any outcome window opens."
+    },
+    {
+      "event_id": "true-h-debrief",
+      "audience": "participants",
+      "statement_disclosed": "The registered scientific hypothesis after outcome lock.",
+      "statement_role": "true_hypothesis",
+      "timing_anchor": "analysis",
+      "timing_description": "Debrief after outcome collection ends."
+    }
+  ],
+  "process_models": [
+    {
+      "model_id": "no-reactivity",
+      "statement": "Disclosure does not change the measured process.",
+      "observable_prediction": "Outcome series matches the no-disclosure baseline.",
+      "comparison_rule": "Differs from demand-compliance by lacking post-disclosure movement toward the stated expectation.",
+      "distinguishability": "distinguishable",
+      "non_distinguishability_rationale": "",
+      "linked_hypothesis_ids": []
+    },
+    {
+      "model_id": "demand-compliance",
+      "statement": "After learning the hypothesis, behavior moves toward the expected pattern.",
+      "observable_prediction": "Post-disclosure movement toward the stated expectation exceeds the decoy contrast.",
+      "comparison_rule": "Differs from no-reactivity by a registered directional post-disclosure change.",
+      "distinguishability": "distinguishable",
+      "non_distinguishability_rationale": "",
+      "linked_hypothesis_ids": []
+    },
+    {
+      "model_id": "catch-all-concealment",
+      "statement": "An adaptive process mimics the null whenever concealment is free.",
+      "observable_prediction": "Any quiet series is accommodated without a costly signature.",
+      "comparison_rule": "Unspecified free concealment fits every quiet outcome.",
+      "distinguishability": "not_distinguishable_by_this_design",
+      "non_distinguishability_rationale": "This design has no costly signature that free concealment cannot mimic.",
+      "linked_hypothesis_ids": []
+    }
+  ],
+  "likelihood_comparison_rule": "Assign evidential weight only when the registered likelihood of the observation under a distinguishable model exceeds the alternatives; shared possibility alone is not an update.",
+  "assessment_gate_id": "hypothesis-reactivity-assessed",
+  "ethical_disclosure": "Independent review must approve any cover story and debrief timing.",
+  "limitations": "Catch-all concealment remains not distinguishable by this design; quiet results do not establish safety or an observer.",
+  "decision_loss_assumptions": {
+    "false_reassurance_cost": "Acting as if safe while wrong is high cost under the registered decision.",
+    "precaution_cost": "Extra precautions impose time and operational cost.",
+    "decision_rule": "Choose precaution only under stated loss and cost assumptions.",
+    "notice": "A precaution under these assumptions is not a finding and not evidence that an observer exists."
+  }
+}

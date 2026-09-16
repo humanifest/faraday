@@ -144,6 +144,7 @@ DESIGN_BRIEF_FIELDS = {
     "conclusion_time_window", "non_supporting_direction",
     "higher_level_conclusions_unsupported",
     "claim_boundaries", "causal_identification", "canary_target_plan",
+    "hypothesis_reactivity_plan",
     "controlled_acceptance_scenarios",
 }
 
@@ -703,7 +704,7 @@ def validate_brief(brief: dict[str, Any]) -> None:
     unknown = set(brief) - DESIGN_BRIEF_FIELDS
     if unknown:
         raise ValueError("unknown design brief fields: " + ", ".join(sorted(unknown)))
-    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "claim_boundaries", "causal_identification", "canary_target_plan", "controlled_acceptance_scenarios", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "alias_proxy_commitment", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
+    non_text_fields = {"controls", "confounds", "exclusions", "falsification_conditions", "decision_change_criteria", "ambiguity_questions", "available_data_sources", "unavailable_data", "data_access_constraints", "ethical_constraints", "secondary_outcomes", "confirmatory_outcomes", "exploratory_outcomes", "multiplicity_alpha", "independent_review_conditions", "human_participants", "independent_review", "repeated_measures", "factorial_or_crossover_design", "control_definitions", "minimum_analyzable_units", "maximum_excluded_fraction", "maximum_group_excluded_fraction_difference", "smallest_effect_size_of_interest", "higher_level_conclusions_unsupported", "claim_boundaries", "causal_identification", "canary_target_plan", "hypothesis_reactivity_plan", "controlled_acceptance_scenarios", "outcome_admissible_values", "outcome_missing_value_codes", "outcome_valid_min", "outcome_valid_max", "null_value", "confidence_level", "contrast_groups", "manipulated_factors", "sensor_requirements", "control_windows", "measurement_parameter_values", "measurement_validity_checks", "alias_proxy_commitment", "secondary_measurements", "control_measurements", "causal_measurements", "sample_size_plan"}
     for key, value in brief.items():
         if key not in non_text_fields and not isinstance(value, str):
             raise ValueError(f"design brief field {key} must be a string")
@@ -987,6 +988,16 @@ def validate_brief(brief: dict[str, Any]) -> None:
             or any(not isinstance(item, str) or not item.strip() for item in targets)
         ):
             raise ValueError("canary_target_plan.candidate_target_ids must be an array of non-blank text")
+    reactivity_plan = brief.get("hypothesis_reactivity_plan")
+    if reactivity_plan is not None:
+        from research_machine.application.hypothesis_reactivity import (
+            parse_hypothesis_reactivity_plan,
+        )
+
+        try:
+            parse_hypothesis_reactivity_plan(reactivity_plan)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
     if "sample_size_plan" in brief and not isinstance(brief["sample_size_plan"], dict):
         raise ValueError("sample_size_plan must be an object")
     if brief.get("missingness_assessment_kind", "") not in {
@@ -2195,6 +2206,10 @@ def audit_design(brief: dict[str, Any]) -> list[DesignFinding]:
         dedicated_gate_ids.append(brief["missingness_assessment_gate_id"])
     if isinstance(brief.get("canary_target_plan"), dict):
         dedicated_gate_ids.append(brief["canary_target_plan"]["assessment_gate_id"])
+    if isinstance(brief.get("hypothesis_reactivity_plan"), dict):
+        dedicated_gate_ids.append(
+            brief["hypothesis_reactivity_plan"]["assessment_gate_id"]
+        )
     if str(brief.get("preprocessing_conformance_gate_id", "")).strip():
         dedicated_gate_ids.append(brief["preprocessing_conformance_gate_id"])
     if len(set(dedicated_gate_ids)) != len(dedicated_gate_ids):
@@ -2241,6 +2256,11 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
     canary_target_plan = (
         dict(brief["canary_target_plan"])
         if isinstance(brief.get("canary_target_plan"), dict)
+        else None
+    )
+    hypothesis_reactivity_plan = (
+        dict(brief["hypothesis_reactivity_plan"])
+        if isinstance(brief.get("hypothesis_reactivity_plan"), dict)
         else None
     )
     primary_alias_proxy_commitment = _optional_alias_proxy_commitment(
@@ -2450,6 +2470,7 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         "factorial_or_crossover_design": brief.get("factorial_or_crossover_design", False),
         "factor_interpretability_plan": brief.get("factor_interpretability_plan", ""),
         "canary_target_plan": canary_target_plan,
+        "hypothesis_reactivity_plan": hypothesis_reactivity_plan,
         "group_data_column": brief.get("group_data_column", "[REVIEW REQUIRED] exact comparison or exposure column"),
         "controls": controls or ["[REVIEW REQUIRED] add a control family"],
         "sampling_unit": brief["unit_of_observation"],
@@ -2547,6 +2568,8 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
         ])
     if canary_target_plan is not None:
         add_quality_requirements([canary_target_plan["assessment_gate_id"]])
+    if hypothesis_reactivity_plan is not None:
+        add_quality_requirements([hypothesis_reactivity_plan["assessment_gate_id"]])
     if brief.get("preprocessing_pipeline") and brief.get("preprocessing_conformance_gate_id"):
         add_quality_requirements([brief["preprocessing_conformance_gate_id"]])
     if all(str(brief.get(field, "")).strip() for field in (
@@ -2888,6 +2911,60 @@ def scaffold_design(brief: dict[str, Any]) -> dict[str, Any]:
                     },
                 },
                 "notice": "This is a prospective masked-target design aid. It is not evidence of adaptation, mechanism, attribution, or intent, and it does not authenticate the hidden assignment.",
+            },
+            "hypothesis-reactivity-plan-draft.json": {
+                "status": (
+                    "review_required"
+                    if hypothesis_reactivity_plan is not None
+                    else "unresolved"
+                ),
+                "hypothesis_reactivity_plan": hypothesis_reactivity_plan or {
+                    "notice": "No hypothesis-reactivity plan was supplied.",
+                },
+                "required_run_assessment": {
+                    "gate_id": (
+                        hypothesis_reactivity_plan["assessment_gate_id"]
+                        if hypothesis_reactivity_plan is not None
+                        else "[REVIEW REQUIRED] dedicated reactivity assessment gate"
+                    ),
+                    "result_shape": {
+                        "plan_id": (
+                            hypothesis_reactivity_plan["plan_id"]
+                            if hypothesis_reactivity_plan is not None
+                            else "[REVIEW REQUIRED] reactivity plan ID"
+                        ),
+                        "assessment_status": (
+                            "models_discriminated | compatible_with_multiple | "
+                            "not_distinguishable_by_design | inconclusive"
+                        ),
+                        "supported_model_ids": [
+                            "[REVIEW REQUIRED] frozen distinguishable model IDs only"
+                        ],
+                        "not_distinguishable_model_ids": [
+                            "[REVIEW REQUIRED] exact frozen non-distinguishable model IDs"
+                        ],
+                        "likelihood_comparison": (
+                            "[REVIEW REQUIRED] cite frozen likelihood_comparison_rule or plan_id"
+                        ),
+                        "observed_pattern": "[REVIEW REQUIRED] bounded observation",
+                        "interpretation": (
+                            "[REVIEW REQUIRED] disclose without claiming detection, adaptation, or intent"
+                        ),
+                        "decision_rationale": (
+                            "[OPTIONAL] requires frozen decision_loss_assumptions; not a finding"
+                        ),
+                        "evidence_sha256": "[REVIEW REQUIRED] run output artifact SHA-256",
+                        "evidence_location": (
+                            "[REVIEW REQUIRED] exact location, absolute JSON Pointer for verified JSON outputs"
+                        ),
+                    },
+                },
+                "notice": (
+                    "Prospective disclosure and process-model design aid. Observation, "
+                    "model compatibility, and decision loss remain separate. "
+                    "Non-distinguishable models are design limits, not independently "
+                    "supported explanations."
+                ),
             },
             "collection-plan.md": (
                 f"# {brief['title']}\n\nQuestion: {brief['question']}\n\nDecision: {brief['decision']}\n\n"

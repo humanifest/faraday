@@ -20,6 +20,7 @@ from research_machine.domain.models import (
     DatasetRole,
     DualityReconstructionContract,
     EvidenceDirection,
+    HypothesisReactivityPlan,
     MeasurementDefinition,
     MathematicalPredicateContract,
     NamedComponentContract,
@@ -266,6 +267,7 @@ class CreateProtocol:
     factorial_or_crossover_design: bool = False
     factor_interpretability_plan: str = ""
     canary_target_plan: CanaryTargetPlan | None = None
+    hypothesis_reactivity_plan: HypothesisReactivityPlan | None = None
     randomization_plan: str = ""
     blinding_plan: str = ""
     sampling_unit: str = ""

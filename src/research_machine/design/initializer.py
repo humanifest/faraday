@@ -140,6 +140,83 @@ def _verify_initialized_scaffold(
             "initialized controlled acceptance scenarios draft must be non-evidentiary"
         )
 
+    alias_proxy = _read_json(
+        staging / "drafts" / "alias-proxy-commitments-draft.json"
+    )
+    primary_measurement = _read_json(
+        staging / "drafts" / "measurement-definition-draft.json"
+    )
+    secondary_measurements = _read_json(
+        staging / "drafts" / "secondary-measurement-definitions-draft.json"
+    )
+    control_measurements = _read_json(
+        staging / "drafts" / "control-measurement-definitions-draft.json"
+    )
+    causal_measurements = _read_json(
+        staging / "drafts" / "causal-measurement-definitions-draft.json"
+    )
+    expected_alias_commitments: list[dict[str, Any]] = []
+    primary_commitment = primary_measurement.get("alias_proxy_commitment")
+    if primary_commitment is not None:
+        expected_alias_commitments.append(
+            {
+                "measurement_id": primary_measurement.get("measurement_id"),
+                "role": primary_measurement.get("role"),
+                "registered_target": primary_measurement.get("registered_target"),
+                "commitment": primary_commitment,
+            }
+        )
+    for artifact, role in (
+        (secondary_measurements, "secondary"),
+        (control_measurements, "control"),
+        (causal_measurements, "causal"),
+    ):
+        measurements = artifact.get("measurements")
+        if not isinstance(measurements, list):
+            raise ValidationError(
+                "initialized alias/proxy measurement definition draft is malformed"
+            )
+        for measurement in measurements:
+            if not isinstance(measurement, dict):
+                raise ValidationError(
+                    "initialized alias/proxy measurement definition entry is malformed"
+                )
+            commitment = measurement.get("alias_proxy_commitment")
+            if commitment is None:
+                continue
+            expected_alias_commitments.append(
+                {
+                    "measurement_id": measurement.get("measurement_id"),
+                    "role": role,
+                    "registered_target": measurement.get("registered_target"),
+                    "commitment": commitment,
+                }
+            )
+    if expected_alias_commitments:
+        if alias_proxy.get("status") != "review_required":
+            raise ValidationError(
+                "initialized alias/proxy commitments draft must require review"
+            )
+        alias_proxy_status = "review_required"
+    else:
+        if alias_proxy.get("status") != "unresolved":
+            raise ValidationError(
+                "initialized alias/proxy commitments draft must be unresolved when none are supplied"
+            )
+        alias_proxy_status = "absent"
+    if alias_proxy.get("commitments") != expected_alias_commitments:
+        raise ValidationError(
+            "initialized alias/proxy commitments draft does not match measurement drafts"
+        )
+    if alias_proxy.get("commitment_count") != len(expected_alias_commitments):
+        raise ValidationError(
+            "initialized alias/proxy commitments draft count does not replay"
+        )
+    if alias_proxy.get("scientific_evidence_eligible") is not False:
+        raise ValidationError(
+            "initialized alias/proxy commitments draft must be non-evidentiary"
+        )
+
     protocol = _read_json(staging / "drafts" / "protocol-draft.json")
     canary = _read_json(staging / "drafts" / "canary-target-plan-draft.json")
     protocol_plan = protocol.get("canary_target_plan")
@@ -218,6 +295,8 @@ def _verify_initialized_scaffold(
         "canary_target_plan_artifact": "drafts/canary-target-plan-draft.json",
         "preprocessing_conformance_plan_status": preprocessing_status,
         "preprocessing_conformance_plan_artifact": "drafts/preprocessing-conformance-plan-draft.json",
+        "alias_proxy_commitments_status": alias_proxy_status,
+        "alias_proxy_commitments_artifact": "drafts/alias-proxy-commitments-draft.json",
         "controlled_acceptance_scenarios_status": controlled_acceptance_status,
         "controlled_acceptance_scenarios_artifact": "drafts/controlled-acceptance-scenarios-draft.json",
     }

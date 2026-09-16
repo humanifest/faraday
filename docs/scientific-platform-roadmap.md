@@ -904,6 +904,9 @@ canonical brief content and design-audit findings. The scaffold also emits a
 the staged draft bytes against the manifest before publishing the local
 experiment directory, records the review-artifact index, and exposes whether the
 canary-target draft is absent or review-required. It now also replays the
+alias/proxy commitments draft against the measurement-definition drafts before
+publication: hash-bound private mappings must remain review-required, match the
+public measurement commitments, and stay non-evidentiary. It also replays the
 preprocessing-conformance draft against the protocol draft before publication:
 a hash-bound preprocessing pipeline must retain a review-required draft carrying
 the same registered digest and a required protocol quality gate. This preserves
@@ -2683,6 +2686,25 @@ canary evidence location.
 This prevents an exported package from turning a comparator, decoy, no-target,
 mixed, or inconclusive observation into a cleaner-looking result while preserving
 the same non-proof limitation.
+Hypothesis-reactivity delivery: canonical protocols may freeze a
+`hypothesis_reactivity_plan` that binds a disclosure schedule (who was told
+which statement, when), a finite competing process-model repertoire with
+explicit predictions and comparison rules, a likelihood-comparison rule, a
+dedicated assessment gate, ethical disclosure, and limitations. Process models
+may be marked `distinguishable` or `not_distinguishable_by_this_design`; the
+latter requires a rationale and cannot receive supporting assessment status.
+Optional `decision_loss_assumptions` keep precaution rationales separate from
+findings and must state that the precaution is not evidence. Run templates and
+intake require a structured `hypothesis_reactivity_assessment` that cites the
+frozen plan, partitions supported versus non-distinguishable model IDs, records
+a likelihood comparison under the frozen rule, and rejects detection-as-finding
+language. Gate disposition is bound to assessment status:
+`models_discriminated` may pass, `compatible_with_multiple` or `inconclusive`
+require warning, and `not_distinguishable_by_design` must fail. Rigor and
+synthesis expose the plan and assessments without promoting quiet results into
+safety, detection, adaptation, or intent. This permits auditable updating over
+frozen models and auditable revision via ordinary hypothesis lineage; it
+forbids silent rewrite of the model set during the run.
 Preprocessing-conformance delivery: `measurement assess-preprocessing` now binds
 separately trusted registered and observed pipeline declarations, then compares
 stable pipeline IDs, ordered step IDs, operations, JSON-compatible parameters,
