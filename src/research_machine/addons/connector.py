@@ -121,6 +121,7 @@ def write_source_proposal(
 def verify_source_proposal(
     receipt_file: str | Path,
     connector: ScientificConnector | None = None,
+    manifest: AddonManifest | None = None,
 ) -> dict[str, Any]:
     """Replay a persisted connector proposal from its receipt and current bytes."""
     receipt_path = Path(receipt_file).expanduser().resolve()
@@ -142,6 +143,10 @@ def verify_source_proposal(
         raise ValidationError("connector implementation commitment is missing")
     implementation_replayed = False
     if connector is not None:
+        if not isinstance(receipt_connector, dict) or receipt_connector.get("connector_id") != connector.connector_id:
+            raise ValidationError("connector identity does not match receipt")
+        if manifest is not None and receipt_connector.get("addon_id") != manifest.addon_id:
+            raise ValidationError("connector add-on identity does not match receipt")
         current = _implementation_commitment(connector)
         if current != implementation:
             raise ValidationError("connector implementation does not match receipt")

@@ -186,6 +186,11 @@ def test_connector_proposal_writer_preserves_byte_receipt(tmp_path: Path) -> Non
     verified = verify_source_proposal(tmp_path / "proposal" / "connector-proposal.json")
     assert verified["status"] == "verified_source_material_proposal"
     assert verified["implementation_replayed"] is False
+    with pytest.raises(ValidationError, match="identity"):
+        verify_source_proposal(
+            tmp_path / "proposal" / "connector-proposal.json",
+            ScientificConnector("other", "Other", "Other", ("scientific_connector",), (), lambda query: {}),
+        )
     (tmp_path / "proposal" / "source.bin").write_bytes(b"changed")
     with pytest.raises(ValidationError, match="do not match"):
         verify_source_proposal(tmp_path / "proposal" / "connector-proposal.json")

@@ -2388,9 +2388,10 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
         if args.action == "verify-fetch":
             from research_machine.addons.connector import verify_source_proposal
             connector = None
+            manifest = None
             if args.connector:
-                _, connector = registry.resolve_connector(args.connector)
-            return verify_source_proposal(args.receipt_file, connector)
+                manifest, connector = registry.resolve_connector(args.connector)
+            return verify_source_proposal(args.receipt_file, connector, manifest)
         return registry.get(args.addon_id).describe()
 
     if args.group == "analysis" and args.action == "run-draft":
