@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from research_machine.addons.models import AddonManifest, AnalysisMethod, InstrumentAdapter
+from research_machine.addons.models import (
+    AddonManifest,
+    AnalysisMethod,
+    InstrumentAdapter,
+    ScientificConnector,
+)
 from research_machine.addons.general_science import (
     descriptive_summary,
     independent_mean_difference_ci,
@@ -74,6 +79,40 @@ def test_pearson_correlation_requires_canonical_column_handles() -> None:
             {"x_column": " x ", "y_column": "y"},
             [{"x": "1", "y": "2"}, {"x": "2", "y": "4"}, {"x": "3", "y": "6"}],
         )
+
+
+def test_connector_is_explicitly_low_authority_and_resolvable() -> None:
+    connector = ScientificConnector(
+        "registry-fixture",
+        "Registry fixture",
+        "Retrieves bounded source material.",
+        ("scientific_connector",),
+        ("record_id",),
+        lambda query: {"bytes": b"source", "metadata": {"query": query}},
+    )
+    registry = AddonRegistry()
+    registry.register(AddonManifest(
+        "connector_fixture", "Connector fixture", "1", "test",
+        "Synthetic connector fixture", connectors=(connector,),
+    ))
+    manifest, resolved = registry.resolve_connector("registry-fixture")
+    assert manifest.addon_id == "connector_fixture"
+    description = resolved.describe()
+    assert description["authority"] == "bounded_source_material_proposal_only"
+    assert description["scientific_evidence_eligible"] is False
+    assert description["can_register_dataset"] is False
+    assert description["can_clear_custody"] is False
+
+
+def test_connector_rejects_overlapping_query_fields() -> None:
+    with pytest.raises(ValidationError, match="optional_query_fields"):
+        AddonRegistry().register(AddonManifest(
+            "bad_connector", "Bad connector", "1", "test", "Invalid",
+            connectors=(ScientificConnector(
+                "bad", "Bad", "Invalid", ("scientific_connector",),
+                ("record_id",), lambda query: {}, ("record_id",),
+            ),),
+        ))
 
 
 def test_pearson_correlation_rejects_duplicate_columns() -> None:

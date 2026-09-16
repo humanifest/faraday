@@ -49,6 +49,12 @@ through the ordinary dataset, protocol, run, evidence, review, and ledger
 contracts. Connector access does not prove source truth, custody, consent,
 calibration, measurement validity, or evidence eligibility.
 
+The add-on registry exposes this boundary through a typed
+`ScientificConnector`. Its query contract and source routes are validated, but
+its fetch result remains a bounded source-material proposal. Connectors cannot
+register datasets, clear custody, or authorize evidence; canonical intake must
+recompute hashes and apply the ordinary scientific gates.
+
 ## Delivered foundation
 
 - A common inquiry, claim, hypothesis, dataset, protocol, run, evidence,

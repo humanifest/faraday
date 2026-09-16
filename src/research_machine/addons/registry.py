@@ -12,6 +12,7 @@ from research_machine.addons.models import (
     AddonManifest,
     AnalysisMethod,
     InstrumentAdapter,
+    ScientificConnector,
     INFERENCE_LEVELS,
     RANDOMNESS_CONTROLS,
 )
@@ -57,6 +58,7 @@ class AddonRegistry:
         self._instrument_adapters: dict[
             str, tuple[AddonManifest, InstrumentAdapter]
         ] = {}
+        self._connectors: dict[str, tuple[AddonManifest, ScientificConnector]] = {}
 
     def register(self, manifest: AddonManifest) -> None:
         self._validate(manifest)
@@ -74,11 +76,19 @@ class AddonRegistry:
                 raise ValidationError(
                     f"duplicate instrument adapter {adapter.adapter_id}; already provided by {owner}"
                 )
+        for connector in manifest.connectors:
+            if connector.connector_id in self._connectors:
+                owner = self._connectors[connector.connector_id][0].addon_id
+                raise ValidationError(
+                    f"duplicate scientific connector {connector.connector_id}; already provided by {owner}"
+                )
         self._addons[manifest.addon_id] = manifest
         for method in manifest.methods:
             self._methods[method.method_id] = (manifest, method)
         for adapter in manifest.instrument_adapters:
             self._instrument_adapters[adapter.adapter_id] = (manifest, adapter)
+        for connector in manifest.connectors:
+            self._connectors[connector.connector_id] = (manifest, connector)
 
     def list(self) -> list[AddonManifest]:
         return [self._addons[key] for key in sorted(self._addons)]
@@ -102,6 +112,12 @@ class AddonRegistry:
             return self._instrument_adapters[adapter_id]
         except KeyError as exc:
             raise NotFoundError(f"instrument adapter not found: {adapter_id}") from exc
+
+    def resolve_connector(self, connector_id: str) -> tuple[AddonManifest, ScientificConnector]:
+        try:
+            return self._connectors[connector_id]
+        except KeyError as exc:
+            raise NotFoundError(f"scientific connector not found: {connector_id}") from exc
 
     @staticmethod
     def _validate(manifest: AddonManifest) -> None:
@@ -218,6 +234,25 @@ class AddonRegistry:
                     f"instrument adapter optional_config_fields are invalid: {adapter.adapter_id}"
                 )
             adapter_ids.add(adapter.adapter_id)
+        connector_ids: set[str] = set()
+        for connector in manifest.connectors:
+            if not _IDENTIFIER.fullmatch(connector.connector_id):
+                raise ValidationError(
+                    "scientific connector id must be a stable lowercase identifier: "
+                    f"{connector.connector_id}"
+                )
+            if connector.connector_id in connector_ids:
+                raise ValidationError(
+                    f"duplicate scientific connector in add-on: {connector.connector_id}"
+                )
+            _canonical_text(connector.title, "connector title", connector.connector_id)
+            _canonical_text(connector.description, "connector description", connector.connector_id)
+            _canonical_values(connector.supported_source_types, "connector supported_source_types", connector.connector_id)
+            required = _canonical_values(connector.required_query_fields, "connector required_query_fields", connector.connector_id, allow_empty=True)
+            optional = _canonical_values(connector.optional_query_fields, "connector optional_query_fields", connector.connector_id, allow_empty=True)
+            if set(required) & set(optional):
+                raise ValidationError(f"connector optional_query_fields are invalid: {connector.connector_id}")
+            connector_ids.add(connector.connector_id)
 
 
 def default_registry(*, include_installed: bool = True) -> AddonRegistry:

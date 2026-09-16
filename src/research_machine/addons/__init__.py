@@ -4,6 +4,7 @@ from research_machine.addons.models import (
     AddonManifest,
     AnalysisMethod,
     InstrumentAdapter,
+    ScientificConnector,
     RANDOMNESS_CONTROLS,
 )
 from research_machine.addons.registry import (
@@ -17,6 +18,7 @@ __all__ = [
     "AddonRegistry",
     "AnalysisMethod",
     "InstrumentAdapter",
+    "ScientificConnector",
     "RANDOMNESS_CONTROLS",
     "default_registry",
     "load_local_addons",

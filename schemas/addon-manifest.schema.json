@@ -4,7 +4,7 @@
   "title": "Research Machine add-on manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["addon_id", "name", "version", "discipline", "description", "methods", "instrument_adapters", "capabilities", "protocol_kinds", "dataset_media_types"],
+  "required": ["addon_id", "name", "version", "discipline", "description", "methods", "instrument_adapters", "connectors", "capabilities", "protocol_kinds", "dataset_media_types"],
   "properties": {
     "addon_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
     "name": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
@@ -47,6 +47,22 @@
         "required_config_fields": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
         "optional_config_fields": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
         "authority": {"const": "acquisition_metadata_proposal_only"}
+      }
+    }},
+    "connectors": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["connector_id", "title", "description", "supported_source_types", "required_query_fields", "optional_query_fields", "authority", "scientific_evidence_eligible", "can_register_dataset", "can_clear_custody"],
+      "properties": {
+        "connector_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
+        "title": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
+        "description": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
+        "supported_source_types": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
+        "required_query_fields": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
+        "optional_query_fields": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},
+        "authority": {"const": "bounded_source_material_proposal_only"},
+        "scientific_evidence_eligible": {"const": false},
+        "can_register_dataset": {"const": false},
+        "can_clear_custody": {"const": false}
       }
     }},
     "capabilities": {"type": "array", "items": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"}, "uniqueItems": true},

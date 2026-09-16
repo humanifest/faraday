@@ -580,6 +580,12 @@ until Faraday registers and audits it through the normal dataset, protocol, run,
 evidence, review, and ledger contracts; plugin or connector access is not itself
 evidence.
 
+Add-ons may publish a typed `ScientificConnector` with bounded query fields.
+Its fetch result remains a source-material proposal: installation or retrieval
+cannot register a dataset, clear custody, or authorize evidence. Material must
+still pass canonical dataset registration and the applicable protocol, custody,
+ethics, run, review, and evidence gates.
+
 The machine is deliberately not a claim-confirmation engine. It keeps competing
 explanations alive, separates levels of inference, records scoped evidence, and
 preserves rejected hypotheses with the conditions under which they should be

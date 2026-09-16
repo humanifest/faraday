@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 AnalysisRunner = Callable[[dict[str, Any], list[dict[str, str]]], dict[str, Any]]
 InstrumentInspector = Callable[[bytes, dict[str, Any]], dict[str, Any]]
+ConnectorFetcher = Callable[[dict[str, Any]], dict[str, Any]]
 INFERENCE_LEVELS = frozenset({
     "computation_only", "descriptive", "association", "design_conditional_effect",
 })
@@ -51,6 +52,31 @@ class InstrumentAdapter:
 
 
 @dataclass(frozen=True)
+class ScientificConnector:
+    connector_id: str
+    title: str
+    description: str
+    supported_source_types: tuple[str, ...]
+    required_query_fields: tuple[str, ...]
+    fetch: ConnectorFetcher = field(repr=False, compare=False)
+    optional_query_fields: tuple[str, ...] = ()
+
+    def describe(self) -> dict[str, Any]:
+        return {
+            "connector_id": self.connector_id,
+            "title": self.title,
+            "description": self.description,
+            "supported_source_types": list(self.supported_source_types),
+            "required_query_fields": list(self.required_query_fields),
+            "optional_query_fields": list(self.optional_query_fields),
+            "authority": "bounded_source_material_proposal_only",
+            "scientific_evidence_eligible": False,
+            "can_register_dataset": False,
+            "can_clear_custody": False,
+        }
+
+
+@dataclass(frozen=True)
 class AddonManifest:
     addon_id: str
     name: str
@@ -59,6 +85,7 @@ class AddonManifest:
     description: str
     methods: tuple[AnalysisMethod, ...] = ()
     instrument_adapters: tuple[InstrumentAdapter, ...] = ()
+    connectors: tuple[ScientificConnector, ...] = ()
     capabilities: tuple[str, ...] = ()
     protocol_kinds: tuple[str, ...] = ()
     dataset_media_types: tuple[str, ...] = ()
@@ -75,6 +102,7 @@ class AddonManifest:
             "instrument_adapters": [
                 adapter.describe() for adapter in self.instrument_adapters
             ],
+            "connectors": [connector.describe() for connector in self.connectors],
             "capabilities": list(self.capabilities),
             "protocol_kinds": list(self.protocol_kinds),
             "dataset_media_types": list(self.dataset_media_types),
