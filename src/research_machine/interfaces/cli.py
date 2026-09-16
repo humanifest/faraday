@@ -895,6 +895,7 @@ def build_parser() -> argparse.ArgumentParser:
         "verify-fetch", help="Replay a persisted connector source proposal"
     )
     addon_verify.add_argument("--receipt-file", type=Path, required=True)
+    addon_verify.add_argument("--connector")
 
     analysis = groups.add_parser(
         "analysis", help="Execute a declared method through the add-on boundary"
@@ -2386,7 +2387,10 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             )
         if args.action == "verify-fetch":
             from research_machine.addons.connector import verify_source_proposal
-            return verify_source_proposal(args.receipt_file)
+            connector = None
+            if args.connector:
+                _, connector = registry.resolve_connector(args.connector)
+            return verify_source_proposal(args.receipt_file, connector)
         return registry.get(args.addon_id).describe()
 
     if args.group == "analysis" and args.action == "run-draft":

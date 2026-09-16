@@ -118,7 +118,10 @@ def write_source_proposal(
     return {"output_dir": str(root), "source": str(source_path), "receipt": str(receipt_path), "source_sha256": digest}
 
 
-def verify_source_proposal(receipt_file: str | Path) -> dict[str, Any]:
+def verify_source_proposal(
+    receipt_file: str | Path,
+    connector: ScientificConnector | None = None,
+) -> dict[str, Any]:
     """Replay a persisted connector proposal from its receipt and current bytes."""
     receipt_path = Path(receipt_file).expanduser().resolve()
     if not receipt_path.is_file() or receipt_path.is_symlink():
@@ -129,10 +132,20 @@ def verify_source_proposal(receipt_file: str | Path) -> dict[str, Any]:
         raise ValidationError("connector proposal receipt is unreadable JSON") from exc
     if not isinstance(receipt, dict) or receipt.get("authority") != "bounded_source_material_proposal_only":
         raise ValidationError("connector proposal receipt has an invalid authority boundary")
-    connector = receipt.get("connector")
-    implementation = connector.get("implementation") if isinstance(connector, dict) else None
+    receipt_connector = receipt.get("connector")
+    implementation = (
+        receipt_connector.get("implementation")
+        if isinstance(receipt_connector, dict)
+        else None
+    )
     if not isinstance(implementation, dict) or set(implementation) != {"locator", "sha256", "size_bytes"}:
         raise ValidationError("connector implementation commitment is missing")
+    implementation_replayed = False
+    if connector is not None:
+        current = _implementation_commitment(connector)
+        if current != implementation:
+            raise ValidationError("connector implementation does not match receipt")
+        implementation_replayed = True
     source = receipt.get("source")
     if not isinstance(source, dict) or set(source) != {"locator", "sha256", "size_bytes"}:
         raise ValidationError("connector proposal receipt source commitment is invalid")
@@ -155,5 +168,5 @@ def verify_source_proposal(receipt_file: str | Path) -> dict[str, Any]:
         "scientific_evidence_eligible": False,
         "canonical_dataset_registered": False,
         "custody_cleared": False,
-        "implementation_replayed": False,
+        "implementation_replayed": implementation_replayed,
     }

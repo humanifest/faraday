@@ -233,10 +233,12 @@ MANIFEST = AddonManifest(
     assert (output / "source.bin").read_bytes() == b"record:r1"
     assert main([
         "--json", "--workspace", str(workspace), "--addon-path", str(addon),
-        "addon", "verify-fetch", "--receipt-file", str(output / "connector-proposal.json"),
+        "addon", "verify-fetch", "--connector", "fixture",
+        "--receipt-file", str(output / "connector-proposal.json"),
     ]) == 0
     verified = json.loads(capsys.readouterr().out)
     assert verified["result"]["scientific_evidence_eligible"] is False
+    assert verified["result"]["implementation_replayed"] is True
 
 
 def test_pearson_correlation_rejects_duplicate_columns() -> None:
