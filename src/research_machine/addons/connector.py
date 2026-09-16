@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import re
 import json
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from research_machine.addons.models import AddonManifest, ScientificConnector
 from research_machine.domain.errors import ValidationError
 
 _MAX_CONNECTOR_OUTPUT_BYTES = 10_000_000
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _implementation_commitment(connector: ScientificConnector) -> dict[str, Any]:
@@ -130,8 +132,11 @@ def verify_source_proposal(
         raise ValidationError("connector proposal receipt must be a regular file")
     receipt_bytes = receipt_path.read_bytes()
     actual_receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
-    if expected_receipt_sha256 is not None and expected_receipt_sha256 != actual_receipt_sha256:
-        raise ValidationError("connector proposal receipt does not match expected SHA-256")
+    if expected_receipt_sha256 is not None:
+        if not isinstance(expected_receipt_sha256, str) or not _SHA256.fullmatch(expected_receipt_sha256):
+            raise ValidationError("expected connector receipt SHA-256 must be lowercase hex")
+        if expected_receipt_sha256 != actual_receipt_sha256:
+            raise ValidationError("connector proposal receipt does not match expected SHA-256")
     try:
         receipt = json.loads(receipt_bytes.decode("utf-8"))
     except (OSError, ValueError) as exc:

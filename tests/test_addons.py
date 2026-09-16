@@ -198,6 +198,11 @@ def test_connector_proposal_writer_preserves_byte_receipt(tmp_path: Path) -> Non
             tmp_path / "proposal" / "connector-proposal.json",
             expected_receipt_sha256="0" * 64,
         )
+    with pytest.raises(ValidationError, match="lowercase hex"):
+        verify_source_proposal(
+            tmp_path / "proposal" / "connector-proposal.json",
+            expected_receipt_sha256=" " + receipt_hash,
+        )
     with pytest.raises(ValidationError, match="identity"):
         verify_source_proposal(
             tmp_path / "proposal" / "connector-proposal.json",
