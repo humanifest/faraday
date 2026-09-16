@@ -272,6 +272,26 @@ def test_connector_proposal_writer_rejects_symlinked_output(tmp_path: Path) -> N
         )
 
 
+def test_connector_proposal_writer_does_not_overwrite_existing_artifacts(tmp_path: Path) -> None:
+    from research_machine.addons.connector import write_source_proposal
+
+    output = tmp_path / "proposal"
+    output.mkdir()
+    (output / "source.bin").write_bytes(b"prior")
+    with pytest.raises(ValidationError, match="already exists"):
+        write_source_proposal(
+            {
+                "authority": "bounded_source_material_proposal_only",
+                "scientific_evidence_eligible": False,
+                "canonical_dataset_registered": False,
+                "custody_cleared": False,
+                "source": {"bytes": b"x", "sha256": hashlib.sha256(b"x").hexdigest(), "size_bytes": 1},
+            },
+            output,
+        )
+    assert (output / "source.bin").read_bytes() == b"prior"
+
+
 def test_connector_cli_commands_are_provider_neutral() -> None:
     fetch = build_parser().parse_args([
         "addon", "fetch", "--connector", "fixture", "--query-file", "query.json",

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import os
 import re
+import tempfile
 import json
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,21 @@ from research_machine.domain.errors import ValidationError
 
 _MAX_CONNECTOR_OUTPUT_BYTES = 10_000_000
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _publish_exclusive(path: Path, data: bytes) -> None:
+    fd, temporary_name = tempfile.mkstemp(prefix=".connector-", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temporary, path)
+    except FileExistsError as exc:
+        raise ValidationError("connector proposal output already exists") from exc
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _implementation_commitment(connector: ScientificConnector) -> dict[str, Any]:
@@ -120,10 +137,13 @@ def write_source_proposal(
     digest = hashlib.sha256(source_bytes).hexdigest()
     if source.get("sha256") != digest or source.get("size_bytes") != len(source_bytes):
         raise ValidationError("connector proposal source commitment does not match bytes")
-    source_path.write_bytes(source_bytes)
+    _publish_exclusive(source_path, source_bytes)
     receipt = {key: value for key, value in proposal.items() if key != "source"}
     receipt["source"] = {"locator": source_path.name, "sha256": digest, "size_bytes": len(source_bytes)}
-    receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    _publish_exclusive(
+        receipt_path,
+        (json.dumps(receipt, sort_keys=True, indent=2) + "\n").encode("utf-8"),
+    )
     return {"output_dir": str(root), "source": str(source_path), "receipt": str(receipt_path), "source_sha256": digest}
 
 
