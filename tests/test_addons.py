@@ -195,6 +195,8 @@ def test_connector_proposal_writer_preserves_byte_receipt(tmp_path: Path) -> Non
 
     proposal = {
         "connector": {"addon_id": "fixture", "addon_version": "1", "connector_id": "fixture", "implementation": {"locator": "plugin.py", "sha256": "a" * 64, "size_bytes": 1}},
+        "query": {},
+        "metadata": {},
         "authority": "bounded_source_material_proposal_only",
         "scientific_evidence_eligible": False,
         "canonical_dataset_registered": False,
@@ -203,6 +205,9 @@ def test_connector_proposal_writer_preserves_byte_receipt(tmp_path: Path) -> Non
     }
     result = write_source_proposal(proposal, tmp_path / "proposal")
     receipt = json.loads((tmp_path / "proposal" / "connector-proposal.json").read_text())
+    import jsonschema
+    schema = json.loads((Path(__file__).parents[1] / "schemas" / "connector-proposal.schema.json").read_text())
+    jsonschema.validate(receipt, schema)
     assert Path(result["source"]).read_bytes() == b"raw"
     assert receipt["source"] == {"locator": "source.bin", "sha256": hashlib.sha256(b"raw").hexdigest(), "size_bytes": 3}
     assert "bytes" not in receipt["source"]

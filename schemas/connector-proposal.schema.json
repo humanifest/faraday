@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/schemas/connector-proposal.schema.json",
+  "title": "Faraday bounded connector source proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["connector", "query", "metadata", "source", "authority", "scientific_evidence_eligible", "canonical_dataset_registered", "custody_cleared"],
+  "properties": {
+    "connector": {
+      "type": "object", "additionalProperties": false,
+      "required": ["addon_id", "addon_version", "connector_id", "implementation"],
+      "properties": {
+        "addon_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
+        "addon_version": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
+        "connector_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
+        "implementation": {"$ref": "#/$defs/commitment"}
+      }
+    },
+    "query": {"type": "object"},
+    "metadata": {"type": "object"},
+    "authorized_actions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "source": {"$ref": "#/$defs/commitment"},
+    "authority": {"const": "bounded_source_material_proposal_only"},
+    "scientific_evidence_eligible": {"const": false},
+    "canonical_dataset_registered": {"const": false},
+    "custody_cleared": {"const": false}
+  },
+  "$defs": {
+    "commitment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["locator", "sha256", "size_bytes"],
+      "properties": {
+        "locator": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size_bytes": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}
