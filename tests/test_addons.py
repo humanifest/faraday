@@ -304,6 +304,7 @@ def test_connector_cli_commands_are_provider_neutral() -> None:
     ])
     verify = build_parser().parse_args([
         "addon", "verify-fetch", "--receipt-file", "proposal/connector-proposal.json",
+        "--expected-receipt-sha256", "a" * 64,
     ])
     assert (fetch.group, fetch.action, fetch.connector) == ("addon", "fetch", "fixture")
     assert (verify.group, verify.action) == ("addon", "verify-fetch")
@@ -337,10 +338,14 @@ MANIFEST = AddonManifest(
     fetched = json.loads(capsys.readouterr().out)
     assert fetched["ok"] is True
     assert (output / "source.bin").read_bytes() == b"record:r1"
+    receipt_hash = hashlib.sha256(
+        (output / "connector-proposal.json").read_bytes()
+    ).hexdigest()
     assert main([
         "--json", "--workspace", str(workspace), "--addon-path", str(addon),
         "addon", "verify-fetch", "--connector", "fixture",
         "--receipt-file", str(output / "connector-proposal.json"),
+        "--expected-receipt-sha256", receipt_hash,
     ]) == 0
     verified = json.loads(capsys.readouterr().out)
     assert verified["result"]["scientific_evidence_eligible"] is False

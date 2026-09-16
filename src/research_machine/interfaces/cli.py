@@ -896,7 +896,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     addon_verify.add_argument("--receipt-file", type=Path, required=True)
     addon_verify.add_argument("--connector")
-    addon_verify.add_argument("--expected-receipt-sha256")
+    addon_verify.add_argument("--expected-receipt-sha256", required=True)
 
     analysis = groups.add_parser(
         "analysis", help="Execute a declared method through the add-on boundary"
