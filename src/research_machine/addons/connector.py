@@ -98,6 +98,9 @@ def write_source_proposal(
     """Persist a connector proposal as a byte file plus a replayable receipt."""
     if not isinstance(proposal, dict) or proposal.get("authority") != "bounded_source_material_proposal_only":
         raise ValidationError("connector proposal has an invalid authority boundary")
+    for field in ("scientific_evidence_eligible", "canonical_dataset_registered", "custody_cleared"):
+        if proposal.get(field) is not False:
+            raise ValidationError(f"connector proposal {field} must be false")
     source = proposal.get("source")
     if not isinstance(source, dict) or not isinstance(source.get("bytes"), bytes):
         raise ValidationError("connector proposal source bytes are missing")
@@ -143,6 +146,9 @@ def verify_source_proposal(
         raise ValidationError("connector proposal receipt is unreadable JSON") from exc
     if not isinstance(receipt, dict) or receipt.get("authority") != "bounded_source_material_proposal_only":
         raise ValidationError("connector proposal receipt has an invalid authority boundary")
+    for field in ("scientific_evidence_eligible", "canonical_dataset_registered", "custody_cleared"):
+        if receipt.get(field) is not False:
+            raise ValidationError(f"connector proposal receipt {field} must be false")
     receipt_connector = receipt.get("connector")
     implementation = (
         receipt_connector.get("implementation")
