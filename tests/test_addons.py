@@ -25,6 +25,7 @@ from research_machine.addons.registry import (
 )
 from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
+from research_machine.interfaces.cli import build_parser
 
 
 def test_receipt_binds_bytes_analyzed_despite_source_mutation(tmp_path: Path) -> None:
@@ -186,6 +187,18 @@ def test_connector_proposal_writer_preserves_byte_receipt(tmp_path: Path) -> Non
     (tmp_path / "proposal" / "source.bin").write_bytes(b"changed")
     with pytest.raises(ValidationError, match="do not match"):
         verify_source_proposal(tmp_path / "proposal" / "connector-proposal.json")
+
+
+def test_connector_cli_commands_are_provider_neutral() -> None:
+    fetch = build_parser().parse_args([
+        "addon", "fetch", "--connector", "fixture", "--query-file", "query.json",
+        "--output", "proposal",
+    ])
+    verify = build_parser().parse_args([
+        "addon", "verify-fetch", "--receipt-file", "proposal/connector-proposal.json",
+    ])
+    assert (fetch.group, fetch.action, fetch.connector) == ("addon", "fetch", "fixture")
+    assert (verify.group, verify.action) == ("addon", "verify-fetch")
 
 
 def test_pearson_correlation_rejects_duplicate_columns() -> None:

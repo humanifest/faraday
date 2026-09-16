@@ -885,6 +885,16 @@ def build_parser() -> argparse.ArgumentParser:
     addon_commands.add_parser("list", help="List validated scientific add-ons")
     addon_show = addon_commands.add_parser("show", help="Show one add-on contract")
     addon_show.add_argument("addon_id")
+    addon_fetch = addon_commands.add_parser(
+        "fetch", help="Fetch bounded low-authority source material through a connector"
+    )
+    addon_fetch.add_argument("--connector", required=True)
+    addon_fetch.add_argument("--query-file", type=Path, required=True)
+    addon_fetch.add_argument("--output", type=Path, required=True)
+    addon_verify = addon_commands.add_parser(
+        "verify-fetch", help="Replay a persisted connector source proposal"
+    )
+    addon_verify.add_argument("--receipt-file", type=Path, required=True)
 
     analysis = groups.add_parser(
         "analysis", help="Execute a declared method through the add-on boundary"
@@ -2359,6 +2369,24 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
     if args.group == "addon":
         if args.action == "list":
             return [manifest.describe() for manifest in registry.list()]
+        if args.action == "fetch":
+            from research_machine.addons.connector import (
+                fetch_source_proposal,
+                write_source_proposal,
+            )
+            manifest, connector = registry.resolve_connector(args.connector)
+            query = _read_json_object(
+                args.query_file,
+                allowed_fields=set(connector.required_query_fields)
+                | set(connector.optional_query_fields),
+                label="connector query",
+            )
+            return write_source_proposal(
+                fetch_source_proposal(manifest, connector, query), args.output
+            )
+        if args.action == "verify-fetch":
+            from research_machine.addons.connector import verify_source_proposal
+            return verify_source_proposal(args.receipt_file)
         return registry.get(args.addon_id).describe()
 
     if args.group == "analysis" and args.action == "run-draft":
