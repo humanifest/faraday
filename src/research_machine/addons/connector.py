@@ -46,6 +46,7 @@ def fetch_source_proposal(
     missing = sorted(set(connector.required_query_fields) - set(query))
     if missing:
         raise ValidationError("connector query is missing fields: " + ", ".join(missing))
+    implementation = _implementation_commitment(connector)
     result = connector.fetch(dict(query))
     if not isinstance(result, dict) or set(result) != {"bytes", "metadata"}:
         raise ValidationError("connector must return exactly bytes and metadata")
@@ -75,7 +76,7 @@ def fetch_source_proposal(
             "addon_id": manifest.addon_id,
             "addon_version": manifest.version,
             "connector_id": connector.connector_id,
-            "implementation": _implementation_commitment(connector),
+            "implementation": implementation,
         },
         "query": query,
         "source": {

@@ -135,6 +135,27 @@ def test_connector_fetch_returns_hash_bound_non_evidentiary_proposal() -> None:
     assert proposal["canonical_dataset_registered"] is False
 
 
+def test_connector_hashes_implementation_before_fetch(monkeypatch) -> None:
+    import research_machine.addons.connector as connector_module
+    events: list[str] = []
+
+    def commitment(connector):
+        events.append("hash")
+        return {"locator": "plugin.py", "sha256": "a" * 64, "size_bytes": 1}
+
+    def fetch(query):
+        events.append("fetch")
+        return {"bytes": b"source", "metadata": {}}
+
+    monkeypatch.setattr(connector_module, "_implementation_commitment", commitment)
+    connector = ScientificConnector(
+        "chronology", "Chronology", "Fixture", ("scientific_connector",), (), fetch
+    )
+    manifest = AddonManifest("chronology_addon", "Chronology", "1", "test", "Fixture", connectors=(connector,))
+    connector_module.fetch_source_proposal(manifest, connector, {})
+    assert events == ["hash", "fetch"]
+
+
 def test_connector_fetch_rejects_unbounded_or_malformed_result() -> None:
     from research_machine.addons.connector import fetch_source_proposal
 
