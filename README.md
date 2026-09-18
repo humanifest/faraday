@@ -38,9 +38,14 @@ repository's Sponsor button. Funding configuration lives in
 
 ## Start here
 
+If this is your first time using Faraday, read the short
+[setup guide](docs/setup.md). It is designed to get from download to a first
+inquiry in a few copy-and-pasteable commands.
+
 ```bash
 git clone https://github.com/humanifest/faraday.git
 cd faraday
+./bootstrap
 ./research --workspace .research workspace init
 ./research --help
 ```

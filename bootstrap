@@ -1,0 +1,51 @@
+#!/bin/sh
+# Friendly first-run setup for Faraday.
+#
+# This script only creates a local virtual environment and checks the local
+# launcher. It does not create an account, call a model, or change research
+# data. Faraday has no runtime dependencies, so setup works offline.
+
+set -eu
+
+case "$0" in
+    */*) root=${0%/*} ;;
+    *) root=. ;;
+esac
+root=$(CDPATH= cd -- "$root" && pwd -P)
+venv="$root/.venv"
+
+python="${FARADAY_PYTHON:-}"
+if [ -z "$python" ]; then
+    for candidate in python3.14 python3.13 python3.12 python3.11 python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1; then
+            python=$(command -v "$candidate")
+            break
+        fi
+    done
+fi
+
+if [ -z "$python" ]; then
+    echo "Faraday needs Python 3.11 or newer." >&2
+    echo "Install Python, then run ./bootstrap again." >&2
+    exit 1
+fi
+
+if [ ! -x "$venv/bin/python" ]; then
+    echo "Creating a private Python environment in .venv ..."
+    "$python" -m venv "$venv"
+fi
+
+echo "Checking the Faraday launcher ..."
+if ! FARADAY_PYTHON="$venv/bin/python" "$root/research" --help >/dev/null; then
+    echo "Faraday could not start with the new environment." >&2
+    exit 1
+fi
+
+echo ""
+echo "Faraday is ready. Try:"
+echo "  ./research --workspace .research workspace init"
+echo "  ./research --help"
+echo ""
+echo "To run the test suite:"
+echo "  .venv/bin/python -m pip install --editable '.[test]'"
+echo "  .venv/bin/python -m pytest"
