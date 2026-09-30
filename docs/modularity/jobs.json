@@ -1,0 +1,62 @@
+{
+  "schema_version": "faraday-modularity-jobs/v0",
+  "status_vocabulary": ["planned", "in_progress", "blocked", "implemented", "verified", "accepted"],
+  "jobs": [
+    {
+      "id": "faraday-mod-001-assess",
+      "owning_module": "faraday",
+      "status": "implemented",
+      "dependencies": [],
+      "allowed_paths": ["docs/modularity/**"],
+      "allowed_effects": ["read repository files", "write planning documents"],
+      "inputs": ["AGENTS.md", "faraday_migration_prompt.md", "README.md", "docs/architecture.md", "src/**", "tests/**"],
+      "outputs": ["docs/modularity/assessment.md", "docs/modularity/contracts-proposal.md"],
+      "acceptance_commands": ["git diff --check"],
+      "required_evidence": ["file-backed inventory", "explicit proposed-versus-implemented status"],
+      "stop_conditions": ["missing repository instructions", "scope requires another repository or live integration"],
+      "rollback": "Remove only the two planning documents; preserve all prior files."
+    },
+    {
+      "id": "faraday-mod-002-fixture-projection",
+      "owning_module": "faraday-local-fixture",
+      "status": "implemented",
+      "dependencies": ["faraday-mod-001-assess"],
+      "allowed_paths": ["tests/fixtures/modularity/metamaps-projection-v0.json", "tests/test_modularity_fixture_contract.py"],
+      "allowed_effects": ["read fixture bytes", "run pure local contract assertions"],
+      "inputs": ["docs/modularity/contracts-proposal.md"],
+      "outputs": ["fixture-only versioned projection contract", "fixture-only invalidation assertions"],
+      "acceptance_commands": ["python -m pytest -q tests/test_modularity_fixture_contract.py"],
+      "required_evidence": ["projection records compiler/module versions", "changed input invalidates dependent output", "no integration claim"],
+      "stop_conditions": ["requires Metamaps package", "requires network/provider/credential access", "fixture begins representing live data"],
+      "rollback": "Remove only the fixture and test; no production state is affected."
+    },
+    {
+      "id": "faraday-mod-003-adapter",
+      "owning_module": "faraday",
+      "status": "blocked",
+      "dependencies": ["faraday-mod-001-assess", "accepted shared contract", "saved synthetic end-to-end workflow"],
+      "allowed_paths": ["src/research_machine/**", "tests/**", "docs/modularity/**"],
+      "allowed_effects": ["deterministic local transformation only"],
+      "inputs": ["accepted contract release", "protocol/model/observation/receipt fixture"],
+      "outputs": ["reversible compatibility adapter", "shadow comparison evidence"],
+      "acceptance_commands": ["TODO: define after contract and fixture selection"],
+      "required_evidence": ["old/new output comparison", "receipt replay", "rollback check"],
+      "stop_conditions": ["contract not accepted", "workflow not identified", "any live effect requested"],
+      "rollback": "Route all callers to the existing Faraday implementation and remove the adapter."
+    },
+    {
+      "id": "faraday-mod-004-metamaps-integration",
+      "owning_module": "metamaps-adapter",
+      "status": "blocked",
+      "dependencies": ["accepted shared contract", "authorized Metamaps dependency and API"],
+      "allowed_paths": ["TODO: contract-owner-designated location"],
+      "allowed_effects": ["TODO: fixture-only compilation first"],
+      "inputs": ["versioned authoritative record references"],
+      "outputs": ["versioned projection", "invalidation findings"],
+      "acceptance_commands": ["TODO: define against pinned compiler"],
+      "required_evidence": ["compiler/module version", "input versions", "projection status", "changed-input invalidation"],
+      "stop_conditions": ["real dependency unavailable", "authorization or network boundary unclear"],
+      "rollback": "Do not cut over; retain the current Faraday route."
+    }
+  ]
+}

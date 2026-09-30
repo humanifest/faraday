@@ -1,0 +1,33 @@
+{
+  "projection_contract_version": "metamaps-projection/v0",
+  "projection_id": "fixture:faraday-lineage:projection-1",
+  "projection_status": "valid",
+  "compiler": {
+    "name": "metamaps-fixture-double",
+    "module_version": "0-fixture",
+    "not_live_integration": true
+  },
+  "inputs": [
+    {
+      "record_ref": "faraday:protocol:fixture-1@rev-1",
+      "revision": "rev-1",
+      "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "record_ref": "faraday:receipt:fixture-1@rev-1",
+      "revision": "rev-1",
+      "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "nodes": ["protocol:fixture-1", "receipt:fixture-1", "assumption:fixture-a"],
+  "edges": [
+    {"from": "protocol:fixture-1", "to": "receipt:fixture-1", "kind": "produces"},
+    {"from": "protocol:fixture-1", "to": "assumption:fixture-a", "kind": "declares"}
+  ],
+  "findings": [],
+  "invalidation": {
+    "depends_on_input_revisions": ["rev-1", "rev-1"],
+    "status_when_input_changes": "invalidated",
+    "rebuild_required": true
+  }
+}
