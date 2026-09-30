@@ -1,0 +1,127 @@
+{
+  "schema_version": "faraday-ai-science-guide-goal/v1",
+  "status": "proposed",
+  "completion_state": "software_fixture_ready",
+  "execution_mode": "serial_local_fixture_only",
+  "required_environment": ["Python 3.11+", "preprovisioned pytest and jsonschema test extras"],
+  "forbidden_effects": [
+    "package installation or download",
+    "Faraday runtime live model, connector, instrument, or network calls",
+    "secrets or another user's files",
+    "real study data or canonical workspace edits by hand",
+    "permission, deployment, or remote Git changes by a worker",
+    "scientific or editorial self-acceptance"
+  ],
+  "jobs": [
+    {
+      "id": "G00",
+      "title": "Characterize the existing synthetic journey",
+      "status": "planned",
+      "depends_on": [],
+      "allowed_paths": ["docs/ai-science-guide/fixture-inventory.md", "tests/fixtures/guide/**", "tests/test_guide_baseline.py"],
+      "deliverable": "A synthetic two-group CSV, inquiry and plan fixture, expected artifacts, and an inventory of existing service and CLI routes",
+      "required_adverse_case": "An existing validation failure remains a failure in the characterization",
+      "acceptance_commands": ["python3 -m pytest -q tests/test_guide_baseline.py"],
+      "completion_evidence": "Fixture identity, exact baseline command result, and no production behavior change"
+    },
+    {
+      "id": "G01",
+      "title": "Expose a read-only guide context and proposal contract",
+      "status": "planned",
+      "depends_on": ["G00"],
+      "allowed_paths": ["src/research_machine/collaboration/proposal.py", "src/research_machine/collaboration/redaction.py", "src/research_machine/interfaces/cli.py", "schemas/guide-*.schema.json", "tests/test_guide_contract.py", "docs/ai-science-guide/**"],
+      "deliverable": "Versioned context over existing inquiry state and hash-bound, review-only guide proposals; no provider call",
+      "required_adverse_case": "Changed context hash, unknown reference, or proposal claiming approval is rejected",
+      "acceptance_commands": ["python3 -m pytest -q tests/test_guide_contract.py"],
+      "completion_evidence": "Schema and service round-trip with no canonical write from context or proposal validation"
+    },
+    {
+      "id": "G02",
+      "title": "Guide question intake and clarification",
+      "status": "planned",
+      "depends_on": ["G01"],
+      "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/application/service.py", "src/research_machine/design/interview.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_intake.py", "docs/ai-science-guide/**"],
+      "deliverable": "A reviewable intake preview preserving original wording and unresolved population, unit, outcome, comparison, timing, decision, data, and ethics fields",
+      "required_adverse_case": "An absent answer stays unknown and cannot be filled with a generated assertion",
+      "acceptance_commands": ["python3 -m pytest -q tests/test_guide_intake.py"],
+      "completion_evidence": "Preview-to-existing-command mapping and recorded original statement"
+    },
+    {
+      "id": "G03",
+      "title": "Draft competing explanations",
+      "status": "planned",
+      "depends_on": ["G02"],
+      "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/application/service.py", "src/research_machine/collaboration/proposal.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_models.py", "docs/ai-science-guide/**"],
+      "deliverable": "Review-only null, measurement-error, selection/confounding, and user-favored model candidates with predictions and falsifiers",
+      "required_adverse_case": "An AI candidate cannot activate itself or omit every meaningful alternative",
+      "acceptance_commands": ["python3 -m pytest -q tests/test_guide_models.py"],
+      "completion_evidence": "Existing hypothesis service receives only explicitly routed unreviewed proposals"
+    },
+    {
+      "id": "G04",
+      "title": "Preview a supported prospective design",
+      "status": "planned",
+      "depends_on": ["G03"],
+      "allowed_paths": ["src/research_machine/design/interview.py", "src/research_machine/design/scaffold.py", "src/research_machine/application/guide.py", "src/research_machine/application/service.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_design.py", "docs/ai-science-guide/**"],
+      "deliverable": "A design preview binding unit, measurement, timing, signed contrast, estimand, missingness, multiplicity, stopping rule, uncertainty target, and supported method",
+      "required_adverse_case": "Wrong scale, unit, timing, contrast, or unsupported design fails before outcome inspection",
+      "acceptance_commands": ["python3 -m pytest -q tests/test_guide_design.py"],
+      "completion_evidence": "Existing design and protocol validators remain the deciding authority"
+    },
+    {
+      "id": "G05",
+      "title": "Organize CSV data through custody",
+      "status": "planned",
+      "depends_on": ["G04"],
+      "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/application/dataset_inventory.py", "src/research_machine/application/service.py", "src/research_machine/measurement/custody.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_data.py", "docs/ai-science-guide/**"],
+      "deliverable": "Raw-byte-preserving inventory of typed columns, units, missingness, invalid values, source route, role, lineage, and readiness gaps",
+      "required_adverse_case": "Changed bytes, duplicate unit IDs, invalid codes, or missing custody cannot be presented as ready evidence",
+      "acceptance_commands": ["python3 -m pytest -q tests/test_guide_data.py"],
+      "completion_evidence": "Registration, if applicable, uses existing dataset service and retains input hashes"
+    },
+    {
+      "id": "G06",
+      "title": "Execute and explain supported statistics",
+      "status": "planned",
+      "depends_on": ["G05"],
+      "allowed_paths": ["src/research_machine/addons/execution.py", "src/research_machine/addons/general_science.py", "src/research_machine/application/guide.py", "src/research_machine/application/service.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_analysis.py", "docs/ai-science-guide/**"],
+      "deliverable": "Pinned existing-method execution for independent, paired, and observational two-group fixtures, each with effect, interval, exclusions, diagnostics, assumptions, limitations, and write-once receipt",
+      "required_adverse_case": "Paired-as-independent, post-result method switch, incompatible scale, or altered receipt is rejected",
+      "acceptance_commands": ["python3 -m pytest -q tests/test_guide_analysis.py"],
+      "completion_evidence": "Result and receipt bind exact plan, dataset, method implementation, and output bytes"
+    },
+    {
+      "id": "G07",
+      "title": "Interpret and iterate without claim promotion",
+      "status": "planned",
+      "depends_on": ["G06"],
+      "allowed_paths": ["src/research_machine/reporting/synthesis.py", "src/research_machine/selection/recommendation.py", "src/research_machine/application/guide.py", "src/research_machine/application/service.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_iteration.py", "docs/ai-science-guide/**"],
+      "deliverable": "Deterministic synthesis plus a versioned, prerequisite-checked next experiment proposal",
+      "required_adverse_case": "Negative, conflicting, and inconclusive results remain visible and cannot become confirmation",
+      "acceptance_commands": ["python3 -m pytest -q tests/test_guide_iteration.py"],
+      "completion_evidence": "Report shows alternatives, uncertainty, conclusion ceiling, and reasons when no next test is eligible"
+    },
+    {
+      "id": "G08",
+      "title": "Stub external and domain-specific capabilities",
+      "status": "planned",
+      "depends_on": ["G01", "G07"],
+      "allowed_paths": ["src/research_machine/collaboration/proposal.py", "src/research_machine/application/guide.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_unavailable.py", "docs/ai-science-guide/TODO.md"],
+      "deliverable": "Typed not_configured or unsupported responses and a TODO register for live models, connectors, instruments, arbitrary methods, reviewer identity, Metamaps, and concurrency",
+      "required_adverse_case": "No unavailable capability performs an effect, claims a fallback, or grants authority",
+      "acceptance_commands": ["python3 -m pytest -q tests/test_guide_unavailable.py"],
+      "completion_evidence": "Every TODO names owner, missing contract/evidence, first safe fixture, and activation gate"
+    },
+    {
+      "id": "G09",
+      "title": "Automate end-to-end fixture acceptance",
+      "status": "planned",
+      "depends_on": ["G00", "G01", "G02", "G03", "G04", "G05", "G06", "G07", "G08"],
+      "allowed_paths": ["scripts/check_ai_science_guide_goal.py", "tests/test_guide_end_to_end.py", "tests/fixtures/guide/**", "docs/ai-science-guide/**", "README.md"],
+      "deliverable": "One-command local checker, full synthetic journey, adverse matrix, audit and ledger verification, and user-facing limits",
+      "required_adverse_case": "Any missing check, drifted artifact, unauthorized transition, or report overclaim exits nonzero",
+      "acceptance_commands": ["python3 scripts/check_ai_science_guide_goal.py --json"],
+      "completion_evidence": "Exact-commit JSON receipt with all checks passed and software_fixture_ready true"
+    }
+  ]
+}
