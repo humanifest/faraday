@@ -1,0 +1,524 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/proposals/faraday-obligation-evaluation.schema.json",
+  "title": "Proposed Faraday mathematical-obligation evaluation",
+  "description": "Non-production proposal for an artifact-bound evaluation of one frozen theory-candidate obligation. A valid record is not theorem proof, scientific evidence, hypothesis approval, or execution authorization.",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "evaluation_id",
+    "candidate_binding",
+    "status",
+    "evaluator",
+    "evaluated_at",
+    "evaluated_by",
+    "inputs",
+    "method",
+    "assumptions_checked",
+    "witness",
+    "adverse_control",
+    "findings",
+    "rationale",
+    "limitations",
+    "conclusion_ceiling",
+    "authority"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "faraday-obligation-evaluation/v1"
+    },
+    "evaluation_id": {
+      "$ref": "#/$defs/canonicalHandle"
+    },
+    "candidate_binding": {
+      "$ref": "#/$defs/candidateBinding"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed",
+        "inconclusive",
+        "not_applicable"
+      ]
+    },
+    "evaluator": {
+      "$ref": "#/$defs/evaluator"
+    },
+    "evaluated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evaluated_by": {
+      "$ref": "#/$defs/nonBlankText"
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/inputBinding"
+      }
+    },
+    "method": {
+      "$ref": "#/$defs/method"
+    },
+    "assumptions_checked": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/canonicalHandle"
+      },
+      "uniqueItems": true
+    },
+    "witness": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/artifactSelection"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "adverse_control": {
+      "$ref": "#/$defs/adverseControl"
+    },
+    "findings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "rationale": {
+      "type": "string"
+    },
+    "limitations": {
+      "$ref": "#/$defs/nonEmptyUniqueTextArray"
+    },
+    "conclusion_ceiling": {
+      "$ref": "#/$defs/nonBlankText"
+    },
+    "authority": {
+      "$ref": "#/$defs/authority"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "passed"
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "witness": {
+            "$ref": "#/$defs/artifactSelection"
+          },
+          "adverse_control": {
+            "type": "object",
+            "required": ["status", "matches_expected"],
+            "properties": {
+              "status": {
+                "const": "passed"
+              },
+              "matches_expected": {
+                "const": true
+              }
+            }
+          },
+          "rationale": {
+            "$ref": "#/$defs/nonBlankText"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "not_applicable"
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "witness": {
+            "type": "null"
+          },
+          "adverse_control": {
+            "type": "object",
+            "required": ["status", "matches_expected", "evidence"],
+            "properties": {
+              "status": {
+                "const": "not_run"
+              },
+              "matches_expected": {
+                "type": "null"
+              },
+              "evidence": {
+                "type": "null"
+              }
+            }
+          },
+          "rationale": {
+            "$ref": "#/$defs/nonBlankText"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "canonicalHandle": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nonBlankText": {
+      "type": "string",
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "nonEmptyUniqueTextArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/nonBlankText"
+      },
+      "uniqueItems": true
+    },
+    "safeRelativeLocator": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))\\S(?:.*\\S)?$"
+    },
+    "candidateBinding": {
+      "type": "object",
+      "required": [
+        "candidate_id",
+        "hypothesis_id",
+        "candidate_scientific_content_sha256",
+        "obligation_id",
+        "obligation_spec_sha256"
+      ],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "hypothesis_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "candidate_scientific_content_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "obligation_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "obligation_spec_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evaluator": {
+      "type": "object",
+      "required": [
+        "evaluator_id",
+        "evaluator_version",
+        "evaluator_kind",
+        "implementation_sha256",
+        "identity_authenticated",
+        "independence_authenticated"
+      ],
+      "properties": {
+        "evaluator_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "evaluator_version": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "evaluator_kind": {
+          "enum": [
+            "analytic_review",
+            "empirical_identifiability",
+            "numerical_checker",
+            "proof_assistant",
+            "symbolic_engine"
+          ]
+        },
+        "implementation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "identity_authenticated": {
+          "const": false
+        },
+        "independence_authenticated": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "inputBinding": {
+      "type": "object",
+      "required": [
+        "record_ref",
+        "record_revision",
+        "artifact_sha256",
+        "role"
+      ],
+      "properties": {
+        "record_ref": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "record_revision": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "artifact_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "role": {
+          "enum": [
+            "candidate_specification",
+            "dependency_manifest",
+            "implementation",
+            "method_specification",
+            "source_reference",
+            "supporting_artifact"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "method": {
+      "type": "object",
+      "required": [
+        "method_class",
+        "specification_sha256",
+        "determinism",
+        "replay_command",
+        "method_limitations"
+      ],
+      "properties": {
+        "method_class": {
+          "enum": [
+            "analytic",
+            "empirical_identifiability",
+            "numerical",
+            "proof_assistant",
+            "symbolic"
+          ]
+        },
+        "specification_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "determinism": {
+          "enum": [
+            "deterministic",
+            "seeded",
+            "declared_nondeterministic"
+          ]
+        },
+        "replay_command": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "method_limitations": {
+          "$ref": "#/$defs/nonEmptyUniqueTextArray"
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifactSelection": {
+      "type": "object",
+      "required": [
+        "media_type",
+        "locator",
+        "artifact_sha256",
+        "size_bytes",
+        "json_pointer",
+        "selected_value_sha256"
+      ],
+      "properties": {
+        "media_type": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "locator": {
+          "$ref": "#/$defs/safeRelativeLocator"
+        },
+        "artifact_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "json_pointer": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^/"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selected_value_sha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "media_type": {
+                "const": "application/json"
+              }
+            },
+            "required": ["media_type"]
+          },
+          "then": {
+            "properties": {
+              "json_pointer": {
+                "type": "string",
+                "pattern": "^/"
+              },
+              "selected_value_sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "adverseControl": {
+      "type": "object",
+      "required": [
+        "control_id",
+        "expected_behavior",
+        "observed_behavior",
+        "status",
+        "matches_expected",
+        "evidence"
+      ],
+      "properties": {
+        "control_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "expected_behavior": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "observed_behavior": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "not_run"
+          ]
+        },
+        "matches_expected": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "evidence": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/artifactSelection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "required": [
+        "severity",
+        "code",
+        "message",
+        "affected_record_refs"
+      ],
+      "properties": {
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        "code": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "message": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "affected_record_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/canonicalHandle"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "scientific_evidence_eligible",
+        "authorizes_hypothesis_activation",
+        "authorizes_protocol_freeze",
+        "authorizes_execution",
+        "authenticates_evaluator",
+        "establishes_theory_truth"
+      ],
+      "properties": {
+        "scientific_evidence_eligible": {
+          "const": false
+        },
+        "authorizes_hypothesis_activation": {
+          "const": false
+        },
+        "authorizes_protocol_freeze": {
+          "const": false
+        },
+        "authorizes_execution": {
+          "const": false
+        },
+        "authenticates_evaluator": {
+          "const": false
+        },
+        "establishes_theory_truth": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "x-faraday-cross-record-invariants": [
+    "candidate_binding references the exact sealed candidate and exact obligation specification",
+    "assumptions_checked exactly covers the obligation assumption_ids",
+    "input artifact bytes and evaluator implementation bytes are independently rehashed",
+    "passed requires a passed adverse control and a resolvable artifact witness",
+    "failed and inconclusive evaluations remain visible and cannot be relabeled through prose",
+    "a changed candidate, obligation, input, method, evaluator, witness, or control requires a new evaluation"
+  ]
+}

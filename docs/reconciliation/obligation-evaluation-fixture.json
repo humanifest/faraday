@@ -1,0 +1,99 @@
+{
+  "contract_version": "faraday-obligation-evaluation/v1",
+  "evaluation_id": "fixture-qft-limit-evaluation",
+  "candidate_binding": {
+    "candidate_id": "fixture-qgr-dispersion",
+    "hypothesis_id": "hyp-fixture-qgr-dispersion",
+    "candidate_scientific_content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "obligation_id": "fixture-qft-limit-obligation",
+    "obligation_spec_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "status": "passed",
+  "evaluator": {
+    "evaluator_id": "fixture-symbolic-limit-checker-v1",
+    "evaluator_version": "1.0.0-fixture",
+    "evaluator_kind": "symbolic_engine",
+    "implementation_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "identity_authenticated": false,
+    "independence_authenticated": false
+  },
+  "evaluated_at": "2026-09-21T12:00:00Z",
+  "evaluated_by": "synthetic-fixture-evaluator",
+  "inputs": [
+    {
+      "record_ref": "candidate:fixture-qgr-dispersion",
+      "record_revision": "rev-1",
+      "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "role": "candidate_specification"
+    },
+    {
+      "record_ref": "method:fixture-zero-limit",
+      "record_revision": "rev-1",
+      "artifact_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "role": "method_specification"
+    }
+  ],
+  "method": {
+    "method_class": "symbolic",
+    "specification_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "determinism": "deterministic",
+    "replay_command": "fixture-symbolic-check --candidate candidate.json --obligation fixture-qft-limit-obligation",
+    "method_limitations": [
+      "The fixture evaluator checks one registered symbolic substitution only.",
+      "It does not establish physical correctness or evaluator independence."
+    ]
+  },
+  "assumptions_checked": [
+    "fixture-weak-field",
+    "fixture-linear-propagation"
+  ],
+  "witness": {
+    "media_type": "application/json",
+    "locator": "results/qft-limit-evaluation.json",
+    "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "size_bytes": 512,
+    "json_pointer": "/limit_check",
+    "selected_value_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "adverse_control": {
+    "control_id": "fixture-sign-flip-control",
+    "expected_behavior": "The planted sign-flipped correction is rejected by the symbolic equality check.",
+    "observed_behavior": "The planted sign-flipped correction was rejected within the fixture evaluator.",
+    "status": "passed",
+    "matches_expected": true,
+    "evidence": {
+      "media_type": "application/json",
+      "locator": "results/qft-limit-evaluation.json",
+      "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "size_bytes": 512,
+      "json_pointer": "/adverse_control",
+      "selected_value_sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+    }
+  },
+  "findings": [
+    {
+      "severity": "info",
+      "code": "fixture-symbolic-equality-observed",
+      "message": "The registered zero-correction substitution matched the registered synthetic baseline within this evaluator.",
+      "affected_record_refs": [
+        "candidate:fixture-qgr-dispersion",
+        "method:fixture-zero-limit"
+      ]
+    }
+  ],
+  "rationale": "The frozen fixture equality and its planted adverse control produced the registered bounded outcomes.",
+  "limitations": [
+    "This evaluation is a synthetic contract fixture.",
+    "The evaluator identity and independence are not authenticated.",
+    "The result does not establish a theorem or a physical reconciliation."
+  ],
+  "conclusion_ceiling": "Bounded consistency of one registered symbolic fixture under one declared evaluator.",
+  "authority": {
+    "scientific_evidence_eligible": false,
+    "authorizes_hypothesis_activation": false,
+    "authorizes_protocol_freeze": false,
+    "authorizes_execution": false,
+    "authenticates_evaluator": false,
+    "establishes_theory_truth": false
+  }
+}

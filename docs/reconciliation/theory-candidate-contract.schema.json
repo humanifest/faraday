@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-machine.local/proposals/faraday-theory-candidate-contract.schema.json",
+  "title": "Proposed Faraday foundational-physics theory candidate contract",
+  "description": "Non-production proposal for scientific content that would be sealed into a canonical hypothesis. Schema validity is not review, proof, evidence, or authorization.",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "candidate_id",
+    "title",
+    "domain_of_validity",
+    "mathematical_objects",
+    "assumptions",
+    "limits",
+    "observables",
+    "proof_obligations",
+    "non_predictions",
+    "source_refs"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "faraday-theory-candidate/v1"
+    },
+    "candidate_id": {
+      "$ref": "#/$defs/canonicalHandle"
+    },
+    "title": {
+      "$ref": "#/$defs/nonBlankText"
+    },
+    "domain_of_validity": {
+      "$ref": "#/$defs/nonEmptyUniqueTextArray"
+    },
+    "mathematical_objects": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/mathematicalObject"
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/assumption"
+      }
+    },
+    "limits": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/limit"
+      },
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": ["limit_kind"],
+            "properties": {
+              "limit_kind": {
+                "const": "quantum_or_qft"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["limit_kind"],
+            "properties": {
+              "limit_kind": {
+                "const": "general_relativistic"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "observables": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/observable"
+      }
+    },
+    "proof_obligations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/proofObligation"
+      },
+      "contains": {
+        "type": "object",
+        "required": ["required"],
+        "properties": {
+          "required": {
+            "const": true
+          }
+        }
+      },
+      "minContains": 1
+    },
+    "non_predictions": {
+      "$ref": "#/$defs/uniqueTextArray"
+    },
+    "source_refs": {
+      "$ref": "#/$defs/nonEmptyUniqueTextArray"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "canonicalHandle": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+    },
+    "nonBlankText": {
+      "type": "string",
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "uniqueTextArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonBlankText"
+      },
+      "uniqueItems": true
+    },
+    "nonEmptyUniqueTextArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/nonBlankText"
+      },
+      "uniqueItems": true
+    },
+    "mathematicalObject": {
+      "type": "object",
+      "required": [
+        "object_id",
+        "kind",
+        "definition",
+        "domain",
+        "codomain",
+        "unit"
+      ],
+      "properties": {
+        "object_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "kind": {
+          "enum": [
+            "action",
+            "boundary_condition",
+            "configuration_space",
+            "constraint",
+            "equation",
+            "field",
+            "observable",
+            "operator",
+            "state_space",
+            "tensor",
+            "other"
+          ]
+        },
+        "definition": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "domain": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "codomain": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "unit": {
+          "$ref": "#/$defs/nonBlankText"
+        }
+      },
+      "additionalProperties": false
+    },
+    "assumption": {
+      "type": "object",
+      "required": [
+        "assumption_id",
+        "statement",
+        "applicability",
+        "limitations"
+      ],
+      "properties": {
+        "assumption_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "statement": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "applicability": {
+          "enum": [
+            "required",
+            "conditional"
+          ]
+        },
+        "limitations": {
+          "$ref": "#/$defs/nonBlankText"
+        }
+      },
+      "additionalProperties": false
+    },
+    "limit": {
+      "type": "object",
+      "required": [
+        "limit_id",
+        "limit_kind",
+        "target_theory",
+        "limiting_procedure",
+        "expected_behavior",
+        "obligation_id"
+      ],
+      "properties": {
+        "limit_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "limit_kind": {
+          "enum": [
+            "quantum_or_qft",
+            "general_relativistic",
+            "classical",
+            "low_energy",
+            "other"
+          ]
+        },
+        "target_theory": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "limiting_procedure": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "expected_behavior": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "obligation_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        }
+      },
+      "additionalProperties": false
+    },
+    "observable": {
+      "type": "object",
+      "required": [
+        "observable_id",
+        "definition",
+        "unit",
+        "validity_regime",
+        "transformation_chain_id"
+      ],
+      "properties": {
+        "observable_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "definition": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "unit": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "validity_regime": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "transformation_chain_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        }
+      },
+      "additionalProperties": false
+    },
+    "proofObligation": {
+      "type": "object",
+      "required": [
+        "obligation_id",
+        "claim",
+        "assumption_ids",
+        "method_class",
+        "evaluator_id",
+        "expected_witness",
+        "adverse_control",
+        "limitations",
+        "required"
+      ],
+      "properties": {
+        "obligation_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "claim": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "assumption_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/canonicalHandle"
+          },
+          "uniqueItems": true
+        },
+        "method_class": {
+          "enum": [
+            "analytic",
+            "empirical_identifiability",
+            "numerical",
+            "proof_assistant",
+            "symbolic"
+          ]
+        },
+        "evaluator_id": {
+          "$ref": "#/$defs/canonicalHandle"
+        },
+        "expected_witness": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "adverse_control": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "limitations": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "x-faraday-cross-record-invariants": [
+    "object_id, assumption_id, limit_id, observable_id, and obligation_id values are globally unique within the candidate",
+    "every proof_obligation.assumption_ids entry references an assumption_id in the same candidate",
+    "every limit.obligation_id references an obligation_id in the same candidate",
+    "each limit_kind occurs at most once",
+    "schema validation creates no canonical state and grants no review, execution, evidence, or acceptance authority"
+  ]
+}

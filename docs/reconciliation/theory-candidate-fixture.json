@@ -1,0 +1,126 @@
+{
+  "contract_version": "faraday-theory-candidate/v1",
+  "candidate_id": "fixture-qgr-dispersion",
+  "title": "Synthetic reconciliation-candidate contract fixture",
+  "domain_of_validity": [
+    "Synthetic weak-field propagation benchmark only.",
+    "No claim is made about a physical quantum-gravity theory."
+  ],
+  "mathematical_objects": [
+    {
+      "object_id": "fixture-field",
+      "kind": "field",
+      "definition": "A synthetic scalar disturbance on a fixed weak-field background.",
+      "domain": "Registered synthetic spacetime fixture.",
+      "codomain": "Real scalar amplitudes.",
+      "unit": "dimensionless"
+    },
+    {
+      "object_id": "fixture-dispersion-equation",
+      "kind": "equation",
+      "definition": "A registered toy dispersion relation with one bounded correction parameter.",
+      "domain": "Positive fixture frequencies and one finite correction parameter.",
+      "codomain": "Finite squared fixture wave numbers.",
+      "unit": "fixture inverse-length squared"
+    },
+    {
+      "object_id": "fixture-arrival-shift",
+      "kind": "observable",
+      "definition": "The signed difference between corrected and baseline synthetic arrival times.",
+      "domain": "Registered source-distance and frequency fixture grid.",
+      "codomain": "Finite signed arrival-time shifts.",
+      "unit": "fixture seconds"
+    }
+  ],
+  "assumptions": [
+    {
+      "assumption_id": "fixture-weak-field",
+      "statement": "The synthetic background remains within its registered weak-field regime.",
+      "applicability": "required",
+      "limitations": "This declaration does not establish applicability to any observed astrophysical system."
+    },
+    {
+      "assumption_id": "fixture-linear-propagation",
+      "statement": "The registered fixture propagation remains linear over the benchmark grid.",
+      "applicability": "conditional",
+      "limitations": "Nonlinear or strong-field behavior remains outside the fixture scope."
+    }
+  ],
+  "limits": [
+    {
+      "limit_id": "fixture-qft-limit",
+      "limit_kind": "quantum_or_qft",
+      "target_theory": "Registered uncorrected synthetic propagation baseline.",
+      "limiting_procedure": "Set the bounded correction parameter exactly to zero.",
+      "expected_behavior": "The corrected dispersion and arrival-time shift reduce exactly to the registered baseline values.",
+      "obligation_id": "fixture-qft-limit-obligation"
+    },
+    {
+      "limit_id": "fixture-gr-limit",
+      "limit_kind": "general_relativistic",
+      "target_theory": "Registered weak-field synthetic general-relativistic propagation baseline.",
+      "limiting_procedure": "Take the correction scale outside the registered fixture energy range while retaining the weak-field assumptions.",
+      "expected_behavior": "The fixture propagation speed and arrival time converge to the registered baseline within the frozen tolerance.",
+      "obligation_id": "fixture-gr-limit-obligation"
+    }
+  ],
+  "observables": [
+    {
+      "observable_id": "fixture-arrival-shift-observable",
+      "definition": "Signed corrected-minus-baseline arrival-time shift on the registered grid.",
+      "unit": "fixture seconds",
+      "validity_regime": "The two registered fixture assumptions and frozen parameter grid.",
+      "transformation_chain_id": "fixture-theory-to-arrival-chain"
+    }
+  ],
+  "proof_obligations": [
+    {
+      "obligation_id": "fixture-qft-limit-obligation",
+      "claim": "The zero-correction fixture reduces exactly to the registered uncorrected propagation baseline.",
+      "assumption_ids": [
+        "fixture-weak-field",
+        "fixture-linear-propagation"
+      ],
+      "method_class": "symbolic",
+      "evaluator_id": "fixture-symbolic-limit-checker-v1",
+      "expected_witness": "A canonical symbolic equality record over the frozen equation and substitution.",
+      "adverse_control": "A sign-flipped correction term must fail the registered equality record.",
+      "limitations": "Symbolic equality in this fixture is not evidence for a physical theory.",
+      "required": true
+    },
+    {
+      "obligation_id": "fixture-gr-limit-obligation",
+      "claim": "The registered large-scale limit converges to the weak-field baseline within the frozen tolerance.",
+      "assumption_ids": [
+        "fixture-weak-field",
+        "fixture-linear-propagation"
+      ],
+      "method_class": "numerical",
+      "evaluator_id": "fixture-convergence-checker-v1",
+      "expected_witness": "A monotone convergence record with exact grid, norm, unit, comparator, and tolerance.",
+      "adverse_control": "A nonconvergent planted sequence must fail the frozen comparator.",
+      "limitations": "Finite-grid convergence does not establish continuum convergence or physical correctness.",
+      "required": true
+    },
+    {
+      "obligation_id": "fixture-identifiability-obligation",
+      "claim": "The nonzero correction fixture is distinguishable from the registered baseline only above the frozen resolution threshold.",
+      "assumption_ids": [
+        "fixture-weak-field"
+      ],
+      "method_class": "empirical_identifiability",
+      "evaluator_id": "fixture-resolution-checker-v1",
+      "expected_witness": "A registered pairwise prediction-separation result over the exact synthetic measurement model.",
+      "adverse_control": "An overlapping prediction pair must return not_distinguishable_by_this_design.",
+      "limitations": "Fixture distinguishability does not establish empirical adequacy or generalize beyond the registered grid.",
+      "required": true
+    }
+  ],
+  "non_predictions": [
+    "The fixture does not predict a physical quantum-gravity scale.",
+    "The fixture does not address strong-field dynamics, cosmology, or particle interactions."
+  ],
+  "source_refs": [
+    "source:synthetic-contract-fixture"
+  ]
+}

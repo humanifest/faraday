@@ -1,0 +1,317 @@
+{
+  "program_id": "faraday-qm-relativity-reconciliation-readiness",
+  "program_version": "0.1.0",
+  "status": "defined",
+  "assessed_revision": "8d87c078fae6dcbda1541c4979568d88aa1fb9ae",
+  "status_vocabulary": [
+    "missing",
+    "partial",
+    "implemented",
+    "verified",
+    "accepted",
+    "blocked"
+  ],
+  "authority": {
+    "faraday": "Canonical scientific workflow, domain validation, evidence admission, and conclusion ceilings.",
+    "metamaps": "Derived versioned graph projections and validation findings only.",
+    "deep_research": "Cited read-only source discovery and review-only proposals only.",
+    "human_review": "Hypothesis activation, protected protocol approval, and substantive scientific acceptance.",
+    "external_execution": "No authority unless separately granted and returned through Faraday receipts."
+  },
+  "completion_rule": "Every required gate is accepted with current artifact-bound evidence; dependency changes invalidate dependent acceptance.",
+  "gates": [
+    {
+      "id": "QGR-001",
+      "title": "Candidate theory portfolio",
+      "required": true,
+      "status": "partial",
+      "depends_on": [],
+      "existing_evidence": [
+        "src/research_machine/domain/models.py",
+        "src/research_machine/application/hypothesis_integrity.py",
+        "src/research_machine/application/hypothesis_reactivity.py",
+        "docs/reconciliation/theory-candidate-contract.schema.json",
+        "docs/reconciliation/theory-candidate-fixture.json"
+      ],
+      "missing": [
+        "Approved runtime binding to canonical hypothesis state",
+        "Application-service cross-record validation and scientific sealing",
+        "Fresh fixture and compatibility verification"
+      ],
+      "acceptance_evidence": [
+        "Schema and service validation for complete candidate records",
+        "Adverse fixtures for missing limits, competitors, and validity regimes",
+        "Authoritative-read replay of candidate commitments"
+      ],
+      "authority_boundary": "A complete candidate remains unreviewed until human activation."
+    },
+    {
+      "id": "QGR-002",
+      "title": "Mathematical obligation registry",
+      "required": true,
+      "status": "partial",
+      "depends_on": ["QGR-001"],
+      "existing_evidence": [
+        "docs/mathematical-predicate-contract.md",
+        "docs/duality-reconstruction-contract.md",
+        "docs/reconstruction-family-stability-contract.md",
+        "docs/reconciliation/obligation-evaluation.schema.json",
+        "docs/reconciliation/obligation-evaluation-fixture.json"
+      ],
+      "missing": [
+        "Approved runtime binding to frozen candidate obligations",
+        "Application-service witness, control, and current-byte replay",
+        "Fresh pass, fail, inconclusive, and not-applicable verification"
+      ],
+      "acceptance_evidence": [
+        "Obligation coverage for each accepted fixture candidate",
+        "Artifact-bound pass, fail, inconclusive, and not-applicable findings",
+        "Change-impact revalidation when an assumption changes"
+      ],
+      "authority_boundary": "A passed obligation is bounded checker evidence, not proof of a physical theory."
+    },
+    {
+      "id": "QGR-003",
+      "title": "Protected notebook composition and execution",
+      "required": true,
+      "status": "partial",
+      "depends_on": ["QGR-002"],
+      "existing_evidence": [
+        "src/research_machine/executors/protected_notebook.py",
+        "src/research_machine/executors/notebook_preflight.py",
+        "src/research_machine/executors/runtime_preflight.py",
+        "src/research_machine/executors/notebook_freeze_bundle.py"
+      ],
+      "missing": [
+        "Provider-neutral obligation-to-notebook draft contract",
+        "Notebook result schema for obligation findings",
+        "QM-relativity benchmark and adverse fixtures"
+      ],
+      "acceptance_evidence": [
+        "Reviewed draft-to-freeze workflow",
+        "Clean source and dependency replay",
+        "Partial-failure receipt preservation",
+        "No hidden dependency fixture"
+      ],
+      "authority_boundary": "Notebook composition is review-only and notebook execution is not theorem proof."
+    },
+    {
+      "id": "QGR-004",
+      "title": "Formal and independent computation verification",
+      "required": true,
+      "status": "partial",
+      "depends_on": ["QGR-002", "QGR-003"],
+      "existing_evidence": [
+        "docs/analysis-implementation-bundle-contract.md",
+        "docs/computation-route-separation-contract.md"
+      ],
+      "missing": [
+        "Proof-assistant or independently checkable formal-artifact adapter",
+        "Checker trust and version receipt",
+        "Shared conceptual-error review gate"
+      ],
+      "acceptance_evidence": [
+        "Two complete route bundles with exact sharing declarations",
+        "Hidden shared-helper rejection",
+        "Independent checker replay",
+        "Disagreement retained as a scientific outcome"
+      ],
+      "authority_boundary": "Code separation and checker success do not establish physical correctness."
+    },
+    {
+      "id": "QGR-005",
+      "title": "Theory-to-observation transformation chain",
+      "required": true,
+      "status": "missing",
+      "depends_on": ["QGR-001", "QGR-002"],
+      "existing_evidence": [
+        "docs/measurement-contract.md",
+        "src/research_machine/measurement/preprocessing.py"
+      ],
+      "missing": [
+        "Theory-observable transformation contract",
+        "Propagation and detector-response stages",
+        "Uncertainty propagation and applicability replay"
+      ],
+      "acceptance_evidence": [
+        "Exact end-to-end transformation inventory",
+        "Unit, sign, coordinate, timing, and preprocessing adverse fixtures",
+        "Recomputed detector-level prediction from frozen theory inputs"
+      ],
+      "authority_boundary": "A complete transformation chain establishes provenance, not measurement validity or theory truth."
+    },
+    {
+      "id": "QGR-006",
+      "title": "Empirical source and custody adapters",
+      "required": true,
+      "status": "partial",
+      "depends_on": ["QGR-005"],
+      "existing_evidence": [
+        "src/research_machine/application/dataset_integrity.py",
+        "src/research_machine/application/dataset_source_authority.py",
+        "src/research_machine/measurement/custody.py"
+      ],
+      "missing": [
+        "Selected public empirical channel",
+        "Domain source adapter and source-specific failure fixtures",
+        "Calibration, covariance, timing, and systematic-error contracts for that channel"
+      ],
+      "acceptance_evidence": [
+        "Registered immutable raw bytes",
+        "Current custody replay",
+        "Independent source and calibration review",
+        "Synthetic campaign pass before live data use"
+      ],
+      "authority_boundary": "Source access and byte integrity do not establish source truth or scientific adequacy."
+    },
+    {
+      "id": "QGR-007",
+      "title": "Prospective prediction and distinguishability adjudication",
+      "required": true,
+      "status": "partial",
+      "depends_on": ["QGR-001", "QGR-005", "QGR-006"],
+      "existing_evidence": [
+        "src/research_machine/application/hypothesis_reactivity.py",
+        "src/research_machine/application/evidence_admission.py",
+        "src/research_machine/application/policies.py"
+      ],
+      "missing": [
+        "Parameterized theory prediction contract",
+        "Detector-level uncertainty and nuisance model",
+        "First-class not-distinguishable adjudication"
+      ],
+      "acceptance_evidence": [
+        "Frozen prediction before protected observation exposure",
+        "Signal, null, adverse, and insufficient-resolution fixtures",
+        "Exact result-selector and claim-ceiling replay"
+      ],
+      "authority_boundary": "An adjudication compares registered predictions within scope; it does not confirm a universal theory."
+    },
+    {
+      "id": "QGR-008",
+      "title": "Counterfactual and systemic implication engine",
+      "required": true,
+      "status": "missing",
+      "depends_on": ["QGR-001", "QGR-002", "QGR-005"],
+      "existing_evidence": [
+        "src/research_machine/design/causal.py",
+        "src/research_machine/application/cross_lane_lesson_integrity.py"
+      ],
+      "missing": [
+        "Versioned counterfactual query and result contracts",
+        "Separation of logical implication from causal intervention",
+        "Bounded propagation and uncertainty semantics"
+      ],
+      "acceptance_evidence": [
+        "Baseline/intervention replay",
+        "Impossible or out-of-regime query rejection",
+        "Affected prediction and revalidation set",
+        "Counterfactual result retained as derived non-evidence"
+      ],
+      "authority_boundary": "Counterfactual propagation is conditional on its model and assumptions."
+    },
+    {
+      "id": "QGR-009",
+      "title": "Versioned Metamaps projection",
+      "required": true,
+      "status": "blocked",
+      "depends_on": ["QGR-001", "QGR-002", "QGR-007", "QGR-008"],
+      "existing_evidence": [
+        "docs/modularity/contracts-proposal.md",
+        "tests/fixtures/modularity/metamaps-projection-v0.json"
+      ],
+      "missing": [
+        "Accepted shared record-reference contract",
+        "Authorized pinned Metamaps compiler and API",
+        "Faraday adapter, shadow comparison, invalidation, and rollback evidence"
+      ],
+      "acceptance_evidence": [
+        "Projection binds exact record and compiler versions",
+        "Changed input invalidates every dependent projection",
+        "Shadow output comparison against canonical Faraday state",
+        "Graph disagreement leaves Faraday authoritative"
+      ],
+      "authority_boundary": "Metamaps produces projections and findings only; graph edges are not evidence or approval."
+    },
+    {
+      "id": "QGR-010",
+      "title": "Read-only deep-research bridge",
+      "required": true,
+      "status": "partial",
+      "depends_on": ["QGR-001", "QGR-002"],
+      "existing_evidence": [
+        "src/research_machine/collaboration/proposal.py",
+        "src/research_machine/collaboration/redaction.py",
+        "docs/reconciliation/deep-research-brief.md"
+      ],
+      "missing": [
+        "Read-only MCP or equivalent context interface",
+        "Reconciliation-specific frozen context projection",
+        "Citation-complete proposal and notebook-source return contract"
+      ],
+      "acceptance_evidence": [
+        "Context snapshot and proposal bind the same digest",
+        "Filesystem, secret, execution, and canonical-write denial tests",
+        "Human adjudication before any canonical scientific transition"
+      ],
+      "authority_boundary": "Deep research may propose and cite; it cannot activate, execute, clear gates, admit evidence, or authorize effects."
+    },
+    {
+      "id": "QGR-011",
+      "title": "Controlled reconciliation acceptance campaign",
+      "required": true,
+      "status": "missing",
+      "depends_on": [
+        "QGR-001",
+        "QGR-002",
+        "QGR-003",
+        "QGR-004",
+        "QGR-005",
+        "QGR-007",
+        "QGR-008",
+        "QGR-009"
+      ],
+      "existing_evidence": [
+        "docs/scientific-platform-roadmap.md",
+        "docs/high-confidence-readiness-audit.md"
+      ],
+      "missing": [
+        "Separate experiment repository and controlled candidates",
+        "Executable acceptance harness",
+        "Independent replay and review"
+      ],
+      "acceptance_evidence": [
+        "At least two complete hypothesis iterations",
+        "Every planted defect rejected at its intended boundary",
+        "Negative and inconclusive outcomes preserved",
+        "Insufficient-resolution case returns not-distinguishable",
+        "Workspace audit and ledger verification pass",
+        "Portable package independently reproduced"
+      ],
+      "authority_boundary": "Campaign acceptance establishes process capability, not a true reconciliation theory."
+    },
+    {
+      "id": "QGR-012",
+      "title": "Current runtime and regression baseline",
+      "required": true,
+      "status": "partial",
+      "depends_on": [],
+      "existing_evidence": [
+        "pyproject.toml",
+        "tests/"
+      ],
+      "missing": [
+        "Fresh full-suite result on supported Python versions",
+        "Pinned or otherwise reproducible verification environment",
+        "Continuous regression evidence"
+      ],
+      "acceptance_evidence": [
+        "Fresh full test suite and compile check",
+        "Ledger verification for representative workspaces",
+        "Documented environment and exact revision",
+        "No unresolved required checks"
+      ],
+      "authority_boundary": "A green suite establishes implementation consistency only."
+    }
+  ]
+}
