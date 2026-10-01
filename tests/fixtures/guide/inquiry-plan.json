@@ -1,0 +1,19 @@
+{
+  "fixture_id": "guide-independent-v1",
+  "original_question": "Would the treatment change the measured outcome for these four synthetic units?",
+  "decision": "Whether a later, properly reviewed study is worth designing.",
+  "population": "Four fabricated independent units only.",
+  "unit_column": "unit",
+  "outcome_column": "outcome",
+  "group_column": "group",
+  "signed_contrast": "treatment minus control",
+  "method_id": "independent_mean_difference_ci",
+  "unresolved": [
+    "Measurement validity",
+    "Assignment mechanism",
+    "Missingness policy for future data",
+    "Ethics and data rights",
+    "Decision-relevant effect threshold"
+  ],
+  "claim_ceiling": "Synthetic fixture computation only; no scientific evidence."
+}

@@ -1,0 +1,11 @@
+{
+  "method": "independent_mean_difference_ci",
+  "claim_ceiling": "Synthetic fixture computation only; no scientific evidence.",
+  "outcome_column": "outcome",
+  "group_column": "group",
+  "groups": ["treatment", "control"],
+  "unit_column": "unit",
+  "study_design": "independent_groups",
+  "seed": 17,
+  "bootstrap_resamples": 1000
+}

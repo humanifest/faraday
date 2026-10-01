@@ -1,0 +1,5 @@
+unit,group,outcome
+u01,control,2
+u02,control,3
+u03,treatment,5
+u04,treatment,6
