@@ -1,6 +1,6 @@
 {
   "schema_version": "faraday-ai-science-guide-workflow/v1",
-  "status": "active",
+  "status": "local_workflow_fixture_ready",
   "completion_state": "local_workflow_fixture_ready",
   "execution_mode": "serial_local_fixture_only",
   "jobs": [
@@ -34,9 +34,9 @@
     },
     {
       "id": "W04",
-      "status": "implemented_pending_exact_commit_gate",
+      "status": "verified_local_fixture",
       "depends_on": ["W03"],
-      "allowed_paths": ["scripts/check_ai_science_guide_workflow.py", "tests/test_guide_workflow.py", "tests/fixtures/guide/workflow-inputs.json", "docs/ai-science-guide/client-playbook.md", "docs/ai-science-guide/workflow-goal.md", "docs/ai-science-guide/workflow-milestones.json", "README.md"],
+      "allowed_paths": ["scripts/check_ai_science_guide_workflow.py", "tests/test_guide_workflow.py", "tests/fixtures/guide/workflow-inputs.json", "docs/ai-science-guide/TODO.md", "docs/ai-science-guide/client-playbook.md", "docs/ai-science-guide/workflow-goal.md", "docs/ai-science-guide/workflow-milestones.json", "README.md"],
       "acceptance": "Exact-commit local_workflow_fixture_ready receipt with synthetic journey, adverse cases, full tests, audit, and ledger verification"
     }
   ]

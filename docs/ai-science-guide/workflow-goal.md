@@ -1,6 +1,6 @@
 # AI science guide: usable local workflow
 
-Status: active local implementation goal, 2026-10-08. This follows the
+Status: local workflow fixture ready, 2026-10-08. This follows the
 [G00–G09 synthetic software gate](goal.md). It does not activate a live model,
 real-data evidence, or scientific approval.
 
@@ -73,10 +73,13 @@ analysis contracts. The cohesive packet does not yet preview paired designs.
 
 `tests/test_guide_workflow.py` passed 2 tests with umask 077, bytecode and
 pytest plugin autoload disabled, no external add-on path, and disposable
-synthetic state. The new exact-commit checker is pending a clean candidate
-commit. It will invoke the prior G09 gate once for the full suite, audit, and
-ledger, then report `local_workflow_fixture_ready` only if its own public
-prepare/run/explain replay and adverse checks pass.
+synthetic state. The first clean-commit checker run at `633af82` exited 0
+with `local_workflow_fixture_ready: true`: 10 workflow adverse tests, 3393
+full-suite passes, 2 optional skips, zero audit errors, a verified ledger,
+and stable public workflow replay. It invoked the prior G09 gate once.
+The completion receipt must be rerun after this status commit; the result
+still does not establish scientific acceptance. T10 and T11 in the TODO
+register retain model-specific next-experiment and further design support.
 
 ## W00 work receipt (2026-10-08)
 

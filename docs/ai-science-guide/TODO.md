@@ -1,8 +1,9 @@
 # Deferred AI science guide capabilities
 
-Status: G08 typed stubs locally verified. None of these integrations is
+Status: G08 typed stubs T01–T09 locally verified; T10–T11 record later
+workflow gaps and have no typed capability route yet. None of these integrations is
 implemented or authorized by the goal plan. The guide returns `not_configured`
-or `unsupported` responses with negative tests for each applicable entry. No stub
+or `unsupported` responses with negative tests for T01–T09. No stub
 may call a service, widen a claim ceiling, or silently fall back to another
 provider. Owners below are contract owners, not assigned people.
 
@@ -17,6 +18,8 @@ provider. Owners below are contract owners, not assigned people.
 | T07 | Automated confirmatory activation or evidence acceptance: `unsupported` | There is no worker grant for scientific approval; current human and domain review gates remain authoritative | Faraday application owner; malicious AI proposal fixture | No automatic activation gate in this goal; any later policy proposal requires separate owner decision |
 | T08 | Publication or high-confidence campaign claim: `unsupported` | Real data, domain validation, independent review and replication, disclosure and publication authority | Domain campaign owner; synthetic negative-result report fixture | Separate campaign acceptance and publication authorization |
 | T09 | Domain-specific construct validity: `unsupported` | Construct-specific reference, calibration criteria, source-bound validity findings, and independent assessment | Faraday domain researcher; synthetic contradicted-validity check | Reviewed validity evidence and the applicable frozen protocol gates |
+| T10 | Model-specific next-experiment candidate: `review_only` | A validated collaborator proposal tied to the current inquiry, explicit predictions for each competing model, falsifiers, and a prospective discrimination criterion | Faraday guide and domain reviewer; synthetic null/measurement/confounding proposal with an inconclusive next test | Independent review of the proposed discrimination and existing design/ethics gates before any execution |
+| T11 | Paired and observational guide packet preview: `unsupported` | Typed repeated-unit and covariate inventory, exact design/spec alignment, missingness policy, and method-specific claim ceilings | Faraday guide maintainer; paired duplicate/missing-pair and observational confounding fixtures | Bounded adverse guide checks plus exact-commit workflow replay for each design |
 
 The modularity and reconciliation branches contain proposals that may inform
 T03 and T05. They do not satisfy the activation gates here. Every later TODO
