@@ -1,0 +1,43 @@
+{
+  "schema_version": "faraday-ai-science-guide-workflow/v1",
+  "status": "active",
+  "completion_state": "local_workflow_fixture_ready",
+  "execution_mode": "serial_local_fixture_only",
+  "jobs": [
+    {
+      "id": "W00",
+      "status": "verified_local_plan",
+      "depends_on": [],
+      "allowed_paths": ["docs/ai-science-guide/workflow-goal.md", "docs/ai-science-guide/workflow-milestones.json"],
+      "acceptance": "Plan parses and preserves G00-G09 scientific and authorization ceilings"
+    },
+    {
+      "id": "W01",
+      "status": "planned",
+      "depends_on": ["W00"],
+      "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_prepare.py", "docs/ai-science-guide/workflow-prepare.md", "docs/ai-science-guide/workflow-milestones.json"],
+      "acceptance": "Read-only packet preserves literal input and unresolved fields; bad method, design, scale, CSV, or hash fails closed"
+    },
+    {
+      "id": "W02",
+      "status": "planned",
+      "depends_on": ["W01"],
+      "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_run.py", "docs/ai-science-guide/workflow-run.md", "docs/ai-science-guide/workflow-milestones.json"],
+      "acceptance": "Only a trusted exact specification and input hash dispatch an exploratory add-on analysis; no canonical evidence write"
+    },
+    {
+      "id": "W03",
+      "status": "planned",
+      "depends_on": ["W02"],
+      "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_explain.py", "docs/ai-science-guide/workflow-explain.md", "docs/ai-science-guide/workflow-milestones.json"],
+      "acceptance": "Receipt-bound explanation and next experiment retain adverse results and unresolved alternatives without widening authority"
+    },
+    {
+      "id": "W04",
+      "status": "planned",
+      "depends_on": ["W03"],
+      "allowed_paths": ["scripts/check_ai_science_guide_workflow.py", "tests/test_guide_workflow.py", "docs/ai-science-guide/workflow-goal.md", "docs/ai-science-guide/workflow-milestones.json", "README.md"],
+      "acceptance": "Exact-commit local_workflow_fixture_ready receipt with synthetic journey, adverse cases, full tests, audit, and ledger verification"
+    }
+  ]
+}
