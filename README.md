@@ -72,6 +72,19 @@ install packages or call a model, connector, or instrument. A successful
 rights or measurement validity, approve a hypothesis, or authorize publication.
 Live integrations and domain review remain in the [TODO register](docs/ai-science-guide/TODO.md).
 
+The [local guide workflow](docs/ai-science-guide/workflow-goal.md) and
+[AI client playbook](docs/ai-science-guide/client-playbook.md) add
+`research --json guide prepare`, `guide run`, and `guide explain`. Together
+they create a review-only packet, run an exact-hash exploratory computation,
+and explain the result and unresolved next-experiment questions. The first
+cohesive packet supports a small independent two-group CSV. It does not
+declare a discriminating experiment without model-specific predictions. Run
+its exact-commit synthetic gate with:
+
+```bash
+./.venv/bin/python scripts/check_ai_science_guide_workflow.py --json
+```
+
 ## Research Machine contracts
 
 `./research --json design randomize --spec-file assignment-plan.json` generates

@@ -60,6 +60,24 @@ Faraday's ignored Legion-owned `.venv` are reused.
   remain in [TODO.md](TODO.md). A usable local client workflow does not clear
   those activation gates.
 
+## W04 implementation receipt (2026-10-08)
+
+Base commit: `3bc32e4`. Changed the one-command workflow checker, fixed
+`workflow-inputs.json` fixture, `tests/test_guide_workflow.py`, the
+AI client playbook, this guide, `workflow-milestones.json`, and `README.md`.
+The W04 path list was expanded
+to include the fixed fixture. Its SHA-256 is pinned in the checker. The
+fixture exercises the independent two-group route; the prior G00–G09 suite
+continues to exercise paired and observational methods through their existing
+analysis contracts. The cohesive packet does not yet preview paired designs.
+
+`tests/test_guide_workflow.py` passed 2 tests with umask 077, bytecode and
+pytest plugin autoload disabled, no external add-on path, and disposable
+synthetic state. The new exact-commit checker is pending a clean candidate
+commit. It will invoke the prior G09 gate once for the full suite, audit, and
+ledger, then report `local_workflow_fixture_ready` only if its own public
+prepare/run/explain replay and adverse checks pass.
+
 ## W00 work receipt (2026-10-08)
 
 Base commit: `ba3d394`. Changed only this document and
