@@ -82,7 +82,7 @@
     {
       "id": "G06",
       "title": "Execute and explain supported statistics",
-      "status": "planned",
+      "status": "verified_local_fixture",
       "depends_on": ["G05"],
       "allowed_paths": ["src/research_machine/addons/execution.py", "src/research_machine/addons/general_science.py", "src/research_machine/application/guide.py", "src/research_machine/application/service.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_analysis.py", "docs/ai-science-guide/**"],
       "deliverable": "Pinned existing-method execution for independent, paired, and observational two-group fixtures, each with effect, interval, exclusions, diagnostics, assumptions, limitations, and write-once receipt",

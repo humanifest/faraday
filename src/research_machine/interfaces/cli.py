@@ -923,6 +923,8 @@ def build_parser() -> argparse.ArgumentParser:
     analysis_run.add_argument("--spec-file", type=Path, required=True)
     analysis_run.add_argument("--data-file", type=Path, required=True)
     analysis_run.add_argument("--output", type=Path, required=True)
+    analysis_run.add_argument("--expect-spec-sha256", help="Require exact chosen specification bytes")
+    analysis_run.add_argument("--expect-input-sha256", help="Require exact chosen input bytes")
     analysis_run.add_argument("--protocol", help="Check declared design and implementation against a frozen protocol")
     analysis_run.add_argument("--dataset", help="Registered dataset whose artifact matches the input; required with --protocol")
     _add_inquiry_option(analysis_run)
@@ -2469,6 +2471,8 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             data_path=args.data_file,
             output_dir=args.output,
             design_check=design_check,
+            expected_spec_sha256=args.expect_spec_sha256,
+            expected_input_sha256=args.expect_input_sha256,
         )
 
     if args.group == "design" and args.action == "interview":

@@ -534,6 +534,8 @@ def validate_measurement_values(
 def execute_analysis(
     *, registry: AddonRegistry, spec_path: Path, data_path: Path, output_dir: Path,
     design_check: Callable[[dict[str, Any], dict[str, Any], str, str, str, int, str], dict[str, Any]] | None = None,
+    expected_spec_sha256: str | None = None,
+    expected_input_sha256: str | None = None,
 ) -> dict[str, Any]:
     if not spec_path.is_file():
         raise ValidationError(f"analysis specification is not a file: {spec_path}")
@@ -547,6 +549,8 @@ def execute_analysis(
                 f"analysis output directory is not empty: {output_dir}"
             )
     spec, spec_sha256 = _read_spec(spec_path)
+    if expected_spec_sha256 is not None and spec_sha256 != expected_spec_sha256:
+        raise ValidationError("analysis specification does not match expected SHA-256")
     addon, method = registry.resolve_method(spec["method"])
     missing = [field for field in method.required_spec_fields if field not in spec]
     if missing:
@@ -563,6 +567,8 @@ def execute_analysis(
     # Hash the same snapshot we parse, not a later version of the source path.
     data_content = data_path.read_bytes()
     data_sha256 = _hash_bytes(data_content)
+    if expected_input_sha256 is not None and data_sha256 != expected_input_sha256:
+        raise ValidationError("analysis input bytes do not match expected SHA-256")
     data_size = len(data_content)
     rows = _read_csv(data_content)
     row_count = len(rows)
