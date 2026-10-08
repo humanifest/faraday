@@ -43,9 +43,10 @@ Use the existing high-confidence readiness audit for those separate claims.
 ## AI client boundary
 
 The guide context is a versioned, read-only projection of existing records. It
-must retain the original request, record revisions, open questions, available
-method IDs, evidence and conclusion limits, and a digest of the disclosed
-context. Reuse collaborator redaction: raw datasets, private locators, and
+must retain the original request, record references, open questions, evidence
+and conclusion limits, and a digest of the disclosed context. Available method
+IDs come from the add-on registry and are pinned when a design is selected.
+Reuse collaborator redaction: raw datasets, private locators, and
 secrets are not sent to a model by default. A client response is a versioned
 proposal bound to that digest. It may contain next questions, candidate models,
 design or analysis drafts, interpretations, and proposed commands, each with
