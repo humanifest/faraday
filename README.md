@@ -54,6 +54,24 @@ Then follow [Quick start](#quick-start) to turn a suspicion into an inquiry
 without strengthening it. The sections below are the current Research Machine
 contracts, not a tutorial.
 
+## AI science guide fixture gate
+
+The [AI science guide plan](docs/ai-science-guide/goal.md) describes a bounded
+local workflow for question intake, competing explanations, design preview,
+CSV inventory, supported analyses, and cautious synthesis. To check its
+synthetic software slice at an exact clean commit, use Faraday's existing
+virtual environment with the declared `test` extras:
+
+```bash
+./.venv/bin/python scripts/check_ai_science_guide_goal.py --json
+```
+
+The command runs local synthetic fixtures and the full test suite; it does not
+install packages or call a model, connector, or instrument. A successful
+`software_fixture_ready` result does not validate a real study, establish data
+rights or measurement validity, approve a hypothesis, or authorize publication.
+Live integrations and domain review remain in the [TODO register](docs/ai-science-guide/TODO.md).
+
 ## Research Machine contracts
 
 `./research --json design randomize --spec-file assignment-plan.json` generates

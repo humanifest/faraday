@@ -1,10 +1,10 @@
 # AI science guide: goal-ready implementation plan
 
-Status: proposed software goal, 2026-09-30. The milestones in
-[`milestones.json`](milestones.json) are ordered implementation jobs, not claims
-that their features or checks already exist. Start from this branch or a later
-main that contains this plan. Do not merge the separate modularity or
-reconciliation proposal branches merely to start this goal.
+Status: implementation in progress, 2026-10-08. G00–G08 have local synthetic
+verification; G09 is implemented pending its exact-commit checker. The
+milestones in [`milestones.json`](milestones.json) record the local software
+checks, not scientific acceptance or live integration readiness. Do not merge
+the separate modularity or reconciliation proposal branches to run this gate.
 
 ## Objective and completion ceiling
 

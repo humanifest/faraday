@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -165,10 +166,15 @@ def test_launcher_reports_all_old_path_as_closed_failure(tmp_path: Path) -> None
     old_directory = tmp_path / "stale-path"
     old_python = old_directory / "python3"
     _old_python_fixture(old_python)
+    # The repository may now have an installed .venv. Exercise the launcher's
+    # no-usable-interpreter branch from an isolated root without that fallback.
+    isolated_launcher = tmp_path / "isolated" / "research"
+    isolated_launcher.parent.mkdir()
+    shutil.copy2(LAUNCHER, isolated_launcher)
 
     completed = subprocess.run(
-        [str(LAUNCHER), "--help"],
-        cwd=REPOSITORY_ROOT,
+        [str(isolated_launcher), "--help"],
+        cwd=tmp_path,
         env=_launcher_environment(path=str(old_directory)),
         text=True,
         capture_output=True,

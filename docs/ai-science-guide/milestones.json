@@ -1,6 +1,6 @@
 {
   "schema_version": "faraday-ai-science-guide-goal/v1",
-  "status": "proposed",
+  "status": "in_progress",
   "completion_state": "software_fixture_ready",
   "execution_mode": "serial_local_fixture_only",
   "required_environment": ["Python 3.11+", "preprovisioned pytest and jsonschema test extras"],
@@ -115,9 +115,9 @@
     {
       "id": "G09",
       "title": "Automate end-to-end fixture acceptance",
-      "status": "planned",
+      "status": "implemented_pending_exact_commit_gate",
       "depends_on": ["G00", "G01", "G02", "G03", "G04", "G05", "G06", "G07", "G08"],
-      "allowed_paths": ["scripts/check_ai_science_guide_goal.py", "tests/test_guide_end_to_end.py", "tests/fixtures/guide/**", "docs/ai-science-guide/**", "README.md"],
+      "allowed_paths": ["scripts/check_ai_science_guide_goal.py", "tests/test_guide_end_to_end.py", "tests/test_research_launcher.py", "tests/fixtures/guide/**", "docs/ai-science-guide/**", "README.md"],
       "deliverable": "One-command local checker, full synthetic journey, adverse matrix, audit and ledger verification, and user-facing limits",
       "required_adverse_case": "Any missing check, drifted artifact, unauthorized transition, or report overclaim exits nonzero",
       "acceptance_commands": ["python3 scripts/check_ai_science_guide_goal.py --json"],
