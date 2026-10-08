@@ -49,7 +49,7 @@
     {
       "id": "G03",
       "title": "Draft competing explanations",
-      "status": "planned",
+      "status": "verified_local_fixture",
       "depends_on": ["G02"],
       "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/application/service.py", "src/research_machine/collaboration/proposal.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_models.py", "docs/ai-science-guide/**"],
       "deliverable": "Review-only null, measurement-error, selection/confounding, and user-favored model candidates with predictions and falsifiers",
