@@ -60,7 +60,7 @@
     {
       "id": "G04",
       "title": "Preview a supported prospective design",
-      "status": "planned",
+      "status": "verified_local_fixture",
       "depends_on": ["G03"],
       "allowed_paths": ["src/research_machine/design/interview.py", "src/research_machine/design/scaffold.py", "src/research_machine/application/guide.py", "src/research_machine/application/service.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_design.py", "docs/ai-science-guide/**"],
       "deliverable": "A design preview binding unit, measurement, timing, signed contrast, estimand, missingness, multiplicity, stopping rule, uncertainty target, and supported method",
