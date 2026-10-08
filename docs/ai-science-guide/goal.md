@@ -1,7 +1,7 @@
 # AI science guide: goal-ready implementation plan
 
-Status: implementation in progress, 2026-10-08. G00–G08 have local synthetic
-verification; G09 is implemented pending its exact-commit checker. The
+Status: software fixture ready, 2026-10-08. G00–G09 have local synthetic
+verification through the one-command checker. The
 milestones in [`milestones.json`](milestones.json) record the local software
 checks, not scientific acceptance or live integration readiness. Do not merge
 the separate modularity or reconciliation proposal branches to run this gate.

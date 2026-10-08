@@ -41,7 +41,13 @@ provider, use live data, or change a remote repository.
   `tests` passed (3383 tests, 2 optional integration skips) after the launcher
   fixture repair. Both used umask 077, no bytecode, no external add-on path,
   and disabled pytest plugin autoload. Observed writes stayed in disposable
-  pytest workspaces. The exact-commit checker remains the final G09 gate.
+  pytest workspaces.
+- The first clean-commit checker run at `f4bfef9` exited 0 with
+  `software_fixture_ready: true`: the public journey and 14 named adverse
+  cases passed, the full suite reported 3383 passed and 2 optional skips,
+  the audit had zero errors, the ledger verified, and both analysis and
+  report replays were stable. The completion receipt must be rerun after any
+  further commit; the result does not establish scientific acceptance.
 - Remaining limits: no real model, source or instrument ingestion, authenticated
   reviewer, real Metamaps compilation, domain-specific validity, general
   method support, or concurrent writers. See [TODO.md](TODO.md). Neither a
