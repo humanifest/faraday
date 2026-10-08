@@ -2,9 +2,12 @@
 
 `research --json guide prepare --brief-file BRIEF.json` returns a version-1,
 read-only packet. Optional `--design-brief-file DESIGN.json`,
-`--analysis-spec-file SPEC.json`, `--data-file DATA.csv`, and
+`--analysis-spec-file ANALYSIS.json`, `--data-spec-file DATA-SPEC.json`,
+`--data-file DATA.csv`, and
 `--expect-data-sha256 HASH` add the existing scaffold, registered method,
-and CSV inventory paths. `--data-file` requires a specification. The packet
+and CSV inventory paths. `--data-file` requires both specifications; the data
+specification adds measurement definitions and must agree with the executable
+analysis specification on method, design, columns, and ordered groups. The packet
 retains the original question, literal supplied values, unresolved fields,
 source-byte hashes, blocking conflicts, four competing-model questions,
 method limits, and concrete next routes. It never reads a scientific answer

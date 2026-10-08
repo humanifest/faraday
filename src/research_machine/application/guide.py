@@ -254,6 +254,7 @@ def preview_guide_packet(
     brief: dict[str, Any], *, design: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
     analysis_spec: dict[str, Any] | None = None,
+    measurement_spec: dict[str, Any] | None = None,
     method: dict[str, Any] | None = None,
     input_sha256: dict[str, str] | None = None,
 ) -> dict[str, Any]:
@@ -288,7 +289,7 @@ def preview_guide_packet(
             ):
                 if declared.get(design_key) is not None and declared[design_key] != analysis_spec.get(spec_key):
                     issues.append(f"design {design_key} conflicts with analysis {spec_key}")
-            definitions = analysis_spec.get("measurement_definitions", [])
+            definitions = (measurement_spec or {}).get("measurement_definitions", [])
             outcome_definition = next((item for item in definitions
                                        if item.get("data_column") == analysis_spec.get("outcome_column")), None)
             if outcome_definition is not None:
@@ -337,3 +338,44 @@ def preview_guide_packet(
         "canonical_write_performed": False,
         "analysis_performed": False,
     }
+
+
+def validate_guide_run_packet(
+    packet: dict[str, Any], *, specification_sha256: str,
+    input_sha256: str, method_id: str,
+) -> None:
+    """Require an exact W01 review packet before exploratory computation."""
+    for label, value in (("specification", specification_sha256), ("input", input_sha256)):
+        if not isinstance(value, str) or len(value) != 64 or any(
+            character not in "0123456789abcdef" for character in value
+        ):
+            raise ValidationError(f"guide run {label} SHA-256 must be lowercase hex")
+    if not isinstance(packet, dict) or packet.get("packet_version") != 1:
+        raise ValidationError("guide run requires a version-1 guide packet")
+    if (packet.get("authority") != "review_only"
+        or packet.get("status") != "ready_for_review"
+        or packet.get("blocking_issues") != []
+        or packet.get("unresolved_fields") != []
+        or packet.get("canonical_write_performed") is not False
+        or packet.get("analysis_performed") is not False
+        or packet.get("scientific_evidence_eligible") is not False):
+        raise ValidationError("guide packet has unresolved checks or claims authority")
+    hashes = packet.get("input_sha256")
+    if not isinstance(hashes, dict) or (
+        hashes.get("analysis_specification") != specification_sha256
+        or hashes.get("data") != input_sha256
+        or not hashes.get("brief")
+        or not hashes.get("data_specification")
+    ):
+        raise ValidationError("guide packet does not bind the trusted specification and input bytes")
+    inventory = packet.get("data_preview")
+    if (not isinstance(inventory, dict)
+        or inventory.get("raw_sha256") != input_sha256
+        or inventory.get("quality_issues") != []
+        or inventory.get("scientific_evidence_eligible") is not False):
+        raise ValidationError("guide packet lacks a clean, non-evidentiary data inventory")
+    method = packet.get("method_preview")
+    if (not isinstance(method, dict)
+        or method.get("method_id") != method_id
+        or method.get("missing_spec_fields") != []):
+        raise ValidationError("guide packet method differs from the executable specification")

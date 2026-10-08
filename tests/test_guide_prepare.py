@@ -18,7 +18,7 @@ def _write(path: Path, value: dict) -> Path:
     return path
 
 
-def _inputs(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
+def _inputs(tmp_path: Path) -> tuple[Path, Path, Path, Path, Path]:
     plan = json.loads((FIXTURES / "inquiry-plan.json").read_text(encoding="utf-8"))
     brief = _write(tmp_path / "brief.json", {
         "original_statement": plan["original_question"],
@@ -43,14 +43,16 @@ def _inputs(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     design["outcome_unit"] = "synthetic points"
     design_file = _write(tmp_path / "design.json", design)
     spec = json.loads((FIXTURES / "independent-analysis.json").read_text(encoding="utf-8"))
-    spec["measurement_definitions"] = [{
+    spec_file = _write(tmp_path / "analysis-spec.json", spec)
+    data_spec = dict(spec)
+    data_spec["measurement_definitions"] = [{
         "measurement_id": "synthetic-outcome-v1", "data_column": "outcome",
         "scale_type": "interval", "unit": "synthetic points",
         "admissible_values": [], "missing_value_codes": ["<blank>"],
         "valid_min": 0.0, "valid_max": 100.0,
     }]
-    spec_file = _write(tmp_path / "spec.json", spec)
-    return brief, design_file, spec_file, FIXTURES / "independent-two-group.csv"
+    data_spec_file = _write(tmp_path / "data-spec.json", data_spec)
+    return brief, design_file, spec_file, data_spec_file, FIXTURES / "independent-two-group.csv"
 
 
 def _call(workspace: Path, capsys, *arguments: str) -> tuple[int, dict]:
@@ -60,13 +62,14 @@ def _call(workspace: Path, capsys, *arguments: str) -> tuple[int, dict]:
 
 
 def test_complete_synthetic_packet_is_read_only_and_not_scientific_evidence(tmp_path: Path, capsys) -> None:
-    brief, design, spec, data = _inputs(tmp_path)
+    brief, design, spec, data_spec, data = _inputs(tmp_path)
     workspace = tmp_path / "workspace"
     digest = hashlib.sha256(data.read_bytes()).hexdigest()
     code, response = _call(
         workspace, capsys, "--brief-file", str(brief),
         "--design-brief-file", str(design),
-        "--analysis-spec-file", str(spec), "--data-file", str(data),
+        "--analysis-spec-file", str(spec), "--data-spec-file", str(data_spec),
+        "--data-file", str(data),
         "--expect-data-sha256", digest,
     )
     assert code == 0 and response["ok"] is True
@@ -80,6 +83,8 @@ def test_complete_synthetic_packet_is_read_only_and_not_scientific_evidence(tmp_
     assert packet["data_preview"]["row_count"] == 4
     assert packet["data_preview"]["scientific_evidence_eligible"] is False
     assert packet["input_sha256"]["data"] == digest
+    assert packet["input_sha256"]["analysis_specification"] == hashlib.sha256(spec.read_bytes()).hexdigest()
+    assert packet["input_sha256"]["data_specification"] == hashlib.sha256(data_spec.read_bytes()).hexdigest()
     assert {item["role"] for item in packet["competing_model_questions"]} == {
         "null", "measurement_error", "selection_or_confounding", "user_explanation",
     }
@@ -91,7 +96,7 @@ def test_complete_synthetic_packet_is_read_only_and_not_scientific_evidence(tmp_
 
 
 def test_missing_and_conflicting_inputs_fail_closed(tmp_path: Path, capsys) -> None:
-    brief, design, spec, data = _inputs(tmp_path)
+    brief, design, spec, data_spec, data = _inputs(tmp_path)
     workspace = tmp_path / "workspace"
     sparse = _write(tmp_path / "sparse.json", {"original_statement": "Could X matter?"})
     code, response = _call(workspace, capsys, "--brief-file", str(sparse))
@@ -104,7 +109,8 @@ def test_missing_and_conflicting_inputs_fail_closed(tmp_path: Path, capsys) -> N
 
     for extra in (
         ("--data-file", str(data)),
-        ("--analysis-spec-file", str(spec), "--data-file", str(data),
+        ("--analysis-spec-file", str(spec), "--data-spec-file", str(data_spec),
+         "--data-file", str(data),
          "--expect-data-sha256", "0" * 64),
     ):
         code, response = _call(workspace, capsys, "--brief-file", str(brief), *extra)
@@ -117,13 +123,14 @@ def test_missing_and_conflicting_inputs_fail_closed(tmp_path: Path, capsys) -> N
                            "--analysis-spec-file", str(spec))
     assert code == 2 and response["ok"] is False
 
-    _, design, spec, data = _inputs(tmp_path)
+    _, design, spec, data_spec, data = _inputs(tmp_path)
     mismatch = json.loads(design.read_text())
     mismatch["outcome_scale"] = "ordinal"
     _write(design, mismatch)
     code, response = _call(workspace, capsys, "--brief-file", str(brief),
                            "--design-brief-file", str(design),
-                           "--analysis-spec-file", str(spec), "--data-file", str(data))
+                           "--analysis-spec-file", str(spec), "--data-spec-file", str(data_spec),
+                           "--data-file", str(data))
     assert code == 0
     assert response["result"]["status"] == "blocked"
     assert any("scale" in issue for issue in response["result"]["blocking_issues"])
@@ -132,8 +139,17 @@ def test_missing_and_conflicting_inputs_fail_closed(tmp_path: Path, capsys) -> N
     duplicate = tmp_path / "duplicate.csv"
     duplicate.write_bytes(data.read_bytes().replace(b"u04,treatment,6", b"u01,treatment,6"))
     code, response = _call(workspace, capsys, "--brief-file", str(brief),
-                           "--analysis-spec-file", str(spec), "--data-file", str(duplicate))
+                           "--analysis-spec-file", str(spec), "--data-spec-file", str(data_spec),
+                           "--data-file", str(duplicate))
     assert code == 0
     assert response["result"]["status"] == "blocked"
     assert "CSV inventory has data-quality issues" in response["result"]["blocking_issues"]
+
+    inconsistent = json.loads(data_spec.read_text())
+    inconsistent["groups"] = ["control", "treatment"]
+    _write(data_spec, inconsistent)
+    code, response = _call(workspace, capsys, "--brief-file", str(brief),
+                           "--analysis-spec-file", str(spec), "--data-spec-file", str(data_spec),
+                           "--data-file", str(data))
+    assert code == 2 and "conflicts" in response["error"]["message"]
     assert not workspace.exists()

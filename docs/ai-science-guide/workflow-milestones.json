@@ -20,9 +20,9 @@
     },
     {
       "id": "W02",
-      "status": "planned",
+      "status": "verified_local_fixture",
       "depends_on": ["W01"],
-      "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_run.py", "docs/ai-science-guide/workflow-run.md", "docs/ai-science-guide/workflow-milestones.json"],
+      "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_prepare.py", "tests/test_guide_run.py", "docs/ai-science-guide/workflow-prepare.md", "docs/ai-science-guide/workflow-run.md", "docs/ai-science-guide/workflow-milestones.json"],
       "acceptance": "Only a trusted exact specification and input hash dispatch an exploratory add-on analysis; no canonical evidence write"
     },
     {
