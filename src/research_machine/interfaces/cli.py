@@ -40,6 +40,7 @@ from research_machine.application.guide import (
     INTAKE_FIELDS,
     guide_unavailable_capability,
     preview_csv_data,
+    preview_guide_packet,
     preview_question_intake,
 )
 from research_machine.domain.errors import ResearchMachineError
@@ -406,6 +407,12 @@ def build_parser() -> argparse.ArgumentParser:
     guide_data.add_argument("--expect-sha256")
     guide_capability = guide_commands.add_parser("capability", help="Report a guide integration boundary")
     guide_capability.add_argument("--name", required=True, choices=sorted(GUIDE_UNAVAILABLE_CAPABILITIES))
+    guide_prepare = guide_commands.add_parser("prepare", help="Build one read-only science guide packet")
+    guide_prepare.add_argument("--brief-file", type=Path, required=True)
+    guide_prepare.add_argument("--design-brief-file", type=Path)
+    guide_prepare.add_argument("--analysis-spec-file", type=Path)
+    guide_prepare.add_argument("--data-file", type=Path)
+    guide_prepare.add_argument("--expect-data-sha256")
 
     workspace = groups.add_parser("workspace", help="Create and verify workspaces")
     workspace_commands = workspace.add_subparsers(dest="action", required=True)
@@ -2403,6 +2410,62 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
     ]
     configured_paths.extend(args.addon_path)
     registry = load_local_addons(default_registry(), configured_paths)
+    if args.group == "guide" and args.action == "prepare":
+        if args.data_file is not None and args.analysis_spec_file is None:
+            raise ValueError("guide prepare --data-file requires --analysis-spec-file")
+        if args.expect_data_sha256 is not None and args.data_file is None:
+            raise ValueError("guide prepare --expect-data-sha256 requires --data-file")
+        brief, brief_hash, _ = _read_json_object_and_hash(
+            args.brief_file, allowed_fields=INTAKE_FIELDS, label="guide brief"
+        )
+        hashes = {"brief": brief_hash}
+        design_preview = None
+        if args.design_brief_file is not None:
+            design_brief, design_hash, _ = _read_json_object_and_hash(
+                args.design_brief_file, allowed_fields=DESIGN_BRIEF_FIELDS,
+                label="guide design brief"
+            )
+            scaffold = scaffold_design(design_brief)
+            design_preview = {
+                "brief_question": design_brief.get("question"),
+                "scaffold_status": scaffold["status"],
+                "findings": scaffold["findings"],
+                "error_findings": [item for item in scaffold["findings"]
+                                   if item["severity"] == "error"],
+                "declared": {key: design_brief[key] for key in (
+                    "outcome", "unit_of_observation", "decision", "comparison",
+                    "analysis_design", "unit_id_column", "group_data_column",
+                    "outcome_data_column", "contrast_groups", "outcome_scale",
+                    "outcome_unit",
+                ) if key in design_brief},
+                "scientific_interpretation_verified": False,
+            }
+            hashes["design_brief"] = design_hash
+        spec = None
+        method_preview = None
+        data_preview = None
+        if args.analysis_spec_file is not None:
+            spec, spec_hash, _ = _read_json_object_and_hash(
+                args.analysis_spec_file,
+                allowed_fields=set(ANALYSIS_SPEC_FIELDS) | {"measurement_definitions"},
+                label="guide analysis specification",
+            )
+            manifest, method = registry.resolve_method(spec.get("method"))
+            method_preview = {
+                **method.describe(), "addon_id": manifest.addon_id,
+                "addon_version": manifest.version,
+                "missing_spec_fields": sorted(set(method.required_spec_fields) - set(spec)),
+            }
+            hashes["analysis_specification"] = spec_hash
+            if args.data_file is not None:
+                data_preview = preview_csv_data(
+                    args.data_file, spec, expected_sha256=args.expect_data_sha256
+                )
+                hashes["data"] = data_preview["raw_sha256"]
+        return preview_guide_packet(
+            brief, design=design_preview, data=data_preview,
+            analysis_spec=spec, method=method_preview, input_sha256=hashes,
+        )
     if args.group == "addon":
         if args.action == "list":
             return [manifest.describe() for manifest in registry.list()]

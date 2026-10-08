@@ -240,3 +240,100 @@ def preview_csv_data(
         "scientific_evidence_eligible": False,
         "canonical_write_performed": False,
     }
+
+
+_MODEL_QUESTIONS = (
+    ("null", "What would no decision-relevant change predict?"),
+    ("measurement_error", "Could measurement or coding error create this pattern?"),
+    ("selection_or_confounding", "Could selection or another variable explain it?"),
+    ("user_explanation", "What would the user's explanation predict differently?"),
+)
+
+
+def preview_guide_packet(
+    brief: dict[str, Any], *, design: dict[str, Any] | None = None,
+    data: dict[str, Any] | None = None,
+    analysis_spec: dict[str, Any] | None = None,
+    method: dict[str, Any] | None = None,
+    input_sha256: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Compose existing read-only previews without inferring scientific answers."""
+    intake = preview_question_intake(brief)
+    issues: list[str] = []
+    if design is not None:
+        if design.get("brief_question") != intake["original_statement"]:
+            issues.append("design question differs from the literal original statement")
+        declared = design.get("declared", {})
+        for field in ("outcome", "unit_of_observation", "decision", "comparison"):
+            supplied = intake["supplied_fields"].get(field)
+            if supplied is not None and declared.get(field) is not None and supplied != declared[field]:
+                issues.append(f"design {field} conflicts with the literal brief")
+        if design.get("error_findings"):
+            issues.append("design scaffold has blocking findings")
+    if data is not None and data["quality_issues"]:
+        issues.append("CSV inventory has data-quality issues")
+    if analysis_spec is not None:
+        if method is None or method.get("method_id") != analysis_spec.get("method"):
+            issues.append("analysis method is not an exact registered method")
+        elif method.get("missing_spec_fields"):
+            issues.append("analysis specification omits required method fields")
+        if design is not None:
+            declared = design.get("declared", {})
+            for design_key, spec_key in (
+                ("analysis_design", "study_design"),
+                ("unit_id_column", "unit_column"),
+                ("group_data_column", "group_column"),
+                ("outcome_data_column", "outcome_column"),
+                ("contrast_groups", "groups"),
+            ):
+                if declared.get(design_key) is not None and declared[design_key] != analysis_spec.get(spec_key):
+                    issues.append(f"design {design_key} conflicts with analysis {spec_key}")
+            definitions = analysis_spec.get("measurement_definitions", [])
+            outcome_definition = next((item for item in definitions
+                                       if item.get("data_column") == analysis_spec.get("outcome_column")), None)
+            if outcome_definition is not None:
+                for design_key, measurement_key in (("outcome_scale", "scale_type"), ("outcome_unit", "unit")):
+                    if declared.get(design_key) is not None and declared[design_key] != outcome_definition.get(measurement_key):
+                        issues.append(f"design {design_key} conflicts with measurement {measurement_key}")
+
+    unresolved = list(intake["unresolved_fields"])
+    if design is None:
+        unresolved.append("prospective_design")
+    if analysis_spec is None:
+        unresolved.append("analysis_specification")
+    if data is None:
+        unresolved.append("observation_data")
+    status = "blocked" if issues else "needs_clarification" if unresolved else "ready_for_review"
+    next_steps = [
+        {"route": "research design scaffold", "reason": "Review design assumptions before outcome use"}
+        if design is None else
+        {"route": "research design scaffold", "reason": "Resolve blocking design findings"}
+        if design.get("error_findings") else None,
+        {"route": "research guide data", "reason": "Inventory exact CSV bytes and custody gaps"}
+        if data is None else None,
+        {"route": "research collaborator context", "reason": "Bind competing-model proposals to a redacted inquiry context"},
+        {"route": "research analysis run", "reason": "Exploratory only; requires separately trusted specification and input hashes"}
+        if status == "ready_for_review" else None,
+    ]
+    return {
+        "packet_version": 1,
+        "authority": "review_only",
+        "status": status,
+        "original_statement": intake["original_statement"],
+        "intake": intake,
+        "design_preview": design,
+        "data_preview": data,
+        "method_preview": method,
+        "competing_model_questions": [
+            {"role": role, "question": question, "prediction_required": True,
+             "falsifier_required": True, "asserts_explanation": False}
+            for role, question in _MODEL_QUESTIONS
+        ],
+        "blocking_issues": issues,
+        "unresolved_fields": unresolved,
+        "next_steps": [step for step in next_steps if step is not None],
+        "input_sha256": input_sha256 or {},
+        "scientific_evidence_eligible": False,
+        "canonical_write_performed": False,
+        "analysis_performed": False,
+    }

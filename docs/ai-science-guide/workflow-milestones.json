@@ -13,7 +13,7 @@
     },
     {
       "id": "W01",
-      "status": "planned",
+      "status": "verified_local_fixture",
       "depends_on": ["W00"],
       "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_prepare.py", "docs/ai-science-guide/workflow-prepare.md", "docs/ai-science-guide/workflow-milestones.json"],
       "acceptance": "Read-only packet preserves literal input and unresolved fields; bad method, design, scale, CSV, or hash fails closed"
