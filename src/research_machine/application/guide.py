@@ -43,6 +43,32 @@ _LIST_FIELDS = {
     "decision_change_criteria", "available_data_sources", "ethical_constraints",
 }
 
+GUIDE_UNAVAILABLE_CAPABILITIES = {
+    "live_model": "not_configured",
+    "live_connector": "not_configured",
+    "live_instrument": "not_configured",
+    "arbitrary_statistics": "unsupported",
+    "domain_specific_validity": "unsupported",
+    "authenticated_reviewer": "not_configured",
+    "metamaps_compilation": "not_configured",
+    "concurrent_writes": "unsupported",
+}
+
+
+def guide_unavailable_capability(capability: str) -> dict[str, Any]:
+    """Expose an unavailable boundary without probing or invoking it."""
+    if capability not in GUIDE_UNAVAILABLE_CAPABILITIES:
+        raise ValueError("unknown guide capability")
+    return {
+        "capability": capability,
+        "status": GUIDE_UNAVAILABLE_CAPABILITIES[capability],
+        "todo": f"docs/ai-science-guide/TODO.md#{capability.replace('_', '-')}",
+        "fallback_used": False,
+        "external_call_performed": False,
+        "canonical_write_performed": False,
+        "grants_authority": False,
+    }
+
 
 def preview_question_intake(brief: dict[str, Any]) -> dict[str, Any]:
     """Return only user-supplied values, unresolved fields, and proposed commands."""

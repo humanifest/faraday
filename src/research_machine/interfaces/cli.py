@@ -36,7 +36,9 @@ from research_machine.application.commands import (
 )
 from research_machine.application.service import ResearchService
 from research_machine.application.guide import (
+    GUIDE_UNAVAILABLE_CAPABILITIES,
     INTAKE_FIELDS,
+    guide_unavailable_capability,
     preview_csv_data,
     preview_question_intake,
 )
@@ -402,6 +404,8 @@ def build_parser() -> argparse.ArgumentParser:
     guide_data.add_argument("--file", type=Path, required=True)
     guide_data.add_argument("--spec-file", type=Path, required=True)
     guide_data.add_argument("--expect-sha256")
+    guide_capability = guide_commands.add_parser("capability", help="Report a guide integration boundary")
+    guide_capability.add_argument("--name", required=True, choices=sorted(GUIDE_UNAVAILABLE_CAPABILITIES))
 
     workspace = groups.add_parser("workspace", help="Create and verify workspaces")
     workspace_commands = workspace.add_subparsers(dest="action", required=True)
@@ -2390,6 +2394,8 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             label="guide data specification",
         )
         return preview_csv_data(args.file, spec, expected_sha256=args.expect_sha256)
+    if args.group == "guide" and args.action == "capability":
+        return guide_unavailable_capability(args.name)
     configured_paths = [
         Path(value)
         for value in os.environ.get("RESEARCH_ADDON_PATH", "").split(os.pathsep)

@@ -104,7 +104,7 @@
     {
       "id": "G08",
       "title": "Stub external and domain-specific capabilities",
-      "status": "planned",
+      "status": "verified_local_fixture",
       "depends_on": ["G01", "G07"],
       "allowed_paths": ["src/research_machine/collaboration/proposal.py", "src/research_machine/application/guide.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_unavailable.py", "docs/ai-science-guide/TODO.md"],
       "deliverable": "Typed not_configured or unsupported responses and a TODO register for live models, connectors, instruments, arbitrary methods, reviewer identity, Metamaps, and concurrency",
