@@ -379,3 +379,76 @@ def validate_guide_run_packet(
         or method.get("method_id") != method_id
         or method.get("missing_spec_fields") != []):
         raise ValidationError("guide packet method differs from the executable specification")
+
+
+_EXPLAINABLE_METHODS = {
+    "independent_mean_difference_ci": ("mean_difference_first_minus_second", "confidence_interval"),
+    "paired_mean_difference_ci": ("mean_difference_first_minus_second", "confidence_interval"),
+    "adjusted_linear_effect": ("adjusted_mean_difference_first_minus_second", "robust_confidence_interval"),
+}
+
+
+def explain_guide_execution(
+    packet: dict[str, Any], verified: dict[str, Any], *, packet_sha256: str,
+    specification_sha256: str, input_sha256: str,
+    implementation_sha256: str,
+) -> dict[str, Any]:
+    """Explain a byte-verified computation without promoting it to evidence."""
+    receipt, result = verified["receipt"], verified["result"]
+    method_id = result.get("method")
+    validate_guide_run_packet(
+        packet, specification_sha256=specification_sha256,
+        input_sha256=input_sha256, method_id=method_id,
+    )
+    if (receipt.get("specification", {}).get("sha256") != specification_sha256
+        or receipt.get("input", {}).get("sha256") != input_sha256
+        or receipt.get("implementation", {}).get("sha256") != implementation_sha256
+        or receipt.get("method") != method_id):
+        raise ValidationError("guide execution receipt does not match packet, source, or current method bytes")
+    if method_id not in _EXPLAINABLE_METHODS:
+        raise ValidationError("guide explanation does not support this analysis method")
+    body = result.get("result")
+    if not isinstance(body, dict):
+        raise ValidationError("guide analysis result body is missing")
+    effect_key, interval_key = _EXPLAINABLE_METHODS[method_id]
+    effect, interval = body.get(effect_key), body.get(interval_key)
+    if (isinstance(effect, bool) or not isinstance(effect, (int, float))
+        or not isinstance(interval, dict)
+        or any(isinstance(interval.get(key), bool) or not isinstance(interval.get(key), (int, float))
+               for key in ("lower", "upper"))):
+        raise ValidationError("guide analysis lacks a numeric estimate and interval")
+    lower, upper = interval["lower"], interval["upper"]
+    if lower > effect or effect > upper:
+        raise ValidationError("guide estimate lies outside its reported interval")
+    interval_relation = "spans_zero" if lower <= 0 <= upper else "above_zero" if lower > 0 else "below_zero"
+    return {
+        "explanation_version": 1,
+        "status": "exploratory_computation_only",
+        "original_statement": packet["original_statement"],
+        "packet_sha256": packet_sha256,
+        "receipt_sha256": verified["receipt_sha256"],
+        "method": method_id,
+        "effect_estimate": {"value": effect, "field": effect_key,
+                            "signed_contrast": result.get("contrast_groups", [])},
+        "uncertainty": {"interval": interval, "relation_to_zero": interval_relation},
+        "unit_counts": body.get("n_by_group", {"pairs": body.get("n_pairs")}),
+        "exclusions": body.get("exclusion_report"),
+        "assumptions": body.get("assumptions", []),
+        "method_claim_ceiling": result["claim_ceiling"],
+        "unresolved_fields": packet["unresolved_fields"],
+        "unresolved_alternatives": packet["competing_model_questions"],
+        "next_experiment": {
+            "status": "needs_model_specific_predictions_and_review",
+            "candidate": None,
+            "questions": [
+                "Which competing models make different predictions on a future independent sample?",
+                "What measurement or selection check would weaken each model?",
+                "What effect size, stopping rule, and safety constraints must be set before collection?",
+            ],
+            "discrimination_established": False,
+        },
+        "scientific_evidence_eligible": False,
+        "canonical_write_performed": False,
+        "confirmatory_plan_verified": False,
+        "notice": "An interval's position relative to zero is a calculation, not scientific confirmation or a causal conclusion.",
+    }

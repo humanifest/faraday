@@ -38,6 +38,7 @@ from research_machine.application.service import ResearchService
 from research_machine.application.guide import (
     GUIDE_UNAVAILABLE_CAPABILITIES,
     INTAKE_FIELDS,
+    explain_guide_execution,
     guide_unavailable_capability,
     preview_csv_data,
     preview_guide_packet,
@@ -423,6 +424,13 @@ def build_parser() -> argparse.ArgumentParser:
     guide_run.add_argument("--data-file", type=Path, required=True)
     guide_run.add_argument("--expect-input-sha256", required=True)
     guide_run.add_argument("--output", type=Path, required=True)
+    guide_explain = guide_commands.add_parser("explain", help="Explain a pinned exploratory result and its unresolved next step")
+    guide_explain.add_argument("--packet-file", type=Path, required=True)
+    guide_explain.add_argument("--expect-packet-sha256", required=True)
+    guide_explain.add_argument("--spec-file", type=Path, required=True)
+    guide_explain.add_argument("--data-file", type=Path, required=True)
+    guide_explain.add_argument("--execution-directory", type=Path, required=True)
+    guide_explain.add_argument("--expected-receipt-sha256", required=True)
 
     workspace = groups.add_parser("workspace", help="Create and verify workspaces")
     workspace_commands = workspace.add_subparsers(dest="action", required=True)
@@ -2519,6 +2527,40 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             "canonical_write_performed": False,
             "confirmatory_plan_verified": False,
         }
+    if args.group == "guide" and args.action == "explain":
+        from research_machine.addons.execution import _implementation_hash
+        from research_machine.addons.receipt import verify_execution_output
+
+        wrapper, packet_sha256, _ = _read_json_object_and_hash(
+            args.packet_file, allowed_fields={"ok", "result"}, label="guide packet"
+        )
+        if packet_sha256 != args.expect_packet_sha256 or wrapper.get("ok") is not True:
+            raise ValueError("guide explanation packet does not match trusted SHA-256")
+        spec, spec_sha256, _ = _read_json_object_and_hash(
+            args.spec_file, allowed_fields=set(ANALYSIS_SPEC_FIELDS),
+            label="guide analysis specification",
+        )
+        try:
+            if not args.data_file.is_file():
+                raise ValueError("guide explanation input is not a file")
+            if args.data_file.stat().st_size > 16 * 1024 * 1024:
+                raise ValueError("guide explanation input is limited to 16 MiB")
+            input_sha256 = hashlib.sha256(args.data_file.read_bytes()).hexdigest()
+        except OSError as exc:
+            raise ValueError("guide explanation input could not be read") from exc
+        manifest, method = registry.resolve_method(spec.get("method"))
+        _, implementation_sha256 = _implementation_hash(method.runner)
+        verified = verify_execution_output(
+            args.execution_directory, args.expected_receipt_sha256
+        )
+        if (verified["receipt"].get("addon") !=
+            {"addon_id": manifest.addon_id, "version": manifest.version}):
+            raise ValueError("guide explanation add-on version differs from current method")
+        return explain_guide_execution(
+            wrapper.get("result"), verified, packet_sha256=packet_sha256,
+            specification_sha256=spec_sha256, input_sha256=input_sha256,
+            implementation_sha256=implementation_sha256,
+        )
     if args.group == "addon":
         if args.action == "list":
             return [manifest.describe() for manifest in registry.list()]
