@@ -476,6 +476,15 @@ def build_synthesis(
                     "",
                     "- Status: provisionally staged for exploratory work; human "
                     "ratification remains pending.",
+                    f"- Prediction: {_text(hypothesis.observable_prediction)}",
+                    f"- Null model: {_text(hypothesis.null_model)}",
+                    "- Competing models: "
+                    + ("; ".join(hypothesis.competing_models) or "Not specified."),
+                    "- Falsification conditions: "
+                    + (
+                        "; ".join(hypothesis.falsification_conditions)
+                        or "Not specified."
+                    ),
                     f"- Staged by: {_text(hypothesis.pending_review_by or '')}",
                     f"- Confidence: {_text(hypothesis.pending_review_confidence)}",
                     f"- Rationale: {_text(hypothesis.pending_review_rationale)}",

@@ -93,7 +93,7 @@
     {
       "id": "G07",
       "title": "Interpret and iterate without claim promotion",
-      "status": "planned",
+      "status": "verified_local_fixture",
       "depends_on": ["G06"],
       "allowed_paths": ["src/research_machine/reporting/synthesis.py", "src/research_machine/selection/recommendation.py", "src/research_machine/application/guide.py", "src/research_machine/application/service.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_iteration.py", "docs/ai-science-guide/**"],
       "deliverable": "Deterministic synthesis plus a versioned, prerequisite-checked next experiment proposal",
