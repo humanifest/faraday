@@ -11,6 +11,7 @@ from typing import Any, Sequence
 
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.addons.execution import execute_analysis
+from research_machine.addons.contracts import ANALYSIS_SPEC_FIELDS
 from research_machine.addons.registry import default_registry, load_local_addons
 from research_machine.application.commands import (
     AddClaim,
@@ -34,7 +35,11 @@ from research_machine.application.commands import (
     SetInquiryDecision,
 )
 from research_machine.application.service import ResearchService
-from research_machine.application.guide import INTAKE_FIELDS, preview_question_intake
+from research_machine.application.guide import (
+    INTAKE_FIELDS,
+    preview_csv_data,
+    preview_question_intake,
+)
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.design.scaffold import DESIGN_BRIEF_FIELDS, scaffold_design
 from research_machine.design.initializer import initialize_experiment_repository
@@ -393,6 +398,10 @@ def build_parser() -> argparse.ArgumentParser:
     guide_commands = guide.add_subparsers(dest="action", required=True)
     guide_intake = guide_commands.add_parser("intake", help="Clarify a question from a literal brief")
     guide_intake.add_argument("--brief-file", type=Path, required=True)
+    guide_data = guide_commands.add_parser("data", help="Read-only inventory of a CSV byte snapshot")
+    guide_data.add_argument("--file", type=Path, required=True)
+    guide_data.add_argument("--spec-file", type=Path, required=True)
+    guide_data.add_argument("--expect-sha256")
 
     workspace = groups.add_parser("workspace", help="Create and verify workspaces")
     workspace_commands = workspace.add_subparsers(dest="action", required=True)
@@ -2372,6 +2381,13 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             args.brief_file, allowed_fields=INTAKE_FIELDS, label="guide intake brief"
         )
         return preview_question_intake(brief)
+    if args.group == "guide" and args.action == "data":
+        spec = _read_json_object(
+            args.spec_file,
+            allowed_fields=set(ANALYSIS_SPEC_FIELDS) | {"measurement_definitions"},
+            label="guide data specification",
+        )
+        return preview_csv_data(args.file, spec, expected_sha256=args.expect_sha256)
     configured_paths = [
         Path(value)
         for value in os.environ.get("RESEARCH_ADDON_PATH", "").split(os.pathsep)

@@ -5,7 +5,16 @@ This module does not infer answers from prose or write canonical records.
 
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
 from typing import Any
+
+from research_machine.addons.execution import (
+    _read_csv,
+    _unit_structure,
+    validate_measurement_values,
+)
+from research_machine.domain.errors import ValidationError
 
 
 INTAKE_FIELDS = {
@@ -98,5 +107,110 @@ def preview_question_intake(brief: dict[str, Any]) -> dict[str, Any]:
             {"field": field, "text": _PROMPTS[field]} for field in unresolved
         ],
         "proposed_commands": proposed_commands,
+        "canonical_write_performed": False,
+    }
+
+
+def preview_csv_data(
+    path: Path, spec: dict[str, Any], *, expected_sha256: str | None = None
+) -> dict[str, Any]:
+    """Inventory one CSV byte snapshot without registering it as a dataset."""
+    try:
+        if not path.is_file():
+            raise ValidationError("guide data input is not a file")
+        if path.stat().st_size > 16 * 1024 * 1024:
+            raise ValidationError("guide data preview is limited to 16 MiB")
+        content = path.read_bytes()
+    except OSError as exc:
+        raise ValidationError("guide data input could not be read") from exc
+    if len(content) > 16 * 1024 * 1024:
+        raise ValidationError("guide data preview is limited to 16 MiB")
+    digest = hashlib.sha256(content).hexdigest()
+    if expected_sha256 is not None and digest != expected_sha256:
+        raise ValidationError("guide data input bytes do not match expected SHA-256")
+    rows = _read_csv(content)
+    if spec.get("study_design") != "independent_groups":
+        raise ValidationError("guide data preview currently supports independent_groups only")
+    for key in ("unit_column", "group_column", "outcome_column"):
+        value = spec.get(key)
+        if not isinstance(value, str) or not value or value != value.strip():
+            raise ValidationError(f"guide data {key} must be an exact non-blank column")
+        if value not in rows[0]:
+            raise ValidationError(f"guide data {key} is absent from the CSV")
+    if len({spec[key].casefold() for key in ("unit_column", "group_column", "outcome_column")}) != 3:
+        raise ValidationError("guide data unit, group, and outcome columns must be distinct")
+    definitions = spec.get("measurement_definitions")
+    if not isinstance(definitions, list) or not definitions:
+        raise ValidationError("guide data requires executable measurement definitions")
+
+    issues: list[str] = []
+    try:
+        unit_structure = _unit_structure(spec, rows)
+        if unit_structure["repeated_unit_count"]:
+            issues.append("repeated independent-unit identifiers")
+    except ValidationError as exc:
+        unit_structure = None
+        issues.append(str(exc))
+    if any(value is None for row in rows for value in row.values()):
+        measurements = None
+        issues.append("CSV row has fewer fields than the header")
+    else:
+        try:
+            measurements = validate_measurement_values(rows, definitions)
+        except ValidationError as exc:
+            measurements = None
+            issues.append(str(exc))
+    groups = spec.get("groups")
+    if not isinstance(groups, list) or len(groups) != 2 or any(
+        not isinstance(group, str) or not group or group != group.strip()
+        for group in groups
+    ) or len(set(groups)) != 2:
+        issues.append("guide data requires two distinct ordered group labels")
+    else:
+        observed_groups = {row[spec["group_column"]] for row in rows}
+        if observed_groups - set(groups):
+            issues.append("observed group labels are outside the declared comparison")
+
+    measure_by_column = (
+        {item["data_column"]: item for item in measurements["measurements"]}
+        if measurements is not None else {}
+    )
+    if spec["outcome_column"] not in measure_by_column:
+        issues.append("primary outcome lacks a passing executable measurement check")
+    columns = []
+    for name in rows[0]:
+        role = (
+            "independent_unit_identity" if name == spec["unit_column"]
+            else "comparison_label" if name == spec["group_column"]
+            else "primary_outcome" if name == spec["outcome_column"]
+            else "unresolved"
+        )
+        checked = measure_by_column.get(name)
+        columns.append({
+            "name": name,
+            "role": role,
+            "scale_type": checked["scale_type"] if checked else None,
+            "observed_count": checked["observed_count"] if checked else None,
+            "missing_count": checked["missing_count"] if checked else None,
+        })
+    return {
+        "preview_version": 1,
+        "raw_sha256": digest,
+        "raw_size_bytes": len(content),
+        "row_count": len(rows),
+        "unit_count": unit_structure["unit_count"] if unit_structure else None,
+        "columns": columns,
+        "quality_issues": issues,
+        "source_route": "local_file_preview",
+        "role": "unregistered_input",
+        "lineage": [],
+        "readiness_gaps": [
+            "canonical_registration_missing",
+            "source_authority_unverified",
+            "measurement_custody_unverified",
+            "measurement_validity_unverified",
+            *(["data_quality_issues"] if issues else []),
+        ],
+        "scientific_evidence_eligible": False,
         "canonical_write_performed": False,
     }
