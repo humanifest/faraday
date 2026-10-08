@@ -34,6 +34,7 @@ from research_machine.application.commands import (
     SetInquiryDecision,
 )
 from research_machine.application.service import ResearchService
+from research_machine.application.guide import INTAKE_FIELDS, preview_question_intake
 from research_machine.domain.errors import ResearchMachineError
 from research_machine.design.scaffold import DESIGN_BRIEF_FIELDS, scaffold_design
 from research_machine.design.initializer import initialize_experiment_repository
@@ -387,6 +388,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     groups = parser.add_subparsers(dest="group", required=True)
+
+    guide = groups.add_parser("guide", help="Preview research guidance without changing state")
+    guide_commands = guide.add_subparsers(dest="action", required=True)
+    guide_intake = guide_commands.add_parser("intake", help="Clarify a question from a literal brief")
+    guide_intake.add_argument("--brief-file", type=Path, required=True)
 
     workspace = groups.add_parser("workspace", help="Create and verify workspaces")
     workspace_commands = workspace.add_subparsers(dest="action", required=True)
@@ -2361,6 +2367,11 @@ def _cross_lane_lesson_command(spec: dict[str, Any]) -> RecordCrossLaneLesson:
 
 
 def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
+    if args.group == "guide" and args.action == "intake":
+        brief = _read_json_object(
+            args.brief_file, allowed_fields=INTAKE_FIELDS, label="guide intake brief"
+        )
+        return preview_question_intake(brief)
     configured_paths = [
         Path(value)
         for value in os.environ.get("RESEARCH_ADDON_PATH", "").split(os.pathsep)
