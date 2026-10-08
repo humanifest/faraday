@@ -1,8 +1,7 @@
 # G02 literal question intake
 
-Status: implementation prepared; G00, G01, and G02 required pytest gates
-remain pending. This is a read-only intake preview, not a completed inquiry or
-scientific finding.
+Status: G02 locally verified against synthetic fixtures. This is a read-only
+intake preview, not a completed inquiry or scientific finding.
 
 Run `research --json guide intake --brief-file brief.json` with a JSON object
 containing an exact `original_statement` and optional `title`, `population`,
@@ -24,7 +23,7 @@ the preview has no command proposal and asks for one. Dataset provenance,
 measurement validity, and ethics remain unresolved until independently
 recorded and reviewed through their established paths.
 
-## G02 work note (gate incomplete)
+## G02 preparation note (gate incomplete at that time)
 
 - Base commit: `7c9a7bd`. Changed paths: this document,
   `src/research_machine/application/guide.py`, `src/research_machine/interfaces/cli.py`,
@@ -45,3 +44,11 @@ recorded and reviewed through their established paths.
 - G02 remains prepared and unverified. G00 and G01 acceptance dependencies
   remain pending. The one-time test-dependency authorization request is still
   unanswered; no package was installed.
+
+## G02 local verification (2026-10-08)
+
+After G00 and G01 passed, `python3 -m pytest -q tests/test_guide_intake.py`
+passed (2 tests) with `PATH` selecting the authorized `.venv`, umask 077,
+bytecode disabled, plugin autoload disabled, and pytest cache disabled. The
+preview made no workspace; the test's explicit service routing wrote only to
+disposable fixture state and verified the ledger. G02 is locally verified.

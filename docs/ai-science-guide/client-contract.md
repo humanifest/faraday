@@ -1,7 +1,6 @@
 # G01 guide client contract
 
-Status: implemented through existing collaborator routes; G00 and G01 pytest
-gates remain required before this milestone is verified. This document does
+Status: G01 locally verified against synthetic fixtures. This document does
 not activate a provider or a scientific workflow.
 
 The guide client uses `research --json collaborator context --purpose ...
@@ -31,7 +30,7 @@ checks that inquiry state and ledger integrity remain unchanged. Existing
 collaborator schemas and validators are reused; there is no parallel guide
 proposal schema or provider dependency.
 
-## G01 work note (gate incomplete)
+## G01 preparation note (gate incomplete at that time)
 
 - Base commit: `ea3f3b1`. Changed paths are this document,
   `tests/test_guide_contract.py`, and the method-catalog wording in `goal.md`.
@@ -45,3 +44,13 @@ proposal schema or provider dependency.
   because all available Legion interpreters lack `pytest` and `jsonschema`.
 - G01 is prepared, not verified or accepted. G00's exact pytest gate is also
   pending; the G01 acceptance transition remains dependent on it.
+
+## G01 local verification (2026-10-08)
+
+With the authorized test dependencies in Faraday's ignored `.venv`, the
+required `python3 -m pytest -q tests/test_guide_contract.py` passed (1 test)
+after G00 passed. The environment selected the virtual environment through
+`PATH`; umask 077, no bytecode, no plugin autoload, and no pytest cache kept
+effects in disposable fixture state. The hash, reference, and authority adverse
+cases were exercised by that test. G01 is locally verified, without provider
+activation or scientific acceptance.

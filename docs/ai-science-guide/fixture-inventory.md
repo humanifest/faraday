@@ -23,7 +23,7 @@ dataset, freeze a protocol, admit evidence, or mutate the source fixture.
 Passing this characterization will not complete the later guide contract or
 scientific journey.
 
-## G00 work note (gate incomplete)
+## G00 preparation note (gate incomplete at that time)
 
 - Base commit: `236390a`. This preparation may be committed, but the required
   pytest gate has not run successfully and G00 remains incomplete.
@@ -49,3 +49,13 @@ scientific journey.
 - Remaining prerequisite: provision the declared `pytest>=8` and
   `jsonschema>=4.23` test extras without changing this goal's install boundary;
   then run the exact G00 acceptance command and record its observed result.
+
+## G00 local verification (2026-10-08)
+
+After the user authorized the two declared test dependencies, `pytest 9.1.1`
+and `jsonschema 4.26.0` were installed as binary packages in the ignored,
+Legion-owned `.venv`. With `PATH` selecting that interpreter, umask 077,
+bytecode disabled, plugin autoload disabled, and pytest cache disabled,
+`python3 -m pytest -q tests/test_guide_baseline.py` passed (1 test). The
+observed effect was disposable pytest state only. G00 is locally verified;
+this does not grant scientific acceptance or live data authority.

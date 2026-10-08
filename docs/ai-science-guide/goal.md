@@ -98,8 +98,10 @@ would expand effects, disclosure, or authorization. Inspect the relevant
 entry point and test configuration before its first execution or any change to
 it. Run only local, disposable synthetic checks. Do not install dependencies,
 call a live model or connector, start services, migrate data, or change remote
-state under this goal. A missing test dependency is a failed prerequisite, not
-a reason to skip the check or report a pass.
+state under this goal. The user separately authorized installation of the two
+declared test extras into Faraday's ignored, Legion-owned `.venv` on
+2026-10-08; that narrow installation is complete. A missing test dependency
+remains a failed prerequisite, not a reason to skip the check or report a pass.
 
 Each job receipt records: job ID, base and resulting commit, files changed,
 planned and actual effects, exact commands and observed results, fixture IDs,
@@ -151,9 +153,11 @@ inputs must produce the same scientific result and stable report content.
 
 The runner must have Python 3.11+ and the repository's declared test extras
 already available. The checker may use `pytest` and the standard library, but
-must not install packages, download data, or call a provider. This checkout's
-Python currently lacks `pytest`; that is a prerequisite to provision before
-starting an unattended goal, not evidence that the goal's tests passed.
+must not install packages, download data, or call a provider. Faraday's
+ignored `.venv` has the declared test extras as of 2026-10-08; select that
+interpreter explicitly before running the checker. If the extras are absent,
+the checker must fail before starting an unattended goal. Their presence is
+not evidence that the goal's tests passed.
 
 ## Stub and TODO boundary
 

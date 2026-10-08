@@ -5,7 +5,7 @@
   "execution_mode": "serial_local_fixture_only",
   "required_environment": ["Python 3.11+", "preprovisioned pytest and jsonschema test extras"],
   "forbidden_effects": [
-    "package installation or download",
+    "package installation or download beyond the user's one-time authorization for the declared test extras",
     "Faraday runtime live model, connector, instrument, or network calls",
     "secrets or another user's files",
     "real study data or canonical workspace edits by hand",
@@ -16,7 +16,7 @@
     {
       "id": "G00",
       "title": "Characterize the existing synthetic journey",
-      "status": "planned",
+      "status": "verified_local_fixture",
       "depends_on": [],
       "allowed_paths": ["docs/ai-science-guide/fixture-inventory.md", "tests/fixtures/guide/**", "tests/test_guide_baseline.py"],
       "deliverable": "A synthetic two-group CSV, inquiry and plan fixture, expected artifacts, and an inventory of existing service and CLI routes",
@@ -27,7 +27,7 @@
     {
       "id": "G01",
       "title": "Expose a read-only guide context and proposal contract",
-      "status": "planned",
+      "status": "verified_local_fixture",
       "depends_on": ["G00"],
       "allowed_paths": ["src/research_machine/collaboration/proposal.py", "src/research_machine/collaboration/redaction.py", "src/research_machine/interfaces/cli.py", "schemas/guide-*.schema.json", "tests/test_guide_contract.py", "docs/ai-science-guide/**"],
       "deliverable": "Versioned context over existing inquiry state and hash-bound, review-only guide proposals; no provider call",
@@ -38,7 +38,7 @@
     {
       "id": "G02",
       "title": "Guide question intake and clarification",
-      "status": "planned",
+      "status": "verified_local_fixture",
       "depends_on": ["G01"],
       "allowed_paths": ["src/research_machine/application/guide.py", "src/research_machine/application/service.py", "src/research_machine/design/interview.py", "src/research_machine/interfaces/cli.py", "tests/test_guide_intake.py", "docs/ai-science-guide/**"],
       "deliverable": "A reviewable intake preview preserving original wording and unresolved population, unit, outcome, comparison, timing, decision, data, and ethics fields",
