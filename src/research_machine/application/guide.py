@@ -511,3 +511,96 @@ def explain_guide_execution(
         "confirmatory_plan_verified": False,
         "notice": "An interval's position relative to zero is a calculation, not scientific confirmation or a causal conclusion.",
     }
+
+
+_NEXT_MODEL_ROLES = (
+    "null", "measurement_error", "selection_or_confounding", "user_explanation",
+)
+
+
+def preview_next_experiment_candidate(
+    packet: dict[str, Any], explanation: dict[str, Any],
+    collaborator_record: dict[str, Any], candidate_spec: dict[str, Any], *,
+    inquiry_ref: str, context_sha256: str, proposal_record_sha256: str,
+    packet_sha256: str, receipt_sha256: str,
+) -> dict[str, Any]:
+    """Project a verified collaborator proposal into review-only next-test guidance."""
+    expected_fields = {
+        "candidate_version", "inquiry_ref", "proposal_id", "model_roles",
+        "test_suggestion_id", "discrimination_criterion",
+    }
+    if not isinstance(candidate_spec, dict) or set(candidate_spec) != expected_fields:
+        raise ValidationError("guide next candidate fields are incomplete or unknown")
+    if candidate_spec["candidate_version"] != 1:
+        raise ValidationError("guide next candidate_version must be 1")
+    if (candidate_spec["inquiry_ref"] != inquiry_ref
+        or not inquiry_ref.startswith("inquiry:")
+        or candidate_spec["proposal_id"] != collaborator_record.get("proposal", {}).get("proposal_id")):
+        raise ValidationError("guide next candidate differs from the current inquiry or proposal")
+    if (packet.get("original_statement") != explanation.get("original_statement")
+        or explanation.get("packet_sha256") != packet_sha256
+        or explanation.get("receipt_sha256") != receipt_sha256
+        or explanation.get("status") != "exploratory_computation_only"
+        or explanation.get("next_experiment", {}).get("candidate") is not None
+        or explanation.get("scientific_evidence_eligible") is not False
+        or explanation.get("canonical_write_performed") is not False):
+        raise ValidationError("guide next explanation is not bound to the reviewed packet and receipt")
+    if (collaborator_record.get("status") != "pending_human_review"
+        or collaborator_record.get("context_input", {}).get("sha256") != context_sha256
+        or collaborator_record.get("authorized_actions") != []
+        or collaborator_record.get("canonical_writes_performed") is not False
+        or collaborator_record.get("scientific_evidence_eligible") is not False):
+        raise ValidationError("guide next proposal record has no review-only context binding")
+    roles = candidate_spec["model_roles"]
+    if (not isinstance(roles, dict) or set(roles) != set(_NEXT_MODEL_ROLES)
+        or any(not isinstance(value, str) or not value or value != value.strip()
+               for value in roles.values())
+        or len(set(roles.values())) != len(_NEXT_MODEL_ROLES)):
+        raise ValidationError("guide next requires four distinct model suggestion IDs")
+    test_id = candidate_spec["test_suggestion_id"]
+    criterion = candidate_spec["discrimination_criterion"]
+    if (not isinstance(test_id, str) or not test_id or test_id != test_id.strip()
+        or test_id in roles.values()
+        or not isinstance(criterion, str) or not criterion or criterion != criterion.strip()):
+        raise ValidationError("guide next requires a separate test suggestion and criterion")
+    suggestions = {item["suggestion_id"]: item
+                   for item in collaborator_record["proposal"]["suggestions"]}
+    test = suggestions.get(test_id)
+    if (test is None or test["kind"] not in {"next_action", "design_revision"}
+        or inquiry_ref not in test["evidence_refs"]):
+        raise ValidationError("guide next test is not a grounded review-only action")
+    models = []
+    for role in _NEXT_MODEL_ROLES:
+        suggestion = suggestions.get(roles[role])
+        if (suggestion is None or suggestion["kind"] != "hypothesis"
+            or suggestion["authority"] != "review_only"
+            or inquiry_ref not in suggestion["evidence_refs"]
+            or not suggestion["falsification_conditions"]):
+            raise ValidationError(f"guide next {role} lacks a grounded prediction or falsifier")
+        models.append({
+            "role": role, "suggestion_id": suggestion["suggestion_id"],
+            "model": suggestion["statement"], "prediction": suggestion["next_test"],
+            "falsifiers": suggestion["falsification_conditions"],
+        })
+    distinct_predictions = len({item["prediction"].casefold() for item in models}) == len(models)
+    return {
+        "next_candidate_version": 1,
+        "status": "review_only_candidate" if distinct_predictions else "inconclusive_predictions",
+        "inquiry_ref": inquiry_ref,
+        "context_sha256": context_sha256,
+        "proposal_record_sha256": proposal_record_sha256,
+        "packet_sha256": packet_sha256,
+        "receipt_sha256": receipt_sha256,
+        "candidate": ({
+            "test_suggestion_id": test_id, "proposed_test": test["next_test"],
+            "model_predictions": models,
+            "proposed_discrimination_criterion": criterion,
+        } if distinct_predictions else None),
+        "discrimination_established": False,
+        "prospective_plan_frozen": False,
+        "independent_design_review_required": True,
+        "ethics_review_required": True,
+        "experiment_authorized": False,
+        "scientific_evidence_eligible": False,
+        "canonical_write_performed": False,
+    }

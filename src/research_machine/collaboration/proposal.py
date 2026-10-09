@@ -1649,6 +1649,29 @@ def verify_collaborator_proposal_record(
     }
 
 
+def read_current_collaborator_proposal_record(
+    proposal_record_file: Path, expected_proposal_record_sha256: str,
+    context_file: Path, expected_context_sha256: str,
+    current_context: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Replay a proposal and require its frozen context to match current inquiry state."""
+    verified = verify_collaborator_proposal_record(
+        proposal_record_file, expected_proposal_record_sha256
+    )
+    context, context_bytes = _load_object(context_file, "collaborator context")
+    digest = hashlib.sha256(context_bytes).hexdigest()
+    if (digest != expected_context_sha256
+        or digest != verified["context_sha256"]):
+        raise ValidationError("collaborator proposal context differs from trusted bytes")
+    _validate_context_snapshot(context)
+    if context != current_context:
+        raise ValidationError("collaborator proposal context is stale for the current inquiry")
+    record, record_bytes = _load_object(proposal_record_file, "collaborator proposal record")
+    if hashlib.sha256(record_bytes).hexdigest() != verified["record_sha256"]:
+        raise ValidationError("collaborator proposal record changed during replay")
+    return record, context
+
+
 def _rfc3339(value: Any, field: str) -> str:
     text = _text(value, field)
     candidate = text[:-1] + "+00:00" if text.endswith("Z") else text

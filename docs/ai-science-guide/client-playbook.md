@@ -43,15 +43,27 @@ raw CSV bytes to a model unless that disclosure is separately authorized.
    experiment is not yet specified. Draft its measurement, assignment,
    stopping, missingness, safety, and falsification choices as review-only
    proposals rather than silently selecting a favorable next method.
-7. If canonical inquiry state was changed through `ResearchService`, build its
+7. For a model-specific next test, validate the collaborator proposal against
+   a frozen context from the current canonical inquiry. Give `research --json
+   guide next` the inquiry ID and context purpose, trusted packet/context/
+   proposal-record/receipt hashes, execution directory, and a candidate JSON
+   file. The candidate must map four distinct hypothesis suggestions to the
+   null, measurement-error, selection/confounding, and user-explanation roles,
+   name a separate next-action or design-revision suggestion, and state a
+   proposed discrimination criterion. Distinct text predictions produce a
+   `review_only_candidate`; matching predictions produce `inconclusive_predictions`
+   with no candidate. Neither result validates scientific discrimination,
+   freezes a plan, or authorizes an experiment.
+8. If canonical inquiry state was changed through `ResearchService`, build its
    synthesis and run `workspace audit --fail-on error` and `workspace verify`.
    Do not interpret ledger integrity or a passing fixture checker as proof of
    source truth, causal identification, consent, replication, or publication
    authority.
 
-The cohesive `guide prepare → guide run → guide explain` path currently covers
-an independent two-group CSV with a bundled method. Paired and observational
-methods have separate tested analysis contracts but are not yet supported by
-the guide packet's CSV preview. Live model, connector, instrument, reviewer,
-Metamaps, and domain-validity capabilities remain typed unavailable stubs in
+The exact-commit cohesive workflow checker still exercises an independent
+two-group CSV. The packet now previews paired and adjusted observational
+designs with visible pair, covariate, and missingness limits; exact-commit
+workflow replay for those designs remains open. Live model, connector,
+instrument, reviewer, Metamaps, and domain-validity capabilities remain typed
+unavailable stubs in
 [TODO.md](TODO.md).

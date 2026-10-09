@@ -42,6 +42,7 @@ from research_machine.application.guide import (
     guide_unavailable_capability,
     preview_csv_data,
     preview_guide_packet,
+    preview_next_experiment_candidate,
     preview_question_intake,
     validate_guide_run_packet,
 )
@@ -431,6 +432,18 @@ def build_parser() -> argparse.ArgumentParser:
     guide_explain.add_argument("--data-file", type=Path, required=True)
     guide_explain.add_argument("--execution-directory", type=Path, required=True)
     guide_explain.add_argument("--expected-receipt-sha256", required=True)
+    guide_next = guide_commands.add_parser("next", help="Preview a model-specific, review-only next test")
+    guide_next.add_argument("--inquiry", required=True)
+    guide_next.add_argument("--purpose", required=True)
+    guide_next.add_argument("--packet-file", type=Path, required=True)
+    guide_next.add_argument("--expect-packet-sha256", required=True)
+    guide_next.add_argument("--execution-directory", type=Path, required=True)
+    guide_next.add_argument("--expected-receipt-sha256", required=True)
+    guide_next.add_argument("--context-file", type=Path, required=True)
+    guide_next.add_argument("--expected-context-sha256", required=True)
+    guide_next.add_argument("--proposal-record-file", type=Path, required=True)
+    guide_next.add_argument("--expected-proposal-record-sha256", required=True)
+    guide_next.add_argument("--candidate-file", type=Path, required=True)
 
     workspace = groups.add_parser("workspace", help="Create and verify workspaces")
     workspace_commands = workspace.add_subparsers(dest="action", required=True)
@@ -2560,6 +2573,57 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
             wrapper.get("result"), verified, packet_sha256=packet_sha256,
             specification_sha256=spec_sha256, input_sha256=input_sha256,
             implementation_sha256=implementation_sha256,
+        )
+    if args.group == "guide" and args.action == "next":
+        from research_machine.addons.execution import _implementation_hash
+        from research_machine.addons.receipt import verify_execution_output
+        from research_machine.collaboration.proposal import read_current_collaborator_proposal_record
+
+        wrapper, packet_sha256, _ = _read_json_object_and_hash(
+            args.packet_file, allowed_fields={"ok", "result"}, label="guide packet"
+        )
+        if packet_sha256 != args.expect_packet_sha256 or wrapper.get("ok") is not True:
+            raise ValueError("guide next packet does not match trusted SHA-256")
+        packet = wrapper.get("result")
+        verified = verify_execution_output(
+            args.execution_directory, args.expected_receipt_sha256
+        )
+        receipt = verified["receipt"]
+        method_id = receipt.get("method")
+        manifest, method = registry.resolve_method(method_id)
+        _, implementation_sha256 = _implementation_hash(method.runner)
+        if (receipt.get("addon") != {"addon_id": manifest.addon_id, "version": manifest.version}
+            or receipt.get("implementation", {}).get("sha256") != implementation_sha256):
+            raise ValueError("guide next add-on or implementation differs from current method")
+        explanation = explain_guide_execution(
+            packet, verified, packet_sha256=packet_sha256,
+            specification_sha256=receipt["specification"]["sha256"],
+            input_sha256=receipt["input"]["sha256"],
+            implementation_sha256=implementation_sha256,
+        )
+        current_context = service.collaborator_context(args.inquiry, purpose=args.purpose)
+        record, context = read_current_collaborator_proposal_record(
+            args.proposal_record_file, args.expected_proposal_record_sha256,
+            args.context_file, args.expected_context_sha256, current_context,
+        )
+        inquiry_ref = "inquiry:" + args.inquiry
+        if (context.get("inquiry", {}).get("inquiry_id") != args.inquiry
+            or context.get("inquiry", {}).get("initial_statement") != packet.get("original_statement")):
+            raise ValueError("guide next context and packet refer to different inquiries")
+        candidate_spec = _read_json_object(
+            args.candidate_file,
+            allowed_fields={
+                "candidate_version", "inquiry_ref", "proposal_id", "model_roles",
+                "test_suggestion_id", "discrimination_criterion",
+            },
+            label="guide next candidate",
+        )
+        return preview_next_experiment_candidate(
+            packet, explanation, record, candidate_spec,
+            inquiry_ref=inquiry_ref, context_sha256=args.expected_context_sha256,
+            proposal_record_sha256=args.expected_proposal_record_sha256,
+            packet_sha256=packet_sha256,
+            receipt_sha256=args.expected_receipt_sha256,
         )
     if args.group == "addon":
         if args.action == "list":

@@ -1,14 +1,15 @@
 # Deferred AI science guide capabilities
 
 Status: G08 typed stubs T01–T09 locally verified; C01 adds typed T10–T11
-boundaries and C02 adds a review-only T11 preview. T10's full proposal and
-external integrations remain open. None of these integrations is
-implemented or authorized by the goal plan. The guide returns `not_configured`
-or `unsupported` responses with negative tests for T01–T09. No stub
-may call a service, widen a claim ceiling, or silently fall back to another
+boundaries, C02 adds a review-only T11 preview, and C03 adds a review-only T10
+next-test candidate from a current-inquiry collaborator record. Independent
+design review and external integrations remain open. No live integration or
+scientific activation gate is authorized by the goal plan. The guide returns
+`not_configured` or `unsupported` for its unavailable T01–T09 boundaries.
+No unavailable stub may invoke an external service, widen a claim ceiling, or silently fall back to another
 provider. Owners below are contract owners, not assigned people.
 
-| ID | Capability and present stub | Missing contract or evidence | Owner and first safe fixture | Activation gate |
+| ID | Capability and present state | Missing contract or evidence | Owner and first safe fixture | Activation gate |
 | --- | --- | --- | --- | --- |
 | T01 | Live LLM provider: `not_configured` | Approved provider/data destination, disclosure policy, prompt/output receipt, cost and failure behavior | Cypher/provider boundary; fixture adapter returns a fixed review-only proposal | Separate provider and network authorization; verify actual backend, telemetry, and no cloud fallback before real use |
 | T02 | Live connector or instrument: `not_configured` | Source rights, consent, calibration, timing, custody, bounded query/collection policy | Domain add-on owner; synthetic source bytes and failed-calibration receipt | Authorized physical/network acquisition and independent source review |
@@ -19,7 +20,7 @@ provider. Owners below are contract owners, not assigned people.
 | T07 | Automated confirmatory activation or evidence acceptance: `unsupported` | There is no worker grant for scientific approval; current human and domain review gates remain authoritative | Faraday application owner; malicious AI proposal fixture | No automatic activation gate in this goal; any later policy proposal requires separate owner decision |
 | T08 | Publication or high-confidence campaign claim: `unsupported` | Real data, domain validation, independent review and replication, disclosure and publication authority | Domain campaign owner; synthetic negative-result report fixture | Separate campaign acceptance and publication authorization |
 | T09 | Domain-specific construct validity: `unsupported` | Construct-specific reference, calibration criteria, source-bound validity findings, and independent assessment | Faraday domain researcher; synthetic contradicted-validity check | Reviewed validity evidence and the applicable frozen protocol gates |
-| T10 | Model-specific next-experiment candidate: `review_only` | A validated collaborator proposal tied to the current inquiry, explicit predictions for each competing model, falsifiers, and a prospective discrimination criterion | Faraday guide and domain reviewer; synthetic null/measurement/confounding proposal with an inconclusive next test | Independent review of the proposed discrimination and existing design/ethics gates before any execution |
+| T10 | Model-specific next-experiment candidate: `review_only` | Independent evaluation of the proposed discrimination, prospective design, ethics, and actual model adequacy | Faraday guide and domain reviewer; synthetic null/measurement/confounding proposal with an inconclusive next test | Independent review of the proposed discrimination and existing design/ethics gates before any execution |
 | T11 | Paired and observational guide packet preview: `review_only` | Exact-commit workflow replay for both designs and independent assessment of method-specific claim ceilings | Faraday guide maintainer; paired duplicate/missing-pair and observational confounding fixtures | Bounded adverse guide checks plus exact-commit workflow replay for each design |
 
 The modularity and reconciliation branches contain proposals that may inform
@@ -87,12 +88,16 @@ inquiry. Activation: T06's reviewed concurrency design.
 
 ## model-specific-next-experiment
 
-T10. Status: `review_only`; this reports the proposal ceiling, not a validated
-model-specific candidate. Owner: Faraday guide and independent domain reviewer.
-Missing: inquiry-bound competing predictions, falsifiers, and a prospective
-discrimination criterion. First safe fixture: synthetic null, measurement, and
-confounding proposals with an inconclusive next test. Activation: independent
-design and ethics review before any experiment or canonical transition.
+T10. Status: `review_only`. Owner: Faraday guide and independent domain
+reviewer. `research guide next` now binds a validated proposal record to the
+current inquiry and verified execution receipt, requires four competing
+predictions and falsifiers, and accepts a proposed discrimination criterion.
+Equal predictions remain inconclusive. Missing: independent scientific review
+of whether the predictions actually discriminate, prospective protocol
+commitment, and ethics/design gates. First safe fixture: synthetic null,
+measurement, and confounding proposals with an inconclusive next test.
+Activation: independent design and ethics review before any experiment or
+canonical transition.
 
 ## paired-observational-packet
 

@@ -101,3 +101,26 @@ passed. Test writes were disposable synthetic JSON/CSV. No canonical or
 external state changed. The full local suite then reported 3399 passed and
 2 optional skips with the same environment controls. Exact-commit capability
 replay remains for C12.
+
+## C03 receipt (2026-10-08)
+
+Base commit: `a66d0d6b302af003157495db8323c0e2fd5071c4`. The `guide next`
+route replays an exact execution receipt and current method, verifies a
+retained collaborator proposal, and rejects a frozen context that no longer
+matches the current canonical inquiry. It requires four grounded model
+predictions and falsifiers, a separate proposed test, and a discrimination
+criterion. It emits only review-only guidance; matching predictions emit no
+candidate. The candidate is not prospectively frozen, scientifically
+validated, or authorized for execution. Changed `guide.py`, `proposal.py`,
+`cli.py`, `test_guide_explain.py`, this plan, the milestone JSON, the client
+playbook, and `TODO.md`.
+
+Focused check: `umask 077; PYTHONDONTWRITEBYTECODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 RESEARCH_ADDON_PATH= .venv/bin/python -m
+pytest -o addopts= -q -p no:cacheprovider tests/test_guide_explain.py
+tests/test_guide_models.py` reported 8 passed. Effects were disposable
+synthetic inquiry, packet, analysis, context, proposal, and output files.
+No live model, network, external source, canonical production write,
+approval, or remote Git operation occurred. The full local suite reported
+3401 passed and 2 optional skips with the same environment controls.
+Exact-commit capability replay remains for C12.
