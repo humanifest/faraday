@@ -13,7 +13,9 @@ from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import AddQuestion, CreateInquiry
 from research_machine.application.service import ResearchService
 from research_machine.collaboration.proposal import (
+    adjudicate_collaborator_proposal,
     create_context_snapshot,
+    preview_independent_reviewer_claim,
     validate_collaborator_proposal,
     verify_collaborator_proposal_record,
 )
@@ -140,3 +142,69 @@ def test_guide_reuses_hash_bound_read_only_collaborator_contract(tmp_path: Path)
     assert not (tmp_path / "wrong-context").exists()
     assert not (tmp_path / "unknown-ref").exists()
     assert not (tmp_path / "unauthorized").exists()
+
+    review_file = tmp_path / "review.json"
+    review_file.write_text(json.dumps({
+        "review_version": 1,
+        "review_id": "synthetic-review-1",
+        "proposal_record_sha256": result["record_sha256"],
+        "reviewer": {"reviewer_id": "fixture-reviewer", "role": "researcher"},
+        "reviewed_at": "2026-10-08T12:00:00Z",
+        "overall_assessment": "Request ordinary domain review of the synthetic question.",
+        "decisions": [{
+            "suggestion_id": "question-1",
+            "disposition": "advance_to_domain_review",
+            "rationale": "The synthetic decision threshold needs a prospective definition.",
+            "domain_route": "question.add",
+        }],
+    }), encoding="utf-8")
+    reviewed = adjudicate_collaborator_proposal(
+        Path(result["record_file"]), result["record_sha256"],
+        review_file, tmp_path / "reviewed",
+    )
+    review_record_file = Path(reviewed["record_file"])
+    claim = {
+        "claim_version": 1,
+        "review_record_sha256": reviewed["record_sha256"],
+        "reviewer_id": "fixture-reviewer",
+        "issuer": "unverified-fixture-issuer",
+        "lifecycle": "active",
+        "conflict_status": "none_declared",
+        "authentication_claimed": True,
+    }
+    pending = preview_independent_reviewer_claim(
+        review_record_file, reviewed["record_sha256"], claim,
+    )
+    assert pending["status"] == "awaiting_owner_verification"
+    assert pending["blocking_reasons"] == ["owner_identity_verifier_not_configured"]
+    assert pending["independent_review_verified"] is False
+    for delta, expected_blocker in (
+        ({"lifecycle": "revoked"}, "reviewer_claim_revoked"),
+        ({"conflict_status": "declared"}, "reviewer_conflict_declared"),
+        ({"authentication_claimed": False}, "reviewer_identity_unauthenticated"),
+    ):
+        blocked = preview_independent_reviewer_claim(
+            review_record_file, reviewed["record_sha256"], {**claim, **delta},
+        )
+        assert blocked["status"] == "blocked"
+        assert expected_blocker in blocked["blocking_reasons"]
+        assert blocked["independent_review_verified"] is False
+    with pytest.raises(ValidationError, match="different reviewer"):
+        preview_independent_reviewer_claim(
+            review_record_file, reviewed["record_sha256"],
+            {**claim, "reviewer_id": "forged-reviewer"},
+        )
+    with pytest.raises(ValidationError, match="version must be 1"):
+        preview_independent_reviewer_claim(
+            review_record_file, reviewed["record_sha256"],
+            {**claim, "claim_version": True},
+        )
+    forged = tmp_path / "forged-review-record.json"
+    forged.write_text(review_record_file.read_text().replace(
+        "fixture-reviewer", "forged-reviewer"
+    ), encoding="utf-8")
+    with pytest.raises(ValidationError, match="trusted SHA-256"):
+        preview_independent_reviewer_claim(
+            forged, reviewed["record_sha256"], claim,
+        )
+    assert service.show_inquiry() == before

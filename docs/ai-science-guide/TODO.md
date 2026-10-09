@@ -80,16 +80,21 @@ method review.
 
 ## domain-specific-validity
 
-T09. Owner: Faraday domain researchers and independent reviewers. Missing:
-construct-specific validity evidence. First safe fixture: contradicted
-validity check that blocks interpretation. Activation: T09's reviewed
-validity and protocol gates.
+T09. Owner: Faraday domain researchers and independent reviewers. C07 now
+projects frozen checks and recorded source-bound diagnostics without granting
+supportive interpretation. Absent, inconclusive, and contradicted results
+block the guide view. Missing: construct-specific validity evidence and
+independent assessment. Activation: T09's reviewed validity and protocol
+gates.
 
 ## authenticated-reviewer
 
-T04. Owner: system-config and Orca. Missing: identity, role, decision receipt,
-and separation from the worker. First safe fixture: forged reviewer receipt.
-Activation: T04's independent identity gate.
+T04. Owner: system-config and Orca. C08 replays Faraday's retained review
+record and treats forged bytes, revocation, declared conflicts, and an
+unauthenticated identity as blocking. Even an active claim of authentication
+waits for an owner verifier and grants no independent-review status. Missing:
+accepted identity, role, expertise, signed decision, conflict, and revocation
+verification outside the worker. Activation: T04's independent identity gate.
 
 ## metamaps-compilation
 

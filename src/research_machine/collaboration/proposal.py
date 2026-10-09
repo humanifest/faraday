@@ -2262,3 +2262,54 @@ def verify_collaborator_review_record(
         "canonical_writes_performed": False,
         "scientific_evidence_eligible": False,
     }
+
+
+def preview_independent_reviewer_claim(
+    review_record_file: Path,
+    expected_review_record_sha256: str,
+    claim: dict[str, Any],
+) -> dict[str, Any]:
+    """Inspect a claimed reviewer receipt; only the owning identity service can authenticate it."""
+    replay = verify_collaborator_review_record(
+        review_record_file, expected_review_record_sha256
+    )
+    expected_fields = {
+        "claim_version", "review_record_sha256", "reviewer_id", "issuer",
+        "lifecycle", "conflict_status", "authentication_claimed",
+    }
+    if not isinstance(claim, dict):
+        raise ValidationError("independent reviewer claim must be an object")
+    _exact_fields(claim, expected_fields, "independent reviewer claim")
+    if type(claim["claim_version"]) is not int or claim["claim_version"] != 1:
+        raise ValidationError("independent reviewer claim version must be 1")
+    if claim["review_record_sha256"] != replay["record_sha256"]:
+        raise ValidationError("independent reviewer claim cites a different review record")
+    record, _ = _load_object(review_record_file, "collaborator proposal review record")
+    reviewer_id = record["review"]["reviewer"]["reviewer_id"]
+    if claim["reviewer_id"] != reviewer_id:
+        raise ValidationError("independent reviewer claim names a different reviewer")
+    _canonical_text(claim["issuer"], "issuer")
+    if claim["lifecycle"] not in {"active", "revoked"}:
+        raise ValidationError("independent reviewer claim lifecycle is invalid")
+    if claim["conflict_status"] not in {"none_declared", "declared"}:
+        raise ValidationError("independent reviewer claim conflict status is invalid")
+    if not isinstance(claim["authentication_claimed"], bool):
+        raise ValidationError("independent reviewer authentication claim must be boolean")
+    blockers = ["owner_identity_verifier_not_configured"]
+    if claim["lifecycle"] == "revoked":
+        blockers.append("reviewer_claim_revoked")
+    if claim["conflict_status"] == "declared":
+        blockers.append("reviewer_conflict_declared")
+    if not claim["authentication_claimed"]:
+        blockers.append("reviewer_identity_unauthenticated")
+    return {
+        "review_record_sha256": replay["record_sha256"],
+        "reviewer_id": reviewer_id,
+        "issuer_claimed": claim["issuer"],
+        "blocking_reasons": blockers,
+        "status": "awaiting_owner_verification" if len(blockers) == 1 else "blocked",
+        "independent_review_verified": False,
+        "authenticated_identity_verified": False,
+        "authorized_actions": [],
+        "canonical_writes_performed": False,
+    }

@@ -214,3 +214,24 @@ bytecode and plugin autoload, empty external add-on path, and no pytest cache.
 Observed writes were disposable synthetic research and pytest state. No live
 source, model, network, approval, or remote Git operation occurred. Exact
 commit capability replay remains for C12.
+
+## C08 receipt (2026-10-08)
+
+Base commit: `b21e04a8a99d916479a65b13eca14e8f753a9756`. Changed
+`collaboration/proposal.py`, `tests/test_guide_contract.py`, this plan,
+the milestone JSON, and `TODO.md`. The guide reviewer preview replays the
+existing hash-bound collaborator review record, matches the claimed reviewer
+and record hash, and returns explicit blockers for revoked, conflicted, or
+unauthenticated claims. A changed record byte fails against the trusted hash.
+An active claim of authentication still awaits the system-config/Orca owner
+verifier, since Faraday cannot turn a worker-supplied claim into independent
+identity or editorial authority. Every outcome has
+`independent_review_verified: false` and no authorized actions.
+
+Focused check: `umask 077; PYTHONDONTWRITEBYTECODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 RESEARCH_ADDON_PATH= .venv/bin/python -m
+pytest -o addopts= -q -p no:cacheprovider tests/test_guide_contract.py`
+reported 1 passed. The full suite reported 3409 passed and 2 optional skips.
+Effects were disposable synthetic context, proposal, review, and pytest
+state. No external identity service, network, approval, or remote Git write
+occurred. Exact-commit capability replay remains for C12.
