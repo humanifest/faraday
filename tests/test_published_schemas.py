@@ -87,7 +87,7 @@ def test_analysis_schema_requires_every_manifest_field(method):
                   "outcome_column": "x", "group_column": "group", "groups": ["a", "b"],
                   "seed": 1, "pair_column": "pair", "unit_column": "unit",
                   "covariate_columns": ["baseline"],
-              "study_design": "paired" if method.method_id == "paired_mean_difference_ci" else "independent_groups"}
+                  "study_design": "paired" if method.method_id in {"paired_mean_difference_ci", "paired_sign_test"} else "independent_groups"}
     values.update(hypothesis_column="hypothesis", p_value_column="p", family_name="primary family", family_hypothesis_ids=["h1"], alpha=0.05)
     command = {"method": method.method_id, "claim_ceiling": "Synthetic fixture",
                **{key: values[key] for key in method.required_spec_fields}}
@@ -98,6 +98,18 @@ def test_analysis_schema_requires_every_manifest_field(method):
     if method.method_id not in {"permutation_mean_difference", "independent_mean_difference_ci", "adjusted_linear_effect"}:
         with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate({**command, "unit_column": "unit"}, schema)
+
+
+def test_paired_sign_schema_rejects_independent_design() -> None:
+    schema = json.loads((SCHEMAS / "general-analysis.schema.json").read_text())
+    spec = {
+        "method": "paired_sign_test", "claim_ceiling": "Synthetic sign compatibility only",
+        "outcome_column": "outcome", "group_column": "group",
+        "groups": ["first", "second"], "pair_column": "pair",
+        "study_design": "independent_groups",
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(spec, schema)
 
 
 @pytest.mark.parametrize("path", sorted(SCHEMAS.glob("*.schema.json")), ids=lambda p: p.name)

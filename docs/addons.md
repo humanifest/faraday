@@ -348,8 +348,14 @@ normalization. Every submitted paired-analysis row must contain a nonblank pair
 identifier, group, and outcome; implicit missing-row exclusions are rejected,
 including entirely missing pairs. This estimator does not implement a
 missing-data exclusion or imputation policy.
-Their bootstrap
-intervals and standardized effects quantify uncertainty but do not establish
+The deterministic `paired_sign_test` shares those complete-pair requirements,
+accepts at most 256 pairs, and reports positive, negative, and tied differences.
+It compares non-tied signs with an exact two-sided equal-sign null, reports
+ties separately, and does not estimate effect magnitude. Its assumptions and
+campaign applicability require independent review; a small compatibility
+value alone does not support a causal conclusion.
+The paired mean-difference estimator's bootstrap
+intervals and standardized effect quantify uncertainty but do not establish
 causality, generalizability, or mechanism.
 
 For protocol-bound empirical execution, matching bytes are necessary but no

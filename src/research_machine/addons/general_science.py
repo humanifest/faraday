@@ -602,15 +602,16 @@ def adjusted_linear_effect(spec: dict[str, Any], rows: list[dict[str, str]]) -> 
     }
 
 
-def paired_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[str, Any]:
-    """Bootstrap estimation that refuses to treat paired observations as independent."""
+def _paired_differences(
+    spec: dict[str, Any], rows: list[dict[str, str]], method: str,
+) -> tuple[list[str], list[float], int]:
+    """Validate one complete numeric observation per group and pair."""
     if spec.get("study_design") != "paired":
-        raise ValidationError("paired_mean_difference_ci requires study_design paired")
-    pair_column = spec.get("pair_column")
-    pair_column = _canonical_text(spec.get("pair_column"), "paired_mean_difference_ci pair_column")
-    outcome, group, labels = _two_group_handles(spec, "paired_mean_difference_ci")
+        raise ValidationError(f"{method} requires study_design paired")
+    pair_column = _canonical_text(spec.get("pair_column"), f"{method} pair_column")
+    outcome, group, labels = _two_group_handles(spec, method)
     if pair_column in {outcome, group}:
-        raise ValidationError("paired_mean_difference_ci pair_column must be distinct from outcome_column and group_column")
+        raise ValidationError(f"{method} pair_column must be distinct from outcome_column and group_column")
     # Validate every submitted row before numeric parsing can discard missing
     # observations. This method has no registered exclusion policy.
     for index, row in enumerate(rows, start=2):
@@ -624,7 +625,7 @@ def paired_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, str]]) 
     first, second, labels, missing = _two_groups(
         spec,
         rows,
-        "paired_mean_difference_ci",
+        method,
         require_two_per_group=False,
     )
     del first, second
@@ -632,7 +633,7 @@ def paired_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, str]]) 
     for index, row in enumerate(rows, start=2):
         raw, label, pair_id = row.get(outcome), row.get(group), row.get(pair_column)
         if raw is None or label is None or pair_id is None:
-            raise ValidationError("paired_mean_difference_ci column not found")
+            raise ValidationError(f"{method} column not found")
         value = float(raw)
         label = _canonical_text(label, "row group label")
         pair_id = _canonical_text(pair_id, "pair identifier")
@@ -645,6 +646,16 @@ def paired_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, str]]) 
     differences = [values[labels[0]] - values[labels[1]] for values in pairs.values()]
     if len(differences) < 2:
         raise ValidationError("paired analysis requires at least two complete pairs")
+    if any(not math.isfinite(value) for value in differences):
+        raise ValidationError("paired analysis difference is non-finite")
+    return labels, differences, missing
+
+
+def paired_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[str, Any]:
+    """Bootstrap estimation that refuses to treat paired observations as independent."""
+    labels, differences, missing = _paired_differences(
+        spec, rows, "paired_mean_difference_ci"
+    )
     resamples, seed, confidence = _bootstrap_settings(spec, "paired_mean_difference_ci")
     rng = random.Random(seed)
     draws = [statistics.fmean(rng.choice(differences) for _ in differences) for _ in range(resamples)]
@@ -662,6 +673,43 @@ def paired_mean_difference_ci(spec: dict[str, Any], rows: list[dict[str, str]]) 
         "seed": seed,
         "missing_rows": missing,
         "assumptions": ["Pair identifiers correctly link repeated observations.", "Pairs are independent of other pairs."],
+    }
+
+
+def paired_sign_test(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[str, Any]:
+    """Exact two-sided sign compatibility for complete numeric matched pairs."""
+    labels, differences, missing = _paired_differences(spec, rows, "paired_sign_test")
+    if len(differences) > 256:
+        raise ValidationError("paired_sign_test supports at most 256 complete pairs")
+    positive = sum(value > 0 for value in differences)
+    negative = sum(value < 0 for value in differences)
+    tied = len(differences) - positive - negative
+    non_tied = positive + negative
+    if non_tied < 2:
+        raise ValidationError("paired_sign_test requires at least two non-tied pairs")
+    lower_tail = sum(math.comb(non_tied, index)
+                     for index in range(min(positive, negative) + 1))
+    p_value = min(1.0, 2 * lower_tail / (2 ** non_tied))
+    return {
+        "study_design": "paired",
+        "groups": labels,
+        "n_pairs": len(differences),
+        "positive_pairs": positive,
+        "negative_pairs": negative,
+        "tied_pairs": tied,
+        "non_tied_pairs": non_tied,
+        "positive_fraction_among_non_ties": positive / non_tied,
+        "two_sided_exact_p_value": p_value,
+        "missing_rows": missing,
+        "assumptions": [
+            "Pair identifiers correctly link repeated observations.",
+            "Pairs are independent of other pairs.",
+            "Under the null, non-tied difference signs are equally likely in either direction.",
+        ],
+        "limitations": [
+            "Ties are reported and excluded from the exact sign calculation.",
+            "This result does not estimate an effect magnitude or validate a causal design.",
+        ],
     }
 
 
@@ -748,7 +796,7 @@ def holm_adjustment(spec: dict[str, Any], rows: list[dict[str, str]]) -> dict[st
 MANIFEST = AddonManifest(
     addon_id="general_science",
     name="General Science Toolkit",
-    version="8.0.0",
+    version="8.1.0",
     discipline="cross-disciplinary",
     description="Deterministic, dependency-free analyses usable across empirical disciplines.",
     methods=(
@@ -759,9 +807,10 @@ MANIFEST = AddonManifest(
         AnalysisMethod("independent_mean_difference_ci", "Independent-groups mean difference with confidence interval", "Estimate a registered two-group effect only when observations are declared independent.", ("outcome_column", "group_column", "groups", "study_design", "seed"), independent_mean_difference_ci, "Estimated mean difference for the specified independent groups in the hashed dataset under stated bootstrap assumptions. Causal interpretation additionally requires a frozen causal protocol and required gates; it does not follow from this calculation alone.", "design_conditional_effect", "seeded"),
         AnalysisMethod("adjusted_linear_effect", "Covariate-adjusted linear effect with robust confidence interval", "Estimate a prespecified two-group contrast conditional on the exact frozen adjustment columns.", ("outcome_column", "group_column", "groups", "covariate_columns", "unit_column", "study_design"), adjusted_linear_effect, "Adjusted mean contrast for the specified independent groups in the hashed dataset, conditional on the frozen DAG, adjustment set, linear outcome model, positivity, independent units, and HC1 asymptotics. The calculation does not verify causal assumptions or establish causal truth.", "design_conditional_effect"),
         AnalysisMethod("paired_mean_difference_ci", "Paired mean difference with confidence interval", "Estimate a repeated-measure effect only when complete pair structure is explicit.", ("outcome_column", "group_column", "groups", "pair_column", "study_design", "seed"), paired_mean_difference_ci, "Estimated mean within-pair difference in the hashed dataset under stated pairing and bootstrap assumptions. Causal interpretation additionally requires a frozen causal protocol and required gates; it does not follow from this calculation alone.", "design_conditional_effect", "seeded"),
+        AnalysisMethod("paired_sign_test", "Exact paired sign test", "Calculate a bounded exact two-sided sign compatibility value for complete numeric matched pairs.", ("outcome_column", "group_column", "groups", "pair_column", "study_design"), paired_sign_test, "Exact sign compatibility for the specified matched pairs in the hashed dataset, conditional on independent pairs and equally likely non-tied signs under the null. This does not estimate an effect magnitude or establish causality; campaign method adequacy requires independent review.", "design_conditional_effect"),
         AnalysisMethod("holm_adjustment", "Holm family-wise error adjustment", "Adjust an exact prespecified hypothesis family without selecting or validating its members.", ("hypothesis_column", "p_value_column", "family_name", "family_hypothesis_ids", "alpha"), holm_adjustment, "Holm-adjusted values for the exact supplied named family, conditional on valid raw p-values and a prespecified complete family; no validation of underlying tests or family selection.", "descriptive"),
     ),
-    capabilities=("csv-ingestion", "descriptive-statistics", "association", "randomization-inference", "effect-estimation", "covariate-adjusted-linear-models", "robust-confidence-intervals", "bootstrap-confidence-intervals", "paired-design-safeguards", "multiple-testing-adjustment"),
+    capabilities=("csv-ingestion", "descriptive-statistics", "association", "randomization-inference", "effect-estimation", "covariate-adjusted-linear-models", "robust-confidence-intervals", "bootstrap-confidence-intervals", "paired-design-safeguards", "exact-paired-sign-compatibility", "multiple-testing-adjustment"),
     protocol_kinds=("observational", "experimental"),
     dataset_media_types=("text/csv",),
     documentation="docs/addons.md",

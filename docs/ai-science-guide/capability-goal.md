@@ -165,3 +165,29 @@ pytest -o addopts= -q -p no:cacheprovider tests/test_guide_acquisition.py`
 reported 2 passed. Effects were disposable synthetic source files and
 receipts only. The full local suite then reported 3405 passed and 2 optional
 skips. Exact-commit capability replay remains for C12.
+
+## C06 receipt (2026-10-08)
+
+Base commit: `4a3fc16b8f8d8b8f821c128109846cca1914db72`. Changed
+`addons/general_science.py`, `tests/test_guide_analysis.py`, this plan,
+milestone JSON, and `TODO.md`. The general-science add-on moves to version
+`8.1.0` and adds one deterministic `paired_sign_test` method. It shares the
+existing complete-pair parser with the paired interval method and rejects
+independent designs, incomplete pairs, nonnumeric outcomes, and more than
+256 complete pairs. Seven synthetic pairs (six positive, one tie) yielded an
+exact two-sided value of 0.03125, matching exhaustive enumeration of all
+64 six-sign assignments. The method reports assumptions and a claim ceiling;
+it cannot by itself establish causal or campaign-method adequacy.
+
+The first focused run failed because the new manifest ceiling contained
+Faraday's report-prohibited word `validate` in a negative sentence. The
+wording was corrected without changing the policy. The first full suite then
+found that the published analysis schema omitted the new method; the schema
+and its paired-design control were extended without loosening existing method
+rules. A rerun of
+`umask 077; PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+RESEARCH_ADDON_PATH= .venv/bin/python -m pytest -o addopts= -q -p
+no:cacheprovider tests/test_guide_analysis.py` reported 3 passed. The focused
+method-plus-schema check reported 397 passed, and the full local suite then
+reported 3408 passed with 2 optional skips. Effects were disposable synthetic
+inputs and analysis outputs. Exact-commit capability replay remains for C12.

@@ -12,11 +12,12 @@
     {"if": {"properties": {"method": {"const": "independent_mean_difference_ci"}}}, "then": {"required": ["study_design"], "properties": {"study_design": {"const": "independent_groups"}}}},
     {"if": {"properties": {"method": {"const": "adjusted_linear_effect"}}}, "then": {"required": ["outcome_column", "group_column", "groups", "covariate_columns", "unit_column", "study_design"], "properties": {"study_design": {"const": "independent_groups"}, "covariate_columns": {"minItems": 1}}}},
     {"if": {"properties": {"method": {"const": "paired_mean_difference_ci"}}}, "then": {"required": ["study_design", "pair_column"], "properties": {"study_design": {"const": "paired"}}}},
+    {"if": {"properties": {"method": {"const": "paired_sign_test"}}}, "then": {"required": ["outcome_column", "group_column", "groups", "study_design", "pair_column"], "properties": {"study_design": {"const": "paired"}}}},
     {"if": {"properties": {"method": {"const": "holm_adjustment"}}}, "then": {"required": ["hypothesis_column", "p_value_column", "family_name", "family_hypothesis_ids", "alpha"]}},
     {"if": {"required": ["unit_column"]}, "then": {"properties": {"method": {"enum": ["permutation_mean_difference", "independent_mean_difference_ci", "adjusted_linear_effect"]}}}}
   ],
   "properties": {
-    "method": {"enum": ["descriptive_summary", "missingness_report", "pearson_correlation", "permutation_mean_difference", "independent_mean_difference_ci", "adjusted_linear_effect", "paired_mean_difference_ci", "holm_adjustment"]},
+    "method": {"enum": ["descriptive_summary", "missingness_report", "pearson_correlation", "permutation_mean_difference", "independent_mean_difference_ci", "adjusted_linear_effect", "paired_mean_difference_ci", "paired_sign_test", "holm_adjustment"]},
     "analysis_id": {"type": "string", "pattern": "^\\S(?:.*\\S)?$"},
     "columns": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
     "x_column": {"type": "string", "minLength": 1},

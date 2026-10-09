@@ -13,7 +13,7 @@ provider. Owners below are contract owners, not assigned people.
 | --- | --- | --- | --- | --- |
 | T01 | Live LLM provider: `not_configured` | Approved provider/data destination and disclosure policy, actual backend and telemetry inspection, live cost/failure behavior | Cypher/provider boundary; in-process fixed adapter returns a review-only proposal and receipt | Separate provider and network authorization; verify actual backend, telemetry, and no cloud fallback before real use |
 | T02 | Live connector or instrument: `not_configured` | Independently established source rights, consent and calibration; authorized bounded network/device collection and custody | Domain add-on owner; synthetic verified source receipt and failed-calibration instrument preview | Authorized physical/network acquisition and independent source review |
-| T03 | Statistical designs beyond bundled methods: `unsupported` | Method manifest, assumptions, reference implementation, numerical and adverse validation, claim ceiling | Faraday method add-on owner; known-result synthetic dataset plus wrong-design fixture | Independent method review for the intended campaign |
+| T03 | Statistical designs beyond bundled methods: `unsupported` | Further domain methods and independent method review for intended campaigns; arbitrary statistics remain unsupported | Faraday method add-on owner; exact paired sign fixture with exhaustive reference and wrong-design control | Independent method review for the intended campaign |
 | T04 | Authenticated independent reviewer: `not_configured` | Identity, expertise, conflict, signed decision, and revocation semantics | system-config/review contract owner; fixture reviewer with explicitly unauthenticated status | Accepted trust contract and independently verified reviewer identity |
 | T05 | Real Metamaps projection: `not_configured` | Pinned compiler/API, accepted projection schema, versioned input mapping, invalidation behavior | Metamaps contract owner; projection fixture with changed-source invalidation | Accepted cross-project contract and real compiler comparison; graph findings remain non-authoritative |
 | T06 | Concurrent multi-user operation: `unsupported` | Transaction or lock semantics, access control, conflict resolution, recovery, and migration path | Faraday storage owner; two-client conflict fixture against a disposable store | Separate concurrency design, failure recovery evidence, and authorized migration |
@@ -67,10 +67,16 @@ time accuracy, custody, and safety stop. Activation: T02's device/ethics gate.
 
 ## arbitrary-statistics
 
-T03. Owner: Faraday method registry. Missing: exact design and scale contract,
-implementation closure, adverse controls, and claim ceiling. First safe
-fixture: one new method with wrong-scale and post-result-selection cases.
-Activation: T03's independent method review.
+T03. Owner: Faraday method registry. C06 adds a bounded exact paired sign
+test to the versioned general-science manifest. It requires complete numeric
+matched pairs, reports ties and sign counts, and limits the exact two-sided
+calculation to 256 pairs. A six-non-tied-pair synthetic case agrees with an
+independent exhaustive sign enumeration at 0.03125; wrong design, incomplete
+pairs, and non-numeric outcomes fail. It reports sign compatibility without
+effect magnitude or causal authority. Missing: further domain methods,
+campaign-specific assumption checks, and independent method review.
+Arbitrary statistics remain unsupported. Activation: T03's independent
+method review.
 
 ## domain-specific-validity
 

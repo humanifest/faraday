@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from itertools import product
 import json
 from pathlib import Path
 
@@ -182,3 +183,70 @@ def test_paired_as_independent_and_post_result_plan_switch_fail(tmp_path: Path, 
     ]) == 2
     assert "non-numeric outcome" in capsys.readouterr().err
     assert not wrong_output.exists()
+
+
+def test_exact_paired_sign_method_and_wrong_design_controls(tmp_path: Path, capsys) -> None:
+    spec = {
+        "method": "paired_sign_test", "study_design": "paired",
+        "outcome_column": "outcome", "group_column": "group",
+        "groups": ["treatment", "control"], "pair_column": "pair",
+        "claim_ceiling": "Synthetic matched-pair sign compatibility only.",
+    }
+    rows = ["pair,group,outcome"]
+    for index in range(1, 7):
+        rows.extend((f"p{index},treatment,{index + 2}", f"p{index},control,{index}"))
+    rows.extend(("p7,treatment,4", "p7,control,4"))
+    spec_file, data_file = _write_case(tmp_path, "paired-sign", spec, "\n".join(rows) + "\n")
+    execution, output, receipt_sha = _run(
+        tmp_path, capsys, "paired-sign-output", spec_file, data_file
+    )
+    result = execution["result"]
+    body = result["result"]
+    assert result["method"] == "paired_sign_test"
+    assert body["n_pairs"] == 7
+    assert body["positive_pairs"] == 6
+    assert body["negative_pairs"] == 0
+    assert body["tied_pairs"] == 1
+    reference_signs = list(product((-1, 1), repeat=6))
+    reference_two_sided = sum(abs(sum(draw)) >= 6 for draw in reference_signs) / len(reference_signs)
+    assert reference_two_sided == 0.03125
+    assert body["two_sided_exact_p_value"] == reference_two_sided
+    assert "does not estimate an effect magnitude" in result["claim_ceiling"]
+    assert verify_execution_output(output, receipt_sha)["scientific_evidence_eligible"] is False
+
+    wrong = dict(spec)
+    wrong["study_design"] = "independent_groups"
+    wrong_file, _ = _write_case(tmp_path, "wrong-sign-design", wrong, "\n".join(rows) + "\n")
+    wrong_output = tmp_path / "wrong-sign-output"
+    assert main([
+        "--workspace", str(tmp_path / "unused-workspace"), "--json", "analysis", "run",
+        "--spec-file", str(wrong_file), "--data-file", str(data_file),
+        "--output", str(wrong_output), "--expect-spec-sha256", _sha(wrong_file),
+        "--expect-input-sha256", _sha(data_file),
+    ]) == 2
+    assert "requires study_design paired" in capsys.readouterr().err
+    assert not wrong_output.exists()
+
+    incomplete = tmp_path / "incomplete-pairs.csv"
+    incomplete.write_text("\n".join(rows[:-1]) + "\n")
+    incomplete_output = tmp_path / "incomplete-sign-output"
+    assert main([
+        "--workspace", str(tmp_path / "unused-workspace"), "--json", "analysis", "run",
+        "--spec-file", str(spec_file), "--data-file", str(incomplete),
+        "--output", str(incomplete_output), "--expect-spec-sha256", _sha(spec_file),
+        "--expect-input-sha256", _sha(incomplete),
+    ]) == 2
+    assert "incomplete pairs" in capsys.readouterr().err
+    assert not incomplete_output.exists()
+
+    wrong_scale = tmp_path / "wrong-sign-scale.csv"
+    wrong_scale.write_text(("\n".join(rows) + "\n").replace("p1,treatment,3", "p1,treatment,high"))
+    wrong_scale_output = tmp_path / "wrong-sign-scale-output"
+    assert main([
+        "--workspace", str(tmp_path / "unused-workspace"), "--json", "analysis", "run",
+        "--spec-file", str(spec_file), "--data-file", str(wrong_scale),
+        "--output", str(wrong_scale_output), "--expect-spec-sha256", _sha(spec_file),
+        "--expect-input-sha256", _sha(wrong_scale),
+    ]) == 2
+    assert "non-numeric outcome" in capsys.readouterr().err
+    assert not wrong_scale_output.exists()
