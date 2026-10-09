@@ -124,3 +124,24 @@ No live model, network, external source, canonical production write,
 approval, or remote Git operation occurred. The full local suite reported
 3401 passed and 2 optional skips with the same environment controls.
 Exact-commit capability replay remains for C12.
+
+## C04 receipt (2026-10-08)
+
+Base commit: `5fb153586cb6539209727509d9070868ada76502`. Added
+`collaboration/guide_provider.py` and `tests/test_guide_provider.py`; updated
+this plan, milestone JSON, and `TODO.md`. A provider-neutral byte port and a
+fixed in-process adapter exercise a bounded redacted synthetic context. The
+fixture validates the review-only output through the existing proposal
+contract and records exact context, prompt, and output hashes, destination,
+zero cost, and no fallback. A provider failure, oversized output, invalid
+authority, wrong context hash, or unexpected adapter cannot yield a proposal.
+The live Cypher adapter, disclosure approval, backend inspection, telemetry,
+and network authority remain TODOs; T01 stays `not_configured`.
+
+Focused check with umask 077, bytecode and plugin autoload disabled, empty
+external add-on path, and no pytest cache:
+`.venv/bin/python -m pytest -o addopts= -q -p no:cacheprovider
+tests/test_guide_provider.py` reported 2 passed. Effects were disposable
+synthetic context/fixture files only. The full local suite then reported
+3403 passed and 2 optional skips. Exact-commit capability replay remains
+for C12.

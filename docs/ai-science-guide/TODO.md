@@ -11,7 +11,7 @@ provider. Owners below are contract owners, not assigned people.
 
 | ID | Capability and present state | Missing contract or evidence | Owner and first safe fixture | Activation gate |
 | --- | --- | --- | --- | --- |
-| T01 | Live LLM provider: `not_configured` | Approved provider/data destination, disclosure policy, prompt/output receipt, cost and failure behavior | Cypher/provider boundary; fixture adapter returns a fixed review-only proposal | Separate provider and network authorization; verify actual backend, telemetry, and no cloud fallback before real use |
+| T01 | Live LLM provider: `not_configured` | Approved provider/data destination and disclosure policy, actual backend and telemetry inspection, live cost/failure behavior | Cypher/provider boundary; in-process fixed adapter returns a review-only proposal and receipt | Separate provider and network authorization; verify actual backend, telemetry, and no cloud fallback before real use |
 | T02 | Live connector or instrument: `not_configured` | Source rights, consent, calibration, timing, custody, bounded query/collection policy | Domain add-on owner; synthetic source bytes and failed-calibration receipt | Authorized physical/network acquisition and independent source review |
 | T03 | Statistical designs beyond bundled methods: `unsupported` | Method manifest, assumptions, reference implementation, numerical and adverse validation, claim ceiling | Faraday method add-on owner; known-result synthetic dataset plus wrong-design fixture | Independent method review for the intended campaign |
 | T04 | Authenticated independent reviewer: `not_configured` | Identity, expertise, conflict, signed decision, and revocation semantics | system-config/review contract owner; fixture reviewer with explicitly unauthenticated status | Accepted trust contract and independently verified reviewer identity |
@@ -38,9 +38,13 @@ and publication boundaries.
 
 ## live-model
 
-T01. Owner: Cypher and Faraday. Missing: verified inference backend and scoped
-disclosure contract. First safe fixture: fixed local response to a redacted
-synthetic context. Activation: T01's provider and network gate.
+T01. Owner: Cypher and Faraday. The C04 in-process fixture binds a redacted
+synthetic context, prompt/output hashes, zero-cost ceiling, failure, and no
+fallback. It validates a fixed review-only proposal without invoking a model.
+Missing: accepted Cypher provider interface, approved destination and scoped
+disclosure, verified inference backend, telemetry and fallback inspection,
+and live cost/failure behavior. Activation: T01's separate provider and
+network gate.
 
 ## live-connector
 
