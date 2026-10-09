@@ -276,3 +276,24 @@ tests/test_guide_end_to_end.py` reported 3 passed. The full suite reported
 3411 passed and 2 optional skips. Effects were a disposable synthetic
 workspace and pytest state. No external service, approval, migration, or
 remote Git write occurred. Exact-commit capability replay remains for C12.
+
+## C11 receipt (2026-10-09)
+
+Base commit: `336ddee5ccbe0e43fc837328a2ca773b367553cf`. Changed
+`application/guide.py`, `tests/test_guide_unavailable.py`, this plan,
+the milestone JSON, and `TODO.md`. T07 and T08 now have explicit typed
+`unsupported` capability responses. A bounded, inconclusive exploratory
+explanation can become a review-only report draft with packet and receipt
+hashes, effect, interval, exclusions, assumptions, and claim ceiling. It
+states that an interval spanning zero does not establish no effect. Requests
+to approve, accept evidence, or publish fail. Forged evidence eligibility,
+confirmatory status, or a non-spanning interval also fails; no canonical
+write or publication occurs.
+
+Focused check with umask 077, disabled bytecode and plugin autoload, empty
+external add-on path, and no pytest cache:
+`.venv/bin/python -m pytest -o addopts= -q -p no:cacheprovider
+tests/test_guide_unavailable.py` reported 16 passed. The full suite reported
+3414 passed and 2 optional skips. Effects were disposable pytest state only.
+No model, network, approval, publication, or remote Git write occurred.
+Exact-commit capability replay remains for C12.

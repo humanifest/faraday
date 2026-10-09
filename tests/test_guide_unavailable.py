@@ -10,7 +10,9 @@ import pytest
 from research_machine.application.guide import (
     GUIDE_UNAVAILABLE_CAPABILITIES,
     guide_unavailable_capability,
+    preview_inconclusive_guide_report,
 )
+from research_machine.domain.errors import ValidationError
 from research_machine.interfaces.cli import main
 
 
@@ -54,3 +56,41 @@ def test_capability_goal_covers_the_deferred_register() -> None:
     assert covered == {f"T{number:02d}" for number in range(1, 12)}
     assert plan["jobs"][0]["id"] == "C00"
     assert plan["jobs"][-1]["id"] == "C12"
+
+
+def test_inconclusive_report_draft_cannot_self_approve_or_publish() -> None:
+    explanation = {
+        "explanation_version": 1,
+        "status": "exploratory_computation_only",
+        "original_statement": "Does the synthetic comparison differ?",
+        "packet_sha256": "a" * 64,
+        "receipt_sha256": "b" * 64,
+        "method": "independent_mean_difference_ci",
+        "effect_estimate": {"value": 0.2, "field": "mean_difference_first_minus_second"},
+        "uncertainty": {"interval": {"lower": -0.4, "upper": 0.8}, "relation_to_zero": "spans_zero"},
+        "unit_counts": {"first": 4, "second": 4},
+        "exclusions": {"count": 0},
+        "assumptions": ["Synthetic independent units only."],
+        "method_claim_ceiling": "Exploratory synthetic contrast only.",
+        "scientific_evidence_eligible": False,
+        "canonical_write_performed": False,
+        "confirmatory_plan_verified": False,
+    }
+    report = preview_inconclusive_guide_report(explanation)
+    assert report["status"] == "review_only_draft"
+    assert report["receipt_sha256"] == explanation["receipt_sha256"]
+    assert "does not establish no effect" in report["finding"]
+    assert report["confirmatory_activation_authorized"] is False
+    assert report["scientific_evidence_eligible"] is False
+    assert report["publication_authorized"] is False
+    assert report["canonical_write_performed"] is False
+    for action in ("approve", "accept_evidence", "publish"):
+        with pytest.raises(ValidationError, match="cannot approve, accept evidence, or publish"):
+            preview_inconclusive_guide_report(explanation, requested_action=action)
+    with pytest.raises(ValidationError, match="review-only exploratory"):
+        preview_inconclusive_guide_report({**explanation, "scientific_evidence_eligible": True})
+    with pytest.raises(ValidationError, match="interval spanning zero"):
+        preview_inconclusive_guide_report({
+            **explanation,
+            "uncertainty": {"interval": {"lower": 0.1, "upper": 0.8}, "relation_to_zero": "above_zero"},
+        })

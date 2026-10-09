@@ -114,6 +114,22 @@ can proceed. The preflight is not atomic with a later write, so it provides
 no production concurrency guarantee. Activation: T06's reviewed concurrency
 design and migration.
 
+## automated-confirmatory-activation
+
+T07. A guide worker has no route to activate a confirmatory plan or accept
+scientific evidence. C11's draft-report fixture rejects approve and
+accept-evidence requests and keeps both authority flags false. Any future
+change to that boundary requires a separate system-config/Orca owner decision;
+the worker cannot grant it to itself.
+
+## publication
+
+T08. C11 can shape a synthetic interval-spanning-zero explanation into an
+inconclusive review-only report draft. A publish request fails, and the draft
+does not claim no effect, independent review, or publication authority.
+Missing: accepted real-data campaign, domain review, replication where
+applicable, disclosure review, and publication authorization.
+
 ## model-specific-next-experiment
 
 T10. Status: `review_only`. Owner: Faraday guide and independent domain

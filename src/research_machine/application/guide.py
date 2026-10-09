@@ -6,6 +6,7 @@ This module does not infer answers from prose or write canonical records.
 from __future__ import annotations
 
 import hashlib
+import math
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +54,8 @@ GUIDE_UNAVAILABLE_CAPABILITIES = {
     "authenticated_reviewer": "not_configured",
     "metamaps_compilation": "not_configured",
     "concurrent_writes": "unsupported",
+    "automated_confirmatory_activation": "unsupported",
+    "publication": "unsupported",
     "model_specific_next_experiment": "review_only",
     "paired_observational_packet": "review_only",
 }
@@ -70,6 +73,70 @@ def guide_unavailable_capability(capability: str) -> dict[str, Any]:
         "external_call_performed": False,
         "canonical_write_performed": False,
         "grants_authority": False,
+    }
+
+
+def preview_inconclusive_guide_report(
+    explanation: dict[str, Any], *, requested_action: str = "draft"
+) -> dict[str, Any]:
+    """Shape an exploratory, inconclusive explanation into a review-only draft."""
+    if requested_action != "draft":
+        raise ValidationError("guide report cannot approve, accept evidence, or publish")
+    if not isinstance(explanation, dict) or (
+        type(explanation.get("explanation_version")) is not int
+        or explanation.get("explanation_version") != 1
+        or explanation.get("status") != "exploratory_computation_only"
+        or explanation.get("scientific_evidence_eligible") is not False
+        or explanation.get("canonical_write_performed") is not False
+        or explanation.get("confirmatory_plan_verified") is not False
+    ):
+        raise ValidationError("guide report requires a review-only exploratory explanation")
+    for key in ("packet_sha256", "receipt_sha256"):
+        digest = explanation.get(key)
+        if not isinstance(digest, str) or len(digest) != 64 or any(
+            char not in "0123456789abcdef" for char in digest
+        ):
+            raise ValidationError(f"guide report {key} must be a SHA-256 digest")
+    for key in ("original_statement", "method_claim_ceiling"):
+        value = explanation.get(key)
+        if not isinstance(value, str) or not value or value != value.strip():
+            raise ValidationError(f"guide report {key} must be canonical text")
+    uncertainty = explanation.get("uncertainty")
+    interval = uncertainty.get("interval") if isinstance(uncertainty, dict) else None
+    effect = explanation.get("effect_estimate")
+    if (
+        explanation.get("method") not in _EXPLAINABLE_METHODS
+        or not isinstance(interval, dict)
+        or uncertainty.get("relation_to_zero") != "spans_zero"
+        or not isinstance(effect, dict)
+        or any(
+            isinstance(value, bool) or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            for value in (interval.get("lower"), interval.get("upper"), effect.get("value"))
+        )
+        or not interval["lower"] <= effect["value"] <= interval["upper"]
+        or not interval["lower"] <= 0 <= interval["upper"]
+    ):
+        raise ValidationError("guide report requires a finite interval spanning zero")
+    return {
+        "report_version": 1,
+        "status": "review_only_draft",
+        "original_statement": explanation.get("original_statement"),
+        "packet_sha256": explanation["packet_sha256"],
+        "receipt_sha256": explanation["receipt_sha256"],
+        "method": explanation["method"],
+        "effect_estimate": effect,
+        "uncertainty": uncertainty,
+        "unit_counts": explanation.get("unit_counts"),
+        "exclusions": explanation.get("exclusions"),
+        "assumptions": explanation.get("assumptions"),
+        "finding": "The exploratory interval spans zero; this does not establish no effect or confirm a model.",
+        "method_claim_ceiling": explanation.get("method_claim_ceiling"),
+        "scientific_evidence_eligible": False,
+        "confirmatory_activation_authorized": False,
+        "independent_review_verified": False,
+        "publication_authorized": False,
+        "canonical_write_performed": False,
     }
 
 
