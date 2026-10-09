@@ -108,8 +108,11 @@ Activation: T05's accepted cross-project contract.
 ## concurrent-writes
 
 T06. Owner: Faraday persistence and Orca. Missing: transaction, conflict, and
-recovery semantics. First safe fixture: two-worker conflict on a disposable
-inquiry. Activation: T06's reviewed concurrency design.
+recovery semantics. C10 uses two service clients on a disposable inquiry:
+a ledger-head preflight rejects a stale guide intent and a refreshed intent
+can proceed. The preflight is not atomic with a later write, so it provides
+no production concurrency guarantee. Activation: T06's reviewed concurrency
+design and migration.
 
 ## model-specific-next-experiment
 

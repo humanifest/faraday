@@ -256,3 +256,23 @@ tests/test_guide_contract.py` reported 2 passed. The full suite reported
 3410 passed and 2 optional skips. Effects were disposable synthetic and
 pytest state only. No external graph service, network, approval, or remote
 Git write occurred. Exact-commit capability replay remains for C12.
+
+## C10 receipt (2026-10-08)
+
+Base commit: `d38ffccba8c4761c468a4e2b333d9100dd6483ee`. Changed
+`application/service.py`, `tests/test_guide_end_to_end.py`, this plan,
+the milestone JSON, and `TODO.md`. A guide write preflight compares a
+caller-pinned ledger head with the current verified ledger and raises a
+conflict on stale intent. Two service clients on one disposable workspace
+exercise a stale head after the other client adds a question, then refresh
+and continue. The check does not perform a write and is not atomic with a
+later command. Production multi-user operation still requires a reviewed
+transaction, access-control, recovery, and migration design.
+
+Focused check with umask 077, disabled bytecode and plugin autoload, empty
+external add-on path, and no pytest cache:
+`.venv/bin/python -m pytest -o addopts= -q -p no:cacheprovider
+tests/test_guide_end_to_end.py` reported 3 passed. The full suite reported
+3411 passed and 2 optional skips. Effects were a disposable synthetic
+workspace and pytest state. No external service, approval, migration, or
+remote Git write occurred. Exact-commit capability replay remains for C12.

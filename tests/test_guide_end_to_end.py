@@ -8,8 +8,11 @@ from pathlib import Path
 import pytest
 
 from scripts.check_ai_science_guide_goal import FIXTURES, run_journey
+from research_machine.adapters.filesystem import FileSystemRepository
+from research_machine.application.commands import AddQuestion, CreateInquiry
 from research_machine.application.guide import preview_csv_data
-from research_machine.domain.errors import ValidationError
+from research_machine.application.service import ResearchService
+from research_machine.domain.errors import ConflictError, ValidationError
 
 
 def test_public_journey_audit_ledger_and_replay(tmp_path: Path) -> None:
@@ -48,3 +51,30 @@ def test_no_usable_data_and_failed_quality_gate_block_readiness(tmp_path: Path) 
     assert preview["scientific_evidence_eligible"] is False
     with pytest.raises(ValidationError, match="expected SHA-256"):
         preview_csv_data(duplicate, spec, expected_sha256=hashlib.sha256(original).hexdigest())
+
+
+def test_two_client_stale_guide_intent_requires_refresh(tmp_path: Path) -> None:
+    workspace = tmp_path / "two-client-workspace"
+    first = ResearchService(FileSystemRepository(workspace), actor="fixture-client-a")
+    second = ResearchService(FileSystemRepository(workspace), actor="fixture-client-b")
+    first.init_workspace()
+    inquiry = first.create_inquiry(CreateInquiry(
+        "Synthetic concurrency", "Which question comes next?",
+        inquiry_id="synthetic-concurrency",
+    ))
+    stale_head = first.verify_ledger(inquiry.inquiry_id)["head_hash"]
+    second.add_question(AddQuestion("The second client changes the inquiry."), inquiry.inquiry_id)
+
+    before = first.repository.load_questions(inquiry.inquiry_id)
+    with pytest.raises(ConflictError, match="stale ledger head"):
+        first.require_guide_ledger_head(stale_head, inquiry.inquiry_id)
+    assert first.repository.load_questions(inquiry.inquiry_id) == before
+
+    refreshed_head = first.verify_ledger(inquiry.inquiry_id)["head_hash"]
+    preflight = first.require_guide_ledger_head(refreshed_head, inquiry.inquiry_id)
+    assert preflight["status"] == "current_for_preflight"
+    assert preflight["atomic_write_guard"] is False
+    assert preflight["canonical_write_performed"] is False
+    first.add_question(AddQuestion("The first client uses the refreshed context."), inquiry.inquiry_id)
+    assert len(first.repository.load_questions(inquiry.inquiry_id)) == 2
+    assert first.verify_ledger(inquiry.inquiry_id)["valid"] is True

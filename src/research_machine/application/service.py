@@ -7944,6 +7944,27 @@ class ResearchService:
         resolved = self.repository.resolve_inquiry_id(inquiry_id)
         return self.repository.verify_ledger(resolved)
 
+    def require_guide_ledger_head(
+        self, expected_head_sha256: str, inquiry_id: str | None = None
+    ) -> dict[str, Any]:
+        """Reject a stale guide intent before a command; this is not an atomic write lock."""
+        expected = require_sha256(expected_head_sha256, "guide expected ledger head")
+        resolved = self.repository.resolve_inquiry_id(inquiry_id)
+        verification = self.verify_ledger(resolved)
+        if not verification.get("valid") or not verification.get("head_hash"):
+            raise ValidationError("guide write preflight requires a valid nonempty ledger")
+        current = verification["head_hash"]
+        if current != expected:
+            raise ConflictError("guide write preflight rejected stale ledger head")
+        return {
+            "inquiry_id": resolved,
+            "expected_ledger_head_sha256": expected,
+            "current_ledger_head_sha256": current,
+            "status": "current_for_preflight",
+            "atomic_write_guard": False,
+            "canonical_write_performed": False,
+        }
+
     @staticmethod
     def _validate_claim_authority(claim: Claim) -> None:
         source_grounded_layers = {
