@@ -15,6 +15,7 @@ from research_machine.addons.execution import (
     validate_measurement_values,
 )
 from research_machine.domain.errors import ValidationError
+from research_machine.domain.models import ProtocolStatus, QualityGateStatus
 
 
 INTAKE_FIELDS = {
@@ -69,6 +70,74 @@ def guide_unavailable_capability(capability: str) -> dict[str, Any]:
         "external_call_performed": False,
         "canonical_write_performed": False,
         "grants_authority": False,
+    }
+
+
+def preview_construct_validity(service: Any, protocol_id: str, *, run_id: str | None = None) -> dict[str, Any]:
+    """Project frozen validity checks and recorded results without judging the construct."""
+    protocol = service.get_protocol(protocol_id)
+    if protocol.status is not ProtocolStatus.FROZEN:
+        raise ValidationError("construct-validity preview requires a frozen protocol")
+    run = service.get_run(run_id) if run_id is not None else None
+    if run is not None and (run.protocol_id != protocol_id or run.protocol_hash != protocol.protocol_hash):
+        raise ValidationError("construct-validity run does not match the frozen protocol")
+
+    gates = {gate.gate_id: gate for gate in run.quality_gates} if run is not None else {}
+    artifact_hashes = {item.sha256 for item in run.output_artifacts} if run is not None else set()
+    checks: list[dict[str, Any]] = []
+    blockers: list[str] = []
+    if not protocol.measurement_validity_checks:
+        blockers.append("no_frozen_measurement_validity_checks")
+    for check in protocol.measurement_validity_checks:
+        gate = gates.get(check.assessment_gate_id)
+        results = gate.details.get("measurement_validity_results") if gate is not None else None
+        result = results.get(check.check_id) if isinstance(results, dict) else None
+        evidence_sha256 = result.get("evidence_sha256") if isinstance(result, dict) else None
+        source_bound = bool(
+            isinstance(result, dict)
+            and isinstance(evidence_sha256, str)
+            and evidence_sha256 in artifact_hashes
+            and result.get("selected_value_sha256")
+        )
+        consistent = bool(
+            gate is not None and gate.status is QualityGateStatus.PASSED
+            and isinstance(result, dict)
+            and result.get("assessment_status") == "consistent_with_validity_claim"
+            and source_bound
+        )
+        if not consistent:
+            blockers.append(f"validity_check_not_source_bound_and_consistent:{check.check_id}")
+        checks.append({
+            "check_id": check.check_id,
+            "measurement_id": check.measurement_id,
+            "evidence_type": check.evidence_type,
+            "validity_claim": check.validity_claim,
+            "acceptance_criterion": check.acceptance_criterion,
+            "failure_response": check.failure_response,
+            "assessment_gate_id": check.assessment_gate_id,
+            "gate_status": gate.status.value if gate is not None else "absent",
+            "assessment_status": result.get("assessment_status", "absent") if isinstance(result, dict) else "absent",
+            "evidence_sha256": evidence_sha256 if source_bound else None,
+            "selected_value_sha256": result.get("selected_value_sha256") if source_bound else None,
+            "source_bound": source_bound,
+            "consistent_with_frozen_claim": consistent,
+        })
+    if run is None:
+        blockers.append("no_recorded_run")
+    if run is not None and not run.scientific_evidence_eligible:
+        blockers.append("run_not_scientific_evidence_eligible")
+    return {
+        "protocol_id": protocol.protocol_id,
+        "protocol_hash": protocol.protocol_hash,
+        "run_id": run.run_id if run is not None else None,
+        "checks": checks,
+        "blocking_reasons": blockers,
+        "validity_evidence_complete": not blockers,
+        "status": "blocked" if blockers else "review_only",
+        "supportive_interpretation_authorized": False,
+        "construct_validity_proven": False,
+        "canonical_write_performed": False,
+        "notice": "A consistent diagnostic does not prove construct validity; independent scientific review is still required.",
     }
 
 

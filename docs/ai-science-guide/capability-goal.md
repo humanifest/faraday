@@ -191,3 +191,26 @@ no:cacheprovider tests/test_guide_analysis.py` reported 3 passed. The focused
 method-plus-schema check reported 397 passed, and the full local suite then
 reported 3408 passed with 2 optional skips. Effects were disposable synthetic
 inputs and analysis outputs. Exact-commit capability replay remains for C12.
+
+## C07 receipt (2026-10-08)
+
+Base commit: `40fa1d2d6671bdffaa96a4e31cdfa518a05fd58d`. Changed
+`application/guide.py`, `tests/test_measurement_validity.py`, this plan, and
+the milestone JSON. The read-only construct-validity preview retrieves a
+frozen protocol and optional recorded run through ResearchService. It shows
+each frozen check and its assessment gate, and requires a result tied to a
+recorded output artifact and selected-value hash before labeling that
+diagnostic consistent with the frozen claim. No check, no run, a missing
+source-bound result, and contradicted or inconclusive gates block the view.
+Even a consistent result remains review-only and never claims that construct
+validity was proved or supportive interpretation authorized. This projection
+does not replace domain-specific validity review, so T09 live activation
+remains unsupported.
+
+The first focused run exposed a misplaced assertion in the new test; moving
+it back to its existing test produced 3 passed. The full suite reported 3409
+passed and 2 optional skips. Command controls were `umask 077`, disabled
+bytecode and plugin autoload, empty external add-on path, and no pytest cache.
+Observed writes were disposable synthetic research and pytest state. No live
+source, model, network, approval, or remote Git operation occurred. Exact
+commit capability replay remains for C12.

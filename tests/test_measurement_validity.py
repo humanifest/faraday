@@ -5,6 +5,7 @@ import json
 import pytest
 
 from research_machine.application.commands import CreateProtocol, RecordEvidence
+from research_machine.application.guide import preview_construct_validity
 from research_machine.domain.errors import ValidationError
 from research_machine.domain.models import (
     MeasurementDefinition,
@@ -198,6 +199,13 @@ def test_run_template_and_intake_require_artifact_bound_validity_result(tmp_path
     assert stored.details["measurement_validity_results"][check.check_id][
         "selected_value_sha256"
     ] == selected_value_sha256
+    preview = preview_construct_validity(service, protocol.protocol_id, run_id=run.run_id)
+    assert preview["status"] == "review_only"
+    assert preview["validity_evidence_complete"] is True
+    assert preview["checks"][0]["evidence_sha256"] == output_sha256
+    assert preview["checks"][0]["selected_value_sha256"] == selected_value_sha256
+    assert preview["supportive_interpretation_authorized"] is False
+    assert preview["construct_validity_proven"] is False
     synthesis = service.build_synthesis()["content"]
     assert "Measurement validity provenance" in synthesis
     assert "checker-reference-agreement" in synthesis
@@ -238,9 +246,31 @@ def test_warning_and_failed_validity_gates_preserve_nonpassing_results(tmp_path)
         ).details["measurement_validity_results"][check.check_id]
         assert result["assessment_status"] == expected
         assert run.scientific_evidence_eligible is False
+        preview = preview_construct_validity(service, protocol.protocol_id, run_id=run.run_id)
+        assert preview["status"] == "blocked"
+        assert preview["checks"][0]["consistent_with_frozen_claim"] is False
+        assert preview["supportive_interpretation_authorized"] is False
     codes = {item.code for item in service.audit_rigor().findings}
     assert "MEASUREMENT_VALIDITY_INCONCLUSIVE" in codes
     assert "MEASUREMENT_VALIDITY_CONTRADICTED" in codes
     synthesis = service.build_synthesis()["content"]
     assert "inconclusive" in synthesis
     assert "contradicted_validity_claim" in synthesis
+
+
+def test_guide_validity_preview_blocks_absent_result_and_untyped_protocol(tmp_path):
+    service, protocol, check = _frozen_validity_protocol(tmp_path)
+    absent = preview_construct_validity(service, protocol.protocol_id)
+    assert absent["status"] == "blocked"
+    assert absent["blocking_reasons"] == [
+        f"validity_check_not_source_bound_and_consistent:{check.check_id}",
+        "no_recorded_run",
+    ]
+    assert absent["checks"][0]["evidence_sha256"] is None
+    assert absent["canonical_write_performed"] is False
+
+    bare_service, hypothesis = prepared_service(tmp_path / "bare")
+    bare_protocol = frozen_formal_protocol(bare_service, hypothesis)
+    bare = preview_construct_validity(bare_service, bare_protocol.protocol_id)
+    assert "no_frozen_measurement_validity_checks" in bare["blocking_reasons"]
+    assert bare["status"] == "blocked"
