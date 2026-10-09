@@ -12,7 +12,7 @@ provider. Owners below are contract owners, not assigned people.
 | ID | Capability and present state | Missing contract or evidence | Owner and first safe fixture | Activation gate |
 | --- | --- | --- | --- | --- |
 | T01 | Live LLM provider: `not_configured` | Approved provider/data destination and disclosure policy, actual backend and telemetry inspection, live cost/failure behavior | Cypher/provider boundary; in-process fixed adapter returns a review-only proposal and receipt | Separate provider and network authorization; verify actual backend, telemetry, and no cloud fallback before real use |
-| T02 | Live connector or instrument: `not_configured` | Source rights, consent, calibration, timing, custody, bounded query/collection policy | Domain add-on owner; synthetic source bytes and failed-calibration receipt | Authorized physical/network acquisition and independent source review |
+| T02 | Live connector or instrument: `not_configured` | Independently established source rights, consent and calibration; authorized bounded network/device collection and custody | Domain add-on owner; synthetic verified source receipt and failed-calibration instrument preview | Authorized physical/network acquisition and independent source review |
 | T03 | Statistical designs beyond bundled methods: `unsupported` | Method manifest, assumptions, reference implementation, numerical and adverse validation, claim ceiling | Faraday method add-on owner; known-result synthetic dataset plus wrong-design fixture | Independent method review for the intended campaign |
 | T04 | Authenticated independent reviewer: `not_configured` | Identity, expertise, conflict, signed decision, and revocation semantics | system-config/review contract owner; fixture reviewer with explicitly unauthenticated status | Accepted trust contract and independently verified reviewer identity |
 | T05 | Real Metamaps projection: `not_configured` | Pinned compiler/API, accepted projection schema, versioned input mapping, invalidation behavior | Metamaps contract owner; projection fixture with changed-source invalidation | Accepted cross-project contract and real compiler comparison; graph findings remain non-authoritative |
@@ -48,15 +48,22 @@ network gate.
 
 ## live-connector
 
-T02. Owner: Faraday connector maintainer and system-config. Missing: source
-rights, bounded retrieval, and immutable custody. First safe fixture: offline
-fabricated connector replay. Activation: T02's network/source gate.
+T02. Owner: Faraday connector maintainer and system-config. C05 reuses the
+existing connector source proposal verifier for an offline fabricated source.
+The guide view retains raw-byte and receipt hashes, query implementation
+replay, and declared rights and consent while explicitly withholding custody,
+source review, and acquisition authority. Missing: independently established
+rights, bounded live retrieval, and immutable custody. Activation: T02's
+network/source gate.
 
 ## live-instrument
 
-T02. Owner: Faraday measurement maintainer and system-config. Missing:
-calibration, time, raw-byte custody, and safety stop. First safe fixture:
-simulated failed-calibration stream. Activation: T02's device/ethics gate.
+T02. Owner: Faraday measurement maintainer and system-config. C05 reuses the
+existing instrument inspection record verifier and checks current raw source
+bytes, proposed capture time and basis, and a source-bound failed-calibration
+declaration. It blocks the guide handoff without claiming calibration truth.
+Missing: approved instrument access, independently reviewed calibration,
+time accuracy, custody, and safety stop. Activation: T02's device/ethics gate.
 
 ## arbitrary-statistics
 

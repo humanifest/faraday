@@ -145,3 +145,23 @@ tests/test_guide_provider.py` reported 2 passed. Effects were disposable
 synthetic context/fixture files only. The full local suite then reported
 3403 passed and 2 optional skips. Exact-commit capability replay remains
 for C12.
+
+## C05 receipt (2026-10-08)
+
+Base commit: `367ae846fbcb6e26323e6f4ac85c6c88f028ab6f`. Added
+`application/guide_acquisition.py` and `tests/test_guide_acquisition.py`;
+updated this plan, milestone JSON, and `TODO.md`. The guide view reuses
+Faraday's connector source-proposal verifier and instrument inspection-record
+verifier. A synthetic connector case binds current source bytes and the
+implementation receipt, retains rights and consent as unverified declarations,
+and never clears custody. A fabricated instrument case retains proposed
+capture timing and raw-byte identity but blocks a failed, unverified
+calibration check. Changed source bytes and mismatched calibration hashes are
+rejected. No device, external connector, network, or real source was used.
+
+Focused check: `umask 077; PYTHONDONTWRITEBYTECODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 RESEARCH_ADDON_PATH= .venv/bin/python -m
+pytest -o addopts= -q -p no:cacheprovider tests/test_guide_acquisition.py`
+reported 2 passed. Effects were disposable synthetic source files and
+receipts only. The full local suite then reported 3405 passed and 2 optional
+skips. Exact-commit capability replay remains for C12.
