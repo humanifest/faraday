@@ -1,11 +1,11 @@
 # Deferred AI science guide capabilities
 
-Status: G08 typed stubs T01–T09 locally verified; C01 adds typed T10–T11
-boundaries, C02 adds a review-only T11 preview, and C03 adds a review-only T10
-next-test candidate from a current-inquiry collaborator record. Independent
-design review and external integrations remain open. No live integration or
-scientific activation gate is authorized by the goal plan. The guide returns
-`not_configured` or `unsupported` for its unavailable T01–T09 boundaries.
+Status: C00–C12 local fixtures verified through the exact-commit capability
+checker. The guide includes review-only T10–T11 previews and typed T01–T09
+boundaries. Independent design review and external integrations remain open.
+No live integration or scientific activation gate is authorized by the goal
+plan. The guide returns `not_configured` or `unsupported` where a live
+capability remains unavailable.
 No unavailable stub may invoke an external service, widen a claim ceiling, or silently fall back to another
 provider. Owners below are contract owners, not assigned people.
 

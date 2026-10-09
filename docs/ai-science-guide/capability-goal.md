@@ -1,6 +1,7 @@
 # AI science guide: deferred capability buildout
 
-Status: active local software goal. This plan covers T01–T11 in [TODO.md](TODO.md)
+Status: local software fixture verified; live and scientific gates remain open.
+This plan covers T01–T11 in [TODO.md](TODO.md)
 and extends the completed [local workflow](workflow-goal.md). Each milestone
 produces a small reviewable diff and a focused adverse check before the next
 begins. A missing contract stays typed as unavailable; a fixture cannot make a
@@ -308,3 +309,30 @@ tests/test_guide_unavailable.py` reported 16 passed. The full suite reported
 3414 passed and 2 optional skips. Effects were disposable pytest state only.
 No model, network, approval, publication, or remote Git write occurred.
 Exact-commit capability replay remains for C12.
+
+## C12 receipt (2026-10-09)
+
+Base commit: `0cf7e51db8680f407e00bf735b5bf03424305fc8`. Added
+`scripts/check_ai_science_guide_capabilities.py`, extended
+`tests/test_guide_end_to_end.py`, and updated this plan, milestone JSON, and
+TODO register.
+The checker requires a clean exact commit and serial completion of C00–C12.
+It replays paired and observational public previews twice, including duplicate
+pairs, missing complete-case policy, and confounding ceilings; reads every
+typed T01–T11 route; runs focused adverse fixtures; and delegates the public
+independent-group journey, full suite, rigor audit, and ledger verification to
+the existing exact-commit workflow gate. It binds the evaluator, plan,
+requirement, work-item, artifact-set, and commit hashes in its JSON result.
+
+The first direct invocation on an intentionally dirty checkout exited 1 with
+`a clean exact Git commit is required`. The focused test command reported 44
+passed. On clean commit `221854a6c4aed668a7b7810600a222ea597ebe24`, the
+new exact gate reported `local_capability_fixture_ready: true`, 44 focused
+tests passed, 14 workflow adverse tests passed, 3415 full-suite tests passed
+with 2 optional skips, zero audit errors, verified ledger, and deterministic
+paired and observational previews. This receipt commit receives a separate
+exact-commit replay. Effects were only temporary synthetic files, local
+subprocesses, and pytest state under umask 077 with bytecode and plugin
+autoload disabled. No live model, network, physical acquisition, migration,
+approval, publication, or remote Git write occurred. T01–T11 remain bounded
+by their separate live activation statuses in the checker output and TODOs.
