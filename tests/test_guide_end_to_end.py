@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from scripts.check_ai_science_guide_goal import FIXTURES, run_journey
+from scripts.check_ai_science_guide_capabilities import run_design_previews
 from research_machine.adapters.filesystem import FileSystemRepository
 from research_machine.application.commands import AddQuestion, CreateInquiry
 from research_machine.application.guide import preview_csv_data
@@ -78,3 +79,14 @@ def test_two_client_stale_guide_intent_requires_refresh(tmp_path: Path) -> None:
     first.add_question(AddQuestion("The first client uses the refreshed context."), inquiry.inquiry_id)
     assert len(first.repository.load_questions(inquiry.inquiry_id)) == 2
     assert first.verify_ledger(inquiry.inquiry_id)["valid"] is True
+
+
+def test_capability_checker_replays_paired_and_observational_previews(tmp_path: Path) -> None:
+    first = run_design_previews(tmp_path / "first")
+    second = run_design_previews(tmp_path / "second")
+    assert first == second
+    assert first["paired"]["pair_count"] == 2
+    assert first["paired"]["adverse_status"] == "blocked"
+    assert first["observational"]["complete_case_exclusion_count"] == 1
+    assert first["observational"]["causal_identification_verified"] is False
+    assert first["canonical_write_performed"] is False

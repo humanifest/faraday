@@ -49,6 +49,17 @@ The machine-readable jobs and path limits are in
    fixture. C12 builds the exact-commit aggregate checker and completion
    receipt, including per-capability unresolved activation gates.
 
+Run the final local gate from a clean commit with
+`umask 077; PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+RESEARCH_ADDON_PATH= .venv/bin/python
+scripts/check_ai_science_guide_capabilities.py --json`. It writes disposable
+synthetic fixtures outside the repository, calls only local guide routes and
+tests, and fails if the commit or worktree changes during verification. Its
+JSON binds the requirement IDs, serial jobs, artifact-set hashes, evaluator,
+plan, and exact commit. Per-capability live activation, scientific acceptance,
+Metamaps graph version, and publication stay separate fields. A passing local
+gate does not clear any of those external or scientific decisions.
+
 Jobs change at most four production files plus their focused test and receipt.
 Each receipt records base commit, changed paths, exact requirement, evaluator,
 fixture and artifact versions, command, observed effects, result, and open
