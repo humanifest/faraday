@@ -52,6 +52,8 @@ GUIDE_UNAVAILABLE_CAPABILITIES = {
     "authenticated_reviewer": "not_configured",
     "metamaps_compilation": "not_configured",
     "concurrent_writes": "unsupported",
+    "model_specific_next_experiment": "review_only",
+    "paired_observational_packet": "review_only",
 }
 
 
@@ -155,15 +157,20 @@ def preview_csv_data(
     if expected_sha256 is not None and digest != expected_sha256:
         raise ValidationError("guide data input bytes do not match expected SHA-256")
     rows = _read_csv(content)
-    if spec.get("study_design") != "independent_groups":
-        raise ValidationError("guide data preview currently supports independent_groups only")
-    for key in ("unit_column", "group_column", "outcome_column"):
+    design = spec.get("study_design")
+    method_id = spec.get("method")
+    if design not in {"independent_groups", "paired"}:
+        raise ValidationError("guide data preview supports independent_groups or paired only")
+    if (design == "paired") != (method_id == "paired_mean_difference_ci"):
+        raise ValidationError("guide data design conflicts with the selected paired method")
+    identity_key = "pair_column" if design == "paired" else "unit_column"
+    for key in (identity_key, "group_column", "outcome_column"):
         value = spec.get(key)
         if not isinstance(value, str) or not value or value != value.strip():
             raise ValidationError(f"guide data {key} must be an exact non-blank column")
         if value not in rows[0]:
             raise ValidationError(f"guide data {key} is absent from the CSV")
-    if len({spec[key].casefold() for key in ("unit_column", "group_column", "outcome_column")}) != 3:
+    if len({spec[key].casefold() for key in (identity_key, "group_column", "outcome_column")}) != 3:
         raise ValidationError("guide data unit, group, and outcome columns must be distinct")
     definitions = spec.get("measurement_definitions")
     if not isinstance(definitions, list) or not definitions:
@@ -172,7 +179,7 @@ def preview_csv_data(
     issues: list[str] = []
     try:
         unit_structure = _unit_structure(spec, rows)
-        if unit_structure["repeated_unit_count"]:
+        if design == "independent_groups" and unit_structure["repeated_unit_count"]:
             issues.append("repeated independent-unit identifiers")
     except ValidationError as exc:
         unit_structure = None
@@ -187,15 +194,64 @@ def preview_csv_data(
             measurements = None
             issues.append(str(exc))
     groups = spec.get("groups")
-    if not isinstance(groups, list) or len(groups) != 2 or any(
+    groups_valid = isinstance(groups, list) and len(groups) == 2 and not any(
         not isinstance(group, str) or not group or group != group.strip()
         for group in groups
-    ) or len(set(groups)) != 2:
+    ) and len({group.casefold() for group in groups}) == 2
+    if not groups_valid:
         issues.append("guide data requires two distinct ordered group labels")
     else:
         observed_groups = {row[spec["group_column"]] for row in rows}
         if observed_groups - set(groups):
             issues.append("observed group labels are outside the declared comparison")
+
+    design_inventory: dict[str, Any] = {"study_design": design}
+    if design == "paired" and groups_valid and unit_structure is not None:
+        pairs: dict[str, list[str]] = {}
+        for row in rows:
+            pairs.setdefault(row[spec[identity_key]], []).append(row[spec["group_column"]])
+        duplicates = sum(any(labels.count(group) > 1 for group in groups)
+                         for labels in pairs.values())
+        incomplete = sum(sorted(labels) != sorted(groups) for labels in pairs.values())
+        missing_outcomes = sum(not isinstance(row.get(spec["outcome_column"]), str)
+                               or not row[spec["outcome_column"]].strip() for row in rows)
+        design_inventory.update({
+            "pair_column": spec[identity_key], "pair_count": len(pairs),
+            "duplicate_pair_count": duplicates, "incomplete_pair_count": incomplete,
+            "missing_outcome_count": missing_outcomes,
+            "missing_data_policy": spec.get("missing_data_policy"),
+            "claim_ceiling": "Within-pair descriptive preview; pairing and causal validity are unverified.",
+        })
+        if duplicates:
+            issues.append("duplicate pair-group observations")
+        if incomplete:
+            issues.append("incomplete paired observations")
+        if missing_outcomes:
+            issues.append("paired outcome has missing values; implicit exclusions are unsupported")
+    elif method_id == "adjusted_linear_effect":
+        covariates = spec.get("covariate_columns")
+        if (not isinstance(covariates, list) or not covariates
+            or any(not isinstance(name, str) or not name or name != name.strip()
+                   for name in covariates)
+            or len({name.casefold() for name in covariates}) != len(covariates)
+            or any(name not in rows[0] for name in covariates)
+            or any(name.casefold() in {spec[key].casefold() for key in
+                    (identity_key, "group_column", "outcome_column")} for name in covariates)):
+            raise ValidationError("guide adjusted analysis requires distinct present covariate columns")
+        missing = {name: sum(not isinstance(row.get(name), str) or not row[name].strip()
+                             for row in rows) for name in covariates}
+        missing_rows = sum(any(not isinstance(row.get(name), str) or not row[name].strip() for name in
+                               [spec["outcome_column"], spec["group_column"], *covariates])
+                           for row in rows)
+        design_inventory.update({
+            "covariate_columns": covariates, "covariate_missing_count": missing,
+            "complete_case_exclusion_count": missing_rows,
+            "missing_data_policy": spec.get("missing_data_policy"),
+            "causal_identification_verified": False,
+            "claim_ceiling": "Adjusted association preview; confounding and causal identification are unverified.",
+        })
+        if missing_rows and spec.get("missing_data_policy") != "complete_case":
+            issues.append("missing adjusted-analysis values require an explicit complete_case policy")
 
     measure_by_column = (
         {item["data_column"]: item for item in measurements["measurements"]}
@@ -206,9 +262,11 @@ def preview_csv_data(
     columns = []
     for name in rows[0]:
         role = (
-            "independent_unit_identity" if name == spec["unit_column"]
+            ("pair_identity" if design == "paired" else "independent_unit_identity")
+            if name == spec[identity_key]
             else "comparison_label" if name == spec["group_column"]
             else "primary_outcome" if name == spec["outcome_column"]
+            else "adjustment_covariate" if name in design_inventory.get("covariate_columns", [])
             else "unresolved"
         )
         checked = measure_by_column.get(name)
@@ -225,6 +283,7 @@ def preview_csv_data(
         "raw_size_bytes": len(content),
         "row_count": len(rows),
         "unit_count": unit_structure["unit_count"] if unit_structure else None,
+        "design_inventory": design_inventory,
         "columns": columns,
         "quality_issues": issues,
         "source_route": "local_file_preview",

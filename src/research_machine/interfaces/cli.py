@@ -2486,7 +2486,7 @@ def _dispatch(args: argparse.Namespace, service: ResearchService) -> Any:
                     allowed_fields=set(ANALYSIS_SPEC_FIELDS) | {"measurement_definitions"},
                     label="guide data specification",
                 )
-                for key in ("method", "study_design", "unit_column", "group_column", "outcome_column", "groups"):
+                for key in ("method", "study_design", "unit_column", "pair_column", "group_column", "outcome_column", "groups", "covariate_columns", "missing_data_policy"):
                     if data_spec.get(key) != spec.get(key):
                         raise ValueError(f"guide data {key} conflicts with the analysis specification")
                 data_preview = preview_csv_data(

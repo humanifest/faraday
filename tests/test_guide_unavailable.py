@@ -41,3 +41,16 @@ def test_unavailable_capabilities_have_no_effect_or_fallback(
 def test_unknown_capability_fails_without_fallback() -> None:
     with pytest.raises(ValueError, match="unknown guide capability"):
         guide_unavailable_capability("remote_model_fallback")
+
+
+def test_deferred_next_experiment_and_design_boundaries_are_typed() -> None:
+    assert guide_unavailable_capability("model_specific_next_experiment")["status"] == "review_only"
+    assert guide_unavailable_capability("paired_observational_packet")["status"] == "review_only"
+
+
+def test_capability_goal_covers_the_deferred_register() -> None:
+    plan = json.loads((TODO.parent / "capability-milestones.json").read_text(encoding="utf-8"))
+    covered = {capability for job in plan["jobs"] for capability in job["capabilities"]}
+    assert covered == {f"T{number:02d}" for number in range(1, 12)}
+    assert plan["jobs"][0]["id"] == "C00"
+    assert plan["jobs"][-1]["id"] == "C12"

@@ -1,7 +1,8 @@
 # Deferred AI science guide capabilities
 
-Status: G08 typed stubs T01–T09 locally verified; T10–T11 record later
-workflow gaps and have no typed capability route yet. None of these integrations is
+Status: G08 typed stubs T01–T09 locally verified; C01 adds typed T10–T11
+boundaries and C02 adds a review-only T11 preview. T10's full proposal and
+external integrations remain open. None of these integrations is
 implemented or authorized by the goal plan. The guide returns `not_configured`
 or `unsupported` responses with negative tests for T01–T09. No stub
 may call a service, widen a claim ceiling, or silently fall back to another
@@ -19,7 +20,7 @@ provider. Owners below are contract owners, not assigned people.
 | T08 | Publication or high-confidence campaign claim: `unsupported` | Real data, domain validation, independent review and replication, disclosure and publication authority | Domain campaign owner; synthetic negative-result report fixture | Separate campaign acceptance and publication authorization |
 | T09 | Domain-specific construct validity: `unsupported` | Construct-specific reference, calibration criteria, source-bound validity findings, and independent assessment | Faraday domain researcher; synthetic contradicted-validity check | Reviewed validity evidence and the applicable frozen protocol gates |
 | T10 | Model-specific next-experiment candidate: `review_only` | A validated collaborator proposal tied to the current inquiry, explicit predictions for each competing model, falsifiers, and a prospective discrimination criterion | Faraday guide and domain reviewer; synthetic null/measurement/confounding proposal with an inconclusive next test | Independent review of the proposed discrimination and existing design/ethics gates before any execution |
-| T11 | Paired and observational guide packet preview: `unsupported` | Typed repeated-unit and covariate inventory, exact design/spec alignment, missingness policy, and method-specific claim ceilings | Faraday guide maintainer; paired duplicate/missing-pair and observational confounding fixtures | Bounded adverse guide checks plus exact-commit workflow replay for each design |
+| T11 | Paired and observational guide packet preview: `review_only` | Exact-commit workflow replay for both designs and independent assessment of method-specific claim ceilings | Faraday guide maintainer; paired duplicate/missing-pair and observational confounding fixtures | Bounded adverse guide checks plus exact-commit workflow replay for each design |
 
 The modularity and reconciliation branches contain proposals that may inform
 T03 and T05. They do not satisfy the activation gates here. Every later TODO
@@ -29,7 +30,7 @@ that evidence changes its status.
 
 ## G08 typed capability links
 
-The `research guide capability` route returns only a typed unavailable result,
+The `research guide capability` route returns only a typed boundary result,
 the matching TODO link, and explicit `false` effect and authority fields. The
 links below refine the existing register; T07 and T08 remain separate approval
 and publication boundaries.
@@ -83,6 +84,25 @@ Activation: T05's accepted cross-project contract.
 T06. Owner: Faraday persistence and Orca. Missing: transaction, conflict, and
 recovery semantics. First safe fixture: two-worker conflict on a disposable
 inquiry. Activation: T06's reviewed concurrency design.
+
+## model-specific-next-experiment
+
+T10. Status: `review_only`; this reports the proposal ceiling, not a validated
+model-specific candidate. Owner: Faraday guide and independent domain reviewer.
+Missing: inquiry-bound competing predictions, falsifiers, and a prospective
+discrimination criterion. First safe fixture: synthetic null, measurement, and
+confounding proposals with an inconclusive next test. Activation: independent
+design and ethics review before any experiment or canonical transition.
+
+## paired-observational-packet
+
+T11. Status: `review_only`. Owner: Faraday guide maintainer. The local packet
+now inventories pair structure, covariates, and missingness with a bounded
+claim ceiling. Missing: exact-commit workflow replay for both designs and
+independent assessment of method-specific applicability. First safe fixture:
+paired duplicate and missing pair plus observational missingness/confounding
+cases. Activation: bounded adverse guide checks plus exact-commit replay for
+each design.
 
 ## G08 work receipt (2026-10-08)
 

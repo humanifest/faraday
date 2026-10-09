@@ -153,3 +153,100 @@ def test_missing_and_conflicting_inputs_fail_closed(tmp_path: Path, capsys) -> N
                            "--data-file", str(data))
     assert code == 2 and "conflicts" in response["error"]["message"]
     assert not workspace.exists()
+
+
+def test_paired_packet_previews_repeated_units_and_adverse_pairs(tmp_path: Path, capsys) -> None:
+    brief, _, _, _, _ = _inputs(tmp_path)
+    spec = {
+        "method": "paired_mean_difference_ci", "study_design": "paired",
+        "pair_column": "pair", "group_column": "group", "outcome_column": "outcome",
+        "groups": ["treatment", "control"], "seed": 17,
+    }
+    spec_file = _write(tmp_path / "paired-spec.json", spec)
+    data_spec = _write(tmp_path / "paired-data-spec.json", {
+        **spec, "measurement_definitions": [{
+            "measurement_id": "paired-score-v1", "data_column": "outcome",
+            "scale_type": "interval", "unit": "synthetic points",
+            "admissible_values": [], "missing_value_codes": ["<blank>"],
+            "valid_min": 0.0, "valid_max": 100.0,
+        }],
+    })
+    data = tmp_path / "paired.csv"
+    data.write_text("pair,group,outcome\np1,treatment,4\np1,control,2\np2,treatment,6\np2,control,3\n")
+    workspace = tmp_path / "workspace"
+    args = ("--brief-file", str(brief), "--analysis-spec-file", str(spec_file),
+            "--data-spec-file", str(data_spec), "--data-file", str(data))
+    code, response = _call(workspace, capsys, *args)
+    assert code == 0
+    preview = response["result"]["data_preview"]
+    assert preview["quality_issues"] == []
+    assert preview["unit_count"] == 2
+    assert preview["design_inventory"]["pair_count"] == 2
+    assert preview["design_inventory"]["incomplete_pair_count"] == 0
+    assert preview["columns"][0]["role"] == "pair_identity"
+    assert response["result"]["scientific_evidence_eligible"] is False
+
+    data.write_text("pair,group,outcome\np1,treatment,4\np1,treatment,5\np2,control,3\n")
+    code, response = _call(workspace, capsys, *args)
+    assert code == 0 and response["result"]["status"] == "blocked"
+    assert "duplicate pair-group observations" in preview_issues(response)
+    assert "incomplete paired observations" in preview_issues(response)
+    assert not workspace.exists()
+
+
+def preview_issues(response: dict) -> list[str]:
+    return response["result"]["data_preview"]["quality_issues"]
+
+
+def test_observational_packet_inventory_and_spec_alignment(tmp_path: Path, capsys) -> None:
+    brief, _, _, _, _ = _inputs(tmp_path)
+    spec = {
+        "method": "adjusted_linear_effect", "study_design": "independent_groups",
+        "unit_column": "unit", "group_column": "group", "outcome_column": "outcome",
+        "groups": ["treatment", "control"], "covariate_columns": ["baseline"],
+        "missing_data_policy": "complete_case", "confidence_level": 0.95,
+    }
+    spec_file = _write(tmp_path / "observational-spec.json", spec)
+    data_spec = _write(tmp_path / "observational-data-spec.json", {
+        **spec, "measurement_definitions": [{
+            "measurement_id": "observational-score-v1", "data_column": "outcome",
+            "scale_type": "interval", "unit": "synthetic points",
+            "admissible_values": [], "missing_value_codes": ["<blank>"],
+            "valid_min": 0.0, "valid_max": 100.0,
+        }],
+    })
+    data = tmp_path / "observational.csv"
+    data.write_text("unit,group,outcome,baseline\nu1,treatment,8,1\nu2,control,4,\n")
+    workspace = tmp_path / "workspace"
+    args = ("--brief-file", str(brief), "--analysis-spec-file", str(spec_file),
+            "--data-spec-file", str(data_spec), "--data-file", str(data))
+    code, response = _call(workspace, capsys, *args)
+    assert code == 0
+    inventory = response["result"]["data_preview"]["design_inventory"]
+    assert inventory["covariate_columns"] == ["baseline"]
+    assert inventory["covariate_missing_count"] == {"baseline": 1}
+    assert inventory["complete_case_exclusion_count"] == 1
+    assert inventory["causal_identification_verified"] is False
+    assert "confounding" in inventory["claim_ceiling"]
+    assert response["result"]["data_preview"]["quality_issues"] == []
+
+    no_policy = dict(spec)
+    no_policy.pop("missing_data_policy")
+    _write(spec_file, no_policy)
+    _write(data_spec, {**no_policy, "measurement_definitions": changed_measurements(data_spec)})
+    code, response = _call(workspace, capsys, *args)
+    assert code == 0 and response["result"]["status"] == "blocked"
+    assert "missing adjusted-analysis values require an explicit complete_case policy" in preview_issues(response)
+    _write(spec_file, spec)
+    _write(data_spec, {**spec, "measurement_definitions": changed_measurements(data_spec)})
+
+    changed = json.loads(data_spec.read_text())
+    changed["covariate_columns"] = ["different"]
+    _write(data_spec, changed)
+    code, response = _call(workspace, capsys, *args)
+    assert code == 2 and "covariate_columns conflicts" in response["error"]["message"]
+    assert not workspace.exists()
+
+
+def changed_measurements(path: Path) -> list[dict]:
+    return json.loads(path.read_text(encoding="utf-8"))["measurement_definitions"]
