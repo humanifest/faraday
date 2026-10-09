@@ -99,7 +99,10 @@ verification outside the worker. Activation: T04's independent identity gate.
 ## metamaps-compilation
 
 T05. Owner: Metamaps and Orca. Missing: versioned projection/interface and
-stale-dependency replay. First safe fixture: changed-source invalidation.
+real owner comparison. C09 compares an opaque synthetic projection receipt
+against supplied source fingerprints and required constraint IDs. Changed
+sources or missing constraints make the local view stale; matching pins still
+await an accepted owner compiler and do not establish graph semantics.
 Activation: T05's accepted cross-project contract.
 
 ## concurrent-writes

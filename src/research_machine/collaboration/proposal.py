@@ -2313,3 +2313,60 @@ def preview_independent_reviewer_claim(
         "authorized_actions": [],
         "canonical_writes_performed": False,
     }
+
+
+def preview_metamaps_projection_pin(
+    receipt: dict[str, Any],
+    current_source_sha256: dict[str, str],
+    required_constraint_ids: list[str],
+) -> dict[str, Any]:
+    """Compare opaque source pins; do not compile or interpret a graph."""
+    if not isinstance(receipt, dict):
+        raise ValidationError("Metamaps projection receipt must be an object")
+    _exact_fields(receipt, {
+        "receipt_version", "compiler_id", "compiler_version", "projection_kind",
+        "projection_sha256", "source_sha256", "constraint_ids",
+    }, "Metamaps projection receipt")
+    if type(receipt["receipt_version"]) is not int or receipt["receipt_version"] != 1:
+        raise ValidationError("Metamaps projection receipt version must be 1")
+    for field in ("compiler_id", "compiler_version", "projection_kind"):
+        _canonical_text(receipt[field], f"Metamaps {field}")
+    if not isinstance(receipt["projection_sha256"], str) or not _SHA256.fullmatch(receipt["projection_sha256"]):
+        raise ValidationError("Metamaps projection SHA-256 is invalid")
+    pinned = receipt["source_sha256"]
+    if not isinstance(pinned, dict) or not pinned:
+        raise ValidationError("Metamaps source pins must be a nonempty object")
+    if not isinstance(current_source_sha256, dict) or not current_source_sha256:
+        raise ValidationError("Metamaps current source pins must be a nonempty object")
+    for label, mapping in (("pinned", pinned), ("current", current_source_sha256)):
+        for source_id, digest in mapping.items():
+            _canonical_text(source_id, f"Metamaps {label} source id")
+            if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+                raise ValidationError(f"Metamaps {label} source SHA-256 is invalid")
+    constraint_ids = receipt["constraint_ids"]
+    for label, values in (("pinned", constraint_ids), ("required", required_constraint_ids)):
+        if (
+            not isinstance(values, list)
+            or not values
+            or any(not isinstance(item, str) or not item or item != item.strip() for item in values)
+            or len(values) != len(set(values))
+        ):
+            raise ValidationError(f"Metamaps {label} constraint IDs must be distinct canonical strings")
+    changed_sources = sorted(
+        source_id for source_id in set(pinned) | set(current_source_sha256)
+        if pinned.get(source_id) != current_source_sha256.get(source_id)
+    )
+    missing_constraints = sorted(set(required_constraint_ids) - set(constraint_ids))
+    return {
+        "projection_sha256_claimed": receipt["projection_sha256"],
+        "compiler_id_claimed": receipt["compiler_id"],
+        "compiler_version_claimed": receipt["compiler_version"],
+        "changed_source_ids": changed_sources,
+        "missing_constraint_ids": missing_constraints,
+        "source_pin_matches_supplied_fingerprints": not changed_sources,
+        "status": "stale_or_incomplete" if changed_sources or missing_constraints else "awaiting_owner_compilation_verification",
+        "owner_compilation_verified": False,
+        "graph_semantics_verified": False,
+        "grants_authority": False,
+        "canonical_writes_performed": False,
+    }

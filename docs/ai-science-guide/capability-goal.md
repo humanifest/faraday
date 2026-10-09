@@ -235,3 +235,24 @@ reported 1 passed. The full suite reported 3409 passed and 2 optional skips.
 Effects were disposable synthetic context, proposal, review, and pytest
 state. No external identity service, network, approval, or remote Git write
 occurred. Exact-commit capability replay remains for C12.
+
+## C09 receipt (2026-10-08)
+
+Base commit: `66745d0c3c4c333c8fb28d0223aea278077c7566`. Changed
+`collaboration/proposal.py`, `tests/test_guide_contract.py`, this plan,
+the milestone JSON, and `TODO.md`. The local fixture compares an opaque
+claimed projection receipt with supplied source SHA-256 fingerprints and
+nonempty required constraint IDs. Changed or omitted sources and missing
+constraints mark the view stale. Matching pins remain
+`awaiting_owner_compilation_verification`; no Metamaps compiler is invoked,
+and neither graph meaning nor execution authority is inferred. The real
+owner interface, signed provenance, current-source acquisition, and compiler
+comparison remain TODOs.
+
+Focused check with umask 077, disabled bytecode and plugin autoload, empty
+external add-on path, and no pytest cache:
+`.venv/bin/python -m pytest -o addopts= -q -p no:cacheprovider
+tests/test_guide_contract.py` reported 2 passed. The full suite reported
+3410 passed and 2 optional skips. Effects were disposable synthetic and
+pytest state only. No external graph service, network, approval, or remote
+Git write occurred. Exact-commit capability replay remains for C12.

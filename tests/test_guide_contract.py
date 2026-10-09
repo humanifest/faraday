@@ -16,6 +16,7 @@ from research_machine.collaboration.proposal import (
     adjudicate_collaborator_proposal,
     create_context_snapshot,
     preview_independent_reviewer_claim,
+    preview_metamaps_projection_pin,
     validate_collaborator_proposal,
     verify_collaborator_proposal_record,
 )
@@ -116,6 +117,8 @@ def test_guide_reuses_hash_bound_read_only_collaborator_contract(tmp_path: Path)
         Path(result["record_file"]), result["record_sha256"]
     )["record_status"] == "pending_human_review"
     assert service.show_inquiry() == before
+
+
     assert service.verify_ledger()["valid"] is True
 
     with pytest.raises(ValidationError, match="trusted SHA-256"):
@@ -208,3 +211,39 @@ def test_guide_reuses_hash_bound_read_only_collaborator_contract(tmp_path: Path)
             forged, reviewed["record_sha256"], claim,
         )
     assert service.show_inquiry() == before
+
+
+def test_metamaps_pin_fixture_invalidates_changed_sources_and_missing_constraints() -> None:
+    receipt = {
+        "receipt_version": 1,
+        "compiler_id": "synthetic-owner-contract",
+        "compiler_version": "fixture-1",
+        "projection_kind": "constraints",
+        "projection_sha256": "a" * 64,
+        "source_sha256": {"requirement:1": "b" * 64, "decision:1": "c" * 64},
+        "constraint_ids": ["privacy", "scientific-review"],
+    }
+    current = dict(receipt["source_sha256"])
+    pending = preview_metamaps_projection_pin(
+        receipt, current, ["privacy", "scientific-review"],
+    )
+    assert pending["status"] == "awaiting_owner_compilation_verification"
+    assert pending["source_pin_matches_supplied_fingerprints"] is True
+    assert pending["owner_compilation_verified"] is False
+    assert pending["graph_semantics_verified"] is False
+    assert pending["grants_authority"] is False
+
+    stale = preview_metamaps_projection_pin(
+        receipt, {**current, "decision:1": "d" * 64},
+        ["privacy", "scientific-review", "ethics"],
+    )
+    assert stale["status"] == "stale_or_incomplete"
+    assert stale["changed_source_ids"] == ["decision:1"]
+    assert stale["missing_constraint_ids"] == ["ethics"]
+    assert stale["owner_compilation_verified"] is False
+    with pytest.raises(ValidationError, match="source SHA-256 is invalid"):
+        preview_metamaps_projection_pin(receipt, {"requirement:1": "bad"}, [])
+    with pytest.raises(ValidationError, match="distinct canonical strings"):
+        preview_metamaps_projection_pin(receipt, current, ["privacy", "privacy"])
+    with pytest.raises(ValidationError, match="distinct canonical strings"):
+        preview_metamaps_projection_pin(receipt, current, [])
