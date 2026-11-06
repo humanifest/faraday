@@ -40,3 +40,6 @@ version = {attr = "research_machine.__version__"}
 pythonpath = ["src", "."]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.setuptools.package-data]
+"research_machine.interfaces" = ["beginner.html", "beginner.js"]

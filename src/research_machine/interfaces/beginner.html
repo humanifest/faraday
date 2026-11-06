@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Faraday — follow your question</title>
+<style nonce="__TOKEN__">
+:root{color-scheme:light;--page:#f4f7fb;--panel:#fff;--ink:#172b4d;--primary:#175cd3;--primary-hover:#124aa8;--accent:#0891b2;--accent-ink:#0e7490;--border:#cbd5e1;--control-border:#64748b;--muted:#475569;--notice:#92400e;--notice-bg:#fffbeb;--error:#912c20}
+*{box-sizing:border-box}
+body{font:1.125rem/1.6 system-ui,sans-serif;max-width:54rem;margin:auto;padding:1.25rem;background:var(--page);color:var(--ink)}
+h1,h2{line-height:1.25}header{border-top:4px solid var(--accent);padding-top:1rem}
+section{background:var(--panel);padding:1.25rem;margin:1.125rem 0;border:1px solid var(--border);border-radius:.75rem;scroll-margin-top:1rem}
+h2{border-left:3px solid var(--accent);padding-left:.75rem}
+label{display:block;font-weight:600}textarea,input,select,button{font:inherit;padding:.65rem}
+textarea,input,select{color:var(--ink);background:var(--panel);border:1px solid var(--control-border);border-radius:.35rem}
+textarea{display:block;width:100%;min-height:7rem}
+button{cursor:pointer;margin:.65rem .4rem .65rem 0;background:var(--primary);color:#fff;border:2px solid transparent;border-radius:.4rem}
+button:hover:not(:disabled){background:var(--primary-hover)}
+button:disabled{background:var(--muted);cursor:default}
+input{width:100%;min-width:8rem}
+textarea:read-only{background:var(--page)}
+input[aria-invalid="true"],textarea[aria-invalid="true"]{border:3px solid var(--error)}
+:focus-visible{outline:3px solid var(--accent-ink);outline-offset:3px}
+.notice,#error{border-left:5px solid var(--notice);padding:.8rem}
+.notice{color:var(--notice);background:var(--notice-bg)}
+#error{border:2px solid var(--error);color:#702014;background:var(--panel)}
+.table-scroll{max-width:100%;overflow-x:auto}
+pre{white-space:pre-wrap;overflow-wrap:anywhere}
+#history-select,#simulation-case{max-width:100%}
+#simulation-identifiers,#simulation-saved-identifiers,#simulation-replay-status,#published-example-status{overflow-wrap:anywhere}
+#simulation-canonical-report{overflow-wrap:anywhere;font:inherit}
+#simulation-canonical-report p{white-space:pre-wrap}
+#simulation-canonical-report h3,#simulation-canonical-report h4,#simulation-canonical-report h5,#simulation-canonical-report h6{scroll-margin-top:1rem}
+#simulation-canonical-report nav ul{display:block;list-style:disc;padding-left:1.5rem}
+#history-content{overflow-wrap:anywhere}#history-content p{white-space:pre-wrap}
+table{width:100%;min-width:30rem;border-collapse:collapse}
+td,th{text-align:left;padding:.5rem;border-bottom:1px solid var(--border)}
+th{background:var(--page);color:var(--ink)}
+caption{text-align:left;font-weight:600}
+nav ul{display:flex;gap:.4rem 1rem;flex-wrap:wrap;list-style:none;padding:0}
+a{color:var(--primary);text-underline-offset:.2em}a:hover{color:var(--primary-hover)}
+small{display:block;color:var(--muted)}
+.eyebrow{font-size:.85rem;letter-spacing:.08em;color:var(--muted);font-weight:700}#advanced-tools{margin:2rem 0}summary{cursor:pointer;font-weight:600}#simulation-result{white-space:pre-line;font-size:1.2rem}header h1{font-size:2.4rem}
+.skip{position:absolute;left:-10000px}.skip:focus{position:static}
+/* Question-first notebook: scientific tools retain their existing controls. */
+:root{--page:#f3f1e9;--panel:#fffef9;--ink:#173730;--primary:#214b40;--primary-hover:#163b32;--accent:#b75435;--accent-ink:#9c4328;--border:#d1d9ce;--control-border:#819588;--muted:#53685e;--notice:#75441e;--notice-bg:#f7eddb}
+[hidden]{display:none!important}body{max-width:76rem;padding:1.25rem 2rem 3rem;font:1rem/1.55 system-ui,sans-serif}h1,h2,h3{font-family:Georgia,serif;font-weight:400;letter-spacing:-.025em}h2{border:0;padding:0;font-size:1.8rem}h3{font-size:1.45rem;line-height:1.2}section{margin:0 0 1rem;padding:1.4rem;border-radius:1rem}header.app-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;border:0;border-bottom:1px solid var(--border);padding:.5rem 0 1.3rem;margin-bottom:1rem}.app-header p{font-size:.85rem;color:var(--muted);margin:0}.brand{font-weight:750;letter-spacing:.2em;text-decoration:none;color:var(--ink);display:flex;align-items:center;gap:.7rem}.brand span{width:2rem;height:2rem;background:var(--ink);color:var(--panel);display:grid;place-items:center;border-radius:50%;font-family:Georgia,serif;font-size:1.7rem;letter-spacing:0;font-style:italic}.privacy-line{color:var(--muted);font-size:.8rem}button{font-size:.9rem;border-radius:.6rem;padding:.65rem 1rem;min-height:2.75rem}button.secondary{background:var(--panel);border:1px solid var(--control-border);color:var(--ink)}button.secondary:hover:not(:disabled){background:#e5ecd9}.text-button{color:var(--ink);background:transparent;font-size:.8rem;text-decoration:underline;text-underline-offset:.2em}.text-button:hover:not(:disabled){color:var(--primary-hover);background:transparent}.eyebrow{font-size:.7rem;letter-spacing:.16em;color:var(--muted)}label{font-size:.86rem;margin:.6rem 0 .3rem}small{font-size:.78rem;margin:.4rem 0}textarea,input,select{font-size:1rem;border-radius:.5rem;max-width:100%;min-width:0}textarea{min-height:6rem}p,li,summary{overflow-wrap:anywhere}.question-entry{background:transparent;border:0;padding:2rem 0 1.5rem;max-width:58rem;margin:0 auto 1.5rem}.question-entry h1{font-size:clamp(2.2rem,5vw,3.7rem);line-height:1.07;margin:.8rem 0 1rem}.question-entry h1 em{color:var(--accent)}.intro-copy{max-width:35rem;color:var(--muted);font-size:1.08rem;margin-bottom:1.8rem}.question-composer{background:var(--panel);border:1px solid var(--border);border-radius:1rem;padding:1.4rem;box-shadow:0 .4rem 1.6rem #1737300a}.question-composer #statement{border:0;padding:.3rem 0;font-size:1.35rem;min-height:7rem}.question-actions{display:flex;justify-content:flex-end;gap:.6rem;flex-wrap:wrap;margin-top:1rem}.question-actions button{margin:0}.question-gallery{margin:1.5rem 0}.question-gallery summary,.question-entry>details>summary{font-size:.85rem;color:var(--muted)}.question-examples{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.8rem;margin:1rem 0}.question-examples .example-choice{color:var(--ink);background:var(--panel);border:1px solid var(--border);text-align:left;margin:0;padding:1rem;font-size:.9rem}.question-examples .example-choice:hover{background:#e5ecd9}.example-choice small{color:var(--muted);font-size:.7rem}.question-entry.compact{padding:.8rem 0;margin-bottom:1rem}.question-entry.compact .question-gallery{margin:.6rem 0}.question-entry.compact .question-composer{box-shadow:none}.question-entry.compact #statement{min-height:3.5rem;font-size:1.05rem}#workspace-shell{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(16rem,1fr);gap:1.2rem;align-items:start}#workspace{grid-column:1;grid-row:1/span 2}#explanations{grid-column:2;grid-row:1}#reflect{grid-column:2;grid-row:2}#optional-examples{grid-column:1/-1;border-top:1px solid var(--border);padding-top:1rem;margin-top:.5rem}#optional-examples>summary{font-weight:500;color:var(--muted)}#optional-examples section{margin-top:1rem}.workspace-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.workspace-heading p{margin:0}.workspace-heading button{margin:0}.adaptive-workspace h2{font-size:clamp(1.65rem,3.1vw,2.2rem);line-height:1.17;margin:1rem 0 1.2rem;overflow-wrap:anywhere}.workspace-prompt{color:var(--muted);font-size:.9rem}.workspace-routes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin:1.2rem 0}.workspace-routes button{background:var(--panel);color:var(--ink);border:1px solid var(--border);text-align:left;margin:0;padding:.85rem;transition:transform .15s,background .15s}.workspace-routes button:hover{background:#e5ecd9}.workspace-routes button[aria-pressed="true"]{background:#dce8c0;border-color:#53704c;transform:translateY(-2px)}.workspace-routes strong{font-size:.9rem;font-weight:600}.workspace-routes small{font-size:.72rem;margin:.2rem 0;color:var(--muted)}#workspace-status{font-size:.8rem;color:var(--muted)}.workspace-canvas{border-top:1px solid var(--border);padding-top:1rem;margin-top:1rem}.workspace-canvas h3{margin:.5rem 0 1.2rem}.workspace-canvas p:not(.eyebrow){font-size:.85rem;color:var(--muted)}.workspace-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}.model-flow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:.7rem;align-items:center;margin:1.5rem 0}.model-flow span:first-child,.model-flow span:last-child{padding:1rem;background:var(--page);border:1px solid var(--border);border-radius:.7rem;overflow-wrap:anywhere}.source-lanes{display:grid;grid-template-columns:1fr;gap:.6rem}.source-lanes textarea{min-height:5rem}#workspace-measurement{border-top:1px solid var(--border);padding-top:.8rem;margin-top:1rem}.workspace-tools{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.workspace-tools button{margin:0;font-size:.8rem}#explanations h2,#reflect h2{font-size:1.55rem;margin:.3rem 0 1rem}#explanations,#reflect{background:var(--panel)}#reflect #next-question{background:transparent;color:var(--ink);border:1px solid var(--border)}#advanced-tools{border-top:1px solid var(--border);padding-top:1.2rem;margin-top:2rem}#advanced-tools>summary{font-size:1rem;color:var(--ink)}#advanced-tools>section{margin-top:1.2rem}.workspace-help{font-size:.85rem;color:var(--muted)}
+@media(max-width:850px){body{padding:1rem}#workspace-shell{grid-template-columns:1fr}#workspace,#explanations,#reflect,#optional-examples{grid-column:1;grid-row:auto}#workspace{order:0}#explanations{order:1}#reflect{order:2}#optional-examples{order:3}.question-entry{padding:1.2rem 0}.app-header p{display:none}.workspace-fields{grid-template-columns:1fr}.question-examples{grid-template-columns:1fr}.question-composer{padding:1rem}.question-composer #statement{font-size:1.15rem}.question-actions{justify-content:stretch}.question-actions button{flex:1}.workspace-heading{align-items:start}.workspace-heading .text-button{max-width:8rem}section{padding:1rem}.model-flow{gap:.4rem}.model-flow span:first-child,.model-flow span:last-child{padding:.7rem}}
+@media(prefers-reduced-motion:reduce){.workspace-routes button{transition:none}}
+.question-entry.compact .question-composer{display:none}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the investigation</a>
+<header class="app-header"><a class="brand" href="#question" aria-label="Faraday: your question"><span aria-hidden="true">ƒ</span> FARADAY</a><p>A workbench for curious minds</p></header>
+<main id="main" tabindex="-1">
+<p class="privacy-line">Private working notebook · Keep identifying and sensitive details out of your notes.</p>
+<noscript><p class="notice">This prototype needs JavaScript to save drafts, save inquiries and calculate rehearsals.
+No automatic saving or calculation is available while JavaScript is disabled.</p></noscript>
+
+<div id="error" role="alert" tabindex="-1" hidden></div>
+<p id="draft-status" role="status" aria-live="polite" aria-atomic="true"></p>
+<button id="retry-draft" type="button" hidden>Retry server autosave</button>
+<button id="restore-draft" type="button" hidden>Download local copy and restore server draft</button>
+<button id="recover" type="button" hidden>Download unreadable draft unchanged</button>
+<p id="import-status" role="status" aria-atomic="true"></p>
+<button id="import-apply" type="button" hidden>Keep current copy and restore selected draft</button>
+<section id="question" class="question-entry" tabindex="-1" aria-labelledby="question-title">
+<div id="question-intro"><p class="eyebrow">EVERY INVESTIGATION STARTS SOMEWHERE</p><h1 id="question-title">What do you want<br>to <em>figure out?</em></h1><p class="intro-copy">Bring a hunch, a puzzle, or something that doesn’t add up. Start in your own words.</p></div>
+<div class="question-composer"><label for="statement">Your question, in your own words</label>
+<textarea id="statement" maxlength="2000" placeholder="I’ve been wondering…" aria-describedby="question-help"></textarea>
+<small id="question-help">Your notes save as you type. Saving the question keeps your original words; a new question gets its own notebook.</small>
+<div class="question-actions"><button id="workspace-start" type="button">Explore this question ↗</button><button id="save" type="button" class="secondary">Save my question</button></div>
+<p id="question-save-message" role="status" aria-atomic="true"></p></div>
+<details class="question-gallery"><summary>Or borrow a question to try it out</summary><div class="question-examples"><button id="example-buses" type="button" class="example-choice"><small>Everyday patterns</small>Are buses getting less reliable?</button><button id="example-model" type="button" class="example-choice"><small>How things work</small>How does a pendulum’s length change its swing?</button><button id="example-shade" type="button" class="example-choice"><small>Optional practice example</small>Does shade change surface temperature?</button></div><p id="workspace-example-status" role="status" aria-atomic="true"></p></details>
+<details><summary>Saved question details and recovery</summary><p id="saved" role="status" aria-atomic="true"></p><button id="inspect-inquiry" type="button">Check existing saved question</button><button id="link-inquiry" type="button" hidden>Link checked saved question without writing</button><p id="inspect-status" role="status" aria-atomic="true"></p></details>
+</section>
+<div id="workspace-shell" hidden>
+<section id="workspace" class="adaptive-workspace" aria-labelledby="workspace-question-title">
+<div class="workspace-heading"><p class="eyebrow">YOUR INVESTIGATION</p><button id="workspace-edit" type="button" class="text-button">View / edit question</button></div><h2 id="workspace-question-title"></h2><button id="workspace-save" type="button">Save my question</button><p id="workspace-save-status" role="status" aria-atomic="true"></p>
+<p class="workspace-prompt">What would help you answer it? Choose a starting approach—you can change it as you learn.</p>
+<div class="workspace-routes" role="group" aria-label="Investigation approach"><button id="route-compare" type="button" aria-pressed="false"><strong>Compare</strong><small>Groups or possibilities</small></button><button id="route-track" type="button" aria-pressed="false"><strong>Track a change</strong><small>A pattern across time</small></button><button id="route-model" type="button" aria-pressed="false"><strong>Test a model</strong><small>Inputs and predictions</small></button><button id="route-sources" type="button" aria-pressed="false"><strong>Weigh evidence</strong><small>Sources and competing claims</small></button></div>
+<p id="workspace-status" role="status" aria-atomic="true">Choose an approach. Your question stays in your words.</p>
+<div id="canvas-compare" class="workspace-canvas" hidden><p class="eyebrow">COMPARE POSSIBILITIES</p><h3>What would you compare?</h3><div class="workspace-fields"><div><label for="workspace-comparison_a">First group or condition</label><input id="workspace-comparison_a" maxlength="2000" placeholder="Name one group or condition"></div><div><label for="workspace-comparison_b">Second group or condition</label><input id="workspace-comparison_b" maxlength="2000" placeholder="What would you compare it with?"></div></div><p id="workspace-comparison-summary"></p><p>What else might make the groups different? Think about what you could keep the same.</p></div>
+<div id="canvas-track" class="workspace-canvas" hidden><p class="eyebrow">FOLLOW A PATTERN</p><h3>What changes, and over what time?</h3><label for="workspace-time">Time scale or observation window</label><input id="workspace-time" maxlength="2000" placeholder="Hours, weeks, years—or a specific window"><p>A timeline needs observation times, units and a missing-data plan. Repeated readings are not automatically independent observations.</p></div>
+<div id="canvas-model" class="workspace-canvas" hidden><p class="eyebrow">MAKE AN IDEA TESTABLE</p><h3>If this changes, what should happen?</h3><div class="workspace-fields"><div><label for="workspace-model_input">Input or parameter</label><input id="workspace-model_input" maxlength="2000" placeholder="What would you change?"></div><div><label for="workspace-model_output">Predicted outcome</label><input id="workspace-model_output" maxlength="2000" placeholder="What would you observe?"></div></div><div class="model-flow"><span id="workspace-model-input-label">Your input</span><span aria-hidden="true">→</span><span id="workspace-model-output-label">Your predicted outcome</span></div><label for="workspace-model_relation">What relation do you expect, and why?</label><textarea id="workspace-model_relation" maxlength="2000" placeholder="When… I expect… because…"></textarea><small>This is a proposed model. No model has been run or validated.</small></div>
+<div id="canvas-sources" class="workspace-canvas" hidden><p class="eyebrow">PUT CLAIMS SIDE BY SIDE</p><h3>What does the evidence actually say?</h3><div class="source-lanes"><div><label for="workspace-source_supports">Might support</label><textarea id="workspace-source_supports" maxlength="2000" placeholder="A reference, observation, or passage"></textarea></div><div><label for="workspace-source_challenges">Might challenge</label><textarea id="workspace-source_challenges" maxlength="2000" placeholder="Contradictions matter too"></textarea></div><div><label for="workspace-source_unclear">Still unclear</label><textarea id="workspace-source_unclear" maxlength="2000" placeholder="What needs checking?"></textarea></div></div><small>Your working source notes are unverified. No source search, scientific review or evidence admission is performed here.</small></div>
+<div id="workspace-measurement" hidden><label for="workspace-outcome">What would you measure or observe?</label><input id="workspace-outcome" maxlength="2000" placeholder="An observable outcome and its units"><small>For example, how far something goes, in metres.</small></div>
+<section id="practice-comparison" hidden aria-labelledby="practice-comparison-title">
+<h3 id="practice-comparison-title">Try your comparison with made-up numbers</h3>
+<p>Practice finding a difference between two averages. Faraday gives you four invented readings for each group. Real measurements would be needed to answer your question.</p>
+<button id="practice-preview" type="button">Show made-up readings</button>
+<button id="practice-run" type="button" disabled>Compare the averages</button>
+<button id="practice-replay" type="button" disabled>Run the same comparison again</button>
+<p id="practice-status" role="status" aria-atomic="true"></p>
+<div id="practice-readings"></div>
+<p id="practice-result"></p>
+</section>
+<div class="workspace-tools"><button id="workspace-plan" type="button" class="secondary">Plan this investigation</button><button id="workspace-analysis" type="button" class="secondary">Open detailed analysis tools</button></div><small id="workspace-method-help">The approach organizes your notes. It does not select an estimator, approve a design, or execute an analysis.</small>
+</section>
+<section id="explanations" tabindex="-1" aria-labelledby="explanations-title">
+<h2 id="explanations-title">What might be going on?</h2><details><summary>Some ideas to think about</summary><ul id="alternatives"></ul></details>
+<label for="prediction">Your current explanation or prediction</label>
+<textarea id="prediction" maxlength="10000"></textarea><label for="workspace-alternative">What else could explain it?</label><textarea id="workspace-alternative" maxlength="2000" placeholder="Another possibility is…"></textarea><label for="workspace-rethink">What would change your mind?</label><textarea id="workspace-rethink" maxlength="2000" placeholder="I would rethink this if…"></textarea>
+</section><details id="optional-examples"><summary>Optional examples · practice with made-up or published data</summary><section id="simulation" tabindex="-1" aria-labelledby="simulation-title">
+<h2 id="simulation-title">Shade and surface temperature · optional practice</h2>
+<p>These readings practice one example; they do not answer an unrelated question. Choose some made-up temperatures. °C means degrees Celsius: bigger numbers mean warmer temperatures. Look at the readings before you calculate. Do you expect the sunny or shaded readings to be warmer?</p>
+<label for="simulation-case">Choose an example</label>
+<select id="simulation-case">
+<option value="positive">Example A</option><option value="null">Example B</option>
+<option value="negative">Example C</option><option value="missing">Example D — a missing reading</option>
+<option value="invalid">Example E — a broken reading</option>
+</select>
+<button id="simulation-prepare" type="button">Look at the example data</button>
+<button id="simulation-run" type="button" disabled>Compare the temperatures</button>
+
+
+<p id="simulation-status" role="status" aria-atomic="true">Choose an example, then select Look at the example data.</p>
+<div id="simulation-design" role="region" aria-label="Example temperatures"></div><p id="simulation-result" tabindex="-1" role="status" aria-atomic="true">Compare the example temperatures to see a result here.</p><button id="simulation-download" type="button" disabled>Save my science notes</button><small>Checked shade-example notes only. These made-up readings do not answer your own question.</small>
+
+</section></details><section id="reflect" tabindex="-1" aria-labelledby="reflect-title"><h2 id="reflect-title">What have you learned?</h2><label for="reflection">What do you think now? What else could explain this? What would you try next?</label>
+<textarea id="reflection" maxlength="10000"></textarea><button id="workspace-download" type="button">Download notebook notes</button><small>Your question, approach, explanations, source notes and reflection. Your download also includes any practice result shown here.</small><p id="workspace-download-status" role="status" aria-atomic="true"></p><button id="next-question" type="button" aria-describedby="next-question-status">Ask another question</button>
+<p id="next-question-status" role="status" aria-atomic="true">Ready for a new question? Keep a copy of your current notes first. Earlier saved work stays in Faraday.</p>
+</section></div><details id="advanced-tools"><summary>Study planning, analysis and replay</summary><p class="notice"><strong>Developer prototype · Scientific review unresolved.</strong>
+Use one tab and one writer at a time. Use made-up readings or attributed published examples for rehearsal only. Keep published-data citations and measurement limits in the planning notes. New real collection, scientific evidence and public sharing are unavailable.
+Choose data and computational work within their permitted scope. Keep unresolved ethical, validity and review decisions visible.</p><section id="detailed-hypothesis" aria-labelledby="detailed-hypothesis-title"><h2 id="detailed-hypothesis-title">Detailed hypothesis record</h2><details><summary>Write a falsifiable hypothesis</summary>
+<p id="hypothesis-help">State a proposition, an observable prediction, a null model, other explanations, observations that would count against it, and its scope. Notes save with this notebook. List earlier hypothesis references when this revises or narrows an existing proposal; leave lineage blank for a new candidate. Original saved hypotheses are never overwritten. Save the original question first, then explicitly submit a complete proposal. The service records it as unreviewed; it cannot approve a design, freeze a confirmatory protocol or admit evidence.</p>
+<div id="hypothesis-fields"></div>
+<button id="hypothesis-save" type="button" disabled>Save unreviewed hypothesis</button>
+<button id="hypothesis-inspect" type="button" disabled>Check saved hypothesis without writing</button>
+<p id="hypothesis-status" role="status" aria-atomic="true">Save or link the exact original question before submitting a hypothesis.</p>
+<div id="hypothesis-saved" role="region" aria-label="Checked hypothesis proposal"></div>
+</details>
+</section><section id="plan" tabindex="-1" aria-labelledby="plan-title">
+<h2 id="plan-title">Review and plan a study</h2>
+<p>No review has been completed. A qualified person must resolve these choices before real research.</p>
+<p id="pathway-status" role="status">Loading unresolved review questions…</p><ul id="decisions"></ul>
+<p>Repeated observations are not automatically independent units. Keep your observable, its units and validity checks explicit.</p>
+<label for="reviewer-kind">Who contributed to these planning notes?</label>
+<select id="reviewer-kind" aria-describedby="review-context-help">
+<option value="unassigned">Not recorded</option><option value="human">Human</option>
+<option value="ai">AI</option><option value="hybrid">Human and AI</option></select>
+<label for="review-notes">Planning and review notes</label>
+<textarea id="review-notes" maxlength="10000" aria-describedby="review-context-help"></textarea>
+<small id="review-context-help">Optional working notes, saved with your rehearsal draft. Record questions, alternatives, limitations and checks still needed.
+Contributor identity and qualifications are unverified. These notes cannot approve a plan, clear a scientific decision or authorize real collection.
+Use roles rather than personal details. Scientific decisions remain unresolved.</small>
+<details><summary>Work through the planning questions</summary>
+<p id="planning-help">Leave unknown answers blank. These are private planning drafts, not amendments to a saved inquiry.
+Use one item per line for observations that would change your decision, data sources, and ethical constraints.
+Preserve your exact wording without surrounding spaces. Do not enter identifying details.</p>
+<div id="planning-fields"></div>
+<button id="planning-preview" type="button">Show unanswered planning questions</button>
+<p id="planning-status" role="status" aria-atomic="true"></p>
+<ul id="planning-unresolved"></ul><ul id="planning-models"></ul>
+</details>
+<details><summary>Draft a computational study</summary>
+<p id="design-help">Use existing non-human data or synthetic inputs to describe an exploratory computation around a saved hypothesis. Declare which data scope applies; human-related or uncertain data needs a separate reviewed path. This declaration does not verify rights, ethics or data validity. First save or check the exact hypothesis, and enter a study title, outcome and observation unit in the planning questions above. Keep unknown answers blank. Use one item per line for sources, gates, controls, conditions, outputs and environment requirements. Keep integrity gates separate from desired scientific results. The native preflight checks readiness without creating or freezing a protocol, running analysis or admitting evidence.</p>
+<div id="design-fields"></div>
+<button id="design-preview" type="button" disabled>Check computational design readiness</button>
+<p id="design-status" role="status" aria-atomic="true">Check a saved hypothesis before previewing its design.</p>
+<div id="design-result" role="region" aria-label="Computational design preflight"></div>
+<p>Checking readiness does not save a protocol. You may explicitly keep the checked proposal as a draft even while freeze readiness is blocked. Changed working notes create a separate draft; these controls never edit, amend or freeze earlier protocols.</p>
+<button id="protocol-draft-save" type="button" disabled>Save checked protocol as draft</button>
+<button id="protocol-draft-inspect" type="button" disabled>Check saved protocol draft without writing</button>
+<p id="protocol-draft-status" role="status" aria-atomic="true">Check the exact design before saving or finding its draft.</p>
+<div id="protocol-draft-result" role="region" aria-label="Checked protocol draft"></div>
+<details><summary>Compute from this draft</summary>
+<p id="computation-help">Retain an exploratory working computation with exact specification and CSV bytes, then run the bundled independent mean-difference method. This does not freeze the draft or test its scientific validity. Use synthetic or attributed non-human data only; do not paste private or human-participant data. These inputs are retained on explicit preparation, separately from notebook autosave. Download the bundle before closing. Maximum: 1000 CSV records, 100–5000 bootstrap resamples.</p>
+<button id="simulation-to-design" type="button" disabled>Use prepared simulation inputs for this design</button>
+<p id="simulation-to-design-status" role="status" aria-atomic="true">For a simulation workflow without editing JSON, choose Made-up synthetic data in the design and prepare a case in the Simulation step. This action copies its rechecked inputs and implementation identity for review. Replaced buffers are retained first. Design checking, draft save and execution remain separate actions.</p>
+<button id="computation-method" type="button">Show bundled method identity</button>
+<p id="computation-method-status" role="status" aria-atomic="true"></p>
+<label for="computation-spec">Analysis specification (JSON)</label>
+<textarea id="computation-spec" maxlength="12000" aria-describedby="computation-help"></textarea>
+<details><summary>Specification format</summary>
+<p>Use your actual column names and signed group order. Independent units and complete-case missingness are assumptions to justify, not properties established by this calculation. The seed fixes this bootstrap replay; it does not validate the study.</p>
+<pre>{"method":"independent_mean_difference_ci","study_design":"independent_groups","outcome_column":"value","group_column":"group","groups":["A","B"],"unit_column":"unit","seed":17,"bootstrap_resamples":1000,"confidence_level":0.95,"missing_data_policy":"complete_case","claim_ceiling":"Exploratory descriptive comparison only; no causal conclusion."}</pre>
+</details>
+<label for="computation-data">Exact input data (CSV)</label>
+<textarea id="computation-data" maxlength="40000" aria-describedby="computation-help"></textarea>
+<label for="computation-provenance">Data source, citation or generation procedure and limitations</label>
+<textarea id="computation-provenance" maxlength="4000" aria-describedby="computation-help"></textarea>
+<button id="computation-prepare" type="button" disabled>Retain computation inputs for checked draft</button>
+<button id="computation-run" type="button" disabled>Run retained exploratory computation</button>
+<button id="computation-download" type="button" disabled>Download private computation bundle</button>
+<button id="computation-portable-download" type="button" disabled>Download portable computation archive</button>
+<button id="computation-assess" type="button" disabled>Assess this computation outcome</button>
+<label for="computation-reopen">Reopen a private computation bundle (JSON)</label>
+<input id="computation-reopen" type="file" accept="application/json,.json">
+<p id="computation-status" role="status" aria-atomic="true">Save or inspect a protocol draft first. Inputs are not yet retained.</p>
+<pre id="computation-result" role="region" aria-label="Exploratory computation result"></pre>
+<details><summary>Restore and replay a portable archive</summary>
+<p>Restore an archive in this workspace without recreating canonical inquiries, hypotheses, protocols or evidence. The source snapshot remains an unauthenticated archived claim. Hash checks detect changed bytes against the retained commitments; they do not establish scientific correctness or authorship. Replay requires the same bundled implementation and is a new local attempt, not independent replication. Your current notebook stays unchanged.</p>
+<label for="portable-file">Portable computation archive (JSON, at most 1 MiB)</label>
+<input id="portable-file" type="file" accept="application/json,.json">
+<button id="portable-restore" type="button" disabled>Retain staged archive in this workspace</button>
+<button id="portable-cancel" type="button" disabled>Discard staged archive</button>
+<button id="portable-replay" type="button" disabled>Replay retained archive</button>
+<button id="portable-download" type="button" disabled>Download retained archive</button>
+<button id="portable-report" type="button" disabled>Download verified replay report</button>
+<button id="portable-assess-source" type="button" disabled>Assess the archived source outcome</button>
+<button id="portable-assess-replay" type="button" disabled>Assess the local replay outcome</button>
+<p id="portable-status" role="status" aria-atomic="true">Choose a portable archive, inspect its question, then explicitly retain it.</p>
+<pre id="portable-result" role="region" aria-label="Portable source and replay"></pre>
+</details>
+</details>
+</details>
+</section><section id="assessment" tabindex="-1" aria-labelledby="assessment-title">
+<h2 id="assessment-title">Assess the result and draft a follow-up question</h2>
+<p id="assessment-help">Choose an outcome using its Assess button above. Describe what you observed, its uncertainty, alternative explanations and limitations. These are your unreviewed working notes. Save explicitly, then download a private copy; this form is separate from notebook autosave. Saving does not admit evidence, review a hypothesis or create a ranked action recommendation. A follow-up question stays a proposal until you explicitly start a new inquiry.</p>
+<p id="assessment-source">No outcome selected.</p>
+<div id="assessment-fields"></div>
+<button id="assessment-save" type="button" disabled>Save result-bound working assessment</button>
+<button id="assessment-download" type="button" disabled>Download private assessment report</button>
+<button id="assessment-next" type="button" disabled>Stage this follow-up question</button>
+<label for="assessment-file">Reopen a saved assessment report (JSON)</label>
+<input id="assessment-file" type="file" accept="application/json,.json">
+<p id="assessment-status" role="status" aria-atomic="true">Choose a verified result or retained refusal before assessing it.</p>
+<pre id="assessment-result" role="region" aria-label="Result-bound working assessment"></pre>
+</section><section id="observe" tabindex="-1" aria-labelledby="observe-title">
+<h2 id="observe-title">Optional shade practice: data and recording notes</h2>
+<p id="measurement-help">Enter rehearsal surface temperatures in degrees Celsius, using a decimal point for fractions.
+Published examples must retain their citation, original measurement definition and transformation notes; they are a data replay, not a new experiment.
+Leave unavailable readings blank. Pair labels must be unique, without spaces at either end.
+These are rehearsal drafts autosaved to server after confirmation, not registered scientific observations.
+Server autosave is not an independent backup. Keep a private downloaded copy too.</p>
+<label for="recording_notes">Timing, missing readings and changes to instructions</label>
+<textarea id="recording_notes" maxlength="10000" aria-describedby="recording-help"></textarea>
+<p id="recording-help">Optional rehearsal notes. Use pair labels to connect notes to readings. Record the source or actual reading times and timezone if known; say when they are unknown. Explain unavailable readings and anything done differently from the instructions: what changed, when, why and what it might affect. Do not invent missing details. These notes retain context; they cannot clear a scientific review or deviation gate.</p>
+<div class="table-scroll" role="region" aria-label="Rehearsal readings table; scroll horizontally if needed" tabindex="0">
+<table><caption>Rehearsal pairs — degrees Celsius</caption>
+<thead><tr><th scope="col">Pair label</th><th scope="col">Shade °C</th><th scope="col">Sun °C</th></tr></thead>
+<tbody id="rows"></tbody></table></div>
+<button id="add" type="button">Add pair</button>
+<button id="preview" type="button">Show rehearsal differences</button>
+<p id="pair-status" role="status" aria-atomic="true"></p>
+<p>Edits retain earlier draft values. The server keeps versioned rehearsal drafts separately from scientific records. An empty browser restores the latest server draft. Offline edits are not protected on the server until autosave confirms.</p>
+</section><section id="results" tabindex="-1" aria-labelledby="results-title" aria-busy="false">
+<h2 id="results-title">Practice results, notebook history and recovery</h2>
+<p id="summary" role="status" aria-live="polite" aria-atomic="true">No rehearsal calculated yet.</p>
+<ul id="differences"></ul>
+<p>No confidence interval or independent sample size is estimated. A difference here does not show that shade caused it.</p>
+
+<details>
+<summary>Review earlier draft values</summary>
+<p id="history-help">Read-only snapshots retained before editing sessions. They are not timestamped observations or canonical audit records. Earlier private text may remain here and in your JSON download even after you replace it in the current draft. Browsing does not restore or approve anything.</p>
+<button id="history-review" type="button">Show earlier drafts</button>
+<p id="history-status" role="status" aria-atomic="true">Choose Show earlier drafts to inspect retained values.</p>
+<div id="history-controls" hidden>
+<label for="history-select">Earlier draft snapshot</label>
+<select id="history-select" aria-describedby="history-help"></select>
+</div>
+<div id="history-content" aria-label="Read-only earlier draft"></div>
+</details>
+<button id="export" type="button">Download private rehearsal draft</button>
+<button id="report" type="button">Download readable rehearsal report</button>
+<p id="report-status" role="status" aria-atomic="true">The readable report contains your draft notes and rehearsal arithmetic. It is not a scientific report or an independent backup.</p>
+<details>
+<summary>Try a published-data example</summary>
+<p>Explore attributed published surface temperatures without entering JSON. This is a replay of published observations, not synthetic data or a new study. Staging leaves your current draft unchanged. Restoring the staged example retains and downloads your current draft first; any saved inquiry remains in Faraday.</p>
+<button id="published-example-stage" type="button" disabled>Stage published-data example</button>
+<p id="published-example-status" role="status" aria-atomic="true">Checking whether a local example is available…</p>
+</details>
+<label for="import-file">Recover a downloaded rehearsal draft (JSON, at most 1 MiB)</label>
+<input id="import-file" type="file" accept=".json,application/json" aria-describedby="import-help">
+<small id="import-help">Choose a file, then review the status before restoring it. Restoring retains and downloads your current draft first.
+Imported inquiry references are unverified and cannot create or amend an inquiry. Scientific review stays unresolved.</small>
+
+<p>The download is a draft, not a scientific report or replication package. Ask an adult before sharing it.
+Downloads and calculation do not grant scientific approval.</p>
+</section><section id="simulation-tools" aria-labelledby="simulation-tools-title"><h2 id="simulation-tools-title">Shade simulation checks and saved example records</h2><button id="simulation-verify" type="button" disabled>Verify retained result</button><button id="simulation-technical-download" type="button" disabled>Download reproducibility details</button><details><summary>Save a complete simulated study</summary>
+<p>This creates a separate local synthetic inquiry, pending-review hypothesis, frozen computational protocol, dataset, run and report through ResearchService. It does not alter your question above or create scientific evidence. Failed runs and partial attempts remain retained.</p>
+<button id="simulation-canonical" type="button" disabled>Run saved simulation journey</button>
+<button id="simulation-resume" type="button" disabled>Reopen saved simulation</button>
+<button id="simulation-export" type="button" disabled>Download saved simulation package</button>
+<button id="simulation-replay" type="button" disabled>Replay saved simulation</button>
+<details><summary>Back up or recover the saved study reference</summary>
+<p id="simulation-reference-help">This small file points to the study files retained in this workspace. It contains identifiers and expected hashes, not the study data or approval. Keep the exported package too. A reference cannot restore deleted artifacts. Loading one checks the existing local files before enabling export.</p>
+<button id="simulation-reference-download" type="button" disabled>Download recovery reference</button>
+<button id="simulation-reference-clear" type="button" disabled>Clear browser reference only</button>
+<label for="simulation-reference-file">Recover a saved simulation reference (JSON, at most 8 KiB)</label>
+<input id="simulation-reference-file" type="file" accept=".json,application/json" aria-describedby="simulation-reference-help">
+<button id="simulation-reference-apply" type="button" disabled>Keep current reference and verify selected study</button>
+<p id="simulation-reference-status" role="status" aria-atomic="true"></p>
+</details>
+<p id="simulation-replay-status" role="status" aria-atomic="true"></p>
+<p id="simulation-canonical-status" role="status" aria-atomic="true"></p>
+<details><summary>Saved study verification identifiers</summary><p id="simulation-saved-identifiers"></p></details>
+<div id="simulation-canonical-report" role="region" aria-label="Saved simulation report"></div>
+</details>
+<details><summary>Inspect simulation identifiers</summary><p id="simulation-identifiers"></p></details>
+<p>Simulation-only uncertainty describes the declared synthetic design. A numerical or integrity-check pass is not scientific evidence, instrument validity, review approval or publication permission. Earlier recipes and results are retained when you prepare another case.</p>
+</section></details>
+</main>
+<script nonce="__TOKEN__" src="/beginner.js"></script>
+</body>
+</html>
